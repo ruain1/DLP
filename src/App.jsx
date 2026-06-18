@@ -68,8 +68,8 @@ const css = `
   display:flex;flex-direction:column;gap:2px;transition:box-shadow .12s}
 .lk-ticket:hover{box-shadow:0 3px 10px rgba(0,0,0,.16)}.lk-ticket:active{cursor:grabbing}
 .lk-ticket.ro{cursor:default;border-style:dotted}
-.lk-ticket .desc{font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lk-ticket .meta{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
+.lk-ticket .desc{font-weight:600;line-height:1.4;padding-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-ticket .meta{font-size:10px;line-height:1.45;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
 .lk-ticket .dot{width:7px;height:7px;border-radius:50%;flex:none}
 .lk-ticket.constrained{border-left-style:dashed}
 .lk-ticket.complete{opacity:.5}.lk-ticket.complete .desc{text-decoration:line-through}
@@ -151,6 +151,7 @@ const parseD = (s) => { const [y, m, d] = s.split("-").map(Number); return new D
 const fmtISO = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 const addDays = (dt, n) => { const x = new Date(dt); x.setDate(x.getDate() + n); return x; };
 const mondayOf = (dt) => { const x = new Date(dt); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x; };
+const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const ft = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); const fd = (ft.getUTCDay() + 6) % 7; ft.setUTCDate(ft.getUTCDate() - fd + 3); return 1 + Math.round((t - ft) / 6048e5); };
 const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -317,7 +318,7 @@ export default function App({ session }) {
     const dim = makeReady && !spot;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, borderLeftColor: lv.color, paddingBottom: (a.actualStart ? 12 : undefined), background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
         draggable={editable} onDragStart={() => editable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <div className="desc">{a.desc || "Untitled activity"}</div>
         <div className="meta">
@@ -398,7 +399,7 @@ export default function App({ session }) {
           {grain === "day" ? <>
             <div style={{ borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />
             {Array.from({ length: WEEKS }, (_, w) => (
-              <div key={"w" + w} className="lk-wk" style={{ gridColumn: `${2 + w * 7} / span 7` }}>WK {w + 1}<span className="wc">w/c {fmtWC(addDays(anchor, w * 7))}</span></div>))}
+              <div key={"w" + w} className="lk-wk" style={{ gridColumn: `${2 + w * 7} / span 7` }}>WK {isoWeek(addDays(anchor, w * 7))}<span className="wc">w/c {fmtWC(addDays(anchor, w * 7))}</span></div>))}
             <div style={{ gridColumn: "1 / 2", gridRow: 2, borderRight: "1px solid var(--line)" }} />
             {days.map((d, i) => { const we = d.getDay() === 0 || d.getDay() === 6, tod = i === todayOffset;
               return <div key={i} className={"lk-day" + (we ? " we" : "") + (tod ? " tod" : "")} style={{ gridRow: 2 }}>
@@ -407,7 +408,7 @@ export default function App({ session }) {
             <div style={{ borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />
             {Array.from({ length: cols }, (_, i) => (
               <div key={i} className={"lk-day" + (i === todayUnit ? " tod" : "")} style={{ padding: "8px 0 9px", borderBottom: "1px solid var(--line)" }}>
-                <div className="wd">WK {i + 1}</div><div className="dn mono">w/c {fmtWC(unitDate(i))}</div></div>))}
+                <div className="wd">WK {isoWeek(unitDate(i))}</div><div className="dn mono">w/c {fmtWC(unitDate(i))}</div></div>))}
           </>}
         </div>
 
