@@ -530,7 +530,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   const addUser = async () => {
     if (!nu.email.trim()) { setUserMsg("Email required to invite a user."); return; }
     setUserMsg("Inviting…");
-    try { await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId });
+    try { await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId, redirect_to: window.location.origin });
       setUserMsg("Invite sent to " + nu.email.trim()); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
     catch (e) { setUserMsg("Failed: " + (e.message || e)); }
   };
@@ -604,9 +604,11 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
           })()}
           {tab === "users" && <>
             <div className="lk-list">{S.users.map((u) => <div key={u.id} className="lk-li">
-              <span className="g" style={{ flex: "0 0 auto", maxWidth: 120 }}>{u.name}{u.id === S.currentUserId ? " (you)" : ""}</span>
-              <select className="lk-select" style={{ width: 92, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
-              <select className="lk-select" style={{ flex: 1, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
+                style={{ flex: "1 1 96px", minWidth: 80, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
+              <select className="lk-select" style={{ width: 86, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
+              <select className="lk-select" style={{ flex: 1, minWidth: 70, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
               {u.id !== S.currentUserId && <button onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
             </div>)}</div>
             <div className="lk-f"><label>Invite user (email required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
