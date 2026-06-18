@@ -79,6 +79,7 @@ const css = `
 .lk-chip.commit{background:var(--chipbg);color:var(--accent)}
 .lk-chip.cstr{background:#FBEFD6;color:#9A6A00;display:inline-flex;align-items:center;gap:3px}
 .lk-chip.late{background:#F6D6D3;color:#9B1C16}
+.lk-chip.wit{background:#E7E0FB;color:#5B33C7}
 .lk-ms{pointer-events:auto;display:flex;align-items:center;gap:5px;cursor:grab;overflow:visible;align-self:center;z-index:2}
 .lk-ms .dia{width:12px;height:12px;transform:rotate(45deg);flex:none;border:1px solid rgba(0,0,0,.2)}
 .lk-ms .mslbl{font-size:10.5px;font-weight:600;white-space:nowrap;pointer-events:none}
@@ -278,13 +279,13 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", system: "", level: "L2",
-      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, actualStart: "", actualFinish: "", constraints: [] };
+      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, notes: "", actualStart: "", actualFinish: "", constraints: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Activity ID", "Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Milestone", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints"];
-    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; ")]);
+    const headers = ["Activity ID", "Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Milestone", "Witness invite", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
+    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -324,6 +325,7 @@ export default function App({ session }) {
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
           {a.committed && <span className="lk-chip commit">will</span>}
+          {a.witnessInvite && <span className="lk-chip wit" title="Witness invite">WIT</span>}
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && <span className="lk-chip late">+{a.delayDays}d</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? (a.area + (a.subArea ? SUBSEP + a.subArea : "") + (a.tier3 ? SUBSEP + a.tier3 : "")) : coName(a.companyId)}</span>
@@ -511,6 +513,7 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
             {a.constraints.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>No constraints. Reads as ready to run.</div>}
             {!dis && <div className="lk-add"><input className="lk-in" placeholder="Add a constraint…" value={cText} onChange={(e) => setCText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} /><button className="lk-btn" onClick={addC}><Icon n="plus" s={15} /></button></div>}</div>
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => set("committed", !a.committed)}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
+          <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => set("witnessInvite", !a.witnessInvite)}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
           <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => set("isMilestone", !a.isMilestone)}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond)</span></span><span className="lk-sw2" /></div>
           <div className="lk-f"><label>Status</label><div className="lk-status">{[["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]].map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={dis} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; })}>{l}</button>)}</div></div>
           <div className="lk-row">
@@ -518,6 +521,8 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
             <div className="lk-f"><label>Actual finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
           </div>
           {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "#0E9384" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
+          <div className="lk-f"><label>Notes / comment</label>
+            <textarea className="lk-in" value={a.notes || ""} disabled={dis} placeholder="Anything the team should know: access, sequencing, contacts, risks…" rows={3} style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }} onChange={(e) => set("notes", e.target.value)} /></div>
         </div>
         {canEdit && <div className="lk-df">
           {!isNew && <button className="lk-btn" onClick={() => onDelete(a)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>}
@@ -593,7 +598,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), tier3: idx(["tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), tier3: idx(["tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
@@ -613,7 +618,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
         let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
         const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
         const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        newActs.push({ id: uid("a"), desc, companyId, area, subArea, tier3, system, level, isMilestone: yes(g(ci.ms)), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
+        newActs.push({ id: uid("a"), desc, companyId, area, subArea, tier3, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
       }
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
       return { ...p, companies, areas, subAreas, tier3s, systems, activities };
