@@ -5,7 +5,7 @@ const fromActivity = (r) => ({
   id: r.id, desc: r.descr || "", companyId: r.company_id || "", area: r.area || "", system: r.system || "",
   level: r.level || "L2", isMilestone: !!r.is_milestone, start: r.start_date || "", duration: r.duration || 1,
   committed: !!r.committed, status: r.status || "planned", actualStart: r.actual_start || "", actualFinish: r.actual_finish || "",
-  subArea: r.sub_area || "",
+  subArea: r.sub_area || "", tier3: r.tier3 || "",
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
 });
 const toActivity = (a, session, isNew) => {
@@ -13,7 +13,7 @@ const toActivity = (a, session, isNew) => {
     id: a.id, descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, system: a.system || null,
     level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1,
     committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null,
-    sub_area: a.subArea || null,
+    sub_area: a.subArea || null, tier3: a.tier3 || null,
     constraints: a.constraints || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
   };
   if (isNew) row.created_by = session.user.id;
@@ -22,7 +22,7 @@ const toActivity = (a, session, isNew) => {
 
 // ---- load everything into the client state shape ----
 export async function loadAll(session) {
-  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas] = await Promise.all([
+  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").order("name"),
     supabase.from("systems").select("*").order("name"),
@@ -33,6 +33,7 @@ export async function loadAll(session) {
     supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500),
     supabase.from("branding").select("*").eq("id", 1).maybeSingle(),
     supabase.from("sub_areas").select("*").order("name"),
+    supabase.from("tier3_areas").select("*").order("name"),
   ]);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
@@ -47,6 +48,7 @@ export async function loadAll(session) {
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
     brand: brandFrom(branding.data),
     subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
+    tier3s: (tier3s.data || []).map((t) => ({ area: t.area, subArea: t.sub_area, name: t.name })),
   };
 }
 
@@ -115,6 +117,16 @@ export async function syncCollections(prev, next, session) {
     const rem = (prev.subAreas || []).filter((s) => !nset.has(k(s)));
     if (add.length) ops.push(supabase.from("sub_areas").upsert(add));
     rem.forEach((s) => ops.push(supabase.from("sub_areas").delete().match({ area: s.area, name: s.name })));
+  }
+  // tier 3 areas (keyed by area+sub+name)
+  if (next.tier3s !== prev.tier3s) {
+    const k = (t) => t.area + "\u0001" + t.subArea + "\u0001" + t.name;
+    const pset = new Set((prev.tier3s || []).map(k));
+    const nset = new Set((next.tier3s || []).map(k));
+    const add = (next.tier3s || []).filter((t) => !pset.has(k(t))).map((t) => ({ area: t.area, sub_area: t.subArea, name: t.name }));
+    const rem = (prev.tier3s || []).filter((t) => !nset.has(k(t)));
+    if (add.length) ops.push(supabase.from("tier3_areas").upsert(add));
+    rem.forEach((t) => ops.push(supabase.from("tier3_areas").delete().match({ area: t.area, sub_area: t.subArea, name: t.name })));
   }
   // settings (singleton)
   if (next.settings !== prev.settings) {
