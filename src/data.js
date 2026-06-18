@@ -129,7 +129,11 @@ export async function syncCollections(prev, next, session) {
 // ---- admin user management via the edge function ----
 export async function userOp(body) {
   const { data, error } = await supabase.functions.invoke("admin-users", { body });
-  if (error) throw error;
+  if (error) {
+    let msg = error.message || String(error);
+    try { if (error.context && typeof error.context.json === "function") { const b = await error.context.json(); if (b && b.error) msg = b.error; } } catch (e) {}
+    throw new Error(msg);
+  }
   if (data && data.error) throw new Error(data.error);
   return data;
 }

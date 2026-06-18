@@ -543,13 +543,15 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
   const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add sub-area", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
   const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)) }), { action: "Remove sub-area", detail: `${area} / ${name}` });
+  const [newCred, setNewCred] = useState(null);
   const addUser = async () => {
-    if (!nu.email.trim()) { setUserMsg("Email required to invite a user."); return; }
-    setUserMsg("Inviting…");
-    try { await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId, redirect_to: window.location.origin });
-      setUserMsg("Invite sent to " + nu.email.trim()); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
+    if (!nu.email.trim()) { setUserMsg("Email required."); return; }
+    setUserMsg("Creating account…"); setNewCred(null);
+    try { const res = await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId });
+      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, title: "Account created" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
     catch (e) { setUserMsg("Failed: " + (e.message || e)); }
   };
+  const resetPw = async (id, who) => { setUserMsg("Resetting password…"); setNewCred(null); try { const res = await userOp({ op: "resetpw", id }); setNewCred({ who, pw: res.tempPassword, title: "New password set" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
@@ -642,16 +644,25 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
                 onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
               <select className="lk-select" style={{ width: 86, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
               <select className="lk-select" style={{ flex: 1, minWidth: 70, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-              {u.id !== S.currentUserId && <button onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
+              <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
+              {u.id !== S.currentUserId && <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
             </div>)}</div>
-            <div className="lk-f"><label>Invite user (email required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
+            <div className="lk-f"><label>Add user (email required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
             <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
             <div className="lk-row">
               <select className="lk-select" value={nu.role} onChange={(e) => setNu({ ...nu, role: e.target.value })}><option value="member">Member</option><option value="admin">Admin</option></select>
               <select className="lk-select" value={nu.companyId} disabled={nu.role === "admin"} onChange={(e) => setNu({ ...nu, companyId: e.target.value })}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
             </div>
-            <button className="lk-btn primary" onClick={addUser}><Icon n="plus" s={15} />Invite user</button>
-            {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{userMsg}</div>}
+            <button className="lk-btn primary" onClick={addUser}><Icon n="plus" s={15} />Create user</button>
+            {newCred && <div style={{ marginTop: 8, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
+              <div style={{ fontWeight: 700, marginBottom: 5 }}>{newCred.title}. Share these with the person:</div>
+              <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{newCred.who}</span></div>
+              <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{newCred.pw}</span></div>
+              <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(`Site: ${window.location.origin}\nEmail: ${newCred.who}\nPassword: ${newCred.pw}`); setUserMsg("Copied to clipboard"); } catch (e) { setUserMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy login details</button>
+              <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setNewCred(null)}>Done</button>
+              <div style={{ marginTop: 7, color: "var(--muted)" }}>They can keep this password. To issue a new one later, use the ↻ button on their row. No email is sent.</div>
+            </div>}
+            {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{userMsg}</div>}
           </>}
           {tab === "branding" && <>
             <div className="lk-f"><label>Project name</label>
