@@ -277,14 +277,14 @@ export default function App({ session }) {
     dragId.current = null;
   };
   const newActivity = (lane, dayIdx) => {
-    const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", system: "", level: "L2",
+    const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", system: "", level: "L2",
       start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, actualStart: "", actualFinish: "", constraints: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Activity ID", "Description", "Company", "Area", "Sub-area", "System", "Level", "Milestone", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints"];
-    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.subArea || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; ")]);
+    const headers = ["Activity ID", "Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Milestone", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints"];
+    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; ")]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -326,7 +326,7 @@ export default function App({ session }) {
           {a.committed && <span className="lk-chip commit">will</span>}
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && <span className="lk-chip late">+{a.delayDays}d</span>}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? (a.area + (a.subArea ? SUBSEP + a.subArea : "")) : coName(a.companyId)}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? (a.area + (a.subArea ? SUBSEP + a.subArea : "") + (a.tier3 ? SUBSEP + a.tier3 : "")) : coName(a.companyId)}</span>
         </div>
       </div>);
   };
@@ -486,13 +486,17 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
                 {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}</div>
             <div className="lk-f"><label>Area</label>
-              <select className="lk-select" value={a.area} disabled={dis} onChange={(e) => { set("area", e.target.value); set("subArea", ""); }}>
+              <select className="lk-select" value={a.area} disabled={dis} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
                 <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select></div>
           </div>
           <div className="lk-f"><label>Sub-area (optional)</label>
-            <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => set("subArea", e.target.value)}>
+            <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}>
               <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select>
             {a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No sub-areas defined for {a.area}. Add them in Admin, Areas.</span>}</div>
+          <div className="lk-f"><label>Tier 3 Area (optional)</label>
+            <select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => set("tier3", e.target.value)}>
+              <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select>
+            {a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No Tier 3 Areas defined for {a.subArea}. Add them in Admin, Areas.</span>}</div>
           <div className="lk-f"><label>System</label>
             <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => set("system", e.target.value)}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select></div>
@@ -534,16 +538,19 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   const [userMsg, setUserMsg] = useState("");
   const [nu, setNu] = useState({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" });
   const [subInput, setSubInput] = useState({});
+  const [t3Input, setT3Input] = useState({});
   const addList = (key, label) => { if (!nv.trim()) return; update((p) => ({ ...p, [key]: key === "companies" ? [...p.companies, { id: uid("co"), name: nv.trim() }] : [...p[key], nv.trim()] }), { action: "Add " + label, detail: nv.trim() }); setNv(""); };
   const delList = (key, val, label) => update((p) => {
     const n = { ...p };
     if (key === "companies") n.companies = p.companies.filter((c) => c.id !== val);
     else n[key] = p[key].filter((x) => x !== val);
-    if (key === "areas") n.subAreas = (p.subAreas || []).filter((s) => s.area !== val);
+    if (key === "areas") { n.subAreas = (p.subAreas || []).filter((s) => s.area !== val); n.tier3s = (p.tier3s || []).filter((t) => t.area !== val); }
     return n;
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
   const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add sub-area", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
-  const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)) }), { action: "Remove sub-area", detail: `${area} / ${name}` });
+  const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)), tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === name)) }), { action: "Remove sub-area", detail: `${area} / ${name}` });
+  const addT3 = (area, subArea) => { const key = area + "\u0001" + subArea; const name = (t3Input[key] || "").trim(); if (!name) return; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area, subArea, name }].filter((t, i, arr) => arr.findIndex((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name) === i) }), { action: "Add Tier 3 Area", detail: `${area} / ${subArea} / ${name}` }); setT3Input({ ...t3Input, [key]: "" }); };
+  const delT3 = (area, subArea, name) => update((p) => ({ ...p, tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === subArea && t.name === name)) }), { action: "Remove Tier 3 Area", detail: `${area} / ${subArea} / ${name}` });
   const [newCred, setNewCred] = useState(null);
   const addUser = async () => {
     if (!nu.email.trim()) { setUserMsg("Email required."); return; }
@@ -554,7 +561,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   };
   const resetPw = async (id, who) => { setUserMsg("Resetting password…"); setNewCred(null); try { const res = await userOp({ op: "resetpw", id }); setNewCred({ who, pw: res.tempPassword, title: "New password set" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
-  const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
+  const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
   const importJSON = (obj) => {
@@ -563,6 +570,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
         if (obj.companies) n.companies = obj.companies;
         if (obj.areas) n.areas = obj.areas;
         if (obj.subAreas) n.subAreas = obj.subAreas;
+        if (obj.tier3s) n.tier3s = obj.tier3s;
         if (obj.systems) n.systems = obj.systems;
         if (obj.levels) n.levels = obj.levels;
         if (obj.settings) n.settings = { ...n.settings, ...obj.settings };
@@ -572,6 +580,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
         if (obj.companies) { const companies = [...n.companies]; obj.companies.forEach((c) => { const ex = companies.find((x) => x.name.toLowerCase() === (c.name || "").toLowerCase()); if (ex) map[c.id] = ex.id; else { const nid = uid("co"); companies.push({ id: nid, name: c.name }); map[c.id] = nid; } }); n.companies = companies; }
         if (obj.areas) n.areas = [...new Set([...n.areas, ...obj.areas])];
         if (obj.subAreas) { const cur = [...(n.subAreas || [])]; obj.subAreas.forEach((s) => { if (!cur.some((x) => x.area === s.area && x.name === s.name)) cur.push({ area: s.area, name: s.name }); }); n.subAreas = cur; }
+        if (obj.tier3s) { const cur = [...(n.tier3s || [])]; obj.tier3s.forEach((t) => { if (!cur.some((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name)) cur.push({ area: t.area, subArea: t.subArea, name: t.name }); }); n.tier3s = cur; }
         if (obj.systems) n.systems = [...new Set([...n.systems, ...obj.systems])];
         if (obj.activities) n.activities = [...n.activities, ...obj.activities.map((a) => ({ ...a, id: uid("a"), companyId: map[a.companyId] || a.companyId }))];
       }
@@ -584,28 +593,30 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), tier3: idx(["tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
       let systems = impMode === "override" ? [] : [...p.systems];
       let subAreas = impMode === "override" ? [] : [...(p.subAreas || [])];
+      let tier3s = impMode === "override" ? [] : [...(p.tier3s || [])];
       const findCo = (name) => { if (!name) return (companies[0] || {}).id || null; let c = companies.find((x) => x.name.toLowerCase() === name.toLowerCase()); if (!c) { c = { id: uid("co"), name }; companies.push(c); } return c.id; };
       const ensure = (arr, val) => { if (val && !arr.some((x) => x.toLowerCase() === val.toLowerCase())) arr.push(val); };
       const ensureSub = (area, name) => { if (area && name && !subAreas.some((s) => s.area === area && s.name.toLowerCase() === name.toLowerCase())) subAreas.push({ area, name }); };
+      const ensureT3 = (area, subArea, name) => { if (area && subArea && name && !tier3s.some((t) => t.area === area && t.subArea === subArea && t.name.toLowerCase() === name.toLowerCase())) tier3s.push({ area, subArea, name }); };
       const newActs = [];
       for (let r = 1; r < rows.length; r++) { const row = rows[r]; const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : "");
         const desc = g(ci.desc); if (!desc) continue;
-        const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const subArea = g(ci.subarea); ensureSub(area, subArea); const system = g(ci.system); ensure(systems, system);
+        const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const subArea = g(ci.subarea); ensureSub(area, subArea); const tier3 = g(ci.tier3); ensureT3(area, subArea, tier3); const system = g(ci.system); ensure(systems, system);
         let level = g(ci.level).toUpperCase(); if (!S.levels[level]) level = Object.keys(S.levels)[0] || "L2";
         const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
         let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
         const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
         const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        newActs.push({ id: uid("a"), desc, companyId, area, subArea, system, level, isMilestone: yes(g(ci.ms)), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
+        newActs.push({ id: uid("a"), desc, companyId, area, subArea, tier3, system, level, isMilestone: yes(g(ci.ms)), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
       }
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
-      return { ...p, companies, areas, subAreas, systems, activities };
+      return { ...p, companies, areas, subAreas, tier3s, systems, activities };
     }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
     setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
@@ -631,7 +642,13 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
               return <div key={area} style={{ borderBottom: "1px solid var(--line)", padding: "6px 0" }}>
                 <div className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontWeight: 600 }}>{area}</span><button onClick={() => delList("areas", area, "area")}><Icon n="trash" s={14} /></button></div>
                 <div style={{ paddingLeft: 14 }}>
-                  {subs.map((sn) => <div key={sn} className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontSize: 12, color: "var(--muted)" }}>↳ {sn}</span><button onClick={() => delSub(area, sn)}><Icon n="trash" s={13} /></button></div>)}
+                  {subs.map((sn) => { const t3 = (S.tier3s || []).filter((t) => t.area === area && t.subArea === sn).map((t) => t.name).sort(); const k = area + "\u0001" + sn; return <div key={sn} style={{ paddingBottom: 4 }}>
+                    <div className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontSize: 12, color: "var(--muted)" }}>↳ {sn}</span><button onClick={() => delSub(area, sn)}><Icon n="trash" s={13} /></button></div>
+                    <div style={{ paddingLeft: 16 }}>
+                      {t3.map((tn) => <div key={tn} className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontSize: 11.5, color: "var(--muted)" }}>↳↳ {tn}</span><button onClick={() => delT3(area, sn, tn)}><Icon n="trash" s={12} /></button></div>)}
+                      <div className="lk-add"><input className="lk-in" placeholder="Add Tier 3 Area…" value={t3Input[k] || ""} onChange={(e) => setT3Input({ ...t3Input, [k]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addT3(area, sn)} /><button className="lk-btn" onClick={() => addT3(area, sn)}><Icon n="plus" s={14} /></button></div>
+                    </div>
+                  </div>; })}
                   <div className="lk-add"><input className="lk-in" placeholder="Add sub-area…" value={subInput[area] || ""} onChange={(e) => setSubInput({ ...subInput, [area]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addSub(area)} /><button className="lk-btn" onClick={() => addSub(area)}><Icon n="plus" s={15} /></button></div>
                 </div>
               </div>;
@@ -711,7 +728,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
               <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
             <div className="lk-f"><label>Import file (.json project or .csv activities)</label>
               <input className="lk-in" type="file" accept=".json,.csv" onChange={handleImportFile} /></div>
-            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, areas, sub-areas, systems, levels, settings and activities. CSV imports activities and auto-creates any new company, area, sub-area or system it names, so a CSV alone can stand a project up. Add a "Sub-area" column to the CSV to populate it. Override replaces, Append merges.</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, areas, sub-areas, Tier 3 Areas, systems, levels, settings and activities. CSV imports activities and auto-creates any new company, area, sub-area, Tier 3 Area or system it names, so a CSV alone can stand a project up. Add "Sub-area" and "Tier 3 Area" columns to the CSV to populate them. Override replaces, Append merges.</div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
           {tab === "audit" && <>
