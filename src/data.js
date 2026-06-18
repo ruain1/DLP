@@ -5,6 +5,7 @@ const fromActivity = (r) => ({
   id: r.id, desc: r.descr || "", companyId: r.company_id || "", area: r.area || "", system: r.system || "",
   level: r.level || "L2", isMilestone: !!r.is_milestone, start: r.start_date || "", duration: r.duration || 1,
   committed: !!r.committed, status: r.status || "planned", actualStart: r.actual_start || "", actualFinish: r.actual_finish || "",
+  subArea: r.sub_area || "",
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
 });
 const toActivity = (a, session, isNew) => {
@@ -12,6 +13,7 @@ const toActivity = (a, session, isNew) => {
     id: a.id, descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, system: a.system || null,
     level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1,
     committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null,
+    sub_area: a.subArea || null,
     constraints: a.constraints || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
   };
   if (isNew) row.created_by = session.user.id;
@@ -20,7 +22,7 @@ const toActivity = (a, session, isNew) => {
 
 // ---- load everything into the client state shape ----
 export async function loadAll(session) {
-  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding] = await Promise.all([
+  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").order("name"),
     supabase.from("systems").select("*").order("name"),
@@ -30,6 +32,7 @@ export async function loadAll(session) {
     supabase.from("activities").select("*"),
     supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500),
     supabase.from("branding").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("sub_areas").select("*").order("name"),
   ]);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
@@ -43,6 +46,7 @@ export async function loadAll(session) {
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
     brand: brandFrom(branding.data),
+    subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
   };
 }
 
@@ -102,6 +106,16 @@ export async function syncCollections(prev, next, session) {
       .map(([k, v], i) => ({ key: k, name: v.name, color: v.color, sort: v.sort ?? i }));
     if (ups.length) ops.push(supabase.from("levels").upsert(ups));
   }
+  // sub-areas (keyed by area+name)
+  if (next.subAreas !== prev.subAreas) {
+    const k = (s) => s.area + "\u0001" + s.name;
+    const pset = new Set((prev.subAreas || []).map(k));
+    const nset = new Set((next.subAreas || []).map(k));
+    const add = (next.subAreas || []).filter((s) => !pset.has(k(s))).map((s) => ({ area: s.area, name: s.name }));
+    const rem = (prev.subAreas || []).filter((s) => !nset.has(k(s)));
+    if (add.length) ops.push(supabase.from("sub_areas").upsert(add));
+    rem.forEach((s) => ops.push(supabase.from("sub_areas").delete().match({ area: s.area, name: s.name })));
+  }
   // settings (singleton)
   if (next.settings !== prev.settings) {
     ops.push(supabase.from("settings").upsert({ id: 1, weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays }));
@@ -126,6 +140,12 @@ export async function fetchAudit() {
 }
 
 export async function signOut() { await supabase.auth.signOut(); }
+
+// Logged-in user changes their own password.
+export async function changePassword(password) {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+}
 
 // ---- branding ----
 // Read branding without a session (the login screen calls this).

@@ -156,6 +156,8 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCSV = (headers, rows) => [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\n");
 const downloadFile = (name, text) => { try { const url = URL.createObjectURL(new Blob([text], { type: "text/csv" })); const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) {} };
+const SUBSEP = " \u203A "; // area › sub-area, used as the lane key when grouping by sub-area
+const laneOfArea = (a) => a.area ? (a.subArea ? a.area + SUBSEP + a.subArea : a.area) : "Unassigned";
 
 function defaults() {
   const anchor = mondayOf(new Date());
@@ -249,10 +251,11 @@ export default function App({ session }) {
   const committedWk = visible.filter((a) => a.committed && a.startOff >= 0 && a.startOff < 7);
   const delayedList = inWindow.filter((a) => a.delayed);
 
-  const laneOf = (a) => S.laneBy === "level" ? a.level : S.laneBy === "area" ? (a.area || "Unassigned") : coName(a.companyId);
+  const laneOf = (a) => S.laneBy === "level" ? a.level : S.laneBy === "area" ? (a.area || "Unassigned") : S.laneBy === "subarea" ? laneOfArea(a) : coName(a.companyId);
   const lanesList = (() => {
     if (S.laneBy === "level") return Object.keys(LV);
     if (S.laneBy === "area") { const s = [...new Set(S.activities.map((a) => a.area).filter(Boolean))].sort(); return s.length ? s : ["Unassigned"]; }
+    if (S.laneBy === "subarea") { const s = [...new Set(S.activities.filter((a) => a.area).map(laneOfArea))].sort(); return s.length ? s : ["Unassigned"]; }
     return [...new Set(S.activities.map((a) => coName(a.companyId)))].sort();
   })();
 
@@ -267,20 +270,20 @@ export default function App({ session }) {
     update((p) => ({ ...p, activities: p.activities.map((x) => {
       if (x.id !== id) return x;
       const u = { ...x, start: fmtISO(addDays(anchor, dayIdx)) };
-      if (lane != null) { if (p.laneBy === "level") u.level = lane; else if (p.laneBy === "area") u.area = lane; else { const c = p.companies.find((c) => c.name === lane); if (isAdmin && c) u.companyId = c.id; } }
+      if (lane != null) { if (p.laneBy === "level") u.level = lane; else if (p.laneBy === "area") u.area = lane; else if (p.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); u.area = ar; u.subArea = sub || ""; } else { const c = p.companies.find((c) => c.name === lane); if (isAdmin && c) u.companyId = c.id; } }
       return u;
     }) }), { action: "Move activity", detail: `${a.desc} to ${fmtISO(addDays(anchor, dayIdx))}` });
     dragId.current = null;
   };
   const newActivity = (lane, dayIdx) => {
-    const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", system: "", level: "L2",
+    const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", system: "", level: "L2",
       start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, actualStart: "", actualFinish: "", constraints: [] };
-    if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
+    if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Activity ID", "Description", "Company", "Area", "System", "Level", "Milestone", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints"];
-    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.system, a.level, a.isMilestone ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; ")]);
+    const headers = ["Activity ID", "Description", "Company", "Area", "Sub-area", "System", "Level", "Milestone", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints"];
+    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.subArea || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; ")]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -322,7 +325,7 @@ export default function App({ session }) {
           {a.committed && <span className="lk-chip commit">will</span>}
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && <span className="lk-chip late">+{a.delayDays}d</span>}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? a.area : coName(a.companyId)}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? (a.area + (a.subArea ? SUBSEP + a.subArea : "")) : coName(a.companyId)}</span>
         </div>
       </div>);
   };
@@ -366,7 +369,7 @@ export default function App({ session }) {
             <button key={k} className={grain === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, grain: k }))}>{l}</button>))}
         </div>
         {S.view === "swimlane" && <div className="lk-seg">
-          {[["company", "Company"], ["area", "Area"], ["level", "Level"]].map(([k, l]) => (
+          {[["company", "Company"], ["area", "Area"], ["subarea", "Sub-area"], ["level", "Level"]].map(([k, l]) => (
             <button key={k} className={S.laneBy === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, laneBy: k }))}>{l}</button>))}
         </div>}
         <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
@@ -482,9 +485,13 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
                 {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}</div>
             <div className="lk-f"><label>Area</label>
-              <select className="lk-select" value={a.area} disabled={dis} onChange={(e) => set("area", e.target.value)}>
+              <select className="lk-select" value={a.area} disabled={dis} onChange={(e) => { set("area", e.target.value); set("subArea", ""); }}>
                 <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select></div>
           </div>
+          <div className="lk-f"><label>Sub-area (optional)</label>
+            <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => set("subArea", e.target.value)}>
+              <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select>
+            {a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No sub-areas defined for {a.area}. Add them in Admin, Areas.</span>}</div>
           <div className="lk-f"><label>System</label>
             <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => set("system", e.target.value)}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select></div>
@@ -525,8 +532,17 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
   const [nu, setNu] = useState({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" });
+  const [subInput, setSubInput] = useState({});
   const addList = (key, label) => { if (!nv.trim()) return; update((p) => ({ ...p, [key]: key === "companies" ? [...p.companies, { id: uid("co"), name: nv.trim() }] : [...p[key], nv.trim()] }), { action: "Add " + label, detail: nv.trim() }); setNv(""); };
-  const delList = (key, val, label) => update((p) => ({ ...p, [key]: key === "companies" ? p.companies.filter((c) => c.id !== val) : p[key].filter((x) => x !== val) }), { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
+  const delList = (key, val, label) => update((p) => {
+    const n = { ...p };
+    if (key === "companies") n.companies = p.companies.filter((c) => c.id !== val);
+    else n[key] = p[key].filter((x) => x !== val);
+    if (key === "areas") n.subAreas = (p.subAreas || []).filter((s) => s.area !== val);
+    return n;
+  }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
+  const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add sub-area", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
+  const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)) }), { action: "Remove sub-area", detail: `${area} / ${name}` });
   const addUser = async () => {
     if (!nu.email.trim()) { setUserMsg("Email required to invite a user."); return; }
     setUserMsg("Inviting…");
@@ -535,7 +551,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     catch (e) { setUserMsg("Failed: " + (e.message || e)); }
   };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
-  const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
+  const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
   const importJSON = (obj) => {
@@ -543,6 +559,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
       if (impMode === "override") {
         if (obj.companies) n.companies = obj.companies;
         if (obj.areas) n.areas = obj.areas;
+        if (obj.subAreas) n.subAreas = obj.subAreas;
         if (obj.systems) n.systems = obj.systems;
         if (obj.levels) n.levels = obj.levels;
         if (obj.settings) n.settings = { ...n.settings, ...obj.settings };
@@ -551,6 +568,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
         const map = {};
         if (obj.companies) { const companies = [...n.companies]; obj.companies.forEach((c) => { const ex = companies.find((x) => x.name.toLowerCase() === (c.name || "").toLowerCase()); if (ex) map[c.id] = ex.id; else { const nid = uid("co"); companies.push({ id: nid, name: c.name }); map[c.id] = nid; } }); n.companies = companies; }
         if (obj.areas) n.areas = [...new Set([...n.areas, ...obj.areas])];
+        if (obj.subAreas) { const cur = [...(n.subAreas || [])]; obj.subAreas.forEach((s) => { if (!cur.some((x) => x.area === s.area && x.name === s.name)) cur.push({ area: s.area, name: s.name }); }); n.subAreas = cur; }
         if (obj.systems) n.systems = [...new Set([...n.systems, ...obj.systems])];
         if (obj.activities) n.activities = [...n.activities, ...obj.activities.map((a) => ({ ...a, id: uid("a"), companyId: map[a.companyId] || a.companyId }))];
       }
@@ -563,26 +581,28 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["area", "location"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
       let systems = impMode === "override" ? [] : [...p.systems];
+      let subAreas = impMode === "override" ? [] : [...(p.subAreas || [])];
       const findCo = (name) => { if (!name) return (companies[0] || {}).id || null; let c = companies.find((x) => x.name.toLowerCase() === name.toLowerCase()); if (!c) { c = { id: uid("co"), name }; companies.push(c); } return c.id; };
       const ensure = (arr, val) => { if (val && !arr.some((x) => x.toLowerCase() === val.toLowerCase())) arr.push(val); };
+      const ensureSub = (area, name) => { if (area && name && !subAreas.some((s) => s.area === area && s.name.toLowerCase() === name.toLowerCase())) subAreas.push({ area, name }); };
       const newActs = [];
       for (let r = 1; r < rows.length; r++) { const row = rows[r]; const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : "");
         const desc = g(ci.desc); if (!desc) continue;
-        const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const system = g(ci.system); ensure(systems, system);
+        const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const subArea = g(ci.subarea); ensureSub(area, subArea); const system = g(ci.system); ensure(systems, system);
         let level = g(ci.level).toUpperCase(); if (!S.levels[level]) level = Object.keys(S.levels)[0] || "L2";
         const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
         let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
         const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
         const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        newActs.push({ id: uid("a"), desc, companyId, area, system, level, isMilestone: yes(g(ci.ms)), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
+        newActs.push({ id: uid("a"), desc, companyId, area, subArea, system, level, isMilestone: yes(g(ci.ms)), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
       }
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
-      return { ...p, companies, areas, systems, activities };
+      return { ...p, companies, areas, subAreas, systems, activities };
     }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
     setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
@@ -594,7 +614,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
         <div className="lk-dh"><h3>Admin</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-tabs">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
         <div className="lk-db">
-          {(tab === "companies" || tab === "areas" || tab === "systems") && (() => {
+          {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
             const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name]) : S[tab].map((x) => [x, x]);
             return <>
@@ -602,6 +622,19 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
               <div className="lk-add"><input className="lk-in" placeholder={`Add ${label}…`} value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList(tab, label)} /><button className="lk-btn primary" onClick={() => addList(tab, label)}><Icon n="plus" s={15} /></button></div>
             </>;
           })()}
+          {tab === "areas" && <>
+            <div className="lk-list">{S.areas.map((area) => {
+              const subs = (S.subAreas || []).filter((s) => s.area === area).map((s) => s.name).sort();
+              return <div key={area} style={{ borderBottom: "1px solid var(--line)", padding: "6px 0" }}>
+                <div className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontWeight: 600 }}>{area}</span><button onClick={() => delList("areas", area, "area")}><Icon n="trash" s={14} /></button></div>
+                <div style={{ paddingLeft: 14 }}>
+                  {subs.map((sn) => <div key={sn} className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontSize: 12, color: "var(--muted)" }}>↳ {sn}</span><button onClick={() => delSub(area, sn)}><Icon n="trash" s={13} /></button></div>)}
+                  <div className="lk-add"><input className="lk-in" placeholder="Add sub-area…" value={subInput[area] || ""} onChange={(e) => setSubInput({ ...subInput, [area]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addSub(area)} /><button className="lk-btn" onClick={() => addSub(area)}><Icon n="plus" s={15} /></button></div>
+                </div>
+              </div>;
+            })}</div>
+            <div className="lk-add"><input className="lk-in" placeholder="Add area…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
+          </>}
           {tab === "users" && <>
             <div className="lk-list">{S.users.map((u) => <div key={u.id} className="lk-li">
               <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
@@ -666,7 +699,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
               <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
             <div className="lk-f"><label>Import file (.json project or .csv activities)</label>
               <input className="lk-in" type="file" accept=".json,.csv" onChange={handleImportFile} /></div>
-            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, areas, systems, levels, settings and activities. CSV imports activities and auto-creates any new company, area or system it names, so a CSV alone can stand a project up. Override replaces, Append merges.</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, areas, sub-areas, systems, levels, settings and activities. CSV imports activities and auto-creates any new company, area, sub-area or system it names, so a CSV alone can stand a project up. Add a "Sub-area" column to the CSV to populate it. Override replaces, Append merges.</div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
           {tab === "audit" && <>
