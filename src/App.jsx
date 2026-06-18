@@ -62,14 +62,14 @@ const css = `
 .lk-cell{border-right:1px solid var(--line);cursor:cell}
 .lk-cell.we{background:var(--weekend)}.lk-cell.tod{background:var(--todcell);border-left:2px solid var(--accent)}
 .lk-cell:hover{background:var(--hover)}.lk-cell.nodrop{cursor:not-allowed}
-.lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;gap:5px;pointer-events:none}
+.lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;gap:6px;pointer-events:none}
 .lk-ticket{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:7px;
-  padding:5px 8px;font-size:11.5px;cursor:grab;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);min-width:0;
-  display:flex;flex-direction:column;gap:2px;transition:box-shadow .12s}
+  padding:6px 9px 10px;font-size:11.5px;cursor:grab;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);min-width:0;
+  display:flex;flex-direction:column;justify-content:flex-start;gap:3px;transition:box-shadow .12s}
 .lk-ticket:hover{box-shadow:0 3px 10px rgba(0,0,0,.16)}.lk-ticket:active{cursor:grabbing}
 .lk-ticket.ro{cursor:default;border-style:dotted}
-.lk-ticket .desc{font-weight:600;line-height:1.4;padding-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lk-ticket .meta{font-size:10px;line-height:1.45;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
+.lk-ticket .desc{flex:0 0 auto;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-ticket .meta{flex:0 0 auto;font-size:10px;line-height:1.3;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
 .lk-ticket .dot{width:7px;height:7px;border-radius:50%;flex:none}
 .lk-ticket.constrained{border-left-style:dashed}
 .lk-ticket.complete{opacity:.5}.lk-ticket.complete .desc{text-decoration:line-through}
@@ -318,7 +318,7 @@ export default function App({ session }) {
     const dim = makeReady && !spot;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, borderLeftColor: lv.color, paddingBottom: (a.actualStart ? 12 : undefined), background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
         draggable={editable} onDragStart={() => editable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <div className="desc">{a.desc || "Untitled activity"}</div>
         <div className="meta">
@@ -425,7 +425,7 @@ export default function App({ session }) {
                 <div>{S.laneBy === "level" ? `${lane} · ${lvOf(LV, lane).name}` : lane}<div className="cnt mono">{la.length} act</div></div></div>
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={lane} />
-                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${Math.max(1, rows.length)},36px)` }}>
+                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${Math.max(1, rows.length)},minmax(48px,auto))` }}>
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
                   {la.map((a) => <ActualBar key={"ab" + a.id} a={a} row={a._row} />)}
                 </div>
@@ -441,7 +441,7 @@ export default function App({ session }) {
                 <div style={{ minWidth: 0 }}><div className="nm">{a.desc || "Untitled"}</div><div className="cm">{coName(a.companyId)} · {a.level}</div></div></div>
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={null} />
-                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: "36px" }}>
+                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: "minmax(48px,auto)" }}>
                   <Ticket a={a} row={0} />
                   <ActualBar a={a} row={0} />
                 </div>
