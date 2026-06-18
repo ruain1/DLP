@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo } from "./data";
+import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab } from "./data";
 
 const KEY = "fin04_app_v3";
 const DAYMS = 86400000;
@@ -205,6 +205,7 @@ export default function App({ session }) {
   };
   useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const ch = subscribeAll(refresh); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
   const cu = S && (S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null });

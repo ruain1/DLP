@@ -53,6 +53,17 @@ const brandFrom = (d) => ({
   logoUrl: d?.logo_url ?? null,
 });
 
+// Set the browser tab title and favicon from branding.
+export function applyBrandToTab(brand) {
+  if (!brand) return;
+  document.title = `${brand.projectName || "FIN04"} ${brand.appName || "DLP"}`.trim();
+  if (brand.logoUrl) {
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+    link.href = brand.logoUrl;
+  }
+}
+
 // ---- diff one state object against the next and push only the changes ----
 export async function syncCollections(prev, next, session) {
   const ops = [];

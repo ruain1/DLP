@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
-import { fetchBranding } from "./data";
+import { fetchBranding, applyBrandToTab } from "./data";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -9,7 +9,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [brand, setBrand] = useState({ projectName: "FIN04", appName: "DLP", tagline: "Collaborative Digital Planning", logoUrl: null });
 
-  useEffect(() => { fetchBranding().then(setBrand).catch(() => {}); }, []);
+  useEffect(() => { fetchBranding().then((b) => { setBrand(b); applyBrandToTab(b); }).catch(() => {}); }, []);
 
   const signIn = async () => {
     setBusy(true); setMsg("");
@@ -39,7 +39,7 @@ export default function Login() {
           <div style={{ fontWeight: 700, fontSize: 21, letterSpacing: "-0.01em" }}>
             {brand.projectName} {brand.appName}
           </div>
-          <div style={{ fontSize: 12, color: "#6B7785", marginTop: 4 }}>{brand.tagline}</div>
+          <div style={{ fontSize: 11, color: "#6B7785", marginTop: 5, textTransform: "uppercase", letterSpacing: ".12em" }}>{brand.tagline}</div>
         </div>
         <div style={label}>Email</div>
         <input style={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && signIn()} />
