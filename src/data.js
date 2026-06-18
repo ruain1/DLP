@@ -20,7 +20,7 @@ const toActivity = (a, session, isNew) => {
 
 // ---- load everything into the client state shape ----
 export async function loadAll(session) {
-  const [companies, areas, systems, levels, settings, profiles, activities, audit] = await Promise.all([
+  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").order("name"),
     supabase.from("systems").select("*").order("name"),
@@ -29,6 +29,7 @@ export async function loadAll(session) {
     supabase.from("profiles").select("*").order("name"),
     supabase.from("activities").select("*"),
     supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500),
+    supabase.from("branding").select("*").eq("id", 1).maybeSingle(),
   ]);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
@@ -41,8 +42,16 @@ export async function loadAll(session) {
     users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id })),
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
+    brand: brandFrom(branding.data),
   };
 }
+
+const brandFrom = (d) => ({
+  projectName: d?.project_name ?? "FIN04",
+  appName: d?.app_name ?? "DLP",
+  tagline: d?.tagline ?? "Collaborative Digital Planning",
+  logoUrl: d?.logo_url ?? null,
+});
 
 // ---- diff one state object against the next and push only the changes ----
 export async function syncCollections(prev, next, session) {
@@ -106,6 +115,31 @@ export async function fetchAudit() {
 }
 
 export async function signOut() { await supabase.auth.signOut(); }
+
+// ---- branding ----
+// Read branding without a session (the login screen calls this).
+export async function fetchBranding() {
+  const { data } = await supabase.from("branding").select("*").eq("id", 1).maybeSingle();
+  return brandFrom(data);
+}
+
+// Admin: save name / tagline. patch keys are db column names.
+export async function updateBranding(patch) {
+  const { error } = await supabase.from("branding").upsert({ id: 1, ...patch });
+  if (error) throw error;
+}
+
+// Admin: upload a logo file, return its public URL, and store it.
+export async function uploadLogo(file) {
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const path = `logo-${Date.now()}.${ext}`;
+  const up = await supabase.storage.from("branding").upload(path, file, { upsert: true, cacheControl: "3600" });
+  if (up.error) throw up.error;
+  const { data } = supabase.storage.from("branding").getPublicUrl(path);
+  const url = data.publicUrl;
+  await updateBranding({ logo_url: url });
+  return url;
+}
 
 export function subscribeAll(onChange) {
   let t;

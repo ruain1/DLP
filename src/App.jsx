@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll } from "./data";
+import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo } from "./data";
 
 const KEY = "fin04_app_v3";
 const DAYMS = 86400000;
@@ -347,7 +347,10 @@ export default function App({ session }) {
   return (
     <div className="lk" style={cssVars(S.theme)}><style>{css}</style>
       <div className="lk-bar">
-        <div><div className="lk-title">FIN04 Lookahead</div><div className="lk-sub">{WEEKS}-week make-ready · day by day</div></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
+          <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
+        </div>
         <div className="lk-nav">
           <button className="lk-btn icon" onClick={() => setAnchor(addDays(anchor, -7))}><Icon n="cl" /></button>
           <button className="lk-btn" onClick={() => setAnchor(mondayOf(new Date()))}><Icon n="cal" s={14} />Today</button>
@@ -516,6 +519,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   const [tab, setTab] = useState("companies");
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
+  const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
@@ -582,7 +586,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
   const handleImportFile = (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const txt = String(reader.result); if (file.name.toLowerCase().endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt); } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); } }; reader.readAsText(file); e.target.value = ""; };
-  const tabs = [["companies", "Companies"], ["areas", "Areas"], ["systems", "Systems"], ["levels", "Levels"], ["users", "Users"], ["settings", "Settings"], ["data", "Import / Export"], ["audit", "Audit"]];
+  const tabs = [["companies", "Companies"], ["areas", "Areas"], ["systems", "Systems"], ["levels", "Levels"], ["branding", "Branding"], ["users", "Users"], ["settings", "Settings"], ["data", "Import / Export"], ["audit", "Audit"]];
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
@@ -612,6 +616,31 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
             </div>
             <button className="lk-btn primary" onClick={addUser}><Icon n="plus" s={15} />Invite user</button>
             {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{userMsg}</div>}
+          </>}
+          {tab === "branding" && <>
+            <div className="lk-f"><label>Project name</label>
+              <input className="lk-in" value={S.brand?.projectName || ""} placeholder="FIN04" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, projectName: e.target.value } }))} /></div>
+            <div className="lk-f"><label>App name</label>
+              <input className="lk-in" value={S.brand?.appName || ""} placeholder="DLP" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, appName: e.target.value } }))} /></div>
+            <div className="lk-f"><label>Tagline</label>
+              <input className="lk-in" value={S.brand?.tagline || ""} placeholder="Collaborative Digital Planning" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, tagline: e.target.value } }))} /></div>
+            <button className="lk-btn primary" onClick={async () => {
+              setBrandMsg("Saving…");
+              try { await updateBranding({ project_name: S.brand.projectName, app_name: S.brand.appName, tagline: S.brand.tagline }); setBrandMsg("Text saved"); }
+              catch (e) { setBrandMsg("Failed: " + (e.message || e)); }
+            }}><Icon n="check" s={15} />Save text</button>
+            <div className="lk-f" style={{ marginTop: 14 }}><label>Customer logo</label>
+              {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 44, maxWidth: 180, objectFit: "contain", margin: "4px 0 8px", display: "block" }} />}
+              <input className="lk-in" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={async (e) => {
+                const f = e.target.files && e.target.files[0]; if (!f) return;
+                setBrandMsg("Uploading logo…");
+                try { const url = await uploadLogo(f); update((p) => ({ ...p, brand: { ...p.brand, logoUrl: url } })); setBrandMsg("Logo updated"); }
+                catch (x) { setBrandMsg("Failed: " + (x.message || x)); }
+                e.target.value = "";
+              }} />
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4 }}>PNG, JPG, SVG or WebP. A wide transparent PNG looks best in the bar.</div>
+            </div>
+            {brandMsg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{brandMsg}</div>}
           </>}
           {tab === "settings" && <>
             <div className="lk-f"><label>Lookahead length</label>
