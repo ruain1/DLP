@@ -1,0 +1,117 @@
+import { supabase } from "./supabaseClient";
+
+// ---- field mapping (db row <-> client activity) ----
+const fromActivity = (r) => ({
+  id: r.id, desc: r.descr || "", companyId: r.company_id || "", area: r.area || "", system: r.system || "",
+  level: r.level || "L2", isMilestone: !!r.is_milestone, start: r.start_date || "", duration: r.duration || 1,
+  committed: !!r.committed, status: r.status || "planned", actualStart: r.actual_start || "", actualFinish: r.actual_finish || "",
+  constraints: Array.isArray(r.constraints) ? r.constraints : [],
+});
+const toActivity = (a, session, isNew) => {
+  const row = {
+    id: a.id, descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, system: a.system || null,
+    level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1,
+    committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null,
+    constraints: a.constraints || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
+  };
+  if (isNew) row.created_by = session.user.id;
+  return row;
+};
+
+// ---- load everything into the client state shape ----
+export async function loadAll(session) {
+  const [companies, areas, systems, levels, settings, profiles, activities, audit] = await Promise.all([
+    supabase.from("companies").select("*").order("name"),
+    supabase.from("areas").select("*").order("name"),
+    supabase.from("systems").select("*").order("name"),
+    supabase.from("levels").select("*").order("sort"),
+    supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("profiles").select("*").order("name"),
+    supabase.from("activities").select("*"),
+    supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500),
+  ]);
+  const levelsObj = {};
+  (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
+  return {
+    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name })),
+    areas: (areas.data || []).map((a) => a.name),
+    systems: (systems.data || []).map((s) => s.name),
+    levels: levelsObj,
+    settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7 },
+    users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id })),
+    activities: (activities.data || []).map(fromActivity),
+    audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
+  };
+}
+
+// ---- diff one state object against the next and push only the changes ----
+export async function syncCollections(prev, next, session) {
+  const ops = [];
+  // activities (keyed by id)
+  if (next.activities !== prev.activities) {
+    const pm = Object.fromEntries(prev.activities.map((a) => [a.id, a]));
+    const nm = Object.fromEntries(next.activities.map((a) => [a.id, a]));
+    const ups = [];
+    next.activities.forEach((a) => { if (!pm[a.id] || JSON.stringify(pm[a.id]) !== JSON.stringify(a)) ups.push(toActivity(a, session, !pm[a.id])); });
+    const del = prev.activities.filter((a) => !nm[a.id]).map((a) => a.id);
+    if (ups.length) ops.push(supabase.from("activities").upsert(ups));
+    if (del.length) ops.push(supabase.from("activities").delete().in("id", del));
+  }
+  // companies (keyed by id)
+  if (next.companies !== prev.companies) {
+    const nm = Object.fromEntries(next.companies.map((c) => [c.id, c]));
+    const pm = Object.fromEntries(prev.companies.map((c) => [c.id, c]));
+    const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name).map((c) => ({ id: c.id, name: c.name }));
+    const del = prev.companies.filter((c) => !nm[c.id]).map((c) => c.id);
+    if (ups.length) ops.push(supabase.from("companies").upsert(ups));
+    if (del.length) ops.push(supabase.from("companies").delete().in("id", del));
+  }
+  // areas / systems (string arrays keyed by name)
+  for (const key of ["areas", "systems"]) {
+    if (next[key] !== prev[key]) {
+      const add = next[key].filter((x) => !prev[key].includes(x)).map((name) => ({ name }));
+      const rem = prev[key].filter((x) => !next[key].includes(x));
+      if (add.length) ops.push(supabase.from(key).upsert(add));
+      if (rem.length) ops.push(supabase.from(key).delete().in("name", rem));
+    }
+  }
+  // levels (object keyed by L1..)
+  if (next.levels !== prev.levels) {
+    const ups = Object.entries(next.levels)
+      .filter(([k, v]) => !prev.levels[k] || prev.levels[k].name !== v.name || prev.levels[k].color !== v.color)
+      .map(([k, v], i) => ({ key: k, name: v.name, color: v.color, sort: v.sort ?? i }));
+    if (ups.length) ops.push(supabase.from("levels").upsert(ups));
+  }
+  // settings (singleton)
+  if (next.settings !== prev.settings) {
+    ops.push(supabase.from("settings").upsert({ id: 1, weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays }));
+  }
+  const results = await Promise.all(ops);
+  const err = results.find((r) => r && r.error);
+  if (err) console.error("Sync error:", err.error);
+  return err ? err.error : null;
+}
+
+// ---- admin user management via the edge function ----
+export async function userOp(body) {
+  const { data, error } = await supabase.functions.invoke("admin-users", { body });
+  if (error) throw error;
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function fetchAudit() {
+  const { data } = await supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500);
+  return (data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail }));
+}
+
+export async function signOut() { await supabase.auth.signOut(); }
+
+export function subscribeAll(onChange) {
+  let t;
+  const debounced = () => { clearTimeout(t); t = setTimeout(onChange, 250); };
+  return supabase
+    .channel("fin04-all")
+    .on("postgres_changes", { event: "*", schema: "public" }, debounced)
+    .subscribe();
+}
