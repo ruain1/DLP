@@ -255,6 +255,7 @@ const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMo
 const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
+const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const relTime = (iso) => { if (!iso) return ""; const d = new Date(iso); const s = Math.floor((Date.now() - d.getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const dd = Math.floor(h / 24); if (dd < 30) return dd + "d ago"; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); };
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCSV = (headers, rows) => "\uFEFF" + [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
@@ -421,14 +422,14 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
-      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", actualStart: "", actualFinish: "", constraints: [] };
+      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Code", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Predecessors", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Forecast start", "Forecast finish", "Knock-on (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
+    const headers = ["Code", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Predecessors", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Forecast start", "Forecast finish", "Knock-on (d)", "Status", "Committed", "Reason for non-completion", "Open constraints", "Constraints", "Notes"];
     const predCodes = (a) => (a.predecessors || []).map((pid) => { const p = S.activities.find((x) => x.id === pid); return p && p.code != null ? "#" + p.code : null; }).filter(Boolean).join("; ");
-    const rows = visible.map((a) => [a.code != null ? "#" + a.code : "", a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", predCodes(a), a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, fmtISO(addDays(anchor, a.projStartOff)), fmtISO(addDays(anchor, a.projEndOff)), a.knockOn || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
+    const rows = visible.map((a) => [a.code != null ? "#" + a.code : "", a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", predCodes(a), a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, fmtISO(addDays(anchor, a.projStartOff)), fmtISO(addDays(anchor, a.projEndOff)), a.knockOn || 0, a.status, a.committed ? "Yes" : "No", a.slipReason || "", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -782,6 +783,9 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
             <div className="lk-f"><label>Actual finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
           </div>
           {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "#0E9384" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
+          {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
+            <select className="lk-select" value={a.slipReason || ""} disabled={dis} onChange={(e) => set("slipReason", e.target.value)}>
+              <option value="">-- record why it slipped --</option>{SLIP_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>; })()}
           <div className="lk-f"><label>Notes / comment</label>
             <textarea className="lk-in" value={a.notes || ""} disabled={dis} placeholder="Anything the team should know: access, sequencing, contacts, risks…" rows={3} style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }} onChange={(e) => set("notes", e.target.value)} /></div>
         </div>
@@ -1433,10 +1437,12 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
   const acts = S.activities.filter((a) => (co === "all" || a.companyId === co) && (ar === "all" || a.area === ar) && (lv === "all" || a.level === lv));
+  const finishOf = (a) => addDays(parseD(a.start), (a.duration || 1) - 1);
+  const made = (a) => a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= finishOf(a));
   const openOf = (a) => (a.constraints || []).filter((c) => !c.done).length;
   const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps, (a.duration || 1) - 1); if (a.status === "complete" && a.actualFinish) return parseD(a.actualFinish) > pf; if (a.actualStart) return parseD(a.actualStart) > ps; return false; };
   const committed = acts.filter((a) => a.committed);
-  const ppc = committed.length ? Math.round(committed.filter((a) => a.status === "complete").length / committed.length * 100) : null;
+  const ppc = committed.length ? Math.round(committed.filter(made).length / committed.length * 100) : null;
   const complete = acts.filter((a) => a.status === "complete").length;
   const cards = [
     { v: acts.length, l: "Total activities" },
@@ -1454,7 +1460,6 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const maxCo = Math.max(1, ...byCompany.map((x) => x.n));
   const maxLv = Math.max(1, ...byLevel.map((x) => x.n));
   // weekly PPC trend, committed activities grouped by the week of their planned finish
-  const finishOf = (a) => addDays(parseD(a.start), (a.duration || 1) - 1);
   const withDates = acts.filter((a) => a.start);
   const points = [];
   if (withDates.length) {
@@ -1465,11 +1470,17 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
       const wk = new Date(cur);
       const due = withDates.filter((a) => mondayOf(finishOf(a)).getTime() === wk.getTime());
       const comm = due.filter((a) => a.committed);
-      points.push({ label: "W" + isoWeek(wk), value: comm.length ? Math.round(comm.filter((a) => a.status === "complete").length / comm.length * 100) : null });
+      points.push({ label: "W" + isoWeek(wk), value: comm.length ? Math.round(comm.filter(made).length / comm.length * 100) : null });
       cur = addDays(cur, 7); guard++;
     }
   }
   const hasTrend = points.some((p) => p.value != null);
+  // reasons for non-completion: committed activities, due to date, not made on time
+  const today0 = todayMid();
+  const misses = committed.filter((a) => a.start && !made(a) && finishOf(a).getTime() < today0);
+  const reasonTally = {}; misses.forEach((a) => { const r = a.slipReason || "Unattributed"; reasonTally[r] = (reasonTally[r] || 0) + 1; });
+  const reasonRows = Object.entries(reasonTally).map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
+  const maxR = Math.max(1, ...reasonRows.map((x) => x.n));
   return (
     <div className="lk-rep">
       <div className="sub" style={{ marginTop: 2 }}>Project health across the whole plan, not just the lookahead window. Filter, then export.</div>
@@ -1485,7 +1496,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         <div style={{ flex: 1, minWidth: 200 }}>
           <h3 style={{ marginBottom: 8 }}>Percent Plan Complete</h3>
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>
-            {committed.length ? <>Of <b style={{ color: "var(--ink)" }}>{committed.length}</b> committed activities, <b style={{ color: "#0E9384" }}>{committed.filter((a) => a.status === "complete").length}</b> are complete. PPC is the reliability of promises kept, the core Last Planner metric.</> : <>No activities are committed yet, so PPC cannot be calculated. Toggle "Committed for this week" on the promises your teams make, and this fills in.</>}
+            {committed.length ? <>Of <b style={{ color: "var(--ink)" }}>{committed.length}</b> committed activities, <b style={{ color: "#0E9384" }}>{committed.filter(made).length}</b> were completed on or before their promised finish. PPC is the reliability of promises kept, the core Last Planner metric.</> : <>No activities are committed yet, so PPC cannot be calculated. Toggle "Committed for this week" on the promises your teams make, and this fills in.</>}
           </div>
         </div>
       </div>
@@ -1493,6 +1504,11 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         {cards.map((c, i) => <div key={i} className="lk-rep-card"><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
       </div>
       <div className="lk-rep-sec"><h3>Weekly PPC trend</h3>{hasTrend ? <Trend points={points} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
+      <div className="lk-rep-sec"><h3>Reasons for non-completion</h3>
+        {misses.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No missed commitments to date. Every committed activity whose promised finish has passed was completed on time.</div>
+          : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#C0392B" }}>{misses.length}</b> committed activit{misses.length === 1 ? "y" : "ies"} due to date {misses.length === 1 ? "was" : "were"} not completed as promised{reasonTally["Unattributed"] ? <>, of which <b style={{ color: "var(--ink)" }}>{reasonTally["Unattributed"]}</b> {reasonTally["Unattributed"] === 1 ? "has" : "have"} no reason recorded</> : ""}. Recording the reason on each miss turns this into a Pareto of what is actually breaking the plan.</div>
+            {reasonRows.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxR} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} />)}</>}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
         <div className="lk-rep-sec"><h3>Status mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
         <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
