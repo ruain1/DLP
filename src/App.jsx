@@ -113,6 +113,12 @@ const css = `
 .lk-cstr{display:flex;align-items:center;gap:8px;font-size:12.5px}
 .lk-cstr input{width:16px;height:16px;accent-color:var(--accent)}.lk-cstr .t{flex:1}.lk-cstr .t.done{text-decoration:line-through;color:var(--muted)}
 .lk-cstr button{border:0;background:transparent;color:var(--muted);cursor:pointer}
+.lk-cstr2{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--line)}
+.lk-cstr2>input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);margin-top:3px;flex:0 0 auto}
+.lk-cstr2 .cmain{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
+.lk-cstr2 .cmain .t{font-weight:500}.lk-cstr2 .cmain .t.done{text-decoration:line-through;color:var(--muted)}
+.lk-cstr2 .crow{display:flex;gap:6px;flex-wrap:wrap}
+.lk-cstr2>button{border:0;background:transparent;color:var(--muted);cursor:pointer;margin-top:3px;flex:0 0 auto}
 .lk-add{display:flex;gap:6px}
 .lk-tog{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--card);font-size:13px;font-weight:600;cursor:pointer}
 .lk-tog.on{border-color:var(--accent)}
@@ -375,6 +381,7 @@ export default function App({ session }) {
   const urgentMR = needMR.filter((a) => a.startOff < mk);
   const committedWk = visible.filter((a) => a.committed && a.startOff >= 0 && a.startOff < 7);
   const delayedList = inWindow.filter((a) => a.delayed);
+  const atRiskList = inWindow.filter((a) => a.knockOn > 0 && a.status !== "complete" && !a.delayed);
   const ppcAll = (() => { const c = S.activities.filter((a) => a.committed); return c.length ? Math.round(c.filter((a) => a.status === "complete").length / c.length * 100) : null; })();
 
   const laneOf = (a) => S.laneBy === "level" ? a.level : S.laneBy === "area" ? (a.area || "Unassigned") : S.laneBy === "subarea" ? laneOfArea(a) : coName(a.companyId);
@@ -567,6 +574,7 @@ export default function App({ session }) {
         <div className="lk-metric"><span className="v mono" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
         <div className="lk-metric"><span className="v mono" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
         <div className="lk-metric"><span className="v mono" style={{ color: "#C0392B" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
+        <div className="lk-metric"><span className="v mono" style={{ color: "#E0A106" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
       </div>
 
       <div className="lk-board">
@@ -669,9 +677,12 @@ function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--i
 function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
   const [a, setA] = useState(act);
   const [cText, setCText] = useState("");
+  const [cOwner, setCOwner] = useState("");
+  const [cDue, setCDue] = useState("");
+  const setC = (id, k, v) => set("constraints", a.constraints.map((x) => x.id === id ? { ...x, [k]: v } : x));
   const set = (k, v) => canEdit && setA((p) => ({ ...p, [k]: v }));
   const isNew = !act.desc && act.constraints.length === 0;
-  const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false }]); setCText(""); };
+  const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), due: cDue }]); setCText(""); setCOwner(""); setCDue(""); };
   const dis = !canEdit;
   const hasLevels = !!a.area && (S.subAreas || []).some((s) => s.area === a.area);
   const hasZones = !!a.subArea && (S.tier3s || []).some((t) => t.area === a.area && t.subArea === a.subArea);
@@ -729,9 +740,25 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
             {!dis && predOptions.length > 0 && <div className="lk-add"><select className="lk-select" value="" onChange={(e) => { if (e.target.value) set("predecessors", [...(a.predecessors || []), e.target.value]); }}><option value="">Add a predecessor…</option>{predOptions.map((x) => <option key={x.id} value={x.id}>#{x.code ?? "?"} - {x.desc || "Untitled"}</option>)}</select></div>}
           </div>
           <div className="lk-f"><label>Constraints to clear (make-ready)</label>
-            {a.constraints.map((c) => <div key={c.id} className="lk-cstr"><input type="checkbox" checked={c.done} disabled={dis} onChange={() => set("constraints", a.constraints.map((x) => x.id === c.id ? { ...x, done: !x.done } : x))} /><span className={"t" + (c.done ? " done" : "")}>{c.text}</span>{!dis && <button onClick={() => set("constraints", a.constraints.filter((x) => x.id !== c.id))}><Icon n="trash" s={13} /></button>}</div>)}
+            {a.constraints.map((c) => <div key={c.id} className="lk-cstr2">
+              <input type="checkbox" checked={c.done} disabled={dis} onChange={() => setC(c.id, "done", !c.done)} />
+              <div className="cmain">
+                <span className={"t" + (c.done ? " done" : "")}>{c.text}</span>
+                {!dis && <div className="crow">
+                  <input className="lk-in" style={{ fontSize: 11.5, padding: "4px 7px" }} placeholder="Owner" value={c.owner || ""} onChange={(e) => setC(c.id, "owner", e.target.value)} />
+                  <input className="lk-in mono" style={{ fontSize: 11.5, padding: "4px 7px", maxWidth: 150 }} type="date" title="Need-by date" value={c.due || ""} onChange={(e) => setC(c.id, "due", e.target.value)} />
+                </div>}
+                {dis && (c.owner || c.due) && <div className="crow" style={{ fontSize: 11, color: "var(--muted)" }}>{c.owner ? "Owner: " + c.owner : ""}{c.owner && c.due ? " \u00b7 " : ""}{c.due ? "need-by " + c.due : ""}</div>}
+              </div>
+              {!dis && <button onClick={() => set("constraints", a.constraints.filter((x) => x.id !== c.id))}><Icon n="trash" s={13} /></button>}
+            </div>)}
             {a.constraints.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>No constraints. Reads as ready to run.</div>}
-            {!dis && <div className="lk-add"><input className="lk-in" placeholder="Add a constraint…" value={cText} onChange={(e) => setCText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} /><button className="lk-btn" onClick={addC}><Icon n="plus" s={15} /></button></div>}</div>
+            {!dis && <div className="lk-add" style={{ flexWrap: "wrap" }}>
+              <input className="lk-in" style={{ flex: "1 1 100%" }} placeholder="Add a constraint…" value={cText} onChange={(e) => setCText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} />
+              <input className="lk-in" style={{ flex: 1, minWidth: 100 }} placeholder="Owner (optional)" value={cOwner} onChange={(e) => setCOwner(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} />
+              <input className="lk-in mono" style={{ maxWidth: 150 }} type="date" title="Need-by date (optional)" value={cDue} onChange={(e) => setCDue(e.target.value)} />
+              <button className="lk-btn" onClick={addC}><Icon n="plus" s={15} /></button>
+            </div>}</div>
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => set("committed", !a.committed)}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
           <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => set("witnessInvite", !a.witnessInvite)}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
@@ -1144,7 +1171,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   });
   rows.sort((x, y) => (x.a.start || "").localeCompare(y.a.start || ""));
   const totalOpen = S.activities.reduce((n, a) => n + (a.constraints || []).filter((c) => !c.done).length, 0);
-  const exportCsv = () => { const headers = ["Activity", "Company", "Location code", "Building", "Level", "Zone / Room", "Cx Stage", "Planned start", "Constraint", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join("."), a.area, a.subArea || "", a.tier3 || "", a.level, a.start, c.text, c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
+  const exportCsv = () => { const headers = ["Activity", "Company", "Location code", "Building", "Level", "Zone / Room", "Cx Stage", "Planned start", "Constraint", "Owner", "Need-by", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join("."), a.area, a.subArea || "", a.tier3 || "", a.level, a.start, c.text, c.owner || "", c.due || "", c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
   return (
     <div className="lk-rep">
       <div className="sub" style={{ marginTop: 2 }}>Every make-ready constraint across the project. Tick one to clear it; the board updates straight away.</div>
@@ -1156,9 +1183,9 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
         <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
       </div>
       <div className="lk-rep-sec" style={{ padding: 0, overflow: "auto" }}>
-        <table className="lk-tbl"><thead><tr><th style={{ width: 34 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th>Start</th><th>Constraint</th></tr></thead>
+        <table className="lk-tbl"><thead><tr><th style={{ width: 34 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th>Start</th><th>Constraint</th><th>Owner</th><th>Need-by</th></tr></thead>
           <tbody>
-            {rows.map(({ a, c }) => <tr key={a.id + c.id}>
+            {rows.map(({ a, c }) => { const overdue = c.due && !c.done && c.due < fmtISO(new Date()); return <tr key={a.id + c.id}>
               <td><input type="checkbox" checked={c.done} disabled={!canEdit(a)} onChange={() => toggle(a.id, c.id)} /></td>
               <td><span className="lnk" onClick={() => onOpen(a)}>{a.desc || "Untitled"}</span></td>
               <td>{coName(a.companyId)}</td>
@@ -1166,8 +1193,10 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
               <td>{a.level}</td>
               <td className="mono">{a.start}</td>
               <td className={c.done ? "lk-cdone" : ""}>{c.text}</td>
-            </tr>)}
-            {rows.length === 0 && <tr><td colSpan={7} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
+              <td>{c.owner || ""}</td>
+              <td className="mono" style={{ color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{c.due || ""}</td>
+            </tr>; })}
+            {rows.length === 0 && <tr><td colSpan={9} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
           </tbody></table>
       </div>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>{rows.length} shown · {totalOpen} open across the whole project</div>
