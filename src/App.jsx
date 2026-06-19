@@ -284,6 +284,7 @@ export default function App({ session }) {
   const urgentMR = needMR.filter((a) => a.startOff < mk);
   const committedWk = visible.filter((a) => a.committed && a.startOff >= 0 && a.startOff < 7);
   const delayedList = inWindow.filter((a) => a.delayed);
+  const ppcAll = (() => { const c = S.activities.filter((a) => a.committed); return c.length ? Math.round(c.filter((a) => a.status === "complete").length / c.length * 100) : null; })();
 
   const laneOf = (a) => S.laneBy === "level" ? a.level : S.laneBy === "area" ? (a.area || "Unassigned") : S.laneBy === "subarea" ? laneOfArea(a) : coName(a.companyId);
   const lanesList = (() => {
@@ -323,11 +324,23 @@ export default function App({ session }) {
   };
   const fmtWitnessAt = (s) => { if (!s) return ""; const d = new Date(s); if (isNaN(d)) return s; return d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
   const exportWitness = () => {
-    const wit = visible.filter((a) => a.witnessInvite).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
-    const headers = ["Witness date & time", "Activity", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Status", "Notes"];
-    const rows = wit.map((a) => [fmtWitnessAt(a.witnessAt), a.desc, coName(a.companyId), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.start, a.status, a.notes || ""]);
-    downloadFile(`FIN04-witness-schedule-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
-    update((p) => p, { action: "Export witness schedule", detail: `${rows.length} activities` });
+    const pad = (n) => String(n).padStart(2, "0");
+    const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const WIT_MINUTES = 60;
+    const wit = visible.filter((a) => a.witnessInvite && a.witnessAt).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
+    const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Start ISO", "End ISO", "Company", "Level", "System", "Activity ID"];
+    const rows = wit.map((a) => {
+      const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + WIT_MINUTES * 60000);
+      const loc = [a.area, a.subArea, a.tier3].filter(Boolean).join(" \u203A ");
+      const subject = `Witness: ${a.desc || "Activity"}${loc ? " — " + loc : ""}`;
+      const open = (a.constraints || []).filter((c) => !c.done).length;
+      const body = `${a.desc || ""}. Commissioning ${a.level} on ${a.system || "system"}. Performing: ${coName(a.companyId)}. Planned start ${a.start}.${a.notes ? " Notes: " + a.notes : ""}${open ? ` (${open} open constraint${open === 1 ? "" : "s"})` : ""}`;
+      const dmy = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+      const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      return [subject, dmy(sd), hm(sd), dmy(ed), hm(ed), "False", loc, body, localISO(sd), localISO(ed), coName(a.companyId), a.level, a.system || "", a.id];
+    });
+    downloadFile(`FIN04-witness-invites-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
+    update((p) => p, { action: "Export witness invites", detail: `${rows.length} activities` });
   };
 
   const grain = S.grain || "day";
@@ -398,6 +411,10 @@ export default function App({ session }) {
         <button title="Planning board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /></button>
         <button title="Constraints log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /></button>
         <button title="Reports & metrics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /></button>
+        <div style={{ marginTop: "auto", textAlign: "center", color: "#9aa7b8" }}>
+          <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
+        </div>
       </nav>
       <div className="lk-page">
       {page === "board" && <>
@@ -509,6 +526,20 @@ export default function App({ session }) {
         <span className="it"><span className="lk-chip late">+d</span>delayed</span>
       </div>
       </>}
+      {page !== "board" && <div className="lk-bar">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
+          <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "constraints" ? "Constraints log" : "Reports & metrics"}</div>
+        <div className="lk-spacer" />
+        <div className="lk-who">
+          <span style={{ fontWeight: 600 }}>{cu.name}</span>
+          <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
+          <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
+        </div>
+        {isAdmin && <button className="lk-btn" onClick={() => setAdmin(true)}><Icon n="shield" s={14} />Admin</button>}
+      </div>}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
       </div>
@@ -863,8 +894,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const exportCsv = () => { const headers = ["Activity", "Company", "Area", "Sub-area", "Level", "Planned start", "Constraint", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), a.area, a.subArea || "", a.level, a.start, c.text, c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
   return (
     <div className="lk-rep">
-      <h2>Constraints log</h2>
-      <div className="sub">Every make-ready constraint across the project. Tick one to clear it; the board updates straight away.</div>
+      <div className="sub" style={{ marginTop: 2 }}>Every make-ready constraint across the project. Tick one to clear it; the board updates straight away.</div>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Area</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All areas</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
@@ -891,6 +921,46 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
     </div>);
 }
 
+function Gauge({ value, size = 150, label = "PPC" }) {
+  const r = size / 2 - 14, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
+  const frac = value == null ? 0 : Math.max(0, Math.min(1, value / 100));
+  const col = value == null ? "var(--muted)" : value >= 80 ? "#0E9384" : value >= 50 ? "#D97706" : "#C0392B";
+  return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--hover)" strokeWidth="14" />
+    <circle cx={cx} cy={cy} r={r} fill="none" stroke={col} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${C * frac} ${C}`} transform={`rotate(-90 ${cx} ${cy})`} />
+    <text x={cx} y={cy + 4} textAnchor="middle" fontSize={size * 0.27} fontWeight="700" fill="var(--ink)" fontFamily="inherit">{value == null ? "\u2014" : value + "%"}</text>
+    <text x={cx} y={cy + size * 0.19} textAnchor="middle" fontSize="11" fill="var(--muted)" fontFamily="inherit" style={{ letterSpacing: "0.12em" }}>{label}</text>
+  </svg>;
+}
+function Donut({ data, size = 150 }) {
+  const total = data.reduce((s, d) => s + d.n, 0);
+  const r = size / 2 - 14, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r; let off = 0;
+  return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--hover)" strokeWidth="14" />
+    {total > 0 && data.filter((d) => d.n > 0).map((d, i) => { const frac = d.n / total; const el = <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth="14" strokeDasharray={`${C * frac} ${C}`} strokeDashoffset={-C * off} transform={`rotate(-90 ${cx} ${cy})`} />; off += frac; return el; })}
+    <text x={cx} y={cy} textAnchor="middle" fontSize={size * 0.27} fontWeight="700" fill="var(--ink)" fontFamily="inherit">{total}</text>
+    <text x={cx} y={cy + size * 0.16} textAnchor="middle" fontSize="10.5" fill="var(--muted)" fontFamily="inherit">activities</text>
+  </svg>;
+}
+function Trend({ points, h = 168 }) {
+  const w = Math.max(440, points.length * 60);
+  const padL = 26, padR = 14, padT = 14, padB = 24, iw = w - padL - padR, ih = h - padT - padB;
+  const xs = (i) => padL + (points.length <= 1 ? iw / 2 : (i / (points.length - 1)) * iw);
+  const ys = (v) => padT + ih - (v / 100) * ih;
+  const valid = points.map((p, i) => ({ ...p, i })).filter((p) => p.value != null);
+  const line = valid.map((p, k) => `${k === 0 ? "M" : "L"}${xs(p.i)},${ys(p.value)}`).join(" ");
+  const area = valid.length ? `${line} L${xs(valid[valid.length - 1].i)},${padT + ih} L${xs(valid[0].i)},${padT + ih} Z` : "";
+  return <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ height: "auto", display: "block" }}>
+    <defs><linearGradient id="ppcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" /><stop offset="100%" stopColor="var(--accent)" stopOpacity="0" /></linearGradient></defs>
+    {[0, 25, 50, 75, 100].map((g) => <g key={g}><line x1={padL} y1={ys(g)} x2={w - padR} y2={ys(g)} stroke="var(--line)" strokeWidth="1" /><text x={2} y={ys(g) + 3} fontSize="9" fill="var(--muted)" fontFamily="inherit">{g}</text></g>)}
+    {area && <path d={area} fill="url(#ppcg)" />}
+    {line && <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+    {valid.map((p) => <circle key={p.i} cx={xs(p.i)} cy={ys(p.value)} r="3.5" fill="var(--accent)" />)}
+    {points.map((p, i) => <text key={i} x={xs(i)} y={h - 7} textAnchor="middle" fontSize="9" fill="var(--muted)" fontFamily="inherit">{p.label}</text>)}
+  </svg>;
+}
+const RepBar = ({ label, n, max, color }) => <div className="lk-bar-row"><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span><div className="lk-bar-track"><div className="lk-bar-fill" style={{ width: `${Math.round((n / max) * 100)}%`, background: color || "var(--accent)" }} /></div><span className="n">{n}</span></div>;
+
 function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
@@ -900,11 +970,11 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps, (a.duration || 1) - 1); if (a.status === "complete" && a.actualFinish) return parseD(a.actualFinish) > pf; if (a.actualStart) return parseD(a.actualStart) > ps; return false; };
   const committed = acts.filter((a) => a.committed);
   const ppc = committed.length ? Math.round(committed.filter((a) => a.status === "complete").length / committed.length * 100) : null;
+  const complete = acts.filter((a) => a.status === "complete").length;
   const cards = [
-    { v: ppc == null ? "\u2014" : ppc + "%", l: "PPC (committed done)", c: "var(--accent)" },
     { v: acts.length, l: "Total activities" },
     { v: committed.length, l: "Committed" },
-    { v: acts.filter((a) => a.status === "complete").length, l: "Complete", c: "#0E9384" },
+    { v: complete, l: "Complete", c: "#0E9384" },
     { v: acts.filter((a) => a.status === "in_progress").length, l: "In progress" },
     { v: acts.filter((a) => openOf(a) === 0 && a.status !== "complete").length, l: "Ready to run", c: "#0E9384" },
     { v: acts.filter((a) => openOf(a) > 0 && a.status !== "complete").length, l: "Need make-ready", c: "#D97706" },
@@ -913,27 +983,53 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   ];
   const byCompany = S.companies.map((c) => ({ name: c.name, n: acts.filter((a) => a.companyId === c.id).length, open: acts.filter((a) => a.companyId === c.id).reduce((s, a) => s + openOf(a), 0) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
   const byLevel = Object.keys(LV).map((k) => ({ name: `${k} ${LV[k].name}`, color: LV[k].color, n: acts.filter((a) => a.level === k).length })).filter((x) => x.n > 0);
-  const byStatus = [["planned", "Planned", "#64748B"], ["in_progress", "In progress", "#2563EB"], ["complete", "Complete", "#0E9384"]].map(([k, l, col]) => ({ name: l, color: col, n: acts.filter((a) => a.status === k).length }));
+  const statusData = [{ k: "planned", name: "Planned", color: "#94A3B8" }, { k: "in_progress", name: "In progress", color: "#2563EB" }, { k: "complete", name: "Complete", color: "#0E9384" }].map((s) => ({ ...s, n: acts.filter((a) => a.status === s.k).length }));
   const maxCo = Math.max(1, ...byCompany.map((x) => x.n));
   const maxLv = Math.max(1, ...byLevel.map((x) => x.n));
-  const maxSt = Math.max(1, ...byStatus.map((x) => x.n));
-  const Bar = ({ label, n, max, color }) => <div className="lk-bar-row"><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span><div className="lk-bar-track"><div className="lk-bar-fill" style={{ width: `${Math.round((n / max) * 100)}%`, background: color || "var(--accent)" }} /></div><span className="n">{n}</span></div>;
+  // weekly PPC trend, committed activities grouped by the week of their planned finish
+  const finishOf = (a) => addDays(parseD(a.start), (a.duration || 1) - 1);
+  const withDates = acts.filter((a) => a.start);
+  const points = [];
+  if (withDates.length) {
+    let cur = mondayOf(new Date(Math.min(...withDates.map((a) => parseD(a.start).getTime()))));
+    const end = mondayOf(new Date(Math.max(...withDates.map((a) => finishOf(a).getTime()))));
+    let guard = 0;
+    while (cur.getTime() <= end.getTime() && guard < 60) {
+      const wk = new Date(cur);
+      const due = withDates.filter((a) => mondayOf(finishOf(a)).getTime() === wk.getTime());
+      const comm = due.filter((a) => a.committed);
+      points.push({ label: "W" + isoWeek(wk), value: comm.length ? Math.round(comm.filter((a) => a.status === "complete").length / comm.length * 100) : null });
+      cur = addDays(cur, 7); guard++;
+    }
+  }
+  const hasTrend = points.some((p) => p.value != null);
   return (
     <div className="lk-rep">
-      <h2>Reports &amp; metrics</h2>
-      <div className="sub">Project health across the whole plan, not just the lookahead window. Filter, then export.</div>
+      <div className="sub" style={{ marginTop: 2 }}>Project health across the whole plan, not just the lookahead window. Filter, then export.</div>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Area</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All areas</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 130 }}><label>Level</label><select className="lk-select" value={lv} onChange={(e) => setLv(e.target.value)}><option value="all">All levels</option>{Object.keys(LV).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
-        <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness schedule</button>
+        <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
+      </div>
+      <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
+        <Gauge value={ppc} />
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <h3 style={{ marginBottom: 8 }}>Percent Plan Complete</h3>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>
+            {committed.length ? <>Of <b style={{ color: "var(--ink)" }}>{committed.length}</b> committed activities, <b style={{ color: "#0E9384" }}>{committed.filter((a) => a.status === "complete").length}</b> are complete. PPC is the reliability of promises kept, the core Last Planner metric.</> : <>No activities are committed yet, so PPC cannot be calculated. Toggle "Committed for this week" on the promises your teams make, and this fills in.</>}
+          </div>
+        </div>
       </div>
       <div className="lk-rep-cards">
         {cards.map((c, i) => <div key={i} className="lk-rep-card"><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
       </div>
-      <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <Bar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
-      <div className="lk-rep-sec"><h3>By commissioning level</h3>{byLevel.map((x) => <Bar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
-      <div className="lk-rep-sec"><h3>By status</h3>{byStatus.map((x) => <Bar key={x.name} label={x.name} n={x.n} max={maxSt} color={x.color} />)}</div>
+      <div className="lk-rep-sec"><h3>Weekly PPC trend</h3>{hasTrend ? <Trend points={points} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
+        <div className="lk-rep-sec"><h3>Status mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
+        <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
+      </div>
+      <div className="lk-rep-sec"><h3>By commissioning level</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
     </div>);
 }
