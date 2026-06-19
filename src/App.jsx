@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab } from "./data";
+import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
 const DAYMS = 86400000;
@@ -293,6 +294,7 @@ export default function App({ session }) {
   }), [S, anchor, DAYS]);
 
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
+  if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
   const LV = S.levels || DEFAULT_LEVELS;
 
   const isAdmin = cu.role === "admin";
@@ -690,11 +692,12 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   const addUser = async () => {
     if (!nu.email.trim()) { setUserMsg("Email required."); return; }
     setUserMsg("Creating account…"); setNewCred(null);
-    try { const res = await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId });
-      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, title: "Account created" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
+    try { const res = await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId, redirect: window.location.origin });
+      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, link: res.link, title: "Account created" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
     catch (e) { setUserMsg("Failed: " + (e.message || e)); }
   };
   const resetPw = async (id, who) => { setUserMsg("Resetting password…"); setNewCred(null); try { const res = await userOp({ op: "resetpw", id }); setNewCred({ who, pw: res.tempPassword, title: "New password set" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
+  const sendLink = async (id, who) => { setUserMsg("Generating link…"); setNewCred(null); try { const res = await userOp({ op: "link", id, redirect: window.location.origin }); setNewCred({ who, link: res.link, title: "Set-password link" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const [bulkText, setBulkText] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResults, setBulkResults] = useState(null);
@@ -710,13 +713,13 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
       const coName = parts[3] || ""; const co = S.companies.find((c) => c.name.toLowerCase() === coName.toLowerCase());
       const company_id = role === "admin" ? null : (co ? co.id : null);
       if (!email || !/.+@.+\..+/.test(email)) { out.push({ email: email || "(blank)", name, status: "Skipped: invalid email" }); setBulkResults([...out]); continue; }
-      try { const res = await userOp({ op: "invite", email, name, role, company_id }); out.push({ email, name, role, company: co ? co.name : "", pw: res.tempPassword, status: "Created" }); }
+      try { const res = await userOp({ op: "invite", email, name, role, company_id, redirect: window.location.origin }); out.push({ email, name, role, company: co ? co.name : "", pw: res.tempPassword, link: res.link || "", status: "Created" + (res.link ? "" : " (link unavailable, use password)") }); }
       catch (e) { out.push({ email, name, status: "Failed: " + (e.message || e) }); }
       setBulkResults([...out]);
     }
     setBulkBusy(false);
   };
-  const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.pw || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Temporary password", "Role", "Company", "Status"], rows)); };
+  const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.pw || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Set password link", "Temporary password", "Role", "Company", "Status"], rows)); };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
@@ -821,6 +824,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
                 onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
               <select className="lk-select" style={{ width: 86, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
               <select className="lk-select" style={{ flex: 1, minWidth: 70, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
               <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
               {u.id !== S.currentUserId && <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
             </div>)}</div>
@@ -832,23 +836,24 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
             </div>
             <button className="lk-btn primary" onClick={addUser}><Icon n="plus" s={15} />Create user</button>
             {newCred && <div style={{ marginTop: 8, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
-              <div style={{ fontWeight: 700, marginBottom: 5 }}>{newCred.title}. Share these with the person:</div>
+              <div style={{ fontWeight: 700, marginBottom: 5 }}>{newCred.title}. Share with the person:</div>
               <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{newCred.who}</span></div>
-              <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{newCred.pw}</span></div>
-              <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(`Site: ${window.location.origin}\nEmail: ${newCred.who}\nPassword: ${newCred.pw}`); setUserMsg("Copied to clipboard"); } catch (e) { setUserMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy login details</button>
+              {newCred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{newCred.link}</span></div>}
+              {newCred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{newCred.pw}</span></div>}
+              <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(newCred.link ? `Email: ${newCred.who}\nSet your DLP password: ${newCred.link}` : `Site: ${window.location.origin}\nEmail: ${newCred.who}\nPassword: ${newCred.pw}`); setUserMsg("Copied to clipboard"); } catch (e) { setUserMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy {newCred.link ? "invite" : "login"} details</button>
               <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setNewCred(null)}>Done</button>
-              <div style={{ marginTop: 7, color: "var(--muted)" }}>They can keep this password. To issue a new one later, use the ↻ button on their row. No email is sent.</div>
+              <div style={{ marginTop: 7, color: "var(--muted)" }}>{newCred.link ? "The link lets them set their own password and signs them straight in. It is valid for 30 days; use the link button on their row to issue a fresh one. No email is sent automatically." : "They can keep this password. To issue a new one later, use the ↻ button on their row. No email is sent."}</div>
             </div>}
             {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{userMsg}</div>}
             <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
               <div className="lk-f"><label>Bulk add users</label>
                 <textarea className="lk-in" rows={5} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"One per line:  email, name, role, company\njdoe@acme.com, John Doe, member, ABB\nmsmith@acme.com, Mary Smith, member, Schneider"} style={{ resize: "vertical", minHeight: 92, fontFamily: "inherit" }} /></div>
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own temporary password.</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own set-password link (and a fallback temporary password) in the downloadable CSV. No email is sent from here, mail-merge the CSV from Outlook.</div>
               <button className="lk-btn primary" disabled={bulkBusy} onClick={bulkCreate}>{bulkBusy ? `Creating… (${(bulkResults || []).length})` : "Create all"}</button>
               {bulkResults && <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status === "Created").length} created, {bulkResults.filter((r) => r.status !== "Created").length} need attention</div>
-                <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span>{r.pw && <span className="mono" style={{ userSelect: "all" }}>{r.pw}</span>}<span style={{ fontSize: 10, color: r.status === "Created" ? "var(--muted)" : "#C0392B" }}>{r.status === "Created" ? "ok" : r.status}</span></div>)}</div>
-                <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV</button>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status.startsWith("Created")).length} created, {bulkResults.filter((r) => !r.status.startsWith("Created")).length} need attention</div>
+                <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span style={{ fontSize: 10, color: r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "#E0A106") : "#C0392B" }}>{r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status}</span></div>)}</div>
+                <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV (links + passwords)</button>
               </div>}
             </div>
           </>}
