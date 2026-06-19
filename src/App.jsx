@@ -674,7 +674,7 @@ export default function App({ session }) {
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
-      {page === "help" && <HelpPage />}
+      {page === "help" && <HelpPage dark={S.theme === "dark"} />}
       </div>
       </div>
 
@@ -1115,6 +1115,10 @@ function SchedulePage({ S, coName, onOpen }) {
   const [collapsed, setCollapsed] = useState({});
   const svgRef = useRef(null);
   const LV = S.levels || {};
+  const dark = S.theme === "dark";
+  const P = dark
+    ? { bg: "#10151C", grid: "#222C39", gridStrong: "#2E3B4B", band: "#1E2733", band2: "#222C39", header: "#202B38", row: "#151D27", sep: "#1B232E", line: "#2E3B4B", ink: "#E6EAF0", mut: "#8A97A6", rollup: "#9FB0C3", today: "#6B9BF2" }
+    : { bg: "#FFFFFF", grid: "#EAEEF4", gridStrong: "#D6DCE6", band: "#EEF1F6", band2: "#F4F6FA", header: "#EEF1F6", row: "#FBFCFE", sep: "#F0F3F8", line: "#C9D2DE", ink: "#0F1419", mut: "#8A93A2", rollup: "#334155", today: "#2563EB" };
 
   const acts = S.activities.filter((a) => a.start);
   const byId = Object.fromEntries(acts.map((a) => [a.id, a]));
@@ -1167,7 +1171,7 @@ function SchedulePage({ S, coName, onOpen }) {
   const months = []; { let d = new Date(t0.getFullYear(), t0.getMonth(), 1); while (d <= t1) { const next = new Date(d.getFullYear(), d.getMonth() + 1, 1); const xs = xOf(Math.max(0, dayOff(d < t0 ? t0 : d))); const xe = xOf(dayOff(next > t1 ? t1 : next)); months.push({ label: d.toLocaleString("en-GB", { month: "short", year: "2-digit" }), xs, xe }); d = next; } }
   const ticks = []; { for (let i = 0; i <= N; i++) { const d = addDays(t0, i); const isMon = d.getDay() === 1; const first = d.getDate() === 1; if (zoom === "day") { ticks.push({ x: xOf(i), label: String(d.getDate()), strong: isMon }); } else if (zoom === "week") { if (isMon) ticks.push({ x: xOf(i), label: String(d.getDate()), strong: false }); } else { if (first) ticks.push({ x: xOf(i), label: "", strong: true }); } } }
 
-  const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || "#0F1419"} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
+  const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || P.ink} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
   const drawArrow = (g1, g2, dashed, key) => {
     const ax1 = g1.ms ? g1.x + 6 : g1.x + g1.w, ay1 = g1.yc, tip = g2.ms ? g2.x - 6 : g2.x, ay2 = g2.yc, gap = 8;
     let d;
@@ -1177,13 +1181,13 @@ function SchedulePage({ S, coName, onOpen }) {
   };
 
   const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
-  const rasterize = (cb) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); cb(cv); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
+  const rasterize = (cb) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); cb(cv); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
   const exportImg = (type) => rasterize((cv) => { const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.${type}`; a.click(); });
   const exportPdf = () => { const w = window.open("", "_blank"); if (!w) return; w.document.write(`<!DOCTYPE html><html><head><title>FIN04 Schedule</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${svgString()}</body></html>`); w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350); };
   const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
 
   return (
-    <div className="lk-sch"><style>{css}</style>
+    <div className="lk-sch" style={cssVars(S.theme)}><style>{css}</style>
       <div className="lk-sch-bar">
         <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
         <div className="grp"><label>Group by</label><select className="lk-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="none">None</option><option value="company">Company</option><option value="area">Building</option><option value="level">Cx Stage</option><option value="system">System</option></select></div>
@@ -1197,17 +1201,18 @@ function SchedulePage({ S, coName, onOpen }) {
         <button className="lk-btn" onClick={exportPdf}><Icon n="download" s={13} />PDF</button>
         <button className="lk-btn" onClick={exportXlsx}><Icon n="download" s={13} />Excel</button>
       </div>
-      <div className="lk-sch-scroll">
+      <div className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
-        <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: "#fff", fontFamily: "Segoe UI, Arial, sans-serif" }}>
+        <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
+          <rect x={0} y={0} width={W} height={H} fill={P.bg} />
           {/* month band */}
-          {months.map((m, i) => <g key={"m" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? "#F4F6FA" : "#EEF1F6"} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: "#5B6472" })}</g>)}
+          {months.map((m, i) => <g key={"m" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
           {/* unit gridlines + labels */}
-          {ticks.map((t, i) => <g key={"t" + i}><line x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? "#D6DCE6" : "#EAEEF4"} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: "#8A93A2" })}</g>)}
-          <line x1={leftW} y1={0} x2={leftW} y2={H} stroke="#C9D2DE" strokeWidth="1" />
-          <line x1={0} y1={headH} x2={W} y2={headH} stroke="#C9D2DE" strokeWidth="1" />
+          {ticks.map((t, i) => <g key={"t" + i}><line x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
+          <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+          <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
           {/* today line */}
-          {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={H} stroke="#2563EB" strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: "#2563EB", weight: 700 })}</g>}
+          {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={H} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
 
           {/* LAYER 1 - backgrounds, group headers, left-column text */}
           {rows.map((r, i) => {
@@ -1215,17 +1220,17 @@ function SchedulePage({ S, coName, onOpen }) {
             if (r.t === "grp") {
               const open = !collapsed[r.k];
               return <g key={"gb" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}>
-                <rect x={0} y={y} width={W} height={rowH} fill="#EEF1F6" />
-                <text x={10} y={y + rowH / 2} fontSize="10" fill="#5B6472" dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>
-                {text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: "#0F1419" })}
+                <rect x={0} y={y} width={W} height={rowH} fill={P.header} />
+                <text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>
+                {text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}
               </g>;
             }
             const a = r.a, nm = a.desc || "Untitled";
             return <g key={"tb" + a.id}>
-              {i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill="#FBFCFE" />}
-              <line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke="#F0F3F8" strokeWidth="1" />
-              {text(10, y + rowH / 2, a.code != null ? "#" + a.code : "", { size: 9.5, fill: "#8A93A2" })}
-              <text x={42} y={y + rowH / 2} fontSize="11.5" fill="#0F1419" dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text>
+              {i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}
+              <line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" />
+              {text(10, y + rowH / 2, a.code != null ? "#" + a.code : "", { size: 9.5, fill: P.mut })}
+              <text x={42} y={y + rowH / 2} fontSize="11.5" fill={P.ink} dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text>
             </g>;
           })}
 
@@ -1243,10 +1248,10 @@ function SchedulePage({ S, coName, onOpen }) {
               const rx = xOf(s0), rw = Math.max(xOf(e0 + 1) - rx, 6);
               const cos = [...new Set(ts.map((a) => a.companyId).filter(Boolean))];
               return <g key={"gr" + r.k} style={{ pointerEvents: "none" }}>
-                <rect x={rx} y={yc - 3} width={rw} height={6} fill="#334155" />
-                <polygon points={`${rx},${yc + 3} ${rx},${yc + 8} ${rx + 6},${yc + 3}`} fill="#334155" />
-                <polygon points={`${rx + rw},${yc + 3} ${rx + rw},${yc + 8} ${rx + rw - 6},${yc + 3}`} fill="#334155" />
-                {showResp && cos.length > 0 && text(rx + rw + 8, yc, cos.length === 1 ? coName(cos[0]) : "Various", { size: 10, fill: "#5B6472", weight: 600 })}
+                <rect x={rx} y={yc - 3} width={rw} height={6} fill={P.rollup} />
+                <polygon points={`${rx},${yc + 3} ${rx},${yc + 8} ${rx + 6},${yc + 3}`} fill={P.rollup} />
+                <polygon points={`${rx + rw},${yc + 3} ${rx + rw},${yc + 8} ${rx + rw - 6},${yc + 3}`} fill={P.rollup} />
+                {showResp && cos.length > 0 && text(rx + rw + 8, yc, cos.length === 1 ? coName(cos[0]) : "Various", { size: 10, fill: P.mut, weight: 600 })}
               </g>;
             }
             const a = r.a, g = geo[a.id]; const col = colorOf(a); const p = pct(a); const barH = rowH - 12, barY = y + (rowH - barH) / 2;
@@ -1263,7 +1268,7 @@ function SchedulePage({ S, coName, onOpen }) {
                     <rect x={g.x} y={barY} width={g.w} height={barH} rx={3} fill="none" stroke={col} strokeWidth="1" />
                     {delay && <rect x={dx1} y={barY + 1} width={Math.max(2, dx2 - dx1)} height={barH - 2} rx={2} fill="none" stroke="#C0392B" strokeWidth="1.2" strokeDasharray="3 2" />}
                   </g>}
-              {showResp && coName(a.companyId) && text(respX, yc, coName(a.companyId), { size: 10, fill: "#5B6472" })}
+              {showResp && coName(a.companyId) && text(respX, yc, coName(a.companyId), { size: 10, fill: P.mut })}
             </g>;
           })}
         </svg>}
@@ -1271,12 +1276,18 @@ function SchedulePage({ S, coName, onOpen }) {
     </div>);
 }
 
+const TBL_COLS = [["code", "#"], ["company", "Company"], ["building", "Building"], ["level", "Level"], ["zone", "Zone / Room"], ["system", "System"], ["cx", "Cx"], ["start", "Start"], ["days", "Days"], ["committed", "Committed"], ["status", "Status"], ["notes", "Notes"]];
 function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [q, setQ] = useState("");
   const [fCo, setFCo] = useState("all");
   const [fStatus, setFStatus] = useState("all");
+  const [fAr, setFAr] = useState("all");
+  const [fLv, setFLv] = useState("all");
+  const [colsOpen, setColsOpen] = useState(false);
+  const [cols, setCols] = useState(() => { try { const s = JSON.parse(localStorage.getItem("fin04_tblcols") || "null"); if (s && typeof s === "object") return { ...Object.fromEntries(TBL_COLS.map(([k]) => [k, true])), ...s }; } catch (e) {} return Object.fromEntries(TBL_COLS.map(([k]) => [k, true])); });
+  useEffect(() => { try { localStorage.setItem("fin04_tblcols", JSON.stringify(cols)); } catch (e) {} }, [cols]);
   const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
   const rowEditable = (a) => isAdmin || (canEdit(a) && !a.committed);
   const begin = (a) => { setEditId(a.id); setDraft({ ...a }); };
@@ -1289,43 +1300,60 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const list = S.activities.filter((a) => {
     if (fStatus !== "all" && a.status !== fStatus) return false;
     if (fCo === "none") { if (a.companyId) return false; } else if (fCo !== "all" && a.companyId !== fCo) return false;
+    if (fAr !== "all" && a.area !== fAr) return false;
+    if (fLv !== "all" && a.level !== fLv) return false;
     if (q.trim() && !(`${a.desc || ""} ${cn(a.companyId)} ${a.system || ""}`.toLowerCase().includes(q.trim().toLowerCase()))) return false;
     return true;
   }).sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || 0) - (b.code || 0));
   const cell = { padding: "5px 7px", fontSize: 11.5 };
+  const C = (k) => cols[k];
+  const visCount = 2 + TBL_COLS.filter(([k]) => cols[k]).length;
   return (
     <div className="lk-tblwrap" style={cssVars(S.theme)}><style>{css}</style>
-      <div className="lk-ufilter" style={{ padding: "10px 16px 0" }}>
+      <div className="lk-ufilter" style={{ padding: "10px 16px 0", alignItems: "flex-end" }}>
         <div className="lk-f" style={{ minWidth: 160, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 120 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
+        <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 130 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 110 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
+        <div style={{ position: "relative" }}>
+          <button className={"lk-btn" + (colsOpen ? " on" : "")} onClick={() => setColsOpen((v) => !v)}><Icon n="grid" s={14} />Columns</button>
+          {colsOpen && <><div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={() => setColsOpen(false)} />
+            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 31, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 6px", minWidth: 170, boxShadow: "0 10px 30px rgba(0,0,0,.18)" }}>
+              {TBL_COLS.map(([k, l]) => <label key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 9px", fontSize: 12.5, cursor: "pointer", borderRadius: 6 }}><input type="checkbox" checked={!!cols[k]} onChange={(e) => setCols((c) => ({ ...c, [k]: e.target.checked }))} />{l}</label>)}
+              <div style={{ display: "flex", gap: 6, padding: "6px 9px 2px", borderTop: "1px solid var(--line)", marginTop: 4 }}>
+                <button className="lk-btn" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => setCols(Object.fromEntries(TBL_COLS.map(([k]) => [k, true])))}>All</button>
+                <button className="lk-btn" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => setCols(Object.fromEntries(TBL_COLS.map(([k]) => [k, false])))}>None</button>
+              </div>
+            </div></>}
+        </div>
       </div>
       <div className="lk-tblscroll">
         <table className="lk-grid">
           <thead><tr>
-            <th style={{ width: 56 }}></th><th>#</th><th>Activity</th><th>Company</th><th>Building</th><th>Level</th><th>Zone / Room</th><th>System</th><th>Cx</th><th>Start</th><th>Days</th><th>Committed</th><th>Status</th><th>Notes</th>
+            <th style={{ width: 56 }}></th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("notes") && <th>Notes</th>}
           </tr></thead>
           <tbody>
-            {list.length === 0 && <tr><td colSpan={14} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
+            {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
             {list.map((a) => {
               const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a);
               return <tr key={a.id} className={ed ? "ed" : ""}>
                 <td>{ed
                   ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
                   : <button title={canRow ? "Edit this row" : (a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}</td>
-                <td className="mono">#{a.code ?? "?"}</td>
+                {C("code") && <td className="mono">#{a.code ?? "?"}</td>}
                 <td>{ed ? <input className="lk-in" style={cell} value={d.desc} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
-                <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>
-                <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>
-                <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>
-                <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>
-                <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>
-                <td>{ed ? <select className="lk-select" style={cell} value={d.level} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>
-                <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>
-                <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>
-                <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>
-                <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>
-                <td style={{ minWidth: 150 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} onChange={(e) => set("notes", e.target.value)} /> : <span style={{ color: "var(--muted)" }}>{a.notes || ""}</span>}</td>
+                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
+                {C("building") && <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>}
+                {C("level") && <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>}
+                {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
+                {C("system") && <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>}
+                {C("cx") && <td>{ed ? <select className="lk-select" style={cell} value={d.level} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>}
+                {C("start") && <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
+                {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
+                {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
+                {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>}
+                {C("notes") && <td style={{ minWidth: 150 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} onChange={(e) => set("notes", e.target.value)} /> : <span style={{ color: "var(--muted)" }}>{a.notes || ""}</span>}</td>}
               </tr>;
             })}
           </tbody>
@@ -1339,7 +1367,14 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const [ar, setAr] = useState("all");
   const [openOnly, setOpenOnly] = useState(true);
   const [q, setQ] = useState("");
+  const [editKey, setEditKey] = useState(null);
+  const [cd, setCd] = useState(null);
   const toggle = (actId, cId) => update((p) => ({ ...p, activities: p.activities.map((a) => a.id === actId ? { ...a, constraints: a.constraints.map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : a) }), { action: "Update constraint" });
+  const beginC = (a, c) => { setEditKey(a.id + c.id); setCd({ ...c }); };
+  const cancelC = () => { setEditKey(null); setCd(null); };
+  const saveC = (a) => { const d = cd; if (!d.text.trim()) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === a.id ? { ...x, constraints: x.constraints.map((y) => y.id === d.id ? d : y) } : x) }), { action: "Edit constraint", detail: a.desc }); cancelC(); };
+  const setD = (k, v) => setCd((d) => ({ ...d, [k]: v }));
+  const cell = { padding: "5px 7px", fontSize: 11.5 };
   const rows = [];
   S.activities.forEach((a) => {
     if (co !== "all" && a.companyId !== co) return;
@@ -1355,7 +1390,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const exportCsv = () => { const headers = ["Activity", "Company", "Location code", "Building", "Level", "Zone / Room", "Cx Stage", "Planned start", "Constraint", "Owner", "Need-by", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join("."), a.area, a.subArea || "", a.tier3 || "", a.level, a.start, c.text, c.owner || "", c.due || "", c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
   return (
     <div className="lk-rep">
-      <div className="sub" style={{ marginTop: 2 }}>Every make-ready constraint across the project. Tick one to clear it; the board updates straight away.</div>
+      <div className="sub" style={{ marginTop: 2 }}>Every make-ready constraint across the project. Tick one to clear it; the board updates straight away. Use the pen to edit a constraint's wording, owner or need-by date.</div>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
@@ -1364,30 +1399,33 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
         <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
       </div>
       <div className="lk-rep-sec" style={{ padding: 0, overflow: "auto" }}>
-        <table className="lk-tbl"><thead><tr><th style={{ width: 34 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th>Start</th><th>Constraint</th><th>Owner</th><th>Need-by</th></tr></thead>
+        <table className="lk-tbl lk-grid"><thead><tr><th style={{ width: 44 }} /><th style={{ width: 30 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th>Start</th><th>Constraint</th><th>Owner</th><th>Need-by</th></tr></thead>
           <tbody>
-            {rows.map(({ a, c }) => { const overdue = c.due && !c.done && c.due < fmtISO(new Date()); return <tr key={a.id + c.id}>
-              <td><input type="checkbox" checked={c.done} disabled={!canEdit(a)} onChange={() => toggle(a.id, c.id)} /></td>
+            {rows.map(({ a, c }) => { const ed = editKey === (a.id + c.id); const can = canEdit(a); const overdue = c.due && !c.done && c.due < fmtISO(new Date()); return <tr key={a.id + c.id} className={ed ? "ed" : ""}>
+              <td>{ed
+                ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={() => saveC(a)}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancelC}><Icon n="x" s={14} /></button></span>
+                : <button title={can ? "Edit this constraint" : "Only your own company's constraints are editable"} disabled={!can} onClick={() => beginC(a, c)} style={{ opacity: can ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}</td>
+              <td><input type="checkbox" checked={c.done} disabled={!can} onChange={() => toggle(a.id, c.id)} /></td>
               <td><span className="lnk" onClick={() => onOpen(a)}>{a.desc || "Untitled"}</span></td>
               <td>{coName(a.companyId)}</td>
               <td className="mono">{[(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".")}</td>
               <td>{a.level}</td>
               <td className="mono">{a.start}</td>
-              <td className={c.done ? "lk-cdone" : ""}>{c.text}</td>
-              <td>{c.owner || ""}</td>
-              <td className="mono" style={{ color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{c.due || ""}</td>
+              <td className={c.done ? "lk-cdone" : ""} style={{ minWidth: 160 }}>{ed ? <input className="lk-in" style={cell} value={cd.text} onChange={(e) => setD("text", e.target.value)} /> : c.text}</td>
+              <td>{ed ? <input className="lk-in" style={{ ...cell, minWidth: 110 }} placeholder="Owner" value={cd.owner || ""} onChange={(e) => setD("owner", e.target.value)} /> : (c.owner || "")}</td>
+              <td className="mono" style={{ color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{ed ? <input className="lk-in mono" style={{ ...cell, maxWidth: 140 }} type="date" value={cd.due || ""} onChange={(e) => setD("due", e.target.value)} /> : (c.due || "")}</td>
             </tr>; })}
-            {rows.length === 0 && <tr><td colSpan={9} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={10} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
           </tbody></table>
       </div>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>{rows.length} shown · {totalOpen} open across the whole project</div>
     </div>);
 }
 
-function HelpPage() {
+function HelpPage({ dark }) {
   return (
-    <div className="lk-help">
-      <iframe title="DLP Board Quick Reference" src="help.html" />
+    <div className="lk-help" style={{ background: dark ? "#10151C" : undefined }}>
+      <iframe title="DLP Board Quick Reference" src={dark ? "help.html?theme=dark" : "help.html"} style={{ background: dark ? "#10151C" : "#fff" }} />
     </div>
   );
 }
