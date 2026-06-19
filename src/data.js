@@ -6,6 +6,7 @@ const fromActivity = (r) => ({
   level: r.level || "L2", isMilestone: !!r.is_milestone, start: r.start_date || "", duration: r.duration || 1,
   committed: !!r.committed, status: r.status || "planned", actualStart: r.actual_start || "", actualFinish: r.actual_finish || "",
   subArea: r.sub_area || "", tier3: r.tier3 || "", asset: r.asset || "", witnessInvite: !!r.witness_invite, witnessAt: r.witness_at || "", notes: r.notes || "",
+  code: r.code ?? null, predecessors: Array.isArray(r.predecessors) ? r.predecessors : [],
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
 });
 const toActivity = (a, session, isNew) => {
@@ -14,6 +15,7 @@ const toActivity = (a, session, isNew) => {
     level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1,
     committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null,
     sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, notes: a.notes || null,
+    code: a.code ?? null, predecessors: a.predecessors || [],
     constraints: a.constraints || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
   };
   if (isNew) row.created_by = session.user.id;

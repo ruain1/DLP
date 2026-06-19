@@ -81,6 +81,8 @@ const css = `
 .lk-chip.cstr{background:#FBEFD6;color:#9A6A00;display:inline-flex;align-items:center;gap:3px}
 .lk-chip.late{background:#F6D6D3;color:#9B1C16}
 .lk-chip.wit{background:#E7E0FB;color:#5B33C7}
+.lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
+.lk-fc{align-self:stretch;margin:3px 2px;border:1.5px dashed #E0A106;background:rgba(224,161,6,.10);border-radius:6px;z-index:0;pointer-events:none}
 .lk-ms{pointer-events:auto;display:flex;align-items:center;gap:5px;cursor:grab;overflow:visible;align-self:center;z-index:2}
 .lk-ms .dia{width:12px;height:12px;transform:rotate(45deg);flex:none;border:1px solid rgba(0,0,0,.2)}
 .lk-ms .mslbl{font-size:10.5px;font-weight:600;white-space:nowrap;pointer-events:none}
@@ -216,6 +218,7 @@ const mondayOf = (dt) => { const x = new Date(dt); x.setDate(x.getDate() - ((x.g
 const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const ft = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); const fd = (ft.getUTCDay() + 6) % 7; ft.setUTCDate(ft.getUTCDate() - fd + 3); return 1 + Math.round((t - ft) / 6048e5); };
 const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCSV = (headers, rows) => "\uFEFF" + [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
 const downloadFile = (name, text) => { try { const url = URL.createObjectURL(new Blob([text], { type: "text/csv" })); const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) {} };
@@ -290,19 +293,49 @@ export default function App({ session }) {
   const coName = (id) => (S.companies.find((c) => c.id === id) || {}).name || "Unassigned";
   const locCode = (a) => [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".");
 
-  const visible = useMemo(() => !S ? [] : S.activities.map((a) => {
-    const ps = parseD(a.start);
-    const startOff = Math.round((ps - anchor) / DAYMS);
-    const endOff = startOff + a.duration - 1;
-    const pf = addDays(ps, a.duration - 1);
-    const as = a.actualStart ? parseD(a.actualStart) : null;
-    const af = a.actualFinish ? parseD(a.actualFinish) : null;
-    let delayDays = 0;
-    if (a.status === "complete" && af) delayDays = Math.round((af - pf) / DAYMS);
-    else if (as) delayDays = Math.round((as - ps) / DAYMS);
-    else if (a.status !== "complete" && todayMid() > pf.getTime()) delayDays = Math.round((todayMid() - pf.getTime()) / DAYMS);
-    return { ...a, startOff, endOff, inWin: endOff >= 0 && startOff < DAYS, open: openCount(a), delayDays, delayed: delayDays > 0 };
-  }), [S, anchor, DAYS]);
+  const visible = useMemo(() => {
+    if (!S) return [];
+    const base = S.activities.map((a) => {
+      const ps = parseD(a.start);
+      const startOff = Math.round((ps - anchor) / DAYMS);
+      const endOff = startOff + a.duration - 1;
+      const pf = addDays(ps, a.duration - 1);
+      const as = a.actualStart ? parseD(a.actualStart) : null;
+      const af = a.actualFinish ? parseD(a.actualFinish) : null;
+      let delayDays = 0;
+      if (a.status === "complete" && af) delayDays = Math.round((af - pf) / DAYMS);
+      else if (as) delayDays = Math.round((as - ps) / DAYMS);
+      else if (a.status !== "complete" && todayMid() > pf.getTime()) delayDays = Math.round((todayMid() - pf.getTime()) / DAYMS);
+      return { ...a, startOff, endOff, span: a.duration - 1, delayDays, delayed: delayDays > 0, open: openCount(a) };
+    });
+    // ---- non-destructive forward pass: project dates down the predecessor chain ----
+    const byId = Object.fromEntries(base.map((a) => [a.id, a]));
+    const memo = {}, stack = {};
+    const projEnd = (id) => {
+      const a = byId[id];
+      if (!a) return null;                       // predecessor was deleted
+      if (memo[id] !== undefined) return memo[id];
+      if (stack[id]) return a.endOff;            // cycle guard: ignore the back-edge
+      stack[id] = true;
+      const own = Math.max(0, a.delayDays);      // the activity's own slip so far
+      let st = a.actualStart ? Math.round((parseD(a.actualStart) - anchor) / DAYMS) : a.startOff + own;
+      a._base = st;
+      (a.predecessors || []).forEach((pid) => { const pe = projEnd(pid); if (pe != null) st = Math.max(st, pe + 1); });
+      const pe = (a.status === "complete" && a.actualFinish) ? Math.round((parseD(a.actualFinish) - anchor) / DAYMS) : st + a.span;
+      a._ps = st; a._pe = pe;
+      stack[id] = false; memo[id] = pe; return pe;
+    };
+    base.forEach((a) => projEnd(a.id));
+    base.forEach((a) => {
+      a.projStartOff = a._ps != null ? a._ps : a.startOff;
+      a.projEndOff = a._pe != null ? a._pe : a.endOff;
+      a.knockOn = Math.max(0, a.projStartOff - (a._base != null ? a._base : a.startOff));  // pushed by predecessors, beyond its own slip
+      a.totalShift = Math.max(0, a.projStartOff - a.startOff);
+      a.inWin = a.endOff >= 0 && a.startOff < DAYS;
+      delete a._ps; delete a._pe; delete a._base;
+    });
+    return base;
+  }, [S, anchor, DAYS]);
 
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
@@ -346,14 +379,15 @@ export default function App({ session }) {
     dragId.current = null;
   };
   const newActivity = (lane, dayIdx) => {
-    const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
+    const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
       start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", actualStart: "", actualFinish: "", constraints: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Activity ID", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
-    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
+    const headers = ["Code", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Predecessors", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Forecast start", "Forecast finish", "Knock-on (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
+    const predCodes = (a) => (a.predecessors || []).map((pid) => { const p = S.activities.find((x) => x.id === pid); return p && p.code != null ? "#" + p.code : null; }).filter(Boolean).join("; ");
+    const rows = visible.map((a) => [a.code != null ? "#" + a.code : "", a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", predCodes(a), a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, fmtISO(addDays(anchor, a.projStartOff)), fmtISO(addDays(anchor, a.projEndOff)), a.knockOn || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -400,7 +434,7 @@ export default function App({ session }) {
       return <div className="lk-ms" style={{ gridColumn: `${s + 1} / ${s + 2}`, gridRow: row + 1 }}
         draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <span className="dia" style={{ background: a.delayed ? "#C0392B" : lv.color }} title={a.desc} />
-        <span className="mslbl">{a.desc || "Milestone"}{a.delayed ? ` +${a.delayDays}d` : ""}</span>
+        <span className="mslbl">{a.desc || "Milestone"}{a.delayed ? ` +${a.delayDays}d` : (a.knockOn > 0 ? ` (forecast +${a.knockOn}d)` : "")}</span>
       </div>;
     }
     const constrained = a.open > 0 && a.status !== "complete";
@@ -408,7 +442,7 @@ export default function App({ session }) {
     const dim = makeReady && !spot;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
         draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <div className="desc">{a.desc || "Untitled activity"}</div>
         <div className="meta">
@@ -417,6 +451,7 @@ export default function App({ session }) {
           {a.witnessInvite && <span className="lk-chip wit" title="Witness invite">WIT</span>}
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && <span className="lk-chip late">+{a.delayDays}d</span>}
+          {a.knockOn > 0 && a.status !== "complete" && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
       </div>);
@@ -431,6 +466,15 @@ export default function App({ session }) {
     const su = grain === "day" ? so : Math.floor(so / 7), eu = grain === "day" ? eo : Math.floor(eo / 7);
     const s = Math.max(0, su), e = Math.min(cols - 1, eu);
     return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: "0 2px 3px", borderRadius: 3, background: a.delayed ? "#C0392B" : "#0E9384", zIndex: 2, pointerEvents: "none" }} />;
+  };
+
+  const Forecast = ({ a, row }) => {
+    if (a.isMilestone || a.status === "complete" || a.totalShift <= 0) return null;
+    const so = grain === "day" ? a.projStartOff : Math.floor(a.projStartOff / 7);
+    const eo = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
+    if (eo < 0 || so >= cols) return null;
+    const s = Math.max(0, so), e = Math.min(cols - 1, eo);
+    return <div className="lk-fc" title={`Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1 }} />;
   };
 
   const Underlay = ({ lane }) => (
@@ -531,6 +575,7 @@ export default function App({ session }) {
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={lane} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${Math.max(1, rows.length)},minmax(48px,auto))` }}>
+                  {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
                   {la.map((a) => <ActualBar key={"ab" + a.id} a={a} row={a._row} />)}
                 </div>
@@ -547,6 +592,7 @@ export default function App({ session }) {
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={null} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: "minmax(48px,auto)" }}>
+                  <Forecast a={a} row={0} />
                   <Ticket a={a} row={0} />
                   <ActualBar a={a} row={0} />
                 </div>
@@ -562,6 +608,7 @@ export default function App({ session }) {
         <span className="it"><span className="lk-chip commit">will</span>committed promise</span>
         <span className="it"><span style={{ height: 5, width: 16, borderRadius: 3, background: "#0E9384" }} />actual progress</span>
         <span className="it"><span className="lk-chip late">+d</span>delayed</span>
+        <span className="it"><span style={{ height: 12, width: 16, borderRadius: 4, border: "1.5px dashed #E0A106", background: "rgba(224,161,6,.10)" }} />forecast (knock-on)</span>
       </div>
       </>}
       {page !== "board" && <div className="lk-bar">
@@ -609,13 +656,18 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
   if (!a.system) missing.push("system");
   if (a.witnessInvite && !a.witnessAt) missing.push("witness date & time");
   const incomplete = missing.length > 0;
+  // predecessor options: exclude self and anything downstream of this activity (prevents cycles)
+  const descend = new Set();
+  (function walk(id) { (S.activities || []).forEach((x) => { if ((x.predecessors || []).includes(id) && !descend.has(x.id)) { descend.add(x.id); walk(x.id); } }); })(a.id);
+  const predOptions = (S.activities || []).filter((x) => x.id !== a.id && !descend.has(x.id) && !(a.predecessors || []).includes(x.id));
+  const predLabel = (id) => { const x = (S.activities || []).find((p) => p.id === id); return x ? `#${x.code ?? "?"} ${x.desc || "Untitled"}` : "(removed)"; };
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>{isNew ? "New activity" : canEdit ? "Edit activity" : "Activity (view only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
           {!canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
-          <div className="lk-f"><label>What is the activity</label><input className="lk-in" value={a.desc} disabled={dis} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
+          <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={dis} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
           <div className="lk-row">
             <div className="lk-f"><label>Company (performing)</label>
               <select className="lk-select" value={a.companyId || ""} disabled={dis || !isAdmin} onChange={(e) => set("companyId", e.target.value)}>
@@ -643,6 +695,11 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
           <div className="lk-row">
             <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={dis} onChange={(e) => set("start", e.target.value)} /></div>
             <div className="lk-f"><label>Days</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={dis} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /></div>
+          </div>
+          <div className="lk-f"><label>Predecessors <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this starts after these finish; a slip upstream pushes this forward)</span></label>
+            {(a.predecessors || []).map((pid) => <div key={pid} className="lk-cstr"><span className="t">{predLabel(pid)}</span>{!dis && <button onClick={() => set("predecessors", a.predecessors.filter((x) => x !== pid))}><Icon n="trash" s={13} /></button>}</div>)}
+            {(a.predecessors || []).length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>None. Not waiting on another activity.</div>}
+            {!dis && predOptions.length > 0 && <div className="lk-add"><select className="lk-select" value="" onChange={(e) => { if (e.target.value) set("predecessors", [...(a.predecessors || []), e.target.value]); }}><option value="">Add a predecessor…</option>{predOptions.map((x) => <option key={x.id} value={x.id}>#{x.code ?? "?"} - {x.desc || "Untitled"}</option>)}</select></div>}
           </div>
           <div className="lk-f"><label>Constraints to clear (make-ready)</label>
             {a.constraints.map((c) => <div key={c.id} className="lk-cstr"><input type="checkbox" checked={c.done} disabled={dis} onChange={() => set("constraints", a.constraints.map((x) => x.id === c.id ? { ...x, done: !x.done } : x))} /><span className={"t" + (c.done ? " done" : "")}>{c.text}</span>{!dis && <button onClick={() => set("constraints", a.constraints.filter((x) => x.id !== c.id))}><Icon n="trash" s={13} /></button>}</div>)}
@@ -750,7 +807,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         if (obj.systems) n.systems = obj.systems;
         if (obj.levels) n.levels = obj.levels;
         if (obj.settings) n.settings = { ...n.settings, ...obj.settings };
-        if (obj.activities) n.activities = obj.activities.map((a) => ({ ...a, id: a.id || uid("a") }));
+        if (obj.activities) { let c = obj.activities.reduce((m, a) => Math.max(m, a.code || 0), 0); n.activities = obj.activities.map((a) => ({ ...a, id: a.id || uid("a"), predecessors: Array.isArray(a.predecessors) ? a.predecessors : [], code: a.code != null ? a.code : ++c })); }
       } else {
         const map = {};
         if (obj.companies) { const companies = [...n.companies]; obj.companies.forEach((c) => { const ex = companies.find((x) => x.name.toLowerCase() === (c.name || "").toLowerCase()); if (ex) map[c.id] = ex.id; else { const nid = uid("co"); companies.push({ id: nid, name: c.name }); map[c.id] = nid; } }); n.companies = companies; }
@@ -758,7 +815,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         if (obj.subAreas) { const cur = [...(n.subAreas || [])]; obj.subAreas.forEach((s) => { if (!cur.some((x) => x.area === s.area && x.name === s.name)) cur.push({ area: s.area, name: s.name }); }); n.subAreas = cur; }
         if (obj.tier3s) { const cur = [...(n.tier3s || [])]; obj.tier3s.forEach((t) => { if (!cur.some((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name)) cur.push({ area: t.area, subArea: t.subArea, name: t.name }); }); n.tier3s = cur; }
         if (obj.systems) n.systems = [...new Set([...n.systems, ...obj.systems])];
-        if (obj.activities) n.activities = [...n.activities, ...obj.activities.map((a) => ({ ...a, id: uid("a"), companyId: map[a.companyId] || a.companyId }))];
+        if (obj.activities) { const idMap = {}; obj.activities.forEach((a) => { idMap[a.id] = uid("a"); }); let c = nextCode(n.activities) - 1; const mapped = obj.activities.map((a) => ({ ...a, id: idMap[a.id], companyId: map[a.companyId] || a.companyId, predecessors: (Array.isArray(a.predecessors) ? a.predecessors : []).map((pid) => idMap[pid]).filter(Boolean), code: ++c })); n.activities = [...n.activities, ...mapped]; }
       }
       return n;
     }, { action: `Import JSON (${impMode})`, detail: `${(obj.activities || []).length} activities` });
@@ -780,7 +837,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       const ensure = (arr, val) => { if (val && !arr.some((x) => x.toLowerCase() === val.toLowerCase())) arr.push(val); };
       const ensureSub = (area, name) => { if (area && name && !subAreas.some((s) => s.area === area && s.name.toLowerCase() === name.toLowerCase())) subAreas.push({ area, name }); };
       const ensureT3 = (area, subArea, name) => { if (area && subArea && name && !tier3s.some((t) => t.area === area && t.subArea === subArea && t.name.toLowerCase() === name.toLowerCase())) tier3s.push({ area, subArea, name }); };
-      const newActs = [];
+      const newActs = []; let codeC = impMode === "override" ? 0 : p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
       for (let r = 1; r < rows.length; r++) { const row = rows[r]; const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : "");
         const desc = g(ci.desc); if (!desc) continue;
         const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const subArea = g(ci.subarea); ensureSub(area, subArea); const tier3 = g(ci.tier3); ensureT3(area, subArea, tier3); const asset = g(ci.asset); const system = g(ci.system); ensure(systems, system);
@@ -789,7 +846,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
         const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
         const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        newActs.push({ id: uid("a"), desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
+        newActs.push({ id: uid("a"), code: ++codeC, predecessors: [], desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
       }
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
       return { ...p, companies, areas, subAreas, tier3s, systems, activities };
