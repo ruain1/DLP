@@ -256,6 +256,19 @@ const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
+const CHANGELOG = [
+  { rev: "REV13", date: "2026-06-19", items: ["JSON project import now opens a review screen: overwrite, ignore or clone each clashing item, with a global default and per-section bulk actions", "Company references and predecessor links from the file are remapped on import; cloned Cx stages carry their activities onto the new key", "Override import still replaces the whole project wholesale"] },
+  { rev: "REV12", date: "2026-06-19", items: ["Admin Import / Export got its own importer, separate from the member one: set Company per row to load work for every contractor at once", "Admin Excel template with dropdowns that allow new values, which are created on import; admin importer now reads .xlsx directly", "Witness date and time now import from CSV and Excel"] },
+  { rev: "REV11", date: "2026-06-19", items: ["Reason for non-completion stays editable on a late-but-complete activity, the one exception to the complete-lock"] },
+  { rev: "REV10", date: "2026-06-19", items: ["Completed activities lock on every field except status; an admin reopens by setting status back", "Witness and Witness time added as table columns; column choice plus filters can be saved as your default view", "Cx stages are now add and delete, not just rename; systems are renamable and migrate their activities", "Audit log gained a search box; help page dark mode fixed for the sample card and chips"] },
+  { rev: "REV9", date: "2026-06-19", items: ["Constraints log gained inline editing of wording, owner and need-by", "Activity table gained show/hide columns and Building and Cx Stage filters", "Schedule and Help now follow dark mode"] },
+  { rev: "REV8", date: "2026-06-19", items: ["Reasons for non-completion captured on misses and charted as a Pareto in Reports", "PPC tightened to on-time completion across the gauge and weekly trend", "Activity short-codes (#N) now assigned by a database sequence and immutable, removing collision risk"] },
+  { rev: "REV7", date: "2026-06-19", items: ["Schedule fixes: dependency arrows draw over group headers (dashed across groups), collapsed groups show a rollup summary bar, responsible label no longer clashes with link arrows, routing handles reordered rows"] },
+  { rev: "REV6", date: "2026-06-19", items: ["New P6-style Schedule (Gantt) view: day/week/month zoom, grouping, colour-by, dependency arrows, forecast tail, responsible labels", "Exports to PNG, JPG, PDF and Excel"] },
+  { rev: "REV5", date: "2026-06-19", items: ["Constraint owner and need-by date added throughout, with overdue highlighting", "At-risk metric tile for predecessor knock-on"] },
+  { rev: "REV4", date: "2026-06-19", items: ["Predecessors and non-destructive forecast: a slip upstream shows a dashed knock-on overlay without moving the baseline", "Activity short-codes, prepopulated single building, foldable audit log", "Settings reorganised into a left sub-navigation; users show accepted/pending and last-seen with a jump to their audit trail", "New Activity table (spreadsheet) view with per-row inline editing"] },
+  { rev: "REV1-REV3", date: "2026-06-19", items: ["Day-by-day four-week Last Planner board with swimlanes, make-ready readiness, committed promises and witness flags", "Admin-configurable branding, Cx stages, systems, three-tier locations and companies", "User management: direct create, bulk CSV with set-password links, resets; Supabase auth, RLS, realtime and a secured admin edge function", "CSV and JSON import/export with downloadable templates; database-written, tamper-proof audit log"] },
+];
 const relTime = (iso) => { if (!iso) return ""; const d = new Date(iso); const s = Math.floor((Date.now() - d.getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const dd = Math.floor(h / 24); if (dd < 30) return dd + "d ago"; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); };
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCSV = (headers, rows) => "\uFEFF" + [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
@@ -810,6 +823,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [lvKey, setLvKey] = useState("");
   const [lvName, setLvName] = useState("");
   const [lvColor, setLvColor] = useState("#64748B");
+  const [jsonPreview, setJsonPreview] = useState(null);
   const [ustat, setUstat] = useState({});
   useEffect(() => { fetchUserStatus().then(setUstat).catch(() => {}); }, []);
   const [brandMsg, setBrandMsg] = useState("");
@@ -989,7 +1003,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         importCSV(rowsToCSV(rows));
       } else {
         const txt = (await file.text()).replace(/^\uFEFF/, "");
-        if (name.endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt);
+        if (name.endsWith(".json")) { const parsed = JSON.parse(txt); if (impMode === "override") importJSON(parsed); else setJsonPreview(parsed); } else importCSV(txt);
       }
     } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); }
     e.target.value = "";
@@ -999,6 +1013,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     ["User management", [["users", "Users"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
+    ["About", [["changelog", "Changelog"]]],
   ];
   return (
     <div className="lk-adminwrap2" style={cssVars(S.theme)}><style>{css}</style>
@@ -1167,7 +1182,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
             <div className="lk-f"><label>Import file (.xlsx or .csv activities, or .json project)</label>
               <input className="lk-in" type="file" accept=".json,.csv,.xlsx" onChange={handleImportFile} /></div>
-            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces, Append merges.</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces the project wholesale; Append in JSON opens a review screen where you overwrite, ignore or clone each clashing item.</div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
           {tab === "audit" && <>
@@ -1189,7 +1204,116 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   : <div style={{ marginTop: 8 }}>{list.map((e) => <div key={e.id} className="lk-audit"><span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span><span className="m">{e.user} · {new Date(e.ts).toLocaleString("en-GB")}</span></div>)}</div>)}
               </>; })()}
           </>}
+          {tab === "changelog" && <>
+            <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />What changed in DLP, newest first. Each revision lists the changes shipped in it. Admin only.</div>
+            <div style={{ marginTop: 6 }}>{CHANGELOG.map((r) => <div key={r.rev} style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+                <span className="mono" style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>{r.rev}</span>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>{r.date}</span>
+                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>{r.items.map((it, i) => <li key={i} style={{ fontSize: 12.5, color: "var(--ink)", lineHeight: 1.5 }}>{it}</li>)}</ul>
+            </div>)}</div>
+          </>}
         </div></div>
+      {jsonPreview && <ImportReview obj={jsonPreview} S={S} onClose={() => setJsonPreview(null)} onApply={(producer, detail) => { update(producer, { action: "Import JSON (merge)", detail }); setJsonPreview(null); setImpMsg("Imported JSON with your conflict choices."); }} />}
+    </div>);
+}
+
+function ImportReview({ obj, S, onClose, onApply }) {
+  const lc = (s) => (s || "").toLowerCase();
+  const akey = (a) => [lc(a.desc), lc(a.area), lc(a.subArea), lc(a.system), a.start || ""].join("|");
+  const [def, setDef] = useState("overwrite");
+  const [lvlCh, setLvlCh] = useState({});
+  const [actCh, setActCh] = useState({});
+  const [setCh, setSetCh] = useState("overwrite");
+
+  const newCompanies = (obj.companies || []).filter((c) => !S.companies.some((x) => lc(x.name) === lc(c.name)));
+  const newAreas = (obj.areas || []).filter((a) => !S.areas.some((x) => lc(x) === lc(a)));
+  const newSubs = (obj.subAreas || []).filter((s) => !(S.subAreas || []).some((x) => x.area === s.area && lc(x.name) === lc(s.name)));
+  const newT3 = (obj.tier3s || []).filter((t) => !(S.tier3s || []).some((x) => x.area === t.area && x.subArea === t.subArea && lc(x.name) === lc(t.name)));
+  const newSystems = (obj.systems || []).filter((s) => !S.systems.some((x) => lc(x) === lc(s)));
+  const inLevels = obj.levels ? Object.entries(obj.levels) : [];
+  const lvlConf = inLevels.filter(([k]) => S.levels[k]);
+  const lvlNew = inLevels.filter(([k]) => !S.levels[k]);
+  const exActByKey = new Map(S.activities.map((a) => [akey(a), a]));
+  const inActs = obj.activities || [];
+  const actConf = inActs.filter((a) => exActByKey.has(akey(a)));
+  const actNew = inActs.filter((a) => !exActByKey.has(akey(a)));
+  const hasSettings = !!obj.settings;
+  const setDiff = hasSettings && (obj.settings.weeks !== S.settings.weeks || obj.settings.makeReadyDays !== S.settings.makeReadyDays);
+
+  const eff = (map, key) => map[key] || def;
+  const Seg = ({ value, onChange, three = true }) => <div className="lk-status" style={{ display: "inline-flex" }}>{[["overwrite", "Overwrite"], ["ignore", "Ignore"], ...(three ? [["clone", "Clone"]] : [])].map(([v, l]) => <button key={v} className={value === v ? "sel" : ""} style={{ fontSize: 11, padding: "3px 9px" }} onClick={() => onChange(v)}>{l}</button>)}</div>;
+  const coName = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+
+  const apply = () => {
+    onApply((p) => {
+      let n = { ...p };
+      const companies = [...n.companies]; const coMap = {};
+      (obj.companies || []).forEach((c) => { const ex = companies.find((x) => lc(x.name) === lc(c.name)); if (ex) coMap[c.id] = ex.id; else { const nid = uid("co"); companies.push({ id: nid, name: c.name }); coMap[c.id] = nid; } });
+      n.companies = companies;
+      n.areas = [...new Set([...n.areas, ...(obj.areas || [])])];
+      { const cur = [...(n.subAreas || [])]; (obj.subAreas || []).forEach((s) => { if (!cur.some((x) => x.area === s.area && lc(x.name) === lc(s.name))) cur.push({ area: s.area, name: s.name }); }); n.subAreas = cur; }
+      { const cur = [...(n.tier3s || [])]; (obj.tier3s || []).forEach((t) => { if (!cur.some((x) => x.area === t.area && x.subArea === t.subArea && lc(x.name) === lc(t.name))) cur.push({ area: t.area, subArea: t.subArea, name: t.name }); }); n.tier3s = cur; }
+      n.systems = [...new Set([...n.systems, ...(obj.systems || [])])];
+      const lv = { ...n.levels }; const lvMap = {};
+      inLevels.forEach(([k, v]) => { if (!lv[k]) { lv[k] = { name: v.name, color: v.color, sort: Object.keys(lv).length }; lvMap[k] = k; } else { const c = eff(lvlCh, k); if (c === "overwrite") { lv[k] = { ...lv[k], name: v.name, color: v.color }; lvMap[k] = k; } else if (c === "ignore") { lvMap[k] = k; } else { let nk = k + "b"; let i = 2; while (lv[nk]) { i++; nk = k + String.fromCharCode(96 + i); } lv[nk] = { name: v.name + " (imported)", color: v.color, sort: Object.keys(lv).length }; lvMap[k] = nk; } } });
+      n.levels = lv;
+      const idMap = {}; let codeC = n.activities.reduce((m, a) => Math.max(m, a.code || 0), 0); const replaceMap = {}; const toAdd = [];
+      inActs.forEach((a) => { const key = akey(a); const ex = exActByKey.get(key); if (!ex) { const nid = uid("a"); idMap[a.id] = nid; toAdd.push({ src: a, id: nid }); } else { const c = eff(actCh, key); if (c === "ignore") { idMap[a.id] = ex.id; } else if (c === "overwrite") { idMap[a.id] = ex.id; replaceMap[ex.id] = a; } else { const nid = uid("a"); idMap[a.id] = nid; toAdd.push({ src: a, id: nid }); } } });
+      const build = (src, id, code) => ({ ...src, id, companyId: coMap[src.companyId] || src.companyId, level: lvMap[src.level] || src.level, predecessors: (Array.isArray(src.predecessors) ? src.predecessors : []).map((pid) => idMap[pid]).filter(Boolean), code, constraints: Array.isArray(src.constraints) ? src.constraints : [] });
+      let acts = n.activities.map((a) => { const src = replaceMap[a.id]; return src ? build(src, a.id, a.code) : a; });
+      toAdd.forEach(({ src, id }) => acts.push(build(src, id, ++codeC)));
+      n.activities = acts;
+      if (hasSettings && setCh !== "ignore") n.settings = { ...n.settings, ...obj.settings };
+      return n;
+    }, `${actNew.length} added, ${actConf.length} matched activities`);
+  };
+
+  const conflicts = lvlConf.length + actConf.length + (setDiff ? 1 : 0);
+  const Row = ({ children }) => <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>{children}</div>;
+
+  return (
+    <div className="lk-bg" onClick={onClose}><style>{css}</style>
+      <div style={{ background: "var(--card)", color: "var(--ink)", borderRadius: 14, border: "1px solid var(--line)", width: "min(720px,94vw)", maxHeight: "88vh", overflow: "auto", padding: "20px 22px", margin: "auto", ...cssVars(S.theme) }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><h3 style={{ margin: 0 }}>Review project import</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55, marginBottom: 12 }}>New project setup data is merged in automatically. Where the file collides with something already here, choose what to do. Overwrite replaces the existing item, Ignore keeps what you have, Clone adds the incoming one alongside under a new name.</div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>Default for conflicts</span>
+          <Seg value={def} onChange={setDef} />
+          <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{conflicts} conflict{conflicts === 1 ? "" : "s"} found</span>
+        </div>
+
+        <div style={{ background: "var(--hover)", borderRadius: 8, padding: "9px 12px", fontSize: 12, marginBottom: 14 }}>
+          <b style={{ color: "var(--ink)" }}>Added automatically:</b> {newCompanies.length} compan{newCompanies.length === 1 ? "y" : "ies"}, {newAreas.length} building{newAreas.length === 1 ? "" : "s"}, {newSubs.length} level{newSubs.length === 1 ? "" : "s"}, {newT3.length} zone{newT3.length === 1 ? "" : "s"}, {newSystems.length} system{newSystems.length === 1 ? "" : "s"}, {lvlNew.length} new Cx stage{lvlNew.length === 1 ? "" : "s"}, {actNew.length} new activit{actNew.length === 1 ? "y" : "ies"}. Existing matches are left as-is unless you choose otherwise below.
+        </div>
+
+        {lvlConf.length > 0 && <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 4 }}>Cx stages already on the project ({lvlConf.length})</div>
+          {lvlConf.map(([k, v]) => <Row key={k}><span><span className="mono" style={{ fontWeight: 700 }}>{k}</span> &middot; file: {v.name}{S.levels[k] && S.levels[k].name !== v.name ? <span style={{ color: "var(--muted)" }}> (here: {S.levels[k].name})</span> : null}</span><Seg value={eff(lvlCh, k)} onChange={(val) => setLvlCh((m) => ({ ...m, [k]: val }))} /></Row>)}
+        </div>}
+
+        {actConf.length > 0 && <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700 }}>Activities that match existing work ({actConf.length})</span>
+            <span style={{ display: "inline-flex", gap: 5 }}>{[["overwrite", "All overwrite"], ["ignore", "All ignore"], ["clone", "All clone"]].map(([v, l]) => <button key={v} className="lk-btn" style={{ fontSize: 10.5, padding: "2px 7px" }} onClick={() => { const m = {}; actConf.forEach((a) => { m[akey(a)] = v; }); setActCh(m); }}>{l}</button>)}</span>
+          </div>
+          <div style={{ maxHeight: 260, overflow: "auto" }}>
+            {actConf.map((a) => { const key = akey(a); return <Row key={key}><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 8 }}>{a.desc || "Untitled"} <span style={{ color: "var(--muted)" }}>&middot; {coName(a.companyId) || a.companyId} &middot; {[a.area, a.subArea, a.tier3].filter(Boolean).join(" / ")}</span></span><Seg value={eff(actCh, key)} onChange={(val) => setActCh((m) => ({ ...m, [key]: val }))} /></Row>; })}
+          </div>
+        </div>}
+
+        {setDiff && <div style={{ marginBottom: 14 }}>
+          <Row><span><b>Project settings</b> <span style={{ color: "var(--muted)" }}>(lookahead {obj.settings.weeks}w, make-ready {obj.settings.makeReadyDays}d vs here {S.settings.weeks}w / {S.settings.makeReadyDays}d)</span></span><Seg value={setCh} onChange={setSetCh} three={false} /></Row>
+        </div>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+          <button className="lk-btn" onClick={onClose}>Cancel</button>
+          <button className="lk-btn primary" onClick={apply}><Icon n="check" s={15} />Apply import</button>
+        </div>
+      </div>
     </div>);
 }
 
@@ -1498,7 +1622,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
         <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
       </div>
       <div className="lk-rep-sec" style={{ padding: 0, overflow: "auto" }}>
-        <table className="lk-tbl lk-grid"><thead><tr><th style={{ width: 44 }} /><th style={{ width: 30 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th>Start</th><th>Constraint</th><th>Owner</th><th>Need-by</th></tr></thead>
+        <table className="lk-tbl lk-grid"><thead><tr><th style={{ width: 44 }} /><th style={{ width: 30 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th style={{ minWidth: 96, whiteSpace: "nowrap" }}>Start</th><th>Constraint</th><th style={{ minWidth: 130 }}>Owner</th><th style={{ minWidth: 112, whiteSpace: "nowrap" }}>Need-by</th></tr></thead>
           <tbody>
             {rows.map(({ a, c }) => { const ed = editKey === (a.id + c.id); const can = canEdit(a); const overdue = c.due && !c.done && c.due < fmtISO(new Date()); return <tr key={a.id + c.id} className={ed ? "ed" : ""}>
               <td>{ed
@@ -1509,10 +1633,10 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
               <td>{coName(a.companyId)}</td>
               <td className="mono">{[(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".")}</td>
               <td>{a.level}</td>
-              <td className="mono">{a.start}</td>
+              <td className="mono" style={{ whiteSpace: "nowrap" }}>{a.start}</td>
               <td className={c.done ? "lk-cdone" : ""} style={{ minWidth: 160 }}>{ed ? <input className="lk-in" style={cell} value={cd.text} onChange={(e) => setD("text", e.target.value)} /> : c.text}</td>
-              <td>{ed ? <input className="lk-in" style={{ ...cell, minWidth: 110 }} placeholder="Owner" value={cd.owner || ""} onChange={(e) => setD("owner", e.target.value)} /> : (c.owner || "")}</td>
-              <td className="mono" style={{ color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{ed ? <input className="lk-in mono" style={{ ...cell, maxWidth: 140 }} type="date" value={cd.due || ""} onChange={(e) => setD("due", e.target.value)} /> : (c.due || "")}</td>
+              <td style={{ minWidth: 130 }}>{ed ? <input className="lk-in" style={{ ...cell, minWidth: 110 }} placeholder="Owner" value={cd.owner || ""} onChange={(e) => setD("owner", e.target.value)} /> : (c.owner || "")}</td>
+              <td className="mono" style={{ whiteSpace: "nowrap", color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{ed ? <input className="lk-in mono" style={{ ...cell, maxWidth: 140 }} type="date" value={cd.due || ""} onChange={(e) => setD("due", e.target.value)} /> : (c.due || "")}</td>
             </tr>; })}
             {rows.length === 0 && <tr><td colSpan={10} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
           </tbody></table>
