@@ -158,7 +158,7 @@ const css = `
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
 .lk-subbody{flex:1;min-width:0;max-width:760px}
 .lk-subbody .lk-db{padding:2px 0 0}
-.lk-help{height:calc(100vh - 62px)}
+.lk-help{flex:1;min-height:0}
 .lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
 .lk-ugroup{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .lk-ughead{display:flex;align-items:center;gap:8px;width:100%;font-weight:700;font-size:12.5px;padding:9px 12px;background:var(--card);border:0;color:var(--ink);cursor:pointer;text-align:left;font-family:inherit}
@@ -217,7 +217,7 @@ const css = `
 .lk-res-ok{background:#0E93841a;border:1px solid #0E9384;color:var(--ink);border-radius:9px;padding:10px 12px;font-size:12.5px}
 .lk-res-err{background:#C0392B14;border:1px solid #C0392B;border-radius:9px;padding:10px 12px;font-size:12px}
 .lk-res-err ul{max-height:200px;overflow:auto;color:#C0392B}
-.lk-foot{position:fixed;right:10px;bottom:8px;z-index:40;pointer-events:none;display:flex;align-items:center;font-size:10px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:5px 12px;opacity:.9;white-space:nowrap;max-width:calc(100vw - 20px);overflow:hidden;line-height:1}
+.lk-foot{flex-shrink:0;width:100%;margin-top:auto;border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:10.5px;line-height:1;padding:9px 18px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 `;
 
 const I = {
@@ -688,10 +688,10 @@ export default function App({ session }) {
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} />}
+      <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
       </div>
 
-      {page !== "help" && page !== "reports" && <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>}
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
     </div>);
@@ -1775,7 +1775,6 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
       </div>
       <div className="lk-rep-sec"><h3>By Cx stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
-      <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 10.5, padding: "18px 0 6px", borderTop: "1px solid var(--line)", marginTop: 6 }}>DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
     </div>);
 }
 
