@@ -1140,19 +1140,21 @@ function SchedulePage({ S, coName, onOpen }) {
 
   // ordered rows: group headers + tasks
   const rows = [];
+  const groupTasks = {};
   if (groupBy === "none") {
     acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a }));
   } else {
-    const map = {};
-    acts.forEach((a) => { const k = groupKey(a); (map[k] = map[k] || []).push(a); });
-    const keys = Object.keys(map).sort();
-    keys.forEach((k) => { rows.push({ t: "grp", k, n: map[k].length }); if (!collapsed[k]) map[k].slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a })); });
+    acts.forEach((a) => { const k = groupKey(a); (groupTasks[k] = groupTasks[k] || []).push(a); });
+    Object.keys(groupTasks).sort().forEach((k) => { rows.push({ t: "grp", k, n: groupTasks[k].length }); if (!collapsed[k]) groupTasks[k].slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a })); });
   }
   const H = headH + rows.length * rowH + 8;
 
+  // set of activities that are a predecessor of something (have outgoing links)
+  const hasOut = new Set(); acts.forEach((a) => (a.predecessors || []).forEach((pid) => hasOut.add(pid)));
+
   // geometry per task id
   const geo = {};
-  rows.forEach((r, i) => { if (r.t !== "task") return; const a = r.a; const y = headH + i * rowH; const pS = dayOff(parseD(a.start)); const x = leftW + pS * ppd; const w = Math.max(a.duration * ppd, 5); geo[a.id] = { x, w, y, yc: y + rowH / 2, pE: pS + a.duration - 1 }; });
+  rows.forEach((r, i) => { if (r.t !== "task") return; const a = r.a; const y = headH + i * rowH; const pS = dayOff(parseD(a.start)); const x = leftW + pS * ppd; const w = Math.max(a.duration * ppd, 5); geo[a.id] = { x, w, y, yc: y + rowH / 2, pE: pS + a.duration - 1, ms: !!a.isMilestone }; });
 
   const xOf = (off) => leftW + off * ppd;
   const todayX = leftW + dayOff(new Date(todayMid())) * ppd;
@@ -1162,6 +1164,13 @@ function SchedulePage({ S, coName, onOpen }) {
   const ticks = []; { for (let i = 0; i <= N; i++) { const d = addDays(t0, i); const isMon = d.getDay() === 1; const first = d.getDate() === 1; if (zoom === "day") { ticks.push({ x: xOf(i), label: String(d.getDate()), strong: isMon }); } else if (zoom === "week") { if (isMon) ticks.push({ x: xOf(i), label: String(d.getDate()), strong: false }); } else { if (first) ticks.push({ x: xOf(i), label: "", strong: true }); } } }
 
   const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || "#0F1419"} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
+  const drawArrow = (g1, g2, dashed, key) => {
+    const ax1 = g1.ms ? g1.x + 6 : g1.x + g1.w, ay1 = g1.yc, tip = g2.ms ? g2.x - 6 : g2.x, ay2 = g2.yc, gap = 8;
+    let d;
+    if (tip >= ax1 + gap + 8) { d = `M ${ax1} ${ay1} H ${ax1 + gap} V ${ay2} H ${tip - 5}`; }
+    else { const backY = ay1 + (ay2 >= ay1 ? rowH / 2 : -rowH / 2); d = `M ${ax1} ${ay1} H ${ax1 + gap} V ${backY} H ${tip - gap} V ${ay2} H ${tip - 5}`; }
+    return <g key={key} style={{ pointerEvents: "none" }}><path d={d} fill="none" stroke="#7A8494" strokeWidth="1.1" strokeDasharray={dashed ? "3 2" : undefined} /><polygon points={`${tip - 5},${ay2 - 3} ${tip},${ay2} ${tip - 5},${ay2 + 3}`} fill="#7A8494" /></g>;
+  };
 
   const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
   const rasterize = (cb) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); cb(cv); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
@@ -1195,36 +1204,62 @@ function SchedulePage({ S, coName, onOpen }) {
           <line x1={0} y1={headH} x2={W} y2={headH} stroke="#C9D2DE" strokeWidth="1" />
           {/* today line */}
           {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={H} stroke="#2563EB" strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: "#2563EB", weight: 700 })}</g>}
-          {/* dependency arrows */}
-          {showDeps && rows.map((r) => r.t === "task" ? (r.a.predecessors || []).map((pid) => { const g2 = geo[r.a.id], g1 = geo[pid]; if (!g1 || !g2) return null; const ax1 = g1.x + g1.w, ay1 = g1.yc, ax2 = g2.x, ay2 = g2.yc; const mx = Math.max(ax1 + 8, ax2 - 10); const d = `M ${ax1} ${ay1} H ${ax1 + 8} V ${ay2} H ${ax2 - 5}`; return <g key={pid + ">" + r.a.id}><path d={d} fill="none" stroke="#8A93A2" strokeWidth="1.1" /><polygon points={`${ax2 - 5},${ay2 - 3} ${ax2},${ay2} ${ax2 - 5},${ay2 + 3}`} fill="#8A93A2" /></g>; }) : null)}
-          {/* rows */}
+
+          {/* LAYER 1 - backgrounds, group headers, left-column text */}
           {rows.map((r, i) => {
             const y = headH + i * rowH;
             if (r.t === "grp") {
               const open = !collapsed[r.k];
-              return <g key={"g" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}>
+              return <g key={"gb" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}>
                 <rect x={0} y={y} width={W} height={rowH} fill="#EEF1F6" />
                 <text x={10} y={y + rowH / 2} fontSize="10" fill="#5B6472" dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>
                 {text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: "#0F1419" })}
               </g>;
             }
-            const a = r.a, g = geo[a.id]; const col = colorOf(a); const p = pct(a); const barH = rowH - 12, barY = y + (rowH - barH) / 2;
-            const projE = proj[a.id] ? proj[a.id].eo : g.pE; const delay = projE > g.pE;
-            const dx1 = xOf(g.pE + 1), dx2 = xOf(projE + 1);
-            return <g key={a.id} style={{ cursor: "pointer" }} onClick={() => onOpen(a)}>
+            const a = r.a, nm = a.desc || "Untitled";
+            return <g key={"tb" + a.id}>
               {i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill="#FBFCFE" />}
               <line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke="#F0F3F8" strokeWidth="1" />
               {text(10, y + rowH / 2, a.code != null ? "#" + a.code : "", { size: 9.5, fill: "#8A93A2" })}
-              <text x={42} y={y + rowH / 2} fontSize="11.5" fill="#0F1419" dominantBaseline="middle" style={{ pointerEvents: "none" }}>{(a.desc || "Untitled").length > 34 ? (a.desc || "Untitled").slice(0, 33) + "\u2026" : (a.desc || "Untitled")}</text>
+              <text x={42} y={y + rowH / 2} fontSize="11.5" fill="#0F1419" dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text>
+            </g>;
+          })}
+
+          {/* LAYER 2 - dependency arrows (on top of headers; dashed when crossing groups) */}
+          {showDeps && rows.map((r) => r.t === "task" ? (r.a.predecessors || []).map((pid) => { const g2 = geo[r.a.id], g1 = geo[pid]; if (!g1 || !g2) return null; const dashed = groupBy !== "none" && byId[pid] && groupKey(byId[pid]) !== groupKey(r.a); return drawArrow(g1, g2, dashed, pid + ">" + r.a.id); }) : null)}
+
+          {/* LAYER 3 - bars, milestones, responsible, collapsed rollups */}
+          {rows.map((r, i) => {
+            const y = headH + i * rowH, yc = y + rowH / 2;
+            if (r.t === "grp") {
+              if (!collapsed[r.k]) return null;
+              const ts = groupTasks[r.k] || []; if (!ts.length) return null;
+              const s0 = Math.min(...ts.map((a) => dayOff(parseD(a.start))));
+              const e0 = Math.max(...ts.map((a) => Math.max(dayOff(addDays(parseD(a.start), a.duration - 1)), proj[a.id] ? proj[a.id].eo : 0)));
+              const rx = xOf(s0), rw = Math.max(xOf(e0 + 1) - rx, 6);
+              const cos = [...new Set(ts.map((a) => a.companyId).filter(Boolean))];
+              return <g key={"gr" + r.k} style={{ pointerEvents: "none" }}>
+                <rect x={rx} y={yc - 3} width={rw} height={6} fill="#334155" />
+                <polygon points={`${rx},${yc + 3} ${rx},${yc + 8} ${rx + 6},${yc + 3}`} fill="#334155" />
+                <polygon points={`${rx + rw},${yc + 3} ${rx + rw},${yc + 8} ${rx + rw - 6},${yc + 3}`} fill="#334155" />
+                {showResp && cos.length > 0 && text(rx + rw + 8, yc, cos.length === 1 ? coName(cos[0]) : "Various", { size: 10, fill: "#5B6472", weight: 600 })}
+              </g>;
+            }
+            const a = r.a, g = geo[a.id]; const col = colorOf(a); const p = pct(a); const barH = rowH - 12, barY = y + (rowH - barH) / 2;
+            const projE = proj[a.id] ? proj[a.id].eo : g.pE; const delay = projE > g.pE;
+            const dx1 = xOf(g.pE + 1), dx2 = xOf(projE + 1);
+            const respBase = delay ? dx2 : g.x + g.w;
+            const respX = respBase + ((showDeps && hasOut.has(a.id) && !delay) ? 16 : 6);
+            return <g key={"tf" + a.id} style={{ cursor: "pointer" }} onClick={() => onOpen(a)}>
               {a.isMilestone
-                ? <polygon points={`${g.x},${y + rowH / 2 - 6} ${g.x + 6},${y + rowH / 2} ${g.x},${y + rowH / 2 + 6} ${g.x - 6},${y + rowH / 2}`} fill={col} />
+                ? <polygon points={`${g.x},${yc - 6} ${g.x + 6},${yc} ${g.x},${yc + 6} ${g.x - 6},${yc}`} fill={col} />
                 : <g>
                     <rect x={g.x} y={barY} width={g.w} height={barH} rx={3} fill={col} opacity={0.30} />
                     <rect x={g.x} y={barY} width={g.w * p / 100} height={barH} rx={3} fill={col} />
                     <rect x={g.x} y={barY} width={g.w} height={barH} rx={3} fill="none" stroke={col} strokeWidth="1" />
                     {delay && <rect x={dx1} y={barY + 1} width={Math.max(2, dx2 - dx1)} height={barH - 2} rx={2} fill="none" stroke="#C0392B" strokeWidth="1.2" strokeDasharray="3 2" />}
                   </g>}
-              {showResp && coName(a.companyId) && text((delay ? dx2 : g.x + g.w) + 6, y + rowH / 2, coName(a.companyId), { size: 10, fill: "#5B6472" })}
+              {showResp && coName(a.companyId) && text(respX, yc, coName(a.companyId), { size: 10, fill: "#5B6472" })}
             </g>;
           })}
         </svg>}
