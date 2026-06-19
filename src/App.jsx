@@ -1061,13 +1061,19 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
   const [result, setResult] = useState(null);
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
+  const normDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
   const downloadTemplate = () => {
     const exA = S.areas[0] || "";
     const exSub = (S.subAreas || []).find((s) => s.area === exA);
     const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
-    const headers = ["Description", isAdmin ? "Company" : null, "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter(Boolean);
-    const ex = ["Example: terminate cables", isAdmin ? (S.companies[0] ? S.companies[0].name : "") : null, exA, exSub ? exSub.name : "", exT3 ? exT3.name : "", S.systems[0] || "", Object.keys(LV)[0] || "L2", fmtISO(new Date()), "3", "No", "No", "", "Optional note"].filter((x) => x !== null);
-    downloadFile("DLP-activity-import-template.csv", toCSV(headers, [ex]));
+    const co = isAdmin ? (S.companies[0] ? S.companies[0].name : "") : null;
+    const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = Object.keys(LV)[0] || "L2";
+    const start = fmtISO(new Date()); const p = (n) => String(n).padStart(2, "0");
+    const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T09:00`; })();
+    const headers = ["Description", co !== null ? "Company" : null, "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
+    const ex1 = ["Example 1: terminate cables (DELETE before importing)", co, exA, sub, t3, sys, lv, start, "3", "No", "No", "", "Delete this example row"].filter((x) => x !== null);
+    const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", co, exA, sub, t3, sys, lv, start, "2", "Yes", "Yes", wit, "Witness invite Yes needs a date and time. Delete this row"].filter((x) => x !== null);
+    downloadFile("DLP-activity-import-template.csv", toCSV(headers, [ex1, ex2]));
   };
   const runImport = (text) => {
     const rows = parseCSV(text).filter((r) => r.length && r.some((c) => c.trim() !== ""));
@@ -1099,7 +1105,8 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
       if (!start) e.push("missing or invalid Planned start (use YYYY-MM-DD)");
       let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
-      const witInvite = yes(g(ci.wit)); const witAt = g(ci.witat);
+      const witInvite = yes(g(ci.wit)); const witAt = normDT(g(ci.witat));
+      if (witInvite && !witAt) e.push("Witness invite is Yes, so a valid Witness date & time is required (YYYY-MM-DD HH:MM)");
       const cons = g(ci.cons); const constraints = cons ? cons.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
       if (e.length) { errors.push(`Row ${ln}: ${e.join("; ")}`); continue; }
       staged.push({ id: uid("a"), desc, companyId, area, subArea, tier3, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: witInvite, witnessAt: witInvite ? witAt : "", notes: g(ci.notes), start, duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: "", actualFinish: "", constraints });
@@ -1123,6 +1130,8 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
               <li>Matching ignores case but the spelling must be exact. The valid values are listed below.</li>
               <li>If any single row is invalid, <b>nothing is imported</b>. You get a list of what to fix, then re-upload.</li>
               <li>Dates use YYYY-MM-DD. Committed and Witness invite take Yes or No.</li>
+              <li>If <b>Witness invite</b> is Yes, a <b>Witness date &amp; time</b> is required, format YYYY-MM-DD HH:MM (see example 2).</li>
+              <li>The template has <b>two example rows</b>. Delete them and import only your own activities.</li>
               <li>Description, Area, System and Planned start are required on every row.</li>
             </ul>
           </div>
