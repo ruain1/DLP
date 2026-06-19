@@ -171,6 +171,7 @@ const css = `
 .lk-res-ok{background:#0E93841a;border:1px solid #0E9384;color:var(--ink);border-radius:9px;padding:10px 12px;font-size:12.5px}
 .lk-res-err{background:#C0392B14;border:1px solid #C0392B;border-radius:9px;padding:10px 12px;font-size:12px}
 .lk-res-err ul{max-height:200px;overflow:auto;color:#C0392B}
+.lk-foot{position:fixed;right:10px;bottom:8px;z-index:40;pointer-events:none;font-size:10px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 9px;opacity:.85;max-width:72vw;text-align:right;line-height:1.3}
 `;
 
 const I = {
@@ -568,6 +569,7 @@ export default function App({ session }) {
       </div>
       </div>
 
+      <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {admin && <AdminPanel S={S} update={update} onClose={() => setAdmin(false)} exportActivities={exportActivities} />}
