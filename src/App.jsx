@@ -129,6 +129,33 @@ const css = `
 .lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-audit{font-size:11.5px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line);padding:7px 0}
 .lk-audit .a{font-weight:600}.lk-audit .m{color:var(--muted);font-size:10.5px}
+.lk-shell{display:flex;align-items:stretch;min-height:100vh}
+.lk-rail{flex:0 0 56px;width:56px;background:#1d2530;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 0;position:sticky;top:0;height:100vh}
+.lk-rail button{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,color .12s}
+.lk-rail button:hover{background:#2a333f;color:#dfe6ef}
+.lk-rail button.on{background:var(--accent);color:#fff}
+.lk-page{flex:1;min-width:0;display:flex;flex-direction:column}
+.lk-rep{padding:18px 22px;max-width:1100px}
+.lk-rep h2{font-size:17px;font-weight:700;margin:0 0 2px}
+.lk-rep .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
+.lk-rep-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:18px}
+.lk-rep-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px;margin-bottom:22px}
+.lk-rep-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
+.lk-rep-card .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.lk-rep-card .l{font-size:11px;color:var(--muted);margin-top:5px;display:block;text-transform:uppercase;letter-spacing:.04em}
+.lk-rep-sec{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:16px}
+.lk-rep-sec h3{font-size:13px;font-weight:700;margin:0 0 12px}
+.lk-bar-row{display:grid;grid-template-columns:140px 1fr 42px;align-items:center;gap:10px;margin-bottom:7px;font-size:12px}
+.lk-bar-track{height:16px;background:var(--hover);border-radius:5px;overflow:hidden}
+.lk-bar-fill{height:100%;border-radius:5px}
+.lk-bar-row .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.lk-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.lk-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper)}
+.lk-tbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.lk-tbl tr:hover td{background:var(--hover)}
+.lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
+.lk-tbl .lnk:hover{text-decoration:underline}
+.lk-cdone{text-decoration:line-through;color:var(--muted)}
 `;
 
 const I = {
@@ -144,6 +171,10 @@ const I = {
   moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>,
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,
   download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
+  board: <><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></>,
+  chart: <><line x1="3" y1="21" x2="21" y2="21"/><rect x="5" y="10" width="3.2" height="8"/><rect x="10.4" y="6" width="3.2" height="12"/><rect x="15.8" y="13" width="3.2" height="5"/></>,
+  list: <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>,
+  clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
 };
 const Icon = ({ n, s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
@@ -197,6 +228,7 @@ export default function App({ session }) {
   const [makeReady, setMakeReady] = useState(false);
   const [editing, setEditing] = useState(null);
   const [admin, setAdmin] = useState(false);
+  const [page, setPage] = useState("board");
   const dragId = useRef(null);
 
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
@@ -279,7 +311,7 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", system: "", level: "L2",
-      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, notes: "", actualStart: "", actualFinish: "", constraints: [] };
+      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", actualStart: "", actualFinish: "", constraints: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
@@ -288,6 +320,14 @@ export default function App({ session }) {
     const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
+  };
+  const fmtWitnessAt = (s) => { if (!s) return ""; const d = new Date(s); if (isNaN(d)) return s; return d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
+  const exportWitness = () => {
+    const wit = visible.filter((a) => a.witnessInvite).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
+    const headers = ["Witness date & time", "Activity", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Status", "Notes"];
+    const rows = wit.map((a) => [fmtWitnessAt(a.witnessAt), a.desc, coName(a.companyId), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.start, a.status, a.notes || ""]);
+    downloadFile(`FIN04-witness-schedule-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
+    update((p) => p, { action: "Export witness schedule", detail: `${rows.length} activities` });
   };
 
   const grain = S.grain || "day";
@@ -353,6 +393,14 @@ export default function App({ session }) {
 
   return (
     <div className="lk" style={cssVars(S.theme)}><style>{css}</style>
+      <div className="lk-shell">
+      <nav className="lk-rail">
+        <button title="Planning board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /></button>
+        <button title="Constraints log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /></button>
+        <button title="Reports & metrics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /></button>
+      </nav>
+      <div className="lk-page">
+      {page === "board" && <>
       <div className="lk-bar">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
@@ -460,6 +508,11 @@ export default function App({ session }) {
         <span className="it"><span style={{ height: 5, width: 16, borderRadius: 3, background: "#0E9384" }} />actual progress</span>
         <span className="it"><span className="lk-chip late">+d</span>delayed</span>
       </div>
+      </>}
+      {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
+      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
+      </div>
+      </div>
 
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {admin && <AdminPanel S={S} update={update} onClose={() => setAdmin(false)} exportActivities={exportActivities} />}
@@ -514,6 +567,9 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
             {!dis && <div className="lk-add"><input className="lk-in" placeholder="Add a constraint…" value={cText} onChange={(e) => setCText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} /><button className="lk-btn" onClick={addC}><Icon n="plus" s={15} /></button></div>}</div>
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => set("committed", !a.committed)}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
           <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => set("witnessInvite", !a.witnessInvite)}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
+          {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
+            <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={dis} onChange={(e) => set("witnessAt", e.target.value)} />
+            {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}</div>}
           <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => set("isMilestone", !a.isMilestone)}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond)</span></span><span className="lk-sw2" /></div>
           <div className="lk-f"><label>Status</label><div className="lk-status">{[["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]].map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={dis} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; })}>{l}</button>)}</div></div>
           <div className="lk-row">
@@ -527,7 +583,7 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
         {canEdit && <div className="lk-df">
           {!isNew && <button className="lk-btn" onClick={() => onDelete(a)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>}
           <div className="lk-spacer" /><button className="lk-btn" onClick={onClose}>Cancel</button>
-          <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={!a.desc.trim()}><Icon n="check" s={15} />Save</button>
+          <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={!a.desc.trim() || (a.witnessInvite && !a.witnessAt)}><Icon n="check" s={15} />Save</button>
         </div>}
       </div>
     </div>);
@@ -783,5 +839,101 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
           </>}
         </div>
       </div>
+    </div>);
+}
+
+function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
+  const [co, setCo] = useState("all");
+  const [ar, setAr] = useState("all");
+  const [openOnly, setOpenOnly] = useState(true);
+  const [q, setQ] = useState("");
+  const toggle = (actId, cId) => update((p) => ({ ...p, activities: p.activities.map((a) => a.id === actId ? { ...a, constraints: a.constraints.map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : a) }), { action: "Update constraint" });
+  const rows = [];
+  S.activities.forEach((a) => {
+    if (co !== "all" && a.companyId !== co) return;
+    if (ar !== "all" && a.area !== ar) return;
+    (a.constraints || []).forEach((c) => {
+      if (openOnly && c.done) return;
+      if (q && !(`${a.desc} ${c.text}`.toLowerCase().includes(q.toLowerCase()))) return;
+      rows.push({ a, c });
+    });
+  });
+  rows.sort((x, y) => (x.a.start || "").localeCompare(y.a.start || ""));
+  const totalOpen = S.activities.reduce((n, a) => n + (a.constraints || []).filter((c) => !c.done).length, 0);
+  const exportCsv = () => { const headers = ["Activity", "Company", "Area", "Sub-area", "Level", "Planned start", "Constraint", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), a.area, a.subArea || "", a.level, a.start, c.text, c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
+  return (
+    <div className="lk-rep">
+      <h2>Constraints log</h2>
+      <div className="sub">Every make-ready constraint across the project. Tick one to clear it; the board updates straight away.</div>
+      <div className="lk-rep-filters">
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Area</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All areas</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 180 }}><label>Search</label><input className="lk-in" placeholder="Activity or constraint…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <button className={"lk-btn" + (openOnly ? " on" : "")} onClick={() => setOpenOnly((v) => !v)}>{openOnly ? "Open only" : "Showing all"}</button>
+        <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
+      </div>
+      <div className="lk-rep-sec" style={{ padding: 0, overflow: "auto" }}>
+        <table className="lk-tbl"><thead><tr><th style={{ width: 34 }} /><th>Activity</th><th>Company</th><th>Area</th><th>Level</th><th>Start</th><th>Constraint</th></tr></thead>
+          <tbody>
+            {rows.map(({ a, c }) => <tr key={a.id + c.id}>
+              <td><input type="checkbox" checked={c.done} disabled={!canEdit(a)} onChange={() => toggle(a.id, c.id)} /></td>
+              <td><span className="lnk" onClick={() => onOpen(a)}>{a.desc || "Untitled"}</span></td>
+              <td>{coName(a.companyId)}</td>
+              <td>{a.area}{a.subArea ? ` \u203A ${a.subArea}` : ""}</td>
+              <td>{a.level}</td>
+              <td className="mono">{a.start}</td>
+              <td className={c.done ? "lk-cdone" : ""}>{c.text}</td>
+            </tr>)}
+            {rows.length === 0 && <tr><td colSpan={7} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
+          </tbody></table>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--muted)" }}>{rows.length} shown · {totalOpen} open across the whole project</div>
+    </div>);
+}
+
+function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
+  const [co, setCo] = useState("all");
+  const [ar, setAr] = useState("all");
+  const [lv, setLv] = useState("all");
+  const acts = S.activities.filter((a) => (co === "all" || a.companyId === co) && (ar === "all" || a.area === ar) && (lv === "all" || a.level === lv));
+  const openOf = (a) => (a.constraints || []).filter((c) => !c.done).length;
+  const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps, (a.duration || 1) - 1); if (a.status === "complete" && a.actualFinish) return parseD(a.actualFinish) > pf; if (a.actualStart) return parseD(a.actualStart) > ps; return false; };
+  const committed = acts.filter((a) => a.committed);
+  const ppc = committed.length ? Math.round(committed.filter((a) => a.status === "complete").length / committed.length * 100) : null;
+  const cards = [
+    { v: ppc == null ? "\u2014" : ppc + "%", l: "PPC (committed done)", c: "var(--accent)" },
+    { v: acts.length, l: "Total activities" },
+    { v: committed.length, l: "Committed" },
+    { v: acts.filter((a) => a.status === "complete").length, l: "Complete", c: "#0E9384" },
+    { v: acts.filter((a) => a.status === "in_progress").length, l: "In progress" },
+    { v: acts.filter((a) => openOf(a) === 0 && a.status !== "complete").length, l: "Ready to run", c: "#0E9384" },
+    { v: acts.filter((a) => openOf(a) > 0 && a.status !== "complete").length, l: "Need make-ready", c: "#D97706" },
+    { v: acts.filter(isDelayed).length, l: "Delayed", c: "#C0392B" },
+    { v: acts.filter((a) => a.witnessInvite).length, l: "Witness required", c: "#5B33C7" },
+  ];
+  const byCompany = S.companies.map((c) => ({ name: c.name, n: acts.filter((a) => a.companyId === c.id).length, open: acts.filter((a) => a.companyId === c.id).reduce((s, a) => s + openOf(a), 0) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+  const byLevel = Object.keys(LV).map((k) => ({ name: `${k} ${LV[k].name}`, color: LV[k].color, n: acts.filter((a) => a.level === k).length })).filter((x) => x.n > 0);
+  const byStatus = [["planned", "Planned", "#64748B"], ["in_progress", "In progress", "#2563EB"], ["complete", "Complete", "#0E9384"]].map(([k, l, col]) => ({ name: l, color: col, n: acts.filter((a) => a.status === k).length }));
+  const maxCo = Math.max(1, ...byCompany.map((x) => x.n));
+  const maxLv = Math.max(1, ...byLevel.map((x) => x.n));
+  const maxSt = Math.max(1, ...byStatus.map((x) => x.n));
+  const Bar = ({ label, n, max, color }) => <div className="lk-bar-row"><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span><div className="lk-bar-track"><div className="lk-bar-fill" style={{ width: `${Math.round((n / max) * 100)}%`, background: color || "var(--accent)" }} /></div><span className="n">{n}</span></div>;
+  return (
+    <div className="lk-rep">
+      <h2>Reports &amp; metrics</h2>
+      <div className="sub">Project health across the whole plan, not just the lookahead window. Filter, then export.</div>
+      <div className="lk-rep-filters">
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Area</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All areas</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 130 }}><label>Level</label><select className="lk-select" value={lv} onChange={(e) => setLv(e.target.value)}><option value="all">All levels</option>{Object.keys(LV).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
+        <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
+        <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness schedule</button>
+      </div>
+      <div className="lk-rep-cards">
+        {cards.map((c, i) => <div key={i} className="lk-rep-card"><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
+      </div>
+      <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <Bar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
+      <div className="lk-rep-sec"><h3>By commissioning level</h3>{byLevel.map((x) => <Bar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
+      <div className="lk-rep-sec"><h3>By status</h3>{byStatus.map((x) => <Bar key={x.name} label={x.name} n={x.n} max={maxSt} color={x.color} />)}</div>
     </div>);
 }

@@ -5,7 +5,7 @@ const fromActivity = (r) => ({
   id: r.id, desc: r.descr || "", companyId: r.company_id || "", area: r.area || "", system: r.system || "",
   level: r.level || "L2", isMilestone: !!r.is_milestone, start: r.start_date || "", duration: r.duration || 1,
   committed: !!r.committed, status: r.status || "planned", actualStart: r.actual_start || "", actualFinish: r.actual_finish || "",
-  subArea: r.sub_area || "", tier3: r.tier3 || "", witnessInvite: !!r.witness_invite, notes: r.notes || "",
+  subArea: r.sub_area || "", tier3: r.tier3 || "", witnessInvite: !!r.witness_invite, witnessAt: r.witness_at || "", notes: r.notes || "",
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
 });
 const toActivity = (a, session, isNew) => {
@@ -13,7 +13,7 @@ const toActivity = (a, session, isNew) => {
     id: a.id, descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, system: a.system || null,
     level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1,
     committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null,
-    sub_area: a.subArea || null, tier3: a.tier3 || null, witness_invite: !!a.witnessInvite, notes: a.notes || null,
+    sub_area: a.subArea || null, tier3: a.tier3 || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, notes: a.notes || null,
     constraints: a.constraints || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
   };
   if (isNew) row.created_by = session.user.id;
