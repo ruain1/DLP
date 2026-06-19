@@ -1094,14 +1094,16 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Activities");
       const lists = wb.addWorksheet("Lists"); lists.state = "veryHidden";
-      const co = isAdmin ? (S.companies[0] ? S.companies[0].name : "") : null;
+      const myCo = (S.companies.find((c) => c.id === cu.companyId) || {}).name || "";
+      const co = isAdmin ? (myCo || (S.companies[0] ? S.companies[0].name : "")) : myCo;
+      const companyList = isAdmin ? S.companies.map((c) => c.name) : (myCo ? [myCo] : []);
       const buildings = S.areas.slice();
       const levels = [...new Set((S.subAreas || []).map((s) => s.name))];
       const zones = [...new Set((S.tier3s || []).map((t) => t.name))];
       const systems = S.systems.slice();
       const stages = Object.keys(LV);
-      [["Buildings", buildings], ["Levels", levels], ["Zones", zones], ["Systems", systems], ["Cx stages", stages]].forEach(([title, arr], cIdx) => { lists.getCell(1, cIdx + 1).value = title; arr.forEach((v, rIdx) => { lists.getCell(rIdx + 2, cIdx + 1).value = v; }); });
-      const headers = ["Description", co !== null ? "Company" : null, "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
+      [["Buildings", buildings], ["Levels", levels], ["Zones", zones], ["Systems", systems], ["Cx stages", stages], ["Companies", companyList]].forEach(([title, arr], cIdx) => { lists.getCell(1, cIdx + 1).value = title; arr.forEach((v, rIdx) => { lists.getCell(rIdx + 2, cIdx + 1).value = v; }); });
+      const headers = ["Description", "Company", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"];
       const exA = S.areas[0] || ""; const exSub = (S.subAreas || []).find((s) => s.area === exA); const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
       const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = stages[0] || "L2";
       const start = fmtISO(new Date()); const p = (n) => String(n).padStart(2, "0");
@@ -1112,10 +1114,11 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       ws.getRow(1).font = { bold: true };
       ws.columns.forEach((c, i) => { c.width = Math.max(12, String(headers[i] || "").length + 3); });
       const LAST = 300;
-      [["Building", buildings.length, 1], ["Level", levels.length, 2], ["Zone / Room", zones.length, 3], ["System", systems.length, 4], ["Cx Stage", stages.length, 5]].forEach(([name, count, listCol]) => {
+      [["Company", companyList.length, 6], ["Building", buildings.length, 1], ["Level", levels.length, 2], ["Zone / Room", zones.length, 3], ["System", systems.length, 4], ["Cx Stage", stages.length, 5]].forEach(([name, count, listCol]) => {
         const ci = headers.indexOf(name) + 1; if (ci < 1 || count < 1) return;
         const cl = colLetter(ci); const ll = colLetter(listCol);
-        for (let r = 2; r <= LAST; r++) ws.getCell(`${cl}${r}`).dataValidation = { type: "list", allowBlank: true, formulae: [`Lists!$${ll}$2:$${ll}$${count + 1}`] };
+        const allowBlank = name !== "Company" || isAdmin;
+        for (let r = 2; r <= LAST; r++) ws.getCell(`${cl}${r}`).dataValidation = { type: "list", allowBlank, formulae: [`Lists!$${ll}$2:$${ll}$${count + 1}`] };
       });
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -1190,6 +1193,9 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
             <ul>
+              {isAdmin
+                ? <li><b>Set the Company</b> each row belongs to. It defaults to your company; change it per row only when importing on another contractor's behalf.</li>
+                : <li><b>Do not change the Company column.</b> It is pre-set to your company. Any other value is rejected, and the dropdown only offers your company.</li>}
               <li>The <b>Excel template has dropdowns</b> for Building, Level, Zone / Room, System and Cx Stage, pre-loaded with this project's current values. Pick from them rather than typing.</li>
               <li><b>Those values must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
               <li>Matching ignores case but the spelling must be exact. The dropdowns do not enforce which Level belongs to which Building, so the app still checks that on import.</li>
