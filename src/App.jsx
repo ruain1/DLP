@@ -186,6 +186,14 @@ const css = `
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
 .lk-tblwrap{width:100%}
+.lk-sch{width:100%;display:flex;flex-direction:column;height:calc(100vh - 110px)}
+.lk-sch-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.lk-sch-bar .grp{display:flex;flex-direction:column;gap:2px}
+.lk-sch-bar .grp>label{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.lk-sch-bar .seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.lk-sch-bar .seg button{border:0;background:var(--card);color:var(--muted);padding:5px 11px;font-size:11.5px;font-weight:600;cursor:pointer}
+.lk-sch-bar .seg button.on{background:var(--ink);color:var(--paper)}
+.lk-sch-scroll{flex:1;overflow:auto;background:#fff}
 .lk-tblscroll{overflow-x:auto;padding:8px 16px 64px}
 .lk-grid{border-collapse:collapse;width:100%;font-size:11.5px;min-width:1040px}
 .lk-grid th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:8px 7px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--paper);z-index:1}
@@ -215,6 +223,7 @@ const css = `
 const I = {
   plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
   grid: <><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></>,
+  gantt: <><line x1="4" y1="6" x2="13" y2="6"/><line x1="7" y1="12" x2="18" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/></>,
   pen: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>,
   x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
   cl: <polyline points="15 18 9 12 15 6"/>, cr: <polyline points="9 18 15 12 9 6"/>,
@@ -522,6 +531,7 @@ export default function App({ session }) {
       <nav className="lk-rail"><div className="lk-rail-inner">
         <button title="Planning board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /></button>
         <button title="Activity table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n="grid" s={20} /></button>
+        <button title="Schedule (Gantt)" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n="gantt" s={20} /></button>
         <button title="Constraints log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /></button>
         <button title="Reports & metrics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /></button>
         <button title="Help & quick reference" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /></button>
@@ -650,7 +660,7 @@ export default function App({ session }) {
           {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
           <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
         </div>
-        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "table" ? "Activity table" : page === "constraints" ? "Constraints log" : page === "reports" ? "Reports & metrics" : page === "admin" ? "Admin settings" : page === "help" ? "Help & quick reference" : ""}</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "table" ? "Activity table" : page === "schedule" ? "Schedule" : page === "constraints" ? "Constraints log" : page === "reports" ? "Reports & metrics" : page === "admin" ? "Admin settings" : page === "help" ? "Help & quick reference" : ""}</div>
         <div className="lk-spacer" />
         <div className="lk-who">
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
@@ -659,6 +669,7 @@ export default function App({ session }) {
         </div>
       </div>}
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
+      {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
@@ -1087,6 +1098,137 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               </div>; })()}
           </>}
         </div></div>
+    </div>);
+}
+
+function SchedulePage({ S, coName, onOpen }) {
+  const [zoom, setZoom] = useState("week");
+  const [groupBy, setGroupBy] = useState("level");
+  const [colorBy, setColorBy] = useState("level");
+  const [showResp, setShowResp] = useState(true);
+  const [showDeps, setShowDeps] = useState(true);
+  const [compact, setCompact] = useState(false);
+  const [collapsed, setCollapsed] = useState({});
+  const svgRef = useRef(null);
+  const LV = S.levels || {};
+
+  const acts = S.activities.filter((a) => a.start);
+  const byId = Object.fromEntries(acts.map((a) => [a.id, a]));
+  const PAL = ["#2563EB", "#0E9384", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
+  const coColor = (id) => { if (!id) return "#94A3B8"; let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PAL[h % PAL.length]; };
+  const colorOf = (a) => colorBy === "company" ? coColor(a.companyId) : colorBy === "status" ? (a.status === "complete" ? "#0E9384" : a.status === "in_progress" ? "#2563EB" : "#94A3B8") : ((LV[a.level] || {}).color || "#64748B");
+  const pct = (a) => a.status === "complete" ? 100 : a.status === "in_progress" ? (a.actualStart ? Math.min(95, Math.max(5, Math.round((todayMid() - parseD(a.actualStart).getTime()) / DAYMS / Math.max(1, a.duration) * 100))) : 50) : 0;
+  const groupKey = (a) => groupBy === "none" ? "" : groupBy === "company" ? coName(a.companyId) : groupBy === "area" ? (a.area || "Unassigned") : groupBy === "system" ? (a.system || "Unassigned") : (a.level + " " + ((LV[a.level] || {}).name || ""));
+
+  // timeline bounds (snapped to whole weeks)
+  let t0, t1;
+  if (acts.length) {
+    const starts = acts.map((a) => parseD(a.start).getTime());
+    const ends = acts.map((a) => addDays(parseD(a.start), a.duration - 1).getTime());
+    t0 = mondayOf(new Date(Math.min(...starts)));
+    t1 = new Date(Math.max(...ends));
+  } else { t0 = mondayOf(new Date()); t1 = addDays(t0, 28); }
+  // forward pass for projected (forecast) ends, in day-offsets from t0
+  const dayOff = (d) => Math.round((d.getTime() - t0.getTime()) / DAYMS);
+  const proj = {}; { const memo = {}, stk = {}; const pe = (id) => { const a = byId[id]; if (!a) return null; if (memo[id] !== undefined) return memo[id]; const planEnd = dayOff(addDays(parseD(a.start), a.duration - 1)); if (stk[id]) return planEnd; stk[id] = true; let so = dayOff(parseD(a.start)); (a.predecessors || []).forEach((pid) => { const e = pe(pid); if (e != null) so = Math.max(so, e + 1); }); const eo = (a.status === "complete" && a.actualFinish) ? dayOff(parseD(a.actualFinish)) : so + (a.duration - 1); stk[id] = false; proj[id] = { so, eo }; memo[id] = eo; return eo; }; acts.forEach((a) => pe(a.id)); acts.forEach((a) => { if (!proj[a.id]) proj[a.id] = { so: dayOff(parseD(a.start)), eo: dayOff(addDays(parseD(a.start), a.duration - 1)) }; t1 = new Date(Math.max(t1.getTime(), addDays(t0, proj[a.id].eo).getTime())); }); }
+  t1 = addDays(mondayOf(addDays(t1, 7)), 6); // pad to end of week
+  const N = Math.max(7, dayOff(t1) + 1);
+
+  const ppd = zoom === "day" ? 30 : zoom === "week" ? 9.6 : 4.4;
+  const rowH = compact ? 22 : 30, headH = 46, leftW = 300;
+  const tlW = N * ppd, W = leftW + tlW;
+
+  // ordered rows: group headers + tasks
+  const rows = [];
+  if (groupBy === "none") {
+    acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a }));
+  } else {
+    const map = {};
+    acts.forEach((a) => { const k = groupKey(a); (map[k] = map[k] || []).push(a); });
+    const keys = Object.keys(map).sort();
+    keys.forEach((k) => { rows.push({ t: "grp", k, n: map[k].length }); if (!collapsed[k]) map[k].slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a })); });
+  }
+  const H = headH + rows.length * rowH + 8;
+
+  // geometry per task id
+  const geo = {};
+  rows.forEach((r, i) => { if (r.t !== "task") return; const a = r.a; const y = headH + i * rowH; const pS = dayOff(parseD(a.start)); const x = leftW + pS * ppd; const w = Math.max(a.duration * ppd, 5); geo[a.id] = { x, w, y, yc: y + rowH / 2, pE: pS + a.duration - 1 }; });
+
+  const xOf = (off) => leftW + off * ppd;
+  const todayX = leftW + dayOff(new Date(todayMid())) * ppd;
+
+  // month + unit gridlines
+  const months = []; { let d = new Date(t0.getFullYear(), t0.getMonth(), 1); while (d <= t1) { const next = new Date(d.getFullYear(), d.getMonth() + 1, 1); const xs = xOf(Math.max(0, dayOff(d < t0 ? t0 : d))); const xe = xOf(dayOff(next > t1 ? t1 : next)); months.push({ label: d.toLocaleString("en-GB", { month: "short", year: "2-digit" }), xs, xe }); d = next; } }
+  const ticks = []; { for (let i = 0; i <= N; i++) { const d = addDays(t0, i); const isMon = d.getDay() === 1; const first = d.getDate() === 1; if (zoom === "day") { ticks.push({ x: xOf(i), label: String(d.getDate()), strong: isMon }); } else if (zoom === "week") { if (isMon) ticks.push({ x: xOf(i), label: String(d.getDate()), strong: false }); } else { if (first) ticks.push({ x: xOf(i), label: "", strong: true }); } } }
+
+  const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || "#0F1419"} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
+
+  const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
+  const rasterize = (cb) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); cb(cv); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
+  const exportImg = (type) => rasterize((cv) => { const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.${type}`; a.click(); });
+  const exportPdf = () => { const w = window.open("", "_blank"); if (!w) return; w.document.write(`<!DOCTYPE html><html><head><title>FIN04 Schedule</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${svgString()}</body></html>`); w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350); };
+  const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
+
+  return (
+    <div className="lk-sch"><style>{css}</style>
+      <div className="lk-sch-bar">
+        <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
+        <div className="grp"><label>Group by</label><select className="lk-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="none">None</option><option value="company">Company</option><option value="area">Building</option><option value="level">Cx Stage</option><option value="system">System</option></select></div>
+        <div className="grp"><label>Colour by</label><select className="lk-select" value={colorBy} onChange={(e) => setColorBy(e.target.value)}><option value="level">Cx Stage</option><option value="company">Company</option><option value="status">Status</option></select></div>
+        <button className={"lk-btn" + (showResp ? " on" : "")} onClick={() => setShowResp((v) => !v)}>Responsible</button>
+        <button className={"lk-btn" + (showDeps ? " on" : "")} onClick={() => setShowDeps((v) => !v)}>Links</button>
+        <button className={"lk-btn" + (compact ? " on" : "")} onClick={() => setCompact((v) => !v)}>Compact</button>
+        <div style={{ flex: 1 }} />
+        <button className="lk-btn" onClick={() => exportImg("png")}><Icon n="download" s={13} />PNG</button>
+        <button className="lk-btn" onClick={() => exportImg("jpg")}><Icon n="download" s={13} />JPG</button>
+        <button className="lk-btn" onClick={exportPdf}><Icon n="download" s={13} />PDF</button>
+        <button className="lk-btn" onClick={exportXlsx}><Icon n="download" s={13} />Excel</button>
+      </div>
+      <div className="lk-sch-scroll">
+        {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
+        <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: "#fff", fontFamily: "Segoe UI, Arial, sans-serif" }}>
+          {/* month band */}
+          {months.map((m, i) => <g key={"m" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? "#F4F6FA" : "#EEF1F6"} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: "#5B6472" })}</g>)}
+          {/* unit gridlines + labels */}
+          {ticks.map((t, i) => <g key={"t" + i}><line x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? "#D6DCE6" : "#EAEEF4"} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: "#8A93A2" })}</g>)}
+          <line x1={leftW} y1={0} x2={leftW} y2={H} stroke="#C9D2DE" strokeWidth="1" />
+          <line x1={0} y1={headH} x2={W} y2={headH} stroke="#C9D2DE" strokeWidth="1" />
+          {/* today line */}
+          {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={H} stroke="#2563EB" strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: "#2563EB", weight: 700 })}</g>}
+          {/* dependency arrows */}
+          {showDeps && rows.map((r) => r.t === "task" ? (r.a.predecessors || []).map((pid) => { const g2 = geo[r.a.id], g1 = geo[pid]; if (!g1 || !g2) return null; const ax1 = g1.x + g1.w, ay1 = g1.yc, ax2 = g2.x, ay2 = g2.yc; const mx = Math.max(ax1 + 8, ax2 - 10); const d = `M ${ax1} ${ay1} H ${ax1 + 8} V ${ay2} H ${ax2 - 5}`; return <g key={pid + ">" + r.a.id}><path d={d} fill="none" stroke="#8A93A2" strokeWidth="1.1" /><polygon points={`${ax2 - 5},${ay2 - 3} ${ax2},${ay2} ${ax2 - 5},${ay2 + 3}`} fill="#8A93A2" /></g>; }) : null)}
+          {/* rows */}
+          {rows.map((r, i) => {
+            const y = headH + i * rowH;
+            if (r.t === "grp") {
+              const open = !collapsed[r.k];
+              return <g key={"g" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}>
+                <rect x={0} y={y} width={W} height={rowH} fill="#EEF1F6" />
+                <text x={10} y={y + rowH / 2} fontSize="10" fill="#5B6472" dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>
+                {text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: "#0F1419" })}
+              </g>;
+            }
+            const a = r.a, g = geo[a.id]; const col = colorOf(a); const p = pct(a); const barH = rowH - 12, barY = y + (rowH - barH) / 2;
+            const projE = proj[a.id] ? proj[a.id].eo : g.pE; const delay = projE > g.pE;
+            const dx1 = xOf(g.pE + 1), dx2 = xOf(projE + 1);
+            return <g key={a.id} style={{ cursor: "pointer" }} onClick={() => onOpen(a)}>
+              {i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill="#FBFCFE" />}
+              <line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke="#F0F3F8" strokeWidth="1" />
+              {text(10, y + rowH / 2, a.code != null ? "#" + a.code : "", { size: 9.5, fill: "#8A93A2" })}
+              <text x={42} y={y + rowH / 2} fontSize="11.5" fill="#0F1419" dominantBaseline="middle" style={{ pointerEvents: "none" }}>{(a.desc || "Untitled").length > 34 ? (a.desc || "Untitled").slice(0, 33) + "\u2026" : (a.desc || "Untitled")}</text>
+              {a.isMilestone
+                ? <polygon points={`${g.x},${y + rowH / 2 - 6} ${g.x + 6},${y + rowH / 2} ${g.x},${y + rowH / 2 + 6} ${g.x - 6},${y + rowH / 2}`} fill={col} />
+                : <g>
+                    <rect x={g.x} y={barY} width={g.w} height={barH} rx={3} fill={col} opacity={0.30} />
+                    <rect x={g.x} y={barY} width={g.w * p / 100} height={barH} rx={3} fill={col} />
+                    <rect x={g.x} y={barY} width={g.w} height={barH} rx={3} fill="none" stroke={col} strokeWidth="1" />
+                    {delay && <rect x={dx1} y={barY + 1} width={Math.max(2, dx2 - dx1)} height={barH - 2} rx={2} fill="none" stroke="#C0392B" strokeWidth="1.2" strokeDasharray="3 2" />}
+                  </g>}
+              {showResp && coName(a.companyId) && text((delay ? dx2 : g.x + g.w) + 6, y + rowH / 2, coName(a.companyId), { size: 10, fill: "#5B6472" })}
+            </g>;
+          })}
+        </svg>}
+      </div>
     </div>);
 }
 
