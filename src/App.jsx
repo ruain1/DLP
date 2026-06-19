@@ -275,6 +275,7 @@ export default function App({ session }) {
   const todayOffset = useMemo(() => Math.round((todayMid() - anchor) / DAYMS), [anchor]);
   const days = useMemo(() => Array.from({ length: DAYS }, (_, i) => addDays(anchor, i)), [anchor, DAYS]);
   const coName = (id) => (S.companies.find((c) => c.id === id) || {}).name || "Unassigned";
+  const locCode = (a) => [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".");
 
   const visible = useMemo(() => !S ? [] : S.activities.map((a) => {
     const ps = parseD(a.start);
@@ -337,8 +338,8 @@ export default function App({ session }) {
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Activity ID", "Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Milestone", "Witness invite", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
-    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
+    const headers = ["Activity ID", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "System", "Cx Stage", "Milestone", "Witness invite", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
+    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -348,13 +349,13 @@ export default function App({ session }) {
     const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     const WIT_MINUTES = 60;
     const wit = visible.filter((a) => a.witnessInvite && a.witnessAt).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
-    const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Start ISO", "End ISO", "Company", "Level", "System", "Activity ID"];
+    const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Start ISO", "End ISO", "Company", "Cx Stage", "System", "Activity ID"];
     const rows = wit.map((a) => {
       const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + WIT_MINUTES * 60000);
-      const loc = [a.area, a.subArea, a.tier3].filter(Boolean).join(" / ");
+      const loc = locCode(a);
       const subject = `Witness: ${a.desc || "Activity"}${loc ? " - " + loc : ""}`;
       const open = (a.constraints || []).filter((c) => !c.done).length;
-      const body = `${a.desc || ""}. Commissioning ${a.level} on ${a.system || "system"}. Performing: ${coName(a.companyId)}. Planned start ${a.start}.${a.notes ? " Notes: " + a.notes : ""}${open ? ` (${open} open constraint${open === 1 ? "" : "s"})` : ""}`;
+      const body = `${a.desc || ""}. Cx Stage ${a.level} on ${a.system || "system"}. Performing: ${coName(a.companyId)}. Planned start ${a.start}.${a.notes ? " Notes: " + a.notes : ""}${open ? ` (${open} open constraint${open === 1 ? "" : "s"})` : ""}`;
       const dmy = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
       const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
       return [subject, dmy(sd), hm(sd), dmy(ed), hm(ed), "False", loc, body, localISO(sd), localISO(ed), coName(a.companyId), a.level, a.system || "", a.id];
@@ -402,7 +403,7 @@ export default function App({ session }) {
           {a.witnessInvite && <span className="lk-chip wit" title="Witness invite">WIT</span>}
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && <span className="lk-chip late">+{a.delayDays}d</span>}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? (a.area + (a.subArea ? SUBSEP + a.subArea : "") + (a.tier3 ? SUBSEP + a.tier3 : "")) : coName(a.companyId)}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
       </div>);
   };
@@ -458,7 +459,7 @@ export default function App({ session }) {
             <button key={k} className={grain === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, grain: k }))}>{l}</button>))}
         </div>
         {S.view === "swimlane" && <div className="lk-seg">
-          {[["company", "Company"], ["area", "Area"], ["subarea", "Sub-area"], ["level", "Level"]].map(([k, l]) => (
+          {[["company", "Company"], ["area", "Building"], ["subarea", "Level"], ["level", "Cx Stage"]].map(([k, l]) => (
             <button key={k} className={S.laneBy === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, laneBy: k }))}>{l}</button>))}
         </div>}
         <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
@@ -594,22 +595,22 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
               <select className="lk-select" value={a.companyId || ""} disabled={dis || !isAdmin} onChange={(e) => set("companyId", e.target.value)}>
                 {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}</div>
-            <div className="lk-f"><label>Area</label>
+            <div className="lk-f"><label>Building</label>
               <select className="lk-select" value={a.area} disabled={dis} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
                 <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select></div>
           </div>
-          <div className="lk-f"><label>Sub-area (optional)</label>
+          <div className="lk-f"><label>Level (optional)</label>
             <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}>
               <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select>
-            {a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No sub-areas defined for {a.area}. Add them in Admin, Areas.</span>}</div>
-          <div className="lk-f"><label>Tier 3 Area (optional)</label>
+            {a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No levels defined for {a.area}. Add them in Admin, Locations.</span>}</div>
+          <div className="lk-f"><label>Zone / Room (optional)</label>
             <select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => set("tier3", e.target.value)}>
               <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select>
-            {a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No Tier 3 Areas defined for {a.subArea}. Add them in Admin, Areas.</span>}</div>
+            {a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}. Add them in Admin, Locations.</span>}</div>
           <div className="lk-f"><label>System</label>
             <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => set("system", e.target.value)}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select></div>
-          <div className="lk-f"><label>Commissioning level</label>
+          <div className="lk-f"><label>Cx Stage</label>
             <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => set("level", k)}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
           <div className="lk-row">
             <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={dis} onChange={(e) => set("start", e.target.value)} /></div>
@@ -662,10 +663,10 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     if (key === "areas") { n.subAreas = (p.subAreas || []).filter((s) => s.area !== val); n.tier3s = (p.tier3s || []).filter((t) => t.area !== val); }
     return n;
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
-  const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add sub-area", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
-  const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)), tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === name)) }), { action: "Remove sub-area", detail: `${area} / ${name}` });
-  const addT3 = (area, subArea) => { const key = area + "\u0001" + subArea; const name = (t3Input[key] || "").trim(); if (!name) return; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area, subArea, name }].filter((t, i, arr) => arr.findIndex((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name) === i) }), { action: "Add Tier 3 Area", detail: `${area} / ${subArea} / ${name}` }); setT3Input({ ...t3Input, [key]: "" }); };
-  const delT3 = (area, subArea, name) => update((p) => ({ ...p, tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === subArea && t.name === name)) }), { action: "Remove Tier 3 Area", detail: `${area} / ${subArea} / ${name}` });
+  const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add level", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
+  const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)), tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === name)) }), { action: "Remove level", detail: `${area} / ${name}` });
+  const addT3 = (area, subArea) => { const key = area + "\u0001" + subArea; const name = (t3Input[key] || "").trim(); if (!name) return; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area, subArea, name }].filter((t, i, arr) => arr.findIndex((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name) === i) }), { action: "Add zone / room", detail: `${area} / ${subArea} / ${name}` }); setT3Input({ ...t3Input, [key]: "" }); };
+  const delT3 = (area, subArea, name) => update((p) => ({ ...p, tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === subArea && t.name === name)) }), { action: "Remove zone / room", detail: `${area} / ${subArea} / ${name}` });
   const [newCred, setNewCred] = useState(null);
   const addUser = async () => {
     if (!nu.email.trim()) { setUserMsg("Email required."); return; }
@@ -730,7 +731,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), tier3: idx(["tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
@@ -758,7 +759,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
   const handleImportFile = (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const txt = String(reader.result).replace(/^\uFEFF/, ""); if (file.name.toLowerCase().endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt); } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); } }; reader.readAsText(file); e.target.value = ""; };
-  const tabs = [["companies", "Companies"], ["areas", "Areas"], ["systems", "Systems"], ["levels", "Levels"], ["branding", "Branding"], ["users", "Users"], ["settings", "Settings"], ["data", "Import / Export"], ["audit", "Audit"]];
+  const tabs = [["companies", "Companies"], ["areas", "Locations"], ["systems", "Systems"], ["levels", "Cx Stages"], ["branding", "Branding"], ["users", "Users"], ["settings", "Settings"], ["data", "Import / Export"], ["audit", "Audit"]];
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
@@ -783,14 +784,14 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
                     <div className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontSize: 12, color: "var(--muted)" }}>↳ {sn}</span><button onClick={() => delSub(area, sn)}><Icon n="trash" s={13} /></button></div>
                     <div style={{ paddingLeft: 16 }}>
                       {t3.map((tn) => <div key={tn} className="lk-li" style={{ borderBottom: 0 }}><span className="g" style={{ fontSize: 11.5, color: "var(--muted)" }}>↳↳ {tn}</span><button onClick={() => delT3(area, sn, tn)}><Icon n="trash" s={12} /></button></div>)}
-                      <div className="lk-add"><input className="lk-in" placeholder="Add Tier 3 Area…" value={t3Input[k] || ""} onChange={(e) => setT3Input({ ...t3Input, [k]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addT3(area, sn)} /><button className="lk-btn" onClick={() => addT3(area, sn)}><Icon n="plus" s={14} /></button></div>
+                      <div className="lk-add"><input className="lk-in" placeholder="Add zone / room…" value={t3Input[k] || ""} onChange={(e) => setT3Input({ ...t3Input, [k]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addT3(area, sn)} /><button className="lk-btn" onClick={() => addT3(area, sn)}><Icon n="plus" s={14} /></button></div>
                     </div>
                   </div>; })}
-                  <div className="lk-add"><input className="lk-in" placeholder="Add sub-area…" value={subInput[area] || ""} onChange={(e) => setSubInput({ ...subInput, [area]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addSub(area)} /><button className="lk-btn" onClick={() => addSub(area)}><Icon n="plus" s={15} /></button></div>
+                  <div className="lk-add"><input className="lk-in" placeholder="Add level (floor)…" value={subInput[area] || ""} onChange={(e) => setSubInput({ ...subInput, [area]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addSub(area)} /><button className="lk-btn" onClick={() => addSub(area)}><Icon n="plus" s={15} /></button></div>
                 </div>
               </div>;
             })}</div>
-            <div className="lk-add"><input className="lk-in" placeholder="Add area…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
+            <div className="lk-add"><input className="lk-in" placeholder="Add building…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
           </>}
           {tab === "users" && <>
             <div className="lk-list">{S.users.map((u) => <div key={u.id} className="lk-li">
@@ -876,7 +877,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
               <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
             <div className="lk-f"><label>Import file (.json project or .csv activities)</label>
               <input className="lk-in" type="file" accept=".json,.csv" onChange={handleImportFile} /></div>
-            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, areas, sub-areas, Tier 3 Areas, systems, levels, settings and activities. CSV imports activities and auto-creates any new company, area, sub-area, Tier 3 Area or system it names, so a CSV alone can stand a project up. Add "Sub-area" and "Tier 3 Area" columns to the CSV to populate them. Override replaces, Append merges.</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces, Append merges.</div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
           {tab === "audit" && <>
@@ -914,25 +915,25 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   });
   rows.sort((x, y) => (x.a.start || "").localeCompare(y.a.start || ""));
   const totalOpen = S.activities.reduce((n, a) => n + (a.constraints || []).filter((c) => !c.done).length, 0);
-  const exportCsv = () => { const headers = ["Activity", "Company", "Area", "Sub-area", "Level", "Planned start", "Constraint", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), a.area, a.subArea || "", a.level, a.start, c.text, c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
+  const exportCsv = () => { const headers = ["Activity", "Company", "Location code", "Building", "Level", "Zone / Room", "Cx Stage", "Planned start", "Constraint", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join("."), a.area, a.subArea || "", a.tier3 || "", a.level, a.start, c.text, c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
   return (
     <div className="lk-rep">
       <div className="sub" style={{ marginTop: 2 }}>Every make-ready constraint across the project. Tick one to clear it; the board updates straight away.</div>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Area</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All areas</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 180 }}><label>Search</label><input className="lk-in" placeholder="Activity or constraint…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <button className={"lk-btn" + (openOnly ? " on" : "")} onClick={() => setOpenOnly((v) => !v)}>{openOnly ? "Open only" : "Showing all"}</button>
         <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
       </div>
       <div className="lk-rep-sec" style={{ padding: 0, overflow: "auto" }}>
-        <table className="lk-tbl"><thead><tr><th style={{ width: 34 }} /><th>Activity</th><th>Company</th><th>Area</th><th>Level</th><th>Start</th><th>Constraint</th></tr></thead>
+        <table className="lk-tbl"><thead><tr><th style={{ width: 34 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th>Start</th><th>Constraint</th></tr></thead>
           <tbody>
             {rows.map(({ a, c }) => <tr key={a.id + c.id}>
               <td><input type="checkbox" checked={c.done} disabled={!canEdit(a)} onChange={() => toggle(a.id, c.id)} /></td>
               <td><span className="lnk" onClick={() => onOpen(a)}>{a.desc || "Untitled"}</span></td>
               <td>{coName(a.companyId)}</td>
-              <td>{a.area}{a.subArea ? ` \u203A ${a.subArea}` : ""}</td>
+              <td className="mono">{[(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".")}</td>
               <td>{a.level}</td>
               <td className="mono">{a.start}</td>
               <td className={c.done ? "lk-cdone" : ""}>{c.text}</td>
@@ -1031,8 +1032,8 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
       <div className="sub" style={{ marginTop: 2 }}>Project health across the whole plan, not just the lookahead window. Filter, then export.</div>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Area</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All areas</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 130 }}><label>Level</label><select className="lk-select" value={lv} onChange={(e) => setLv(e.target.value)}><option value="all">All levels</option>{Object.keys(LV).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 130 }}><label>Cx Stage</label><select className="lk-select" value={lv} onChange={(e) => setLv(e.target.value)}><option value="all">All Cx stages</option>{Object.keys(LV).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
         <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
       </div>
@@ -1053,7 +1054,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         <div className="lk-rep-sec"><h3>Status mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
         <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
       </div>
-      <div className="lk-rep-sec"><h3>By commissioning level</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
+      <div className="lk-rep-sec"><h3>By Cx stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
     </div>);
 }
 
@@ -1070,7 +1071,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = Object.keys(LV)[0] || "L2";
     const start = fmtISO(new Date()); const p = (n) => String(n).padStart(2, "0");
     const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T09:00`; })();
-    const headers = ["Description", co !== null ? "Company" : null, "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
+    const headers = ["Description", co !== null ? "Company" : null, "Building", "Level", "Zone / Room", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
     const ex1 = ["Example 1: terminate cables (DELETE before importing)", co, exA, sub, t3, sys, lv, start, "3", "No", "No", "", "Delete this example row"].filter((x) => x !== null);
     const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", co, exA, sub, t3, sys, lv, start, "2", "Yes", "Yes", wit, "Witness invite Yes needs a date and time. Delete this row"].filter((x) => x !== null);
     downloadFile("DLP-activity-import-template.csv", toCSV(headers, [ex1, ex2]));
@@ -1080,8 +1081,8 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     if (rows.length < 2) return { imported: 0, errors: ["The file has no activity rows under the header."] };
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), tier3: idx(["tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness at"]), notes: idx(["notes", "comment"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
-    if (ci.desc < 0 || ci.area < 0 || ci.system < 0) return { imported: 0, errors: ["The header is missing one of Description, Area or System. Download the template and keep its header row."] };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness at"]), notes: idx(["notes", "comment"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    if (ci.desc < 0 || ci.area < 0 || ci.system < 0) return { imported: 0, errors: ["The header is missing one of Description, Building or System. Download the template and keep its header row."] };
     const areaMap = new Map(S.areas.map((a) => [a.toLowerCase(), a]));
     const sysMap = new Map(S.systems.map((s) => [s.toLowerCase(), s]));
     const subSet = new Set((S.subAreas || []).map((s) => `${s.area.toLowerCase()}|${s.name.toLowerCase()}`));
@@ -1097,11 +1098,11 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       let companyId = cu.companyId; const coRaw = g(ci.company);
       if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (isAdmin) companyId = c.id; else if (c.id !== cu.companyId) e.push("you can only import activities for your own company"); }
       if (!companyId) e.push(isAdmin ? "give a Company that already exists" : "your account has no company set; ask an admin");
-      const areaRaw = g(ci.area); let area = ""; if (!areaRaw) e.push("missing Area"); else { const m = areaMap.get(areaRaw.toLowerCase()); if (!m) e.push(`area "${areaRaw}" does not exist`); else area = m; }
-      const subRaw = g(ci.subarea); let subArea = ""; if (subRaw) { if (area && subSet.has(`${area.toLowerCase()}|${subRaw.toLowerCase()}`)) subArea = subRaw; else e.push(`sub-area "${subRaw}" does not exist under "${areaRaw}"`); }
-      const t3Raw = g(ci.tier3); let tier3 = ""; if (t3Raw) { if (area && subArea && t3Set.has(`${area.toLowerCase()}|${subArea.toLowerCase()}|${t3Raw.toLowerCase()}`)) tier3 = t3Raw; else e.push(`Tier 3 "${t3Raw}" does not exist under "${areaRaw}" / "${subRaw}"`); }
+      const areaRaw = g(ci.area); let area = ""; if (!areaRaw) e.push("missing Building"); else { const m = areaMap.get(areaRaw.toLowerCase()); if (!m) e.push(`building "${areaRaw}" does not exist`); else area = m; }
+      const subRaw = g(ci.subarea); let subArea = ""; if (subRaw) { if (area && subSet.has(`${area.toLowerCase()}|${subRaw.toLowerCase()}`)) subArea = subRaw; else e.push(`level "${subRaw}" does not exist under building "${areaRaw}"`); }
+      const t3Raw = g(ci.tier3); let tier3 = ""; if (t3Raw) { if (area && subArea && t3Set.has(`${area.toLowerCase()}|${subArea.toLowerCase()}|${t3Raw.toLowerCase()}`)) tier3 = t3Raw; else e.push(`zone/room "${t3Raw}" does not exist under "${areaRaw}" / "${subRaw}"`); }
       const sysRaw = g(ci.system); let system = ""; if (!sysRaw) e.push("missing System"); else { const m = sysMap.get(sysRaw.toLowerCase()); if (!m) e.push(`system "${sysRaw}" does not exist`); else system = m; }
-      const lvRaw = g(ci.level).toUpperCase(); let level = lvKeys[0] || "L2"; if (lvRaw) { if (lvKeys.includes(lvRaw)) level = lvRaw; else e.push(`level "${lvRaw}" is not one of ${lvKeys.join(", ")}`); }
+      const lvRaw = g(ci.level).toUpperCase(); let level = lvKeys[0] || "L2"; if (lvRaw) { if (lvKeys.includes(lvRaw)) level = lvRaw; else e.push(`Cx stage "${lvRaw}" is not one of ${lvKeys.join(", ")}`); }
       const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
       if (!start) e.push("missing or invalid Planned start (use YYYY-MM-DD)");
       let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
@@ -1126,18 +1127,20 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
             <ul>
-              <li><b>Area, System, Sub-area, Tier 3 Area and Level must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
+              <li><b>Building, Level, Zone / Room, System and Cx Stage must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
               <li>Matching ignores case but the spelling must be exact. The valid values are listed below.</li>
               <li>If any single row is invalid, <b>nothing is imported</b>. You get a list of what to fix, then re-upload.</li>
               <li>Dates use YYYY-MM-DD. Committed and Witness invite take Yes or No.</li>
               <li>If <b>Witness invite</b> is Yes, a <b>Witness date &amp; time</b> is required, format YYYY-MM-DD HH:MM (see example 2).</li>
               <li>The template has <b>two example rows</b>. Delete them and import only your own activities.</li>
-              <li>Description, Area, System and Planned start are required on every row.</li>
+              <li>Description, Building, System and Planned start are required on every row. The location reads as Site.Building.Level.Zone, e.g. FIN04.01.L0.GY01.</li>
             </ul>
           </div>
-          <div className="ref"><b>Valid areas</b>{S.areas.length ? S.areas.map((a) => <span key={a} className="lk-tag">{a}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+          <div className="ref"><b>Valid buildings</b>{S.areas.length ? S.areas.map((a) => <span key={a} className="lk-tag">{a}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+          <div className="ref"><b>Valid levels (floors)</b>{(S.subAreas || []).length ? [...new Set((S.subAreas || []).map((s) => s.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+          <div className="ref"><b>Valid zones / rooms</b>{(S.tier3s || []).length ? [...new Set((S.tier3s || []).map((t) => t.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
           <div className="ref"><b>Valid systems</b>{S.systems.length ? S.systems.map((s) => <span key={s} className="lk-tag">{s}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
-          <div className="ref"><b>Valid levels</b>{Object.keys(LV).map((k) => <span key={k} className="lk-tag">{k} {LV[k].name}</span>)}</div>
+          <div className="ref"><b>Valid Cx stages</b>{Object.keys(LV).map((k) => <span key={k} className="lk-tag">{k} {LV[k].name}</span>)}</div>
           <div className="lk-row" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button className="lk-btn" onClick={downloadTemplate}><Icon n="download" s={14} />Download template</button>
             <label className="lk-btn primary" style={{ cursor: "pointer" }}><Icon n="upload" s={14} />Choose CSV file<input type="file" accept=".csv" style={{ display: "none" }} onChange={onFile} /></label>
