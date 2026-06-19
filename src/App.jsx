@@ -18,7 +18,7 @@ const THEMES = {
 
 const css = `
 .lk{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--paper);
-  height:100%;width:100%;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+  min-height:100vh;width:100%;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
 .lk *{box-sizing:border-box}
 .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 .lk-bar{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap;position:sticky;top:0;z-index:30;background:var(--paper)}
@@ -243,6 +243,7 @@ export default function App({ session }) {
   useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const ch = subscribeAll(refresh); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
+  useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
   const cu = S && (S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null });
