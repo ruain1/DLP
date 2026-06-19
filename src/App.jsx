@@ -585,6 +585,16 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
   const isNew = !act.desc && act.constraints.length === 0;
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false }]); setCText(""); };
   const dis = !canEdit;
+  const hasLevels = !!a.area && (S.subAreas || []).some((s) => s.area === a.area);
+  const hasZones = !!a.subArea && (S.tier3s || []).some((t) => t.area === a.area && t.subArea === a.subArea);
+  const missing = [];
+  if (!a.desc.trim()) missing.push("activity description");
+  if (!a.area) missing.push("building");
+  if (hasLevels && !a.subArea) missing.push("level");
+  if (hasZones && !a.tier3) missing.push("zone / room");
+  if (!a.system) missing.push("system");
+  if (a.witnessInvite && !a.witnessAt) missing.push("witness date & time");
+  const incomplete = missing.length > 0;
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
@@ -601,19 +611,19 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
               <select className="lk-select" value={a.area} disabled={dis} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
                 <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select></div>
           </div>
-          <div className="lk-f"><label>Level (optional)</label>
+          <div className="lk-f"><label>Level</label>
             <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}>
               <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select>
             {a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No levels defined for {a.area}. Add them in Admin, Locations.</span>}</div>
-          <div className="lk-f"><label>Zone / Room (optional)</label>
+          <div className="lk-f"><label>Zone / Room</label>
             <select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => set("tier3", e.target.value)}>
               <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select>
             {a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}. Add them in Admin, Locations.</span>}</div>
-          <div className="lk-f"><label>Asset (optional)</label>
-            <input className="lk-in" value={a.asset || ""} disabled={dis} placeholder="e.g. EPOD108.DB001.U003" onChange={(e) => set("asset", e.target.value)} /></div>
           <div className="lk-f"><label>System</label>
             <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => set("system", e.target.value)}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select></div>
+          <div className="lk-f"><label>Asset (optional)</label>
+            <input className="lk-in" value={a.asset || ""} disabled={dis} placeholder="e.g. EPOD108.DB001.U003" onChange={(e) => set("asset", e.target.value)} /></div>
           <div className="lk-f"><label>Cx Stage</label>
             <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => set("level", k)}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
           <div className="lk-row">
@@ -641,8 +651,8 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
         </div>
         {canEdit && <div className="lk-df">
           {!isNew && <button className="lk-btn" onClick={() => onDelete(a)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>}
-          <div className="lk-spacer" /><button className="lk-btn" onClick={onClose}>Cancel</button>
-          <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={!a.desc.trim() || (a.witnessInvite && !a.witnessAt)}><Icon n="check" s={15} />Save</button>
+          <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11, color: "var(--muted)", alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
+          <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
         </div>}
       </div>
     </div>);
