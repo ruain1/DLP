@@ -691,7 +691,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
+      {page !== "help" && page !== "reports" && <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>}
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
     </div>);
@@ -1775,6 +1775,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
       </div>
       <div className="lk-rep-sec"><h3>By Cx stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
+      <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 10.5, padding: "18px 0 6px", borderTop: "1px solid var(--line)", marginTop: 6 }}>DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
     </div>);
 }
 
