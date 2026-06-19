@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
-import { fetchBranding, applyBrandToTab } from "./data";
+import { fetchBranding, applyBrandToTab, userOp } from "./data";
 
-export default function SetPassword({ onDone }) {
+export default function SetPassword({ onDone, forced }) {
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [msg, setMsg] = useState("");
@@ -16,8 +16,10 @@ export default function SetPassword({ onDone }) {
     if (pw !== pw2) { setMsg("Passwords do not match."); return; }
     setBusy(true); setMsg("");
     const { error } = await supabase.auth.updateUser({ password: pw });
+    if (error) { setBusy(false); setMsg(error.message); return; }
+    // Clear the first-login reset flag now that they have their own password.
+    try { await userOp({ op: "passwordchanged" }); } catch (e) {}
     setBusy(false);
-    if (error) { setMsg(error.message); return; }
     // strip the token from the URL so a refresh does not re-trigger this screen
     try { history.replaceState(null, "", window.location.pathname); } catch (e) {}
     onDone();
@@ -37,7 +39,7 @@ export default function SetPassword({ onDone }) {
           <div style={{ fontWeight: 700, fontSize: 21, letterSpacing: "-0.01em" }}>{brand.projectName} {brand.appName}</div>
           <div style={{ fontSize: 11, color: "#6B7785", marginTop: 5, textTransform: "uppercase", letterSpacing: ".12em" }}>{brand.tagline}</div>
         </div>
-        <div style={{ fontSize: 13.5, color: "#16202E", marginBottom: 16, textAlign: "center" }}>Set a password to finish setting up your account.</div>
+        <div style={{ fontSize: 13.5, color: "#16202E", marginBottom: 16, textAlign: "center" }}>{forced ? "Choose your own password to continue. Your temporary password will stop working once you do." : "Set a password to finish setting up your account."}</div>
         <div style={label}>New password</div>
         <input style={input} type="password" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => e.key === "Enter" && save()} />
         <div style={{ ...label, marginTop: 14 }}>Confirm password</div>

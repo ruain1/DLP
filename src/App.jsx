@@ -179,6 +179,16 @@ const css = `
 .lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
+.lk-tblwrap{width:100%}
+.lk-tblscroll{overflow-x:auto;padding:8px 16px 64px}
+.lk-grid{border-collapse:collapse;width:100%;font-size:11.5px;min-width:1040px}
+.lk-grid th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:8px 7px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--paper);z-index:1}
+.lk-grid td{padding:4px 7px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink)}
+.lk-grid tr.ed{background:var(--hover)}
+.lk-grid td button{background:transparent;border:0;cursor:pointer;color:var(--muted);display:inline-flex;padding:3px;border-radius:6px}
+.lk-grid td button:hover:not(:disabled){background:var(--hover);color:var(--ink)}
+.lk-grid td button:disabled{cursor:not-allowed}
+.lk-grid .lk-in,.lk-grid .lk-select{width:100%}
 .lk-day.addday{position:relative;cursor:cell}
 .lk-day.addday .addp{position:absolute;top:2px;right:3px;opacity:0;color:var(--accent);transition:opacity .12s;display:flex}
 .lk-day.addday:hover .addp{opacity:1}
@@ -198,6 +208,8 @@ const css = `
 
 const I = {
   plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+  grid: <><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></>,
+  pen: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>,
   x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
   cl: <polyline points="15 18 9 12 15 6"/>, cr: <polyline points="9 18 15 12 9 6"/>,
   alert: <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
@@ -499,6 +511,7 @@ export default function App({ session }) {
       <div className="lk-shell">
       <nav className="lk-rail"><div className="lk-rail-inner">
         <button title="Planning board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /></button>
+        <button title="Activity table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n="grid" s={20} /></button>
         <button title="Constraints log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /></button>
         <button title="Reports & metrics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /></button>
         <button title="Help & quick reference" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /></button>
@@ -626,7 +639,7 @@ export default function App({ session }) {
           {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
           <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
         </div>
-        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "constraints" ? "Constraints log" : page === "reports" ? "Reports & metrics" : page === "admin" ? "Admin settings" : page === "help" ? "Help & quick reference" : ""}</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "table" ? "Activity table" : page === "constraints" ? "Constraints log" : page === "reports" ? "Reports & metrics" : page === "admin" ? "Admin settings" : page === "help" ? "Help & quick reference" : ""}</div>
         <div className="lk-spacer" />
         <div className="lk-who">
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
@@ -634,6 +647,7 @@ export default function App({ session }) {
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
       </div>}
+      {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
@@ -1043,6 +1057,69 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               </div>; })()}
           </>}
         </div></div>
+    </div>);
+}
+
+function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
+  const [editId, setEditId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [q, setQ] = useState("");
+  const [fCo, setFCo] = useState("all");
+  const [fStatus, setFStatus] = useState("all");
+  const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+  const rowEditable = (a) => isAdmin || (canEdit(a) && !a.committed);
+  const begin = (a) => { setEditId(a.id); setDraft({ ...a }); };
+  const cancel = () => { setEditId(null); setDraft(null); };
+  const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
+  const setStatus = (v) => setDraft((d) => { const n = { ...d, status: v }; if (v === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (v === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; });
+  const save = () => { if (!draft.desc.trim()) return; const d = draft; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === d.id ? d : x) }), { action: "Edit activity (table)", detail: `${d.desc} (${coName(d.companyId)})` }); cancel(); };
+  const subsFor = (area) => (S.subAreas || []).filter((s) => s.area === area);
+  const zonesFor = (area, sub) => (S.tier3s || []).filter((t) => t.area === area && t.subArea === sub);
+  const list = S.activities.filter((a) => {
+    if (fStatus !== "all" && a.status !== fStatus) return false;
+    if (fCo === "none") { if (a.companyId) return false; } else if (fCo !== "all" && a.companyId !== fCo) return false;
+    if (q.trim() && !(`${a.desc || ""} ${cn(a.companyId)} ${a.system || ""}`.toLowerCase().includes(q.trim().toLowerCase()))) return false;
+    return true;
+  }).sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || 0) - (b.code || 0));
+  const cell = { padding: "5px 7px", fontSize: 11.5 };
+  return (
+    <div className="lk-tblwrap" style={cssVars(S.theme)}><style>{css}</style>
+      <div className="lk-ufilter" style={{ padding: "10px 16px 0" }}>
+        <div className="lk-f" style={{ minWidth: 160, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 120 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
+      </div>
+      <div className="lk-tblscroll">
+        <table className="lk-grid">
+          <thead><tr>
+            <th style={{ width: 56 }}></th><th>#</th><th>Activity</th><th>Company</th><th>Building</th><th>Level</th><th>Zone / Room</th><th>System</th><th>Cx</th><th>Start</th><th>Days</th><th>Committed</th><th>Status</th><th>Notes</th>
+          </tr></thead>
+          <tbody>
+            {list.length === 0 && <tr><td colSpan={14} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
+            {list.map((a) => {
+              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a);
+              return <tr key={a.id} className={ed ? "ed" : ""}>
+                <td>{ed
+                  ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
+                  : <button title={canRow ? "Edit this row" : (a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}</td>
+                <td className="mono">#{a.code ?? "?"}</td>
+                <td>{ed ? <input className="lk-in" style={cell} value={d.desc} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
+                <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>
+                <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>
+                <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>
+                <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>
+                <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>
+                <td>{ed ? <select className="lk-select" style={cell} value={d.level} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>
+                <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>
+                <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>
+                <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>
+                <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>
+                <td style={{ minWidth: 150 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} onChange={(e) => set("notes", e.target.value)} /> : <span style={{ color: "var(--muted)" }}>{a.notes || ""}</span>}</td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>);
 }
 
