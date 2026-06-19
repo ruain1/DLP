@@ -130,7 +130,8 @@ const css = `
 .lk-audit{font-size:11.5px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line);padding:7px 0}
 .lk-audit .a{font-weight:600}.lk-audit .m{color:var(--muted);font-size:10.5px}
 .lk-shell{display:flex;align-items:stretch;min-height:100vh}
-.lk-rail{flex:0 0 56px;width:56px;background:#1d2530;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 0;position:sticky;top:0;height:100vh}
+.lk-rail{flex:0 0 56px;width:56px;background:#1d2530}
+.lk-rail-inner{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 0}
 .lk-rail button{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,color .12s}
 .lk-rail button:hover{background:#2a333f;color:#dfe6ef}
 .lk-rail button.on{background:var(--accent);color:#fff}
@@ -407,7 +408,7 @@ export default function App({ session }) {
   return (
     <div className="lk" style={cssVars(S.theme)}><style>{css}</style>
       <div className="lk-shell">
-      <nav className="lk-rail">
+      <nav className="lk-rail"><div className="lk-rail-inner">
         <button title="Planning board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /></button>
         <button title="Constraints log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /></button>
         <button title="Reports & metrics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /></button>
@@ -415,7 +416,7 @@ export default function App({ session }) {
           <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
         </div>
-      </nav>
+      </div></nav>
       <div className="lk-page">
       {page === "board" && <>
       <div className="lk-bar">
