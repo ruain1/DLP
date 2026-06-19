@@ -28,6 +28,10 @@
     --body:"Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
     --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
   }
+  html[data-theme="dark"]{
+    --canvas:#10151C; --surface:#1A222D; --ink:#E6EAF0; --mut:#9AA7B6; --faint:#7E8B9A;
+    --line:#2A3543; --brand-soft:#222C44;
+  }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html{ -webkit-text-size-adjust:100%; }
   body{
@@ -296,5 +300,6 @@
   </footer>
 
 </div>
+<script>try{if(new URLSearchParams(location.search).get('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 </body>
 </html>
