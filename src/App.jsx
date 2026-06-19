@@ -673,7 +673,7 @@ export default function App({ session }) {
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
-      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} onGuidedImport={() => setShowImport(true)} />}
+      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} />}
       </div>
       </div>
@@ -801,7 +801,7 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
     </div>);
 }
 
-function AdminPanel({ S, cu, update, exportActivities, onGuidedImport }) {
+function AdminPanel({ S, cu, update, exportActivities }) {
   const [tab, setTab] = useState("companies");
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
@@ -836,6 +836,44 @@ function AdminPanel({ S, cu, update, exportActivities, onGuidedImport }) {
   const addLevel = () => { const used = Object.keys(S.levels); let key = (lvKey || "").trim().toUpperCase().replace(/\s+/g, ""); if (!key) { let n = used.length + 1; key = "L" + n; while (S.levels[key]) { n++; key = "L" + n; } } if (S.levels[key]) { alert(`Cx stage "${key}" already exists.`); return; } const name = (lvName || "").trim() || "New stage"; update((p) => ({ ...p, levels: { ...p.levels, [key]: { name, color: lvColor || "#64748B", sort: Object.keys(p.levels).length } } }), { action: "Add Cx stage", detail: `${key} ${name}` }); setLvKey(""); setLvName(""); setLvColor("#64748B"); };
   const delLevel = (k) => { const keys = Object.keys(S.levels); if (keys.length <= 1) { alert("Keep at least one Cx stage."); return; } const fallback = keys.find((x) => x !== k); const used = S.activities.filter((a) => a.level === k).length; if (used && !window.confirm(`${used} activit${used === 1 ? "y" : "ies"} use ${k}. Delete it and move them to ${fallback}?`)) return; update((p) => { const lv = { ...p.levels }; delete lv[k]; return { ...p, levels: lv, activities: p.activities.map((a) => a.level === k ? { ...a, level: fallback } : a) }; }, { action: "Delete Cx stage", detail: k }); };
   const downloadCsvTemplate = () => { const headers = ["Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"]; const example = ["UPS module SAT", (S.companies[0] || {}).name || "", S.areas[0] || "", "", "", S.systems[0] || "", Object.keys(S.levels)[0] || "L2", fmtISO(new Date()), "2", "No", "No", "", "Example row - delete before importing"]; downloadFile("FIN04-activities-template.csv", toCSV(headers, [example])); };
+  const [tplBusy, setTplBusy] = useState(false);
+  const downloadAdminTemplate = async () => {
+    setTplBusy(true);
+    try {
+      const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
+      const colLetter = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Activities");
+      const lists = wb.addWorksheet("Lists"); lists.state = "veryHidden";
+      const companyList = S.companies.map((c) => c.name);
+      const buildings = S.areas.slice();
+      const levels = [...new Set((S.subAreas || []).map((s) => s.name))];
+      const zones = [...new Set((S.tier3s || []).map((t) => t.name))];
+      const systems = S.systems.slice();
+      const stages = Object.keys(S.levels);
+      [["Buildings", buildings], ["Levels", levels], ["Zones", zones], ["Systems", systems], ["Cx stages", stages], ["Companies", companyList]].forEach(([title, arr], cIdx) => { lists.getCell(1, cIdx + 1).value = title; arr.forEach((v, rIdx) => { lists.getCell(rIdx + 2, cIdx + 1).value = v; }); });
+      const headers = ["Description", "Company", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"];
+      const exA = S.areas[0] || ""; const exSub = (S.subAreas || []).find((s) => s.area === exA); const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
+      const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = stages[0] || "L2";
+      const start = fmtISO(new Date()); const pad = (n) => String(n).padStart(2, "0");
+      const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T09:00`; })();
+      const ex1 = ["Example 1: terminate cables (DELETE before importing)", companyList[0] || "", exA, sub, t3, "", sys, lv, start, 3, "No", "No", "", "Set Company to whichever contractor owns the work. Delete this row"];
+      const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", companyList[1] || companyList[0] || "", exA, sub, t3, "EPOD108.DB001.U003", sys, lv, start, 2, "Yes", "Yes", wit, "Witness invite Yes needs a date and time. Delete this row"];
+      ws.addRow(headers); ws.addRow(ex1); ws.addRow(ex2);
+      ws.getRow(1).font = { bold: true };
+      ws.columns.forEach((c, i) => { c.width = Math.max(12, String(headers[i] || "").length + 3); });
+      const LAST = 400;
+      [["Company", companyList.length, 6], ["Building", buildings.length, 1], ["Level", levels.length, 2], ["Zone / Room", zones.length, 3], ["System", systems.length, 4], ["Cx Stage", stages.length, 5]].forEach(([name, count, listCol]) => {
+        const ci = headers.indexOf(name) + 1; if (ci < 1 || count < 1) return;
+        const cl = colLetter(ci); const ll = colLetter(listCol);
+        for (let r = 2; r <= LAST; r++) ws.getCell(`${cl}${r}`).dataValidation = { type: "list", allowBlank: true, showErrorMessage: false, formulae: [`Lists!$${ll}$2:$${ll}$${count + 1}`] };
+      });
+      const buf = await wb.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const a = document.createElement("a"); a.href = url; a.download = "FIN04-activities-admin-template.xlsx"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { alert("Template failed: " + (e && e.message ? e.message : e)); }
+    setTplBusy(false);
+  };
   const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add level", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
   const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)), tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === name)) }), { action: "Remove level", detail: `${area} / ${name}` });
   const addT3 = (area, subArea) => { const key = area + "\u0001" + subArea; const name = (t3Input[key] || "").trim(); if (!name) return; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area, subArea, name }].filter((t, i, arr) => arr.findIndex((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name) === i) }), { action: "Add zone / room", detail: `${area} / ${subArea} / ${name}` }); setT3Input({ ...t3Input, [key]: "" }); };
@@ -909,7 +947,8 @@ function AdminPanel({ S, cu, update, exportActivities, onGuidedImport }) {
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness date & time"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const normDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
@@ -929,14 +968,32 @@ function AdminPanel({ S, cu, update, exportActivities, onGuidedImport }) {
         let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
         const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
         const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        newActs.push({ id: uid("a"), code: ++codeC, predecessors: [], desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
+        newActs.push({ id: uid("a"), code: ++codeC, predecessors: [], desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), witnessAt: normDT(g(ci.witat)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
       }
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
       return { ...p, companies, areas, subAreas, tier3s, systems, activities };
     }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
     setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
-  const handleImportFile = (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const txt = String(reader.result).replace(/^\uFEFF/, ""); if (file.name.toLowerCase().endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt); } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); } }; reader.readAsText(file); e.target.value = ""; };
+  const cellToStr = (v) => { if (v == null) return ""; if (v instanceof Date) { const p = (n) => String(n).padStart(2, "0"); const dd = `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`; const hh = v.getUTCHours(), mm = v.getUTCMinutes(); return (hh || mm) ? `${dd}T${p(hh)}:${p(mm)}` : dd; } if (typeof v === "object") { if (v.text != null) return String(v.text); if (v.result != null) return String(v.result); if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join(""); if (v.hyperlink) return String(v.hyperlink); return ""; } return String(v); };
+  const rowsToCSV = (rows) => rows.map((r) => r.map((c) => { const s = cellToStr(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");
+  const handleImportFile = async (e) => {
+    const file = e.target.files && e.target.files[0]; if (!file) return;
+    const name = file.name.toLowerCase();
+    try {
+      if (name.endsWith(".xlsx")) {
+        const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
+        const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
+        const ws = wb.getWorksheet("Activities") || wb.worksheets[0];
+        const rows = []; ws.eachRow({ includeEmpty: false }, (row) => { const arr = []; row.eachCell({ includeEmpty: true }, (cell) => arr.push(cell.value)); rows.push(arr); });
+        importCSV(rowsToCSV(rows));
+      } else {
+        const txt = (await file.text()).replace(/^\uFEFF/, "");
+        if (name.endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt);
+      }
+    } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); }
+    e.target.value = "";
+  };
   const navGroups = [
     ["Project setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Settings"]]],
     ["User management", [["users", "Users"]]],
@@ -1096,20 +1153,20 @@ function AdminPanel({ S, cu, update, exportActivities, onGuidedImport }) {
             <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4 }}>Add as many Cx stages or sub-steps as the project needs. Leave the key blank to auto-number, or set your own (L5, L4a, IST). Deleting a stage moves any activities on it to the first remaining stage.</div>
           </div>}
           {tab === "data" && <>
-            <div className="lk-f"><label>Templates &amp; guided import</label>
+            <div className="lk-f"><label>Templates</label>
               <div className="lk-row" style={{ flexWrap: "wrap" }}>
+                <button className="lk-btn primary" disabled={tplBusy} onClick={downloadAdminTemplate}><Icon n="download" s={14} />{tplBusy ? "Building…" : "Excel template (with dropdowns)"}</button>
                 <button className="lk-btn" onClick={downloadCsvTemplate}><Icon n="download" s={14} />CSV template</button>
-                <button className="lk-btn primary" onClick={onGuidedImport}><Icon n="plus" s={14} />Guided import (Excel template + dropdowns)</button>
               </div>
-              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>The guided importer hands you an Excel template with dropdowns for Building, Sub-area, Tier 3, System and Cx stage, validates each row and lists the valid values. Required on every row: Description, Area and System. If Witness invite is Yes the row needs a Witness date &amp; time. Delete the example rows before importing. Areas, sub-areas, Tier 3s and systems named in the file are created automatically. The CSV template is the same columns without dropdowns.</div>
+              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>Admin import: set the <b style={{ color: "var(--ink)" }}>Company</b> column per row, so you can load work for every contractor in one file. The Excel template carries dropdowns for Company, Building, Level, Zone / Room, System and Cx stage pre-loaded with this project's values, but you may type new ones too: any Building, Level, Zone / Room or System that does not yet exist is created on import. Required on every row: Description, Building, System and Planned start. Dates use YYYY-MM-DD; Witness invite Yes needs a Witness date &amp; time (YYYY-MM-DD HH:MM). Delete the two example rows before importing. Choose Append to merge or Override to replace below.</div>
             </div>
             <div className="lk-f"><label>Export</label>
               <div className="lk-row"><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button>
                 <button className="lk-btn" onClick={exportProject}><Icon n="download" s={14} />Project (JSON)</button></div></div>
             <div className="lk-f"><label>Import mode</label>
               <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
-            <div className="lk-f"><label>Import file (.json project or .csv activities)</label>
-              <input className="lk-in" type="file" accept=".json,.csv" onChange={handleImportFile} /></div>
+            <div className="lk-f"><label>Import file (.xlsx or .csv activities, or .json project)</label>
+              <input className="lk-in" type="file" accept=".json,.csv,.xlsx" onChange={handleImportFile} /></div>
             <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces, Append merges.</div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
