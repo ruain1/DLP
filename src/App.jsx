@@ -21,7 +21,7 @@ const css = `
   height:100%;width:100%;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
 .lk *{box-sizing:border-box}
 .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
-.lk-bar{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.lk-bar{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap;position:sticky;top:0;z-index:30;background:var(--paper)}
 .lk-title{font-weight:700;font-size:16px;letter-spacing:-0.01em}
 .lk-sub{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;margin-top:2px}
 .lk-nav{display:flex;align-items:center;gap:4px}
@@ -45,7 +45,7 @@ const css = `
 .lk-metric .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 .lk-metric .sub{font-size:10.5px;color:var(--muted)}
 .lk-board{flex:1;overflow:auto;position:relative}
-.lk-head{display:grid;position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
+.lk-head{display:grid;position:sticky;top:62px;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
 .lk-wk{border-right:1px solid var(--line);padding:6px 9px 3px;font-size:10.5px;font-weight:700;letter-spacing:.04em;border-bottom:1px solid var(--line)}
 .lk-wk .wc{color:var(--muted);font-weight:500;margin-left:5px}
 .lk-day{padding:4px 0 5px;text-align:center;border-right:1px solid var(--line);font-size:9.5px;color:var(--muted)}
