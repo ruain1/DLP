@@ -1095,8 +1095,8 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       const ws = wb.addWorksheet("Activities");
       const lists = wb.addWorksheet("Lists"); lists.state = "veryHidden";
       const myCo = (S.companies.find((c) => c.id === cu.companyId) || {}).name || "";
-      const co = isAdmin ? (myCo || (S.companies[0] ? S.companies[0].name : "")) : myCo;
-      const companyList = isAdmin ? S.companies.map((c) => c.name) : (myCo ? [myCo] : []);
+      const co = myCo;
+      const companyList = myCo ? [myCo] : [];
       const buildings = S.areas.slice();
       const levels = [...new Set((S.subAreas || []).map((s) => s.name))];
       const zones = [...new Set((S.tier3s || []).map((t) => t.name))];
@@ -1117,7 +1117,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       [["Company", companyList.length, 6], ["Building", buildings.length, 1], ["Level", levels.length, 2], ["Zone / Room", zones.length, 3], ["System", systems.length, 4], ["Cx Stage", stages.length, 5]].forEach(([name, count, listCol]) => {
         const ci = headers.indexOf(name) + 1; if (ci < 1 || count < 1) return;
         const cl = colLetter(ci); const ll = colLetter(listCol);
-        const allowBlank = name !== "Company" || isAdmin;
+        const allowBlank = name !== "Company";
         for (let r = 2; r <= LAST; r++) ws.getCell(`${cl}${r}`).dataValidation = { type: "list", allowBlank, formulae: [`Lists!$${ll}$2:$${ll}$${count + 1}`] };
       });
       const buf = await wb.xlsx.writeBuffer();
@@ -1138,6 +1138,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     const subSet = new Set((S.subAreas || []).map((s) => `${s.area.toLowerCase()}|${s.name.toLowerCase()}`));
     const t3Set = new Set((S.tier3s || []).map((t) => `${t.area.toLowerCase()}|${t.subArea.toLowerCase()}|${t.name.toLowerCase()}`));
     const coByName = new Map(S.companies.map((c) => [c.name.toLowerCase(), c]));
+    const myCoName = (S.companies.find((c) => c.id === cu.companyId) || {}).name || "";
     const lvKeys = Object.keys(LV);
     const yes = (v) => /^(y|yes|true|1)$/i.test(v);
     const errors = [], staged = [];
@@ -1146,8 +1147,8 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : ""); const ln = r + 1; const e = [];
       const desc = g(ci.desc); if (!desc) e.push("missing Description");
       let companyId = cu.companyId; const coRaw = g(ci.company);
-      if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (isAdmin) companyId = c.id; else if (c.id !== cu.companyId) e.push("you can only import activities for your own company"); }
-      if (!companyId) e.push(isAdmin ? "give a Company that already exists" : "your account has no company set; ask an admin");
+      if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (c.id !== cu.companyId) e.push(`you can only import activities for your own company (${myCoName || "your company"})`); }
+      if (!companyId) e.push("your account has no company assigned; ask an admin to set one before importing");
       const areaRaw = g(ci.area); let area = ""; if (!areaRaw) e.push("missing Building"); else { const m = areaMap.get(areaRaw.toLowerCase()); if (!m) e.push(`building "${areaRaw}" does not exist`); else area = m; }
       const subRaw = g(ci.subarea); let subArea = ""; if (subRaw) { if (area && subSet.has(`${area.toLowerCase()}|${subRaw.toLowerCase()}`)) subArea = subRaw; else e.push(`level "${subRaw}" does not exist under building "${areaRaw}"`); }
       const t3Raw = g(ci.tier3); let tier3 = ""; if (t3Raw) { if (area && subArea && t3Set.has(`${area.toLowerCase()}|${subArea.toLowerCase()}|${t3Raw.toLowerCase()}`)) tier3 = t3Raw; else e.push(`zone/room "${t3Raw}" does not exist under "${areaRaw}" / "${subRaw}"`); }
@@ -1189,13 +1190,11 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       <div className="lk-modal" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Import activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
-          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. {isAdmin ? "Rows import to the Company named in each row." : "Everything you import is added under your own company."}</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. Everything you import is added under your own company.</div>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
             <ul>
-              {isAdmin
-                ? <li><b>Set the Company</b> each row belongs to. It defaults to your company; change it per row only when importing on another contractor's behalf.</li>
-                : <li><b>Do not change the Company column.</b> It is pre-set to your company. Any other value is rejected, and the dropdown only offers your company.</li>}
+              <li><b>Do not change the Company column.</b> It is pre-set to your company. Activities can only be imported for your own company; any other value is rejected.</li>
               <li>The <b>Excel template has dropdowns</b> for Building, Level, Zone / Room, System and Cx Stage, pre-loaded with this project's current values. Pick from them rather than typing.</li>
               <li><b>Those values must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
               <li>Matching ignores case but the spelling must be exact. The dropdowns do not enforce which Level belongs to which Building, so the app still checks that on import.</li>
