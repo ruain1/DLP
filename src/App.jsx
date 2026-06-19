@@ -157,6 +157,10 @@ const css = `
 .lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
+.lk-day.addday{position:relative;cursor:pointer}
+.lk-day.addday .addp{position:absolute;top:2px;right:3px;opacity:0;color:var(--accent);transition:opacity .12s;display:flex}
+.lk-day.addday:hover .addp{opacity:1}
+.lk-day.addday:hover{background:var(--hover)}
 `;
 
 const I = {
@@ -304,6 +308,8 @@ export default function App({ session }) {
   const removeActivity = (a) => { update((p) => ({ ...p, activities: p.activities.filter((x) => x.id !== a.id) }), { action: "Delete activity", detail: a.desc }); setEditing(null); };
   const moveActivity = (id, dayIdx, lane) => {
     const a = S.activities.find((x) => x.id === id); if (!a || !canEdit(a)) { dragId.current = null; return; }
+    if (!isAdmin && a.committed) { dragId.current = null; return; }
+    if (!isAdmin && S.laneBy === "company" && lane != null) { const c = S.companies.find((c) => c.name === lane); if (c && c.id !== a.companyId) { dragId.current = null; return; } }
     update((p) => ({ ...p, activities: p.activities.map((x) => {
       if (x.id !== id) return x;
       const u = { ...x, start: fmtISO(addDays(anchor, dayIdx)) };
@@ -362,9 +368,10 @@ export default function App({ session }) {
     const s = Math.max(0, sU(a)), e = Math.min(cols - 1, eU(a));
     const lv = lvOf(LV, a.level);
     const editable = canEdit(a);
+    const movable = isAdmin || (editable && !a.committed);
     if (a.isMilestone) {
       return <div className="lk-ms" style={{ gridColumn: `${s + 1} / ${s + 2}`, gridRow: row + 1 }}
-        draggable={editable} onDragStart={() => editable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
+        draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <span className="dia" style={{ background: a.delayed ? "#C0392B" : lv.color }} title={a.desc} />
         <span className="mslbl">{a.desc || "Milestone"}{a.delayed ? ` +${a.delayDays}d` : ""}</span>
       </div>;
@@ -375,7 +382,7 @@ export default function App({ session }) {
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "")}
         style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
-        draggable={editable} onDragStart={() => editable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
+        draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <div className="desc">{a.desc || "Untitled activity"}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
@@ -471,13 +478,13 @@ export default function App({ session }) {
               <div key={"w" + w} className="lk-wk" style={{ gridColumn: `${2 + w * 7} / span 7` }}>WK {isoWeek(addDays(anchor, w * 7))}<span className="wc">w/c {fmtWC(addDays(anchor, w * 7))}</span></div>))}
             <div style={{ gridColumn: "1 / 2", gridRow: 2, borderRight: "1px solid var(--line)" }} />
             {days.map((d, i) => { const we = d.getDay() === 0 || d.getDay() === 6, tod = i === todayOffset;
-              return <div key={i} className={"lk-day" + (we ? " we" : "") + (tod ? " tod" : "")} style={{ gridRow: 2 }}>
-                <div className="wd">{d.toLocaleString("en-GB", { weekday: "short" }).slice(0, 2)}</div><div className="dn mono">{d.getDate()}</div></div>; })}
+              return <div key={i} className={"lk-day addday" + (we ? " we" : "") + (tod ? " tod" : "")} style={{ gridRow: 2 }} title="Add an activity on this day" onClick={() => newActivity(undefined, i)}>
+                <div className="wd">{d.toLocaleString("en-GB", { weekday: "short" }).slice(0, 2)}</div><div className="dn mono">{d.getDate()}</div><span className="addp"><Icon n="plus" s={11} /></span></div>; })}
           </> : <>
             <div style={{ borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />
             {Array.from({ length: cols }, (_, i) => (
-              <div key={i} className={"lk-day" + (i === todayUnit ? " tod" : "")} style={{ padding: "8px 0 9px", borderBottom: "1px solid var(--line)" }}>
-                <div className="wd">WK {isoWeek(unitDate(i))}</div><div className="dn mono">w/c {fmtWC(unitDate(i))}</div></div>))}
+              <div key={i} className={"lk-day addday" + (i === todayUnit ? " tod" : "")} style={{ padding: "8px 0 9px", borderBottom: "1px solid var(--line)" }} title="Add an activity in this week" onClick={() => newActivity(undefined, dropDay(i))}>
+                <div className="wd">WK {isoWeek(unitDate(i))}</div><div className="dn mono">w/c {fmtWC(unitDate(i))}</div><span className="addp"><Icon n="plus" s={11} /></span></div>))}
           </>}
         </div>
 
