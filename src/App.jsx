@@ -143,6 +143,15 @@ const css = `
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
 .lk-adminwrap .lk-db{padding:14px 0 0}
 .lk-adminwrap .lk-tabs{padding:6px 0 0}
+.lk-adminwrap2{display:flex;gap:24px;width:100%;padding:10px 22px 52px;align-items:flex-start}
+.lk-subnav{flex:0 0 188px;display:flex;flex-direction:column;gap:14px;position:sticky;top:10px}
+.lk-subnav .grp{display:flex;flex-direction:column;gap:2px}
+.lk-subnav .grphd{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 8px 3px}
+.lk-subnav button{text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:7px;padding:7px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
+.lk-subnav button:hover{background:var(--hover)}
+.lk-subnav button.sel{background:var(--ink);color:var(--paper)}
+.lk-subbody{flex:1;min-width:0;max-width:760px}
+.lk-subbody .lk-db{padding:2px 0 0}
 .lk-help{height:calc(100vh - 62px)}
 .lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
 .lk-ugroup{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -379,7 +388,7 @@ export default function App({ session }) {
     dragId.current = null;
   };
   const newActivity = (lane, dayIdx) => {
-    const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
+    const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
       start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", actualStart: "", actualFinish: "", constraints: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
@@ -733,6 +742,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [tab, setTab] = useState("companies");
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
+  const [auditOpen, setAuditOpen] = useState(false);
   const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
   const [impMsg, setImpMsg] = useState("");
@@ -854,11 +864,18 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
   const handleImportFile = (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const txt = String(reader.result).replace(/^\uFEFF/, ""); if (file.name.toLowerCase().endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt); } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); } }; reader.readAsText(file); e.target.value = ""; };
-  const tabs = [["companies", "Companies"], ["areas", "Locations"], ["systems", "Systems"], ["levels", "Cx Stages"], ["branding", "Branding"], ["users", "Users"], ["settings", "Settings"], ["data", "Import / Export"], ["audit", "Audit"]];
+  const navGroups = [
+    ["Project setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Settings"]]],
+    ["User management", [["users", "Users"]]],
+    ["Audit log", [["audit", "Audit"]]],
+    ["Advanced", [["data", "Import / Export"]]],
+  ];
   return (
-    <div className="lk-adminwrap" style={cssVars(S.theme)}><style>{css}</style>
-        <div className="lk-tabs">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
-        <div className="lk-db">
+    <div className="lk-adminwrap2" style={cssVars(S.theme)}><style>{css}</style>
+        <div className="lk-subnav">
+          {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>)}
+        </div>
+        <div className="lk-subbody"><div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
             const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name]) : S[tab].map((x) => [x, x]);
@@ -1011,10 +1028,14 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               </select></div>
             <button className="lk-btn" onClick={() => { const rows = (auditUser === "all" ? S.audit : S.audit.filter((e) => e.user === auditUser)).map((e) => [e.ts, e.user, e.action, e.detail]); downloadFile(`FIN04-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows)); }}><Icon n="download" s={14} />Export audit (CSV)</button>
             {(() => { const list = auditUser === "all" ? S.audit : S.audit.filter((e) => e.user === auditUser);
-              return <div>{list.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>No actions logged for this selection.</div>}
-                {list.map((e) => <div key={e.id} className="lk-audit"><span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span><span className="m">{e.user} · {new Date(e.ts).toLocaleString("en-GB")}</span></div>)}</div>; })()}
+              return <div>
+                <button className="lk-btn" style={{ marginTop: 4 }} onClick={() => setAuditOpen((o) => !o)}><span style={{ display: "inline-flex", transform: auditOpen ? "rotate(90deg)" : "none", transition: "transform .12s" }}><Icon n="cr" s={13} /></span>{auditOpen ? "Hide" : "Show"} log ({list.length} {list.length === 1 ? "entry" : "entries"})</button>
+                {auditOpen && (list.length === 0
+                  ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No actions logged for this selection.</div>
+                  : <div style={{ marginTop: 8 }}>{list.map((e) => <div key={e.id} className="lk-audit"><span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span><span className="m">{e.user} · {new Date(e.ts).toLocaleString("en-GB")}</span></div>)}</div>)}
+              </div>; })()}
           </>}
-        </div>
+        </div></div>
     </div>);
 }
 
