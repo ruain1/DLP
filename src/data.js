@@ -109,6 +109,8 @@ export async function syncCollections(prev, next, session) {
       .filter(([k, v]) => !prev.levels[k] || prev.levels[k].name !== v.name || prev.levels[k].color !== v.color)
       .map(([k, v], i) => ({ key: k, name: v.name, color: v.color, sort: v.sort ?? i }));
     if (ups.length) ops.push(supabase.from("levels").upsert(ups));
+    const rem = Object.keys(prev.levels).filter((k) => !next.levels[k]);
+    if (rem.length) ops.push(supabase.from("levels").delete().in("key", rem));
   }
   // sub-areas (keyed by area+name)
   if (next.subAreas !== prev.subAreas) {

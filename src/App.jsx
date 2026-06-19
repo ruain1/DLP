@@ -673,7 +673,7 @@ export default function App({ session }) {
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
-      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
+      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} onGuidedImport={() => setShowImport(true)} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} />}
       </div>
       </div>
@@ -692,10 +692,11 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
   const [cOwner, setCOwner] = useState("");
   const [cDue, setCDue] = useState("");
   const setC = (id, k, v) => set("constraints", a.constraints.map((x) => x.id === id ? { ...x, [k]: v } : x));
-  const set = (k, v) => canEdit && setA((p) => ({ ...p, [k]: v }));
+  const locked = a.status === "complete";
+  const set = (k, v) => { if (!canEdit || locked) return; setA((p) => ({ ...p, [k]: v })); };
   const isNew = !act.desc && act.constraints.length === 0;
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), due: cDue }]); setCText(""); setCOwner(""); setCDue(""); };
-  const dis = !canEdit;
+  const dis = !canEdit || locked;
   const hasLevels = !!a.area && (S.subAreas || []).some((s) => s.area === a.area);
   const hasZones = !!a.subArea && (S.tier3s || []).some((t) => t.area === a.area && t.subArea === a.subArea);
   const missing = [];
@@ -777,7 +778,8 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
             <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={dis} onChange={(e) => set("witnessAt", e.target.value)} />
             {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}</div>}
           <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => set("isMilestone", !a.isMilestone)}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond)</span></span><span className="lk-sw2" /></div>
-          <div className="lk-f"><label>Status</label><div className="lk-status">{[["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]].map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={dis} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; })}>{l}</button>)}</div></div>
+          {locked && canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit anything.</div>}
+          <div className="lk-f"><label>Status</label><div className="lk-status">{[["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]].map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; })}>{l}</button>)}</div></div>
           <div className="lk-row">
             <div className="lk-f"><label>Actual start</label><input className="lk-in mono" type="date" value={a.actualStart || ""} disabled={dis} onChange={(e) => set("actualStart", e.target.value)} /></div>
             <div className="lk-f"><label>Actual finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
@@ -798,11 +800,15 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
     </div>);
 }
 
-function AdminPanel({ S, cu, update, exportActivities }) {
+function AdminPanel({ S, cu, update, exportActivities, onGuidedImport }) {
   const [tab, setTab] = useState("companies");
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false);
+  const [auditQ, setAuditQ] = useState("");
+  const [lvKey, setLvKey] = useState("");
+  const [lvName, setLvName] = useState("");
+  const [lvColor, setLvColor] = useState("#64748B");
   const [ustat, setUstat] = useState({});
   useEffect(() => { fetchUserStatus().then(setUstat).catch(() => {}); }, []);
   const [brandMsg, setBrandMsg] = useState("");
@@ -825,6 +831,10 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     if (key === "areas") { n.subAreas = (p.subAreas || []).filter((s) => s.area !== val); n.tier3s = (p.tier3s || []).filter((t) => t.area !== val); }
     return n;
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
+  const renameSystem = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if (S.systems.some((s) => s !== oldName && s.toLowerCase() === name.toLowerCase())) { alert(`System "${name}" already exists.`); return; } update((p) => ({ ...p, systems: p.systems.map((s) => s === oldName ? name : s), activities: p.activities.map((a) => a.system === oldName ? { ...a, system: name } : a) }), { action: "Rename system", detail: `${oldName} -> ${name}` }); };
+  const addLevel = () => { const used = Object.keys(S.levels); let key = (lvKey || "").trim().toUpperCase().replace(/\s+/g, ""); if (!key) { let n = used.length + 1; key = "L" + n; while (S.levels[key]) { n++; key = "L" + n; } } if (S.levels[key]) { alert(`Cx stage "${key}" already exists.`); return; } const name = (lvName || "").trim() || "New stage"; update((p) => ({ ...p, levels: { ...p.levels, [key]: { name, color: lvColor || "#64748B", sort: Object.keys(p.levels).length } } }), { action: "Add Cx stage", detail: `${key} ${name}` }); setLvKey(""); setLvName(""); setLvColor("#64748B"); };
+  const delLevel = (k) => { const keys = Object.keys(S.levels); if (keys.length <= 1) { alert("Keep at least one Cx stage."); return; } const fallback = keys.find((x) => x !== k); const used = S.activities.filter((a) => a.level === k).length; if (used && !window.confirm(`${used} activit${used === 1 ? "y" : "ies"} use ${k}. Delete it and move them to ${fallback}?`)) return; update((p) => { const lv = { ...p.levels }; delete lv[k]; return { ...p, levels: lv, activities: p.activities.map((a) => a.level === k ? { ...a, level: fallback } : a) }; }, { action: "Delete Cx stage", detail: k }); };
+  const downloadCsvTemplate = () => { const headers = ["Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"]; const example = ["UPS module SAT", (S.companies[0] || {}).name || "", S.areas[0] || "", "", "", S.systems[0] || "", Object.keys(S.levels)[0] || "L2", fmtISO(new Date()), "2", "No", "No", "", "Example row - delete before importing"]; downloadFile("FIN04-activities-template.csv", toCSV(headers, [example])); };
   const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add level", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
   const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)), tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === name)) }), { action: "Remove level", detail: `${area} / ${name}` });
   const addT3 = (area, subArea) => { const key = area + "\u0001" + subArea; const name = (t3Input[key] || "").trim(); if (!name) return; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area, subArea, name }].filter((t, i, arr) => arr.findIndex((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name) === i) }), { action: "Add zone / room", detail: `${area} / ${subArea} / ${name}` }); setT3Input({ ...t3Input, [key]: "" }); };
@@ -942,7 +952,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
             const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name]) : S[tab].map((x) => [x, x]);
             return <>
-              <div className="lk-list">{items.map(([id, name]) => <div key={id} className="lk-li"><span className="g">{name}</span><button onClick={() => delList(tab, id, label)}><Icon n="trash" s={14} /></button></div>)}</div>
+              <div className="lk-list">{items.map(([id, name]) => <div key={id} className="lk-li">{tab === "systems"
+                ? <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
+                : <span className="g">{name}</span>}<button onClick={() => delList(tab, id, label)}><Icon n="trash" s={14} /></button></div>)}</div>
               <div className="lk-add"><input className="lk-in" placeholder={`Add ${label}…`} value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList(tab, label)} /><button className="lk-btn primary" onClick={() => addList(tab, label)}><Icon n="plus" s={15} /></button></div>
             </>;
           })()}
@@ -1070,11 +1082,26 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           {tab === "levels" && <div className="lk-list">
             {Object.entries(S.levels).map(([k, v]) => <div key={k} className="lk-li">
               <input type="color" value={v.color} onChange={(e) => update((p) => ({ ...p, levels: { ...p.levels, [k]: { ...p.levels[k], color: e.target.value } } }), { action: "Edit level", detail: `${k} colour` })} style={{ width: 36, height: 30, padding: 0, border: "1px solid var(--line)", borderRadius: 6, background: "transparent", cursor: "pointer" }} />
-              <span style={{ fontWeight: 700, fontSize: 11, width: 22 }}>{k}</span>
+              <span style={{ fontWeight: 700, fontSize: 11, width: 28 }}>{k}</span>
               <input className="lk-in" value={v.name} onChange={(e) => update((p) => ({ ...p, levels: { ...p.levels, [k]: { ...p.levels[k], name: e.target.value } } }))} />
+              <button title="Delete Cx stage" onClick={() => delLevel(k)}><Icon n="trash" s={14} /></button>
             </div>)}
+            <div className="lk-add" style={{ marginTop: 4 }}>
+              <input type="color" value={lvColor} onChange={(e) => setLvColor(e.target.value)} style={{ width: 36, height: 30, padding: 0, border: "1px solid var(--line)", borderRadius: 6, background: "transparent", cursor: "pointer" }} />
+              <input className="lk-in mono" placeholder="Key (e.g. L5 or L4a)" value={lvKey} onChange={(e) => setLvKey(e.target.value)} style={{ maxWidth: 130 }} onKeyDown={(e) => e.key === "Enter" && addLevel()} />
+              <input className="lk-in" placeholder="Name (e.g. Integrated systems test)" value={lvName} onChange={(e) => setLvName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addLevel()} />
+              <button className="lk-btn primary" onClick={addLevel}><Icon n="plus" s={15} /></button>
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4 }}>Add as many Cx stages or sub-steps as the project needs. Leave the key blank to auto-number, or set your own (L5, L4a, IST). Deleting a stage moves any activities on it to the first remaining stage.</div>
           </div>}
           {tab === "data" && <>
+            <div className="lk-f"><label>Templates &amp; guided import</label>
+              <div className="lk-row" style={{ flexWrap: "wrap" }}>
+                <button className="lk-btn" onClick={downloadCsvTemplate}><Icon n="download" s={14} />CSV template</button>
+                <button className="lk-btn primary" onClick={onGuidedImport}><Icon n="plus" s={14} />Guided import (Excel template + dropdowns)</button>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>The guided importer hands you an Excel template with dropdowns for Building, Sub-area, Tier 3, System and Cx stage, validates each row and lists the valid values. Required on every row: Description, Area and System. If Witness invite is Yes the row needs a Witness date &amp; time. Delete the example rows before importing. Areas, sub-areas, Tier 3s and systems named in the file are created automatically. The CSV template is the same columns without dropdowns.</div>
+            </div>
             <div className="lk-f"><label>Export</label>
               <div className="lk-row"><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button>
                 <button className="lk-btn" onClick={exportProject}><Icon n="download" s={14} />Project (JSON)</button></div></div>
@@ -1092,14 +1119,17 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 <option value="all">All users ({S.audit.length})</option>
                 {S.users.map((u) => <option key={u.id} value={u.name}>{u.name} ({S.audit.filter((e) => e.user === u.name).length})</option>)}
               </select></div>
-            <button className="lk-btn" onClick={() => { const rows = (auditUser === "all" ? S.audit : S.audit.filter((e) => e.user === auditUser)).map((e) => [e.ts, e.user, e.action, e.detail]); downloadFile(`FIN04-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows)); }}><Icon n="download" s={14} />Export audit (CSV)</button>
-            {(() => { const list = auditUser === "all" ? S.audit : S.audit.filter((e) => e.user === auditUser);
-              return <div>
+            <div className="lk-f"><label>Search</label><input className="lk-in" placeholder="Search action, detail or user…" value={auditQ} onChange={(e) => setAuditQ(e.target.value)} /></div>
+            {(() => { const qq = auditQ.trim().toLowerCase();
+              const flt = (e) => (auditUser === "all" || e.user === auditUser) && (!qq || `${e.action || ""} ${e.detail || ""} ${e.user || ""}`.toLowerCase().includes(qq));
+              const list = S.audit.filter(flt);
+              return <>
+                <button className="lk-btn" onClick={() => { const rows = list.map((e) => [e.ts, e.user, e.action, e.detail]); downloadFile(`FIN04-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows)); }}><Icon n="download" s={14} />Export audit (CSV)</button>
                 <button className="lk-btn" style={{ marginTop: 4 }} onClick={() => setAuditOpen((o) => !o)}><span style={{ display: "inline-flex", transform: auditOpen ? "rotate(90deg)" : "none", transition: "transform .12s" }}><Icon n="cr" s={13} /></span>{auditOpen ? "Hide" : "Show"} log ({list.length} {list.length === 1 ? "entry" : "entries"})</button>
                 {auditOpen && (list.length === 0
-                  ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No actions logged for this selection.</div>
+                  ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No actions match this selection.</div>
                   : <div style={{ marginTop: 8 }}>{list.map((e) => <div key={e.id} className="lk-audit"><span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span><span className="m">{e.user} · {new Date(e.ts).toLocaleString("en-GB")}</span></div>)}</div>)}
-              </div>; })()}
+              </>; })()}
           </>}
         </div></div>
     </div>);
@@ -1276,25 +1306,29 @@ function SchedulePage({ S, coName, onOpen }) {
     </div>);
 }
 
-const TBL_COLS = [["code", "#"], ["company", "Company"], ["building", "Building"], ["level", "Level"], ["zone", "Zone / Room"], ["system", "System"], ["cx", "Cx"], ["start", "Start"], ["days", "Days"], ["committed", "Committed"], ["status", "Status"], ["notes", "Notes"]];
+const TBL_COLS = [["code", "#"], ["company", "Company"], ["building", "Building"], ["level", "Level"], ["zone", "Zone / Room"], ["system", "System"], ["cx", "Cx"], ["start", "Start"], ["days", "Days"], ["committed", "Committed"], ["status", "Status"], ["witness", "Witness"], ["witnessat", "Witness time"], ["notes", "Notes"]];
+const TBL_DEFAULT_COLS = Object.fromEntries(TBL_COLS.map(([k]) => [k, k !== "witness" && k !== "witnessat"]));
 function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
+  const savedView = (() => { try { return JSON.parse(localStorage.getItem("fin04_tblview") || "null") || {}; } catch (e) { return {}; } })();
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [q, setQ] = useState("");
-  const [fCo, setFCo] = useState("all");
-  const [fStatus, setFStatus] = useState("all");
-  const [fAr, setFAr] = useState("all");
-  const [fLv, setFLv] = useState("all");
+  const [fCo, setFCo] = useState(savedView.fCo || "all");
+  const [fStatus, setFStatus] = useState(savedView.fStatus || "all");
+  const [fAr, setFAr] = useState(savedView.fAr || "all");
+  const [fLv, setFLv] = useState(savedView.fLv || "all");
   const [colsOpen, setColsOpen] = useState(false);
-  const [cols, setCols] = useState(() => { try { const s = JSON.parse(localStorage.getItem("fin04_tblcols") || "null"); if (s && typeof s === "object") return { ...Object.fromEntries(TBL_COLS.map(([k]) => [k, true])), ...s }; } catch (e) {} return Object.fromEntries(TBL_COLS.map(([k]) => [k, true])); });
-  useEffect(() => { try { localStorage.setItem("fin04_tblcols", JSON.stringify(cols)); } catch (e) {} }, [cols]);
+  const [savedMsg, setSavedMsg] = useState("");
+  const [cols, setCols] = useState(() => ({ ...TBL_DEFAULT_COLS, ...(savedView.cols || {}) }));
   const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
-  const rowEditable = (a) => isAdmin || (canEdit(a) && !a.committed);
+  const rowEditable = (a) => a.status === "complete" ? isAdmin : (isAdmin || (canEdit(a) && !a.committed));
   const begin = (a) => { setEditId(a.id); setDraft({ ...a }); };
   const cancel = () => { setEditId(null); setDraft(null); };
   const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
   const setStatus = (v) => setDraft((d) => { const n = { ...d, status: v }; if (v === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (v === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; });
   const save = () => { if (!draft.desc.trim()) return; const d = draft; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === d.id ? d : x) }), { action: "Edit activity (table)", detail: `${d.desc} (${coName(d.companyId)})` }); cancel(); };
+  const saveView = () => { try { localStorage.setItem("fin04_tblview", JSON.stringify({ cols, fCo, fAr, fLv, fStatus })); setSavedMsg("Saved as your default view"); setTimeout(() => setSavedMsg(""), 2200); } catch (e) {} };
+  const resetView = () => { setCols({ ...TBL_DEFAULT_COLS }); setFCo("all"); setFAr("all"); setFLv("all"); setFStatus("all"); try { localStorage.removeItem("fin04_tblview"); } catch (e) {} setSavedMsg("Reset to defaults"); setTimeout(() => setSavedMsg(""), 2200); };
   const subsFor = (area) => (S.subAreas || []).filter((s) => s.area === area);
   const zonesFor = (area, sub) => (S.tier3s || []).filter((t) => t.area === area && t.subArea === sub);
   const list = S.activities.filter((a) => {
@@ -1311,49 +1345,56 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   return (
     <div className="lk-tblwrap" style={cssVars(S.theme)}><style>{css}</style>
       <div className="lk-ufilter" style={{ padding: "10px 16px 0", alignItems: "flex-end" }}>
-        <div className="lk-f" style={{ minWidth: 160, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 130 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 110 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
+        <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 120 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 90 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 105 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
         <div style={{ position: "relative" }}>
           <button className={"lk-btn" + (colsOpen ? " on" : "")} onClick={() => setColsOpen((v) => !v)}><Icon n="grid" s={14} />Columns</button>
           {colsOpen && <><div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={() => setColsOpen(false)} />
-            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 31, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 6px", minWidth: 170, boxShadow: "0 10px 30px rgba(0,0,0,.18)" }}>
+            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 31, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 6px", minWidth: 190, boxShadow: "0 10px 30px rgba(0,0,0,.18)" }}>
               {TBL_COLS.map(([k, l]) => <label key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 9px", fontSize: 12.5, cursor: "pointer", borderRadius: 6 }}><input type="checkbox" checked={!!cols[k]} onChange={(e) => setCols((c) => ({ ...c, [k]: e.target.checked }))} />{l}</label>)}
               <div style={{ display: "flex", gap: 6, padding: "6px 9px 2px", borderTop: "1px solid var(--line)", marginTop: 4 }}>
                 <button className="lk-btn" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => setCols(Object.fromEntries(TBL_COLS.map(([k]) => [k, true])))}>All</button>
                 <button className="lk-btn" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => setCols(Object.fromEntries(TBL_COLS.map(([k]) => [k, false])))}>None</button>
               </div>
+              <div style={{ display: "flex", gap: 6, padding: "4px 9px 2px" }}>
+                <button className="lk-btn primary" style={{ fontSize: 11, padding: "3px 8px", flex: 1 }} onClick={saveView}>Save as default</button>
+                <button className="lk-btn" style={{ fontSize: 11, padding: "3px 8px" }} onClick={resetView}>Reset</button>
+              </div>
             </div></>}
         </div>
       </div>
+      {savedMsg && <div style={{ padding: "4px 16px 0", fontSize: 11.5, color: "var(--muted)" }}>{savedMsg}</div>}
       <div className="lk-tblscroll">
         <table className="lk-grid">
           <thead><tr>
-            <th style={{ width: 56 }}></th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("notes") && <th>Notes</th>}
+            <th style={{ width: 56 }}></th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("witness") && <th>Witness</th>}{C("witnessat") && <th>Witness time</th>}{C("notes") && <th>Notes</th>}
           </tr></thead>
           <tbody>
             {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
             {list.map((a) => {
-              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a);
+              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete";
               return <tr key={a.id} className={ed ? "ed" : ""}>
                 <td>{ed
                   ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
-                  : <button title={canRow ? "Edit this row" : (a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}</td>
+                  : <button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}</td>
                 {C("code") && <td className="mono">#{a.code ?? "?"}</td>}
-                <td>{ed ? <input className="lk-in" style={cell} value={d.desc} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
-                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
-                {C("building") && <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>}
-                {C("level") && <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>}
-                {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
-                {C("system") && <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>}
-                {C("cx") && <td>{ed ? <select className="lk-select" style={cell} value={d.level} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>}
-                {C("start") && <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
-                {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
-                {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
+                <td>{ed ? <input className="lk-in" style={cell} value={d.desc} disabled={lk} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
+                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin || lk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
+                {C("building") && <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} disabled={lk} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>}
+                {C("level") && <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area || lk} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>}
+                {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea || lk} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
+                {C("system") && <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} disabled={lk} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>}
+                {C("cx") && <td>{ed ? <select className="lk-select" style={cell} value={d.level} disabled={lk} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>}
+                {C("start") && <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} disabled={lk} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
+                {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} disabled={lk} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
+                {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} disabled={lk} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
                 {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>}
-                {C("notes") && <td style={{ minWidth: 150 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} onChange={(e) => set("notes", e.target.value)} /> : <span style={{ color: "var(--muted)" }}>{a.notes || ""}</span>}</td>}
+                {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={lk} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
+                {C("witnessat") && <td>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={lk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
+                {C("notes") && <td style={{ minWidth: 150 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <span style={{ color: "var(--muted)" }}>{a.notes || ""}</span>}</td>}
               </tr>;
             })}
           </tbody>
