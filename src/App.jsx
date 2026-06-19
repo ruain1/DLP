@@ -333,14 +333,14 @@ export default function App({ session }) {
     dragId.current = null;
   };
   const newActivity = (lane, dayIdx) => {
-    const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", system: "", level: "L2",
+    const base = { id: uid("a"), desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
       start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", actualStart: "", actualFinish: "", constraints: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { const [ar, sub] = lane.split(SUBSEP); base.area = ar; base.subArea = sub || ""; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Activity ID", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "System", "Cx Stage", "Milestone", "Witness invite", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
-    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
+    const headers = ["Activity ID", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Status", "Committed", "Open constraints", "Constraints", "Notes"];
+    const rows = visible.map((a) => [a.id, a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, a.status, a.committed ? "Yes" : "No", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -609,6 +609,8 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
             <select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => set("tier3", e.target.value)}>
               <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select>
             {a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}. Add them in Admin, Locations.</span>}</div>
+          <div className="lk-f"><label>Asset (optional)</label>
+            <input className="lk-in" value={a.asset || ""} disabled={dis} placeholder="e.g. EPOD108.DB001.U003" onChange={(e) => set("asset", e.target.value)} /></div>
           <div className="lk-f"><label>System</label>
             <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => set("system", e.target.value)}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select></div>
@@ -738,7 +740,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
@@ -752,13 +754,13 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
       const newActs = [];
       for (let r = 1; r < rows.length; r++) { const row = rows[r]; const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : "");
         const desc = g(ci.desc); if (!desc) continue;
-        const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const subArea = g(ci.subarea); ensureSub(area, subArea); const tier3 = g(ci.tier3); ensureT3(area, subArea, tier3); const system = g(ci.system); ensure(systems, system);
+        const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const subArea = g(ci.subarea); ensureSub(area, subArea); const tier3 = g(ci.tier3); ensureT3(area, subArea, tier3); const asset = g(ci.asset); const system = g(ci.system); ensure(systems, system);
         let level = g(ci.level).toUpperCase(); if (!S.levels[level]) level = Object.keys(S.levels)[0] || "L2";
         const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
         let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
         const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
         const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        newActs.push({ id: uid("a"), desc, companyId, area, subArea, tier3, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
+        newActs.push({ id: uid("a"), desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
       }
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
       return { ...p, companies, areas, subAreas, tier3s, systems, activities };
@@ -1089,13 +1091,13 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       const systems = S.systems.slice();
       const stages = Object.keys(LV);
       [["Buildings", buildings], ["Levels", levels], ["Zones", zones], ["Systems", systems], ["Cx stages", stages]].forEach(([title, arr], cIdx) => { lists.getCell(1, cIdx + 1).value = title; arr.forEach((v, rIdx) => { lists.getCell(rIdx + 2, cIdx + 1).value = v; }); });
-      const headers = ["Description", co !== null ? "Company" : null, "Building", "Level", "Zone / Room", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
+      const headers = ["Description", co !== null ? "Company" : null, "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
       const exA = S.areas[0] || ""; const exSub = (S.subAreas || []).find((s) => s.area === exA); const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
       const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = stages[0] || "L2";
       const start = fmtISO(new Date()); const p = (n) => String(n).padStart(2, "0");
       const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T09:00`; })();
-      const ex1 = ["Example 1: terminate cables (DELETE before importing)", co, exA, sub, t3, sys, lv, start, 3, "No", "No", "", "Delete this example row"].filter((x) => x !== null);
-      const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", co, exA, sub, t3, sys, lv, start, 2, "Yes", "Yes", wit, "Witness invite Yes needs a date and time. Delete this row"].filter((x) => x !== null);
+      const ex1 = ["Example 1: terminate cables (DELETE before importing)", co, exA, sub, t3, "", sys, lv, start, 3, "No", "No", "", "Delete this example row"].filter((x) => x !== null);
+      const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", co, exA, sub, t3, "EPOD108.DB001.U003", sys, lv, start, 2, "Yes", "Yes", wit, "Asset is free text and optional. Witness invite Yes needs a date and time. Delete this row"].filter((x) => x !== null);
       ws.addRow(headers); ws.addRow(ex1); ws.addRow(ex2);
       ws.getRow(1).font = { bold: true };
       ws.columns.forEach((c, i) => { c.width = Math.max(12, String(headers[i] || "").length + 3); });
@@ -1116,7 +1118,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     if (rows.length < 2) return { imported: 0, errors: ["The file has no activity rows under the header."] };
     const hdr = rows[0].map((h) => String(h == null ? "" : h).trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness at"]), notes: idx(["notes", "comment"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness at"]), notes: idx(["notes", "comment"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     if (ci.desc < 0 || ci.area < 0 || ci.system < 0) return { imported: 0, errors: ["The header is missing one of Description, Building or System. Download the template and keep its header row."] };
     const areaMap = new Map(S.areas.map((a) => [a.toLowerCase(), a]));
     const sysMap = new Map(S.systems.map((s) => [s.toLowerCase(), s]));
@@ -1145,7 +1147,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       if (witInvite && !witAt) e.push("Witness invite is Yes, so a valid Witness date & time is required (YYYY-MM-DD HH:MM)");
       const cons = g(ci.cons); const constraints = cons ? cons.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
       if (e.length) { errors.push(`Row ${ln}: ${e.join("; ")}`); continue; }
-      staged.push({ id: uid("a"), desc, companyId, area, subArea, tier3, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: witInvite, witnessAt: witInvite ? witAt : "", notes: g(ci.notes), start, duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: "", actualFinish: "", constraints });
+      staged.push({ id: uid("a"), desc, companyId, area, subArea, tier3, asset: g(ci.asset), system, level, isMilestone: yes(g(ci.ms)), witnessInvite: witInvite, witnessAt: witInvite ? witAt : "", notes: g(ci.notes), start, duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: "", actualFinish: "", constraints });
     }
     if (errors.length) return { imported: 0, errors };
     if (!staged.length) return { imported: 0, errors: ["No activity rows found."] };
