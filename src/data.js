@@ -43,7 +43,7 @@ export async function loadAll(session) {
     systems: (systems.data || []).map((s) => s.name),
     levels: levelsObj,
     settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7 },
-    users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id })),
+    users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, mustReset: !!p.must_reset })),
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
     brand: brandFrom(branding.data),
@@ -141,6 +141,19 @@ export async function syncCollections(prev, next, session) {
 // ---- admin user management via the edge function ----
 export async function userOp(body) {
   const { data, error } = await supabase.functions.invoke("admin-users", { body });
+  if (error) {
+    let msg = error.message || String(error);
+    try { if (error.context && typeof error.context.json === "function") { const b = await error.context.json(); if (b && b.error) msg = b.error; } } catch (e) {}
+    throw new Error(msg);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+// Claim a setup link: set the chosen password for the user the token belongs to.
+// No session required; the token is the credential. Returns { ok, email }.
+export async function claimInvite(token, password) {
+  const { data, error } = await supabase.functions.invoke("admin-users", { body: { op: "claiminvite", token, password } });
   if (error) {
     let msg = error.message || String(error);
     try { if (error.context && typeof error.context.json === "function") { const b = await error.context.json(); if (b && b.error) msg = b.error; } } catch (e) {}
