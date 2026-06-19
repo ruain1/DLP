@@ -129,9 +129,9 @@ const css = `
 .lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-audit{font-size:11.5px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line);padding:7px 0}
 .lk-audit .a{font-weight:600}.lk-audit .m{color:var(--muted);font-size:10.5px}
-.lk-shell{display:flex;align-items:stretch;min-height:100vh}
-.lk-rail{flex:0 0 56px;width:56px;background:#1d2530}
-.lk-rail-inner{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 0}
+.lk-shell{display:flex;min-height:100vh;padding-left:56px}
+.lk-rail{position:fixed;left:0;top:0;bottom:0;width:56px;background:#1d2530;z-index:50;display:flex;flex-direction:column;padding:14px 0}
+.lk-rail-inner{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
 .lk-rail button{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,color .12s}
 .lk-rail button:hover{background:#2a333f;color:#dfe6ef}
 .lk-rail button.on{background:var(--accent);color:#fff}
@@ -139,7 +139,7 @@ const css = `
 .lk-rep{padding:18px 22px;max-width:1100px}
 .lk-rep h2{font-size:17px;font-weight:700;margin:0 0 2px}
 .lk-rep .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
-.lk-rep-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:18px}
+.lk-rep-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:14px;position:sticky;top:62px;z-index:20;background:var(--paper);padding:10px 0;border-bottom:1px solid var(--line)}
 .lk-rep-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px;margin-bottom:22px}
 .lk-rep-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
 .lk-rep-card .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
@@ -188,7 +188,7 @@ const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMo
 const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-const toCSV = (headers, rows) => [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\n");
+const toCSV = (headers, rows) => "\uFEFF" + [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
 const downloadFile = (name, text) => { try { const url = URL.createObjectURL(new Blob([text], { type: "text/csv" })); const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) {} };
 const SUBSEP = " \u203A "; // area › sub-area, used as the lane key when grouping by sub-area
 const laneOfArea = (a) => a.area ? (a.subArea ? a.area + SUBSEP + a.subArea : a.area) : "Unassigned";
@@ -332,8 +332,8 @@ export default function App({ session }) {
     const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Start ISO", "End ISO", "Company", "Level", "System", "Activity ID"];
     const rows = wit.map((a) => {
       const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + WIT_MINUTES * 60000);
-      const loc = [a.area, a.subArea, a.tier3].filter(Boolean).join(" \u203A ");
-      const subject = `Witness: ${a.desc || "Activity"}${loc ? " — " + loc : ""}`;
+      const loc = [a.area, a.subArea, a.tier3].filter(Boolean).join(" / ");
+      const subject = `Witness: ${a.desc || "Activity"}${loc ? " - " + loc : ""}`;
       const open = (a.constraints || []).filter((c) => !c.done).length;
       const body = `${a.desc || ""}. Commissioning ${a.level} on ${a.system || "system"}. Performing: ${coName(a.companyId)}. Planned start ${a.start}.${a.notes ? " Notes: " + a.notes : ""}${open ? ` (${open} open constraint${open === 1 ? "" : "s"})` : ""}`;
       const dmy = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
@@ -735,7 +735,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
     }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
     setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
-  const handleImportFile = (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const txt = String(reader.result); if (file.name.toLowerCase().endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt); } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); } }; reader.readAsText(file); e.target.value = ""; };
+  const handleImportFile = (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const txt = String(reader.result).replace(/^\uFEFF/, ""); if (file.name.toLowerCase().endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt); } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); } }; reader.readAsText(file); e.target.value = ""; };
   const tabs = [["companies", "Companies"], ["areas", "Areas"], ["systems", "Systems"], ["levels", "Levels"], ["branding", "Branding"], ["users", "Users"], ["settings", "Settings"], ["data", "Import / Export"], ["audit", "Audit"]];
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
