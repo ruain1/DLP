@@ -138,6 +138,15 @@ const css = `
 .lk-rail button.on{background:var(--accent);color:#fff}
 .lk-page{flex:1;min-width:0;display:flex;flex-direction:column}
 .lk-rep{padding:18px 22px;max-width:1100px}
+.lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
+.lk-adminwrap .lk-db{padding:14px 0 0}
+.lk-adminwrap .lk-tabs{padding:6px 0 0}
+.lk-help{height:calc(100vh - 62px)}
+.lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+.lk-ugroup{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.lk-ughead{display:flex;align-items:center;gap:8px;font-weight:700;font-size:12.5px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line);color:var(--ink)}
+.lk-ughead .cnt{font-weight:500;color:var(--muted);font-size:11px}
+.lk-ufilter{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:6px}
 .lk-rep h2{font-size:17px;font-weight:700;margin:0 0 2px}
 .lk-rep .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
 .lk-rep-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:14px;position:sticky;top:62px;z-index:20;background:var(--paper);padding:10px 0;border-bottom:1px solid var(--line)}
@@ -193,6 +202,8 @@ const I = {
   list: <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>,
   clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
   upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>,
+  cog: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+  help: <><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
 };
 const Icon = ({ n, s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
@@ -245,9 +256,8 @@ export default function App({ session }) {
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
   const [makeReady, setMakeReady] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [admin, setAdmin] = useState(false);
-  const [page, setPage] = useState("board");
   const [showImport, setShowImport] = useState(false);
+  const [page, setPage] = useState("board");
   const dragId = useRef(null);
 
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
@@ -436,6 +446,8 @@ export default function App({ session }) {
         <button title="Planning board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /></button>
         <button title="Constraints log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /></button>
         <button title="Reports & metrics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /></button>
+        <button title="Help & quick reference" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /></button>
+        {isAdmin && <button title="Admin settings" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /></button>}
         <div style={{ marginTop: "auto", textAlign: "center", color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
@@ -475,7 +487,6 @@ export default function App({ session }) {
           <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
-        {isAdmin && <button className="lk-btn" onClick={() => setAdmin(true)}><Icon n="shield" s={14} />Admin</button>}
         <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
       </div>
 
@@ -557,24 +568,24 @@ export default function App({ session }) {
           {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
           <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
         </div>
-        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "constraints" ? "Constraints log" : "Reports & metrics"}</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "constraints" ? "Constraints log" : page === "reports" ? "Reports & metrics" : page === "admin" ? "Admin settings" : page === "help" ? "Help & quick reference" : ""}</div>
         <div className="lk-spacer" />
         <div className="lk-who">
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
           <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
-        {isAdmin && <button className="lk-btn" onClick={() => setAdmin(true)}><Icon n="shield" s={14} />Admin</button>}
       </div>}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
+      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
+      {page === "help" && <HelpPage />}
       </div>
       </div>
 
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
-      {admin && <AdminPanel S={S} update={update} onClose={() => setAdmin(false)} exportActivities={exportActivities} />}
     </div>);
 }
 
@@ -660,7 +671,7 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
     </div>);
 }
 
-function AdminPanel({ S, update, onClose, exportActivities }) {
+function AdminPanel({ S, cu, update, exportActivities }) {
   const [tab, setTab] = useState("companies");
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
@@ -669,6 +680,9 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
   const [nu, setNu] = useState({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" });
+  const [uq, setUq] = useState("");
+  const [uCo, setUCo] = useState("all");
+  const [uRole, setURole] = useState("all");
   const [subInput, setSubInput] = useState({});
   const [t3Input, setT3Input] = useState({});
   const [copyFrom, setCopyFrom] = useState({});
@@ -783,9 +797,7 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
   const handleImportFile = (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const txt = String(reader.result).replace(/^\uFEFF/, ""); if (file.name.toLowerCase().endsWith(".json")) importJSON(JSON.parse(txt)); else importCSV(txt); } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); } }; reader.readAsText(file); e.target.value = ""; };
   const tabs = [["companies", "Companies"], ["areas", "Locations"], ["systems", "Systems"], ["levels", "Cx Stages"], ["branding", "Branding"], ["users", "Users"], ["settings", "Settings"], ["data", "Import / Export"], ["audit", "Audit"]];
   return (
-    <div className="lk-bg" onClick={onClose}><style>{css}</style>
-      <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
-        <div className="lk-dh"><h3>Admin</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
+    <div className="lk-adminwrap" style={cssVars(S.theme)}><style>{css}</style>
         <div className="lk-tabs">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
         <div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
@@ -818,16 +830,38 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
             <div className="lk-add"><input className="lk-in" placeholder="Add building…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
           </>}
           {tab === "users" && <>
-            <div className="lk-list">{S.users.map((u) => <div key={u.id} className="lk-li">
-              <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
-                style={{ flex: "1 1 96px", minWidth: 80, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
-                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
-              <select className="lk-select" style={{ width: 86, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
-              <select className="lk-select" style={{ flex: 1, minWidth: 70, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-              <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
-              <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
-              {u.id !== S.currentUserId && <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
-            </div>)}</div>
+            <div className="lk-ufilter">
+              <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or email…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
+              <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+              <div className="lk-f" style={{ minWidth: 100 }}><label>Role</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">All roles</option><option value="member">Members</option><option value="admin">Admins</option></select></div>
+            </div>
+            {(() => {
+              const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+              const q = uq.trim().toLowerCase();
+              const filtered = S.users.filter((u) => {
+                if (uRole !== "all" && u.role !== uRole) return false;
+                if (uCo === "none") { if (u.companyId) return false; } else if (uCo !== "all" && u.companyId !== uCo) return false;
+                if (q && !(`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q))) return false;
+                return true;
+              });
+              const groups = {};
+              filtered.forEach((u) => { const key = u.role === "admin" ? "\u0000Admins" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
+              const renderRow = (u) => <div key={u.id} className="lk-li">
+                <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
+                  style={{ flex: "1 1 96px", minWidth: 80, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
+                <select className="lk-select" style={{ width: 86, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
+                <select className="lk-select" style={{ flex: 1, minWidth: 70, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
+                <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
+                {u.id !== S.currentUserId && <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
+              </div>;
+              if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No users match these filters.</div>;
+              return Object.keys(groups).sort().map((k) => <div key={k} className="lk-ugroup">
+                <div className="lk-ughead">{k === "\u0000Admins" ? "Admins" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span></div>
+                <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>
+              </div>);
+            })()}
             <div className="lk-f"><label>Add user (email required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
             <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
             <div className="lk-row">
@@ -919,7 +953,6 @@ function AdminPanel({ S, update, onClose, exportActivities }) {
                 {list.map((e) => <div key={e.id} className="lk-audit"><span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span><span className="m">{e.user} · {new Date(e.ts).toLocaleString("en-GB")}</span></div>)}</div>; })()}
           </>}
         </div>
-      </div>
     </div>);
 }
 
@@ -969,6 +1002,14 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
       </div>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>{rows.length} shown · {totalOpen} open across the whole project</div>
     </div>);
+}
+
+function HelpPage() {
+  return (
+    <div className="lk-help">
+      <iframe title="DLP Board Quick Reference" src="help.html" />
+    </div>
+  );
 }
 
 function Gauge({ value, size = 150, label = "PPC" }) {
