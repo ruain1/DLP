@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab } from "./data";
+import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab, fetchUserStatus } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -228,6 +228,7 @@ const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMo
 const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
+const relTime = (iso) => { if (!iso) return ""; const d = new Date(iso); const s = Math.floor((Date.now() - d.getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const dd = Math.floor(h / 24); if (dd < 30) return dd + "d ago"; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); };
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCSV = (headers, rows) => "\uFEFF" + [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
 const downloadFile = (name, text) => { try { const url = URL.createObjectURL(new Blob([text], { type: "text/csv" })); const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) {} };
@@ -743,6 +744,8 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false);
+  const [ustat, setUstat] = useState({});
+  useEffect(() => { fetchUserStatus().then(setUstat).catch(() => {}); }, []);
   const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
   const [impMsg, setImpMsg] = useState("");
@@ -922,16 +925,20 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               });
               const groups = {};
               filtered.forEach((u) => { const key = u.role === "admin" ? "\u0000Admins" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
-              const renderRow = (u) => <div key={u.id} className="lk-li">
+              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; return <div key={u.id} className="lk-li">
                 <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
                   style={{ flex: "1 1 96px", minWidth: 80, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
                   onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
                 <select className="lk-select" style={{ width: 86, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
                 <select className="lk-select" style={{ flex: 1, minWidth: 70, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                {seen
+                  ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none" }} title={"Last seen " + new Date(seen).toLocaleString("en-GB")}>accepted &middot; {relTime(seen)}</span>
+                  : <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }} title="Invite not yet accepted (no sign-in recorded)">pending</span>}
+                <button title="View this user's audit trail" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); }} style={{ fontSize: 13, lineHeight: 1 }}>{"\uD83D\uDCDC"}</button>
                 <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
                 <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
                 {u.id !== S.currentUserId && <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
-              </div>;
+              </div>; };
               if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No users match these filters.</div>;
               return Object.keys(groups).sort().map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
                 <button className="lk-ughead" style={{ borderBottom: open ? "1px solid var(--line)" : 0 }} onClick={() => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))}>

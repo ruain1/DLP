@@ -165,6 +165,14 @@ export async function claimInvite(token, password) {
   return data;
 }
 
+// Admin: auth metadata (last sign-in) keyed by user id, to show accepted/pending + last seen.
+export async function fetchUserStatus() {
+  const data = await userOp({ op: "status" });
+  const map = {};
+  (data.users || []).forEach((u) => { map[u.id] = u; });
+  return map;
+}
+
 export async function fetchAudit() {
   const { data } = await supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500);
   return (data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail }));
