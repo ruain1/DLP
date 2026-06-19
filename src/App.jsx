@@ -301,7 +301,10 @@ export default function App({ session }) {
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
   const cu = S && (S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null });
-  const update = (producer) => setS((prev) => {
+  // Audit is written entirely by database triggers (see schema.sql), so the
+  // optional { action, detail } some callers pass as a second argument is
+  // intentionally ignored and kept only as inline documentation of intent.
+  const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
     if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy })); } catch (e) {} }
     syncCollections(prev, n, session);
@@ -387,7 +390,7 @@ export default function App({ session }) {
       { action: isNew ? "Create activity" : "Edit activity", detail: `${a.desc} (${coName(a.companyId)})` });
     setEditing(null);
   };
-  const removeActivity = (a) => { update((p) => ({ ...p, activities: p.activities.filter((x) => x.id !== a.id) }), { action: "Delete activity", detail: a.desc }); setEditing(null); };
+  const removeActivity = (a) => { update((p) => ({ ...p, activities: p.activities.filter((x) => x.id !== a.id).map((x) => (x.predecessors && x.predecessors.includes(a.id)) ? { ...x, predecessors: x.predecessors.filter((pid) => pid !== a.id) } : x) }), { action: "Delete activity", detail: a.desc }); setEditing(null); };
   const moveActivity = (id, dayIdx, lane) => {
     const a = S.activities.find((x) => x.id === id); if (!a || !canEdit(a)) { dragId.current = null; return; }
     if (!isAdmin && a.committed) { dragId.current = null; return; }
