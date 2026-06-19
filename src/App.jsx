@@ -161,6 +161,16 @@ const css = `
 .lk-day.addday .addp{position:absolute;top:2px;right:3px;opacity:0;color:var(--accent);transition:opacity .12s;display:flex}
 .lk-day.addday:hover .addp{opacity:1}
 .lk-day.addday:hover{background:var(--hover)}
+.lk-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;overflow:auto}
+.lk-modal{background:var(--paper);border:1px solid var(--line);border-radius:14px;max-width:660px;width:100%;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.lk-modal .bd{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.lk-modal ul{margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.65;color:var(--ink)}
+.lk-modal .ref{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:12px}
+.lk-modal .ref b{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-bottom:4px}
+.lk-tag{display:inline-block;background:var(--chipbg);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin:2px 4px 2px 0;font-size:11.5px}
+.lk-res-ok{background:#0E93841a;border:1px solid #0E9384;color:var(--ink);border-radius:9px;padding:10px 12px;font-size:12.5px}
+.lk-res-err{background:#C0392B14;border:1px solid #C0392B;border-radius:9px;padding:10px 12px;font-size:12px}
+.lk-res-err ul{max-height:200px;overflow:auto;color:#C0392B}
 `;
 
 const I = {
@@ -180,6 +190,7 @@ const I = {
   chart: <><line x1="3" y1="21" x2="21" y2="21"/><rect x="5" y="10" width="3.2" height="8"/><rect x="10.4" y="6" width="3.2" height="12"/><rect x="15.8" y="13" width="3.2" height="5"/></>,
   list: <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>,
   clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+  upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>,
 };
 const Icon = ({ n, s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
@@ -234,6 +245,7 @@ export default function App({ session }) {
   const [editing, setEditing] = useState(null);
   const [admin, setAdmin] = useState(false);
   const [page, setPage] = useState("board");
+  const [showImport, setShowImport] = useState(false);
   const dragId = useRef(null);
 
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
@@ -451,6 +463,7 @@ export default function App({ session }) {
         </div>}
         <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
         <button className="lk-btn icon" onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
+        <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
         <div className="lk-spacer" />
         <div className="lk-who">
@@ -555,6 +568,7 @@ export default function App({ session }) {
       </div>
 
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
+      {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {admin && <AdminPanel S={S} update={update} onClose={() => setAdmin(false)} exportActivities={exportActivities} />}
     </div>);
 }
@@ -1040,5 +1054,89 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
       </div>
       <div className="lk-rep-sec"><h3>By commissioning level</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
+    </div>);
+}
+
+function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
+  const [result, setResult] = useState(null);
+  const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
+  const normDate = (s) => { if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
+  const downloadTemplate = () => {
+    const exA = S.areas[0] || "";
+    const exSub = (S.subAreas || []).find((s) => s.area === exA);
+    const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
+    const headers = ["Description", isAdmin ? "Company" : null, "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter(Boolean);
+    const ex = ["Example: terminate cables", isAdmin ? (S.companies[0] ? S.companies[0].name : "") : null, exA, exSub ? exSub.name : "", exT3 ? exT3.name : "", S.systems[0] || "", Object.keys(LV)[0] || "L2", fmtISO(new Date()), "3", "No", "No", "", "Optional note"].filter((x) => x !== null);
+    downloadFile("DLP-activity-import-template.csv", toCSV(headers, [ex]));
+  };
+  const runImport = (text) => {
+    const rows = parseCSV(text).filter((r) => r.length && r.some((c) => c.trim() !== ""));
+    if (rows.length < 2) return { imported: 0, errors: ["The file has no activity rows under the header."] };
+    const hdr = rows[0].map((h) => h.trim().toLowerCase());
+    const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor"]), area: idx(["area", "location"]), subarea: idx(["sub-area", "sub area", "subarea"]), tier3: idx(["tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["level"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness at"]), notes: idx(["notes", "comment"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
+    if (ci.desc < 0 || ci.area < 0 || ci.system < 0) return { imported: 0, errors: ["The header is missing one of Description, Area or System. Download the template and keep its header row."] };
+    const areaMap = new Map(S.areas.map((a) => [a.toLowerCase(), a]));
+    const sysMap = new Map(S.systems.map((s) => [s.toLowerCase(), s]));
+    const subSet = new Set((S.subAreas || []).map((s) => `${s.area.toLowerCase()}|${s.name.toLowerCase()}`));
+    const t3Set = new Set((S.tier3s || []).map((t) => `${t.area.toLowerCase()}|${t.subArea.toLowerCase()}|${t.name.toLowerCase()}`));
+    const coByName = new Map(S.companies.map((c) => [c.name.toLowerCase(), c]));
+    const lvKeys = Object.keys(LV);
+    const yes = (v) => /^(y|yes|true|1)$/i.test(v);
+    const errors = [], staged = [];
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r]; if (!row.some((c) => c.trim() !== "")) continue;
+      const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : ""); const ln = r + 1; const e = [];
+      const desc = g(ci.desc); if (!desc) e.push("missing Description");
+      let companyId = cu.companyId; const coRaw = g(ci.company);
+      if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (isAdmin) companyId = c.id; else if (c.id !== cu.companyId) e.push("you can only import activities for your own company"); }
+      if (!companyId) e.push(isAdmin ? "give a Company that already exists" : "your account has no company set; ask an admin");
+      const areaRaw = g(ci.area); let area = ""; if (!areaRaw) e.push("missing Area"); else { const m = areaMap.get(areaRaw.toLowerCase()); if (!m) e.push(`area "${areaRaw}" does not exist`); else area = m; }
+      const subRaw = g(ci.subarea); let subArea = ""; if (subRaw) { if (area && subSet.has(`${area.toLowerCase()}|${subRaw.toLowerCase()}`)) subArea = subRaw; else e.push(`sub-area "${subRaw}" does not exist under "${areaRaw}"`); }
+      const t3Raw = g(ci.tier3); let tier3 = ""; if (t3Raw) { if (area && subArea && t3Set.has(`${area.toLowerCase()}|${subArea.toLowerCase()}|${t3Raw.toLowerCase()}`)) tier3 = t3Raw; else e.push(`Tier 3 "${t3Raw}" does not exist under "${areaRaw}" / "${subRaw}"`); }
+      const sysRaw = g(ci.system); let system = ""; if (!sysRaw) e.push("missing System"); else { const m = sysMap.get(sysRaw.toLowerCase()); if (!m) e.push(`system "${sysRaw}" does not exist`); else system = m; }
+      const lvRaw = g(ci.level).toUpperCase(); let level = lvKeys[0] || "L2"; if (lvRaw) { if (lvKeys.includes(lvRaw)) level = lvRaw; else e.push(`level "${lvRaw}" is not one of ${lvKeys.join(", ")}`); }
+      const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
+      if (!start) e.push("missing or invalid Planned start (use YYYY-MM-DD)");
+      let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
+      const witInvite = yes(g(ci.wit)); const witAt = g(ci.witat);
+      const cons = g(ci.cons); const constraints = cons ? cons.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
+      if (e.length) { errors.push(`Row ${ln}: ${e.join("; ")}`); continue; }
+      staged.push({ id: uid("a"), desc, companyId, area, subArea, tier3, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: witInvite, witnessAt: witInvite ? witAt : "", notes: g(ci.notes), start, duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: "", actualFinish: "", constraints });
+    }
+    if (errors.length) return { imported: 0, errors };
+    if (!staged.length) return { imported: 0, errors: ["No activity rows found."] };
+    update((p) => ({ ...p, activities: [...p.activities, ...staged] }), { action: "Import activities", detail: `${staged.length} rows` });
+    return { imported: staged.length, errors: [] };
+  };
+  const onFile = (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const reader = new FileReader(); reader.onload = () => { try { setResult(runImport(String(reader.result).replace(/^\uFEFF/, ""))); } catch (err) { setResult({ imported: 0, errors: ["Could not read the file: " + (err && err.message ? err.message : "unknown error")] }); } }; reader.readAsText(f); e.target.value = ""; };
+  return (
+    <div className="lk-modal-bg" onClick={onClose}>
+      <div className="lk-modal" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-dh"><h3>Import activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
+        <div className="bd">
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from a CSV. {isAdmin ? "Rows import to the Company named in each row." : "Everything you import is added under your own company."}</div>
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
+            <ul>
+              <li><b>Area, System, Sub-area, Tier 3 Area and Level must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
+              <li>Matching ignores case but the spelling must be exact. The valid values are listed below.</li>
+              <li>If any single row is invalid, <b>nothing is imported</b>. You get a list of what to fix, then re-upload.</li>
+              <li>Dates use YYYY-MM-DD. Committed and Witness invite take Yes or No.</li>
+              <li>Description, Area, System and Planned start are required on every row.</li>
+            </ul>
+          </div>
+          <div className="ref"><b>Valid areas</b>{S.areas.length ? S.areas.map((a) => <span key={a} className="lk-tag">{a}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+          <div className="ref"><b>Valid systems</b>{S.systems.length ? S.systems.map((s) => <span key={s} className="lk-tag">{s}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+          <div className="ref"><b>Valid levels</b>{Object.keys(LV).map((k) => <span key={k} className="lk-tag">{k} {LV[k].name}</span>)}</div>
+          <div className="lk-row" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="lk-btn" onClick={downloadTemplate}><Icon n="download" s={14} />Download template</button>
+            <label className="lk-btn primary" style={{ cursor: "pointer" }}><Icon n="upload" s={14} />Choose CSV file<input type="file" accept=".csv" style={{ display: "none" }} onChange={onFile} /></label>
+          </div>
+          {result && (result.errors.length
+            ? <div className="lk-res-err"><b>Nothing was imported.</b> Fix {result.errors.length} row{result.errors.length === 1 ? "" : "s"} and upload again:<ul>{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul></div>
+            : <div className="lk-res-ok">Imported {result.imported} activit{result.imported === 1 ? "y" : "ies"}. They are on your board now.</div>)}
+        </div>
+      </div>
     </div>);
 }
