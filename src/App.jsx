@@ -729,13 +729,13 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       const coName = parts[3] || ""; const co = S.companies.find((c) => c.name.toLowerCase() === coName.toLowerCase());
       const company_id = role === "admin" ? null : (co ? co.id : null);
       if (!email || !/.+@.+\..+/.test(email)) { out.push({ email: email || "(blank)", name, status: "Skipped: invalid email" }); setBulkResults([...out]); continue; }
-      try { const res = await userOp({ op: "invite", email, name, role, company_id, redirect: window.location.origin }); out.push({ email, name, role, company: co ? co.name : "", pw: res.tempPassword, link: res.link || "", status: "Created" + (res.link ? "" : " (link unavailable, use password)") }); }
+      try { const res = await userOp({ op: "invite", email, name, role, company_id, redirect: window.location.origin }); out.push({ email, name, role, company: co ? co.name : "", link: res.link || "", status: "Created" + (res.link ? "" : " (link unavailable)") }); }
       catch (e) { out.push({ email, name, status: "Failed: " + (e.message || e) }); }
       setBulkResults([...out]);
     }
     setBulkBusy(false);
   };
-  const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.pw || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Set password link", "Temporary password", "Role", "Company", "Status"], rows)); };
+  const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Set password link", "Role", "Company", "Status"], rows)); };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
@@ -887,12 +887,12 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
               <div className="lk-f"><label>Bulk add users</label>
                 <textarea className="lk-in" rows={5} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"One per line:  email, name, role, company\njdoe@acme.com, John Doe, member, ABB\nmsmith@acme.com, Mary Smith, member, Schneider"} style={{ resize: "vertical", minHeight: 92, fontFamily: "inherit" }} /></div>
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own set-password link (and a fallback temporary password) in the downloadable CSV. No email is sent from here, mail-merge the CSV from Outlook.</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own set-password link in the downloadable CSV. No email is sent from here, mail-merge the CSV from Outlook.</div>
               <button className="lk-btn primary" disabled={bulkBusy} onClick={bulkCreate}>{bulkBusy ? `Creating… (${(bulkResults || []).length})` : "Create all"}</button>
               {bulkResults && <div style={{ marginTop: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status.startsWith("Created")).length} created, {bulkResults.filter((r) => !r.status.startsWith("Created")).length} need attention</div>
                 <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span style={{ fontSize: 10, color: r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "#E0A106") : "#C0392B" }}>{r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status}</span></div>)}</div>
-                <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV (links + passwords)</button>
+                <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV (set-password links)</button>
               </div>}
             </div>
           </>}
