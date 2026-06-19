@@ -144,8 +144,9 @@ const css = `
 .lk-help{height:calc(100vh - 62px)}
 .lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
 .lk-ugroup{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.lk-ughead{display:flex;align-items:center;gap:8px;font-weight:700;font-size:12.5px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line);color:var(--ink)}
+.lk-ughead{display:flex;align-items:center;gap:8px;width:100%;font-weight:700;font-size:12.5px;padding:9px 12px;background:var(--card);border:0;color:var(--ink);cursor:pointer;text-align:left;font-family:inherit}
 .lk-ughead .cnt{font-weight:500;color:var(--muted);font-size:11px}
+.lk-ughead .chev{display:inline-block;transition:transform .12s;color:var(--muted);font-size:10px}
 .lk-ufilter{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:6px}
 .lk-rep h2{font-size:17px;font-weight:700;margin:0 0 2px}
 .lk-rep .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
@@ -683,6 +684,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [uq, setUq] = useState("");
   const [uCo, setUCo] = useState("all");
   const [uRole, setURole] = useState("all");
+  const [openGroups, setOpenGroups] = useState({});
   const [subInput, setSubInput] = useState({});
   const [t3Input, setT3Input] = useState({});
   const [copyFrom, setCopyFrom] = useState({});
@@ -857,10 +859,13 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 {u.id !== S.currentUserId && <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
               </div>;
               if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No users match these filters.</div>;
-              return Object.keys(groups).sort().map((k) => <div key={k} className="lk-ugroup">
-                <div className="lk-ughead">{k === "\u0000Admins" ? "Admins" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span></div>
-                <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>
-              </div>);
+              return Object.keys(groups).sort().map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
+                <button className="lk-ughead" style={{ borderBottom: open ? "1px solid var(--line)" : 0 }} onClick={() => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))}>
+                  <span className="chev" style={{ transform: open ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
+                  {k === "\u0000Admins" ? "Admins" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span>
+                </button>
+                {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>}
+              </div>; });
             })()}
             <div className="lk-f"><label>Add user (email required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
             <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
