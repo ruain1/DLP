@@ -1062,26 +1062,52 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
 
 function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
   const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
   const normDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
-  const downloadTemplate = () => {
-    const exA = S.areas[0] || "";
-    const exSub = (S.subAreas || []).find((s) => s.area === exA);
-    const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
-    const co = isAdmin ? (S.companies[0] ? S.companies[0].name : "") : null;
-    const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = Object.keys(LV)[0] || "L2";
-    const start = fmtISO(new Date()); const p = (n) => String(n).padStart(2, "0");
-    const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T09:00`; })();
-    const headers = ["Description", co !== null ? "Company" : null, "Building", "Level", "Zone / Room", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
-    const ex1 = ["Example 1: terminate cables (DELETE before importing)", co, exA, sub, t3, sys, lv, start, "3", "No", "No", "", "Delete this example row"].filter((x) => x !== null);
-    const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", co, exA, sub, t3, sys, lv, start, "2", "Yes", "Yes", wit, "Witness invite Yes needs a date and time. Delete this row"].filter((x) => x !== null);
-    downloadFile("DLP-activity-import-template.csv", toCSV(headers, [ex1, ex2]));
+  const cellToStr = (v) => { if (v == null) return ""; if (v instanceof Date) { const p = (n) => String(n).padStart(2, "0"); const dd = `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`; const hh = v.getUTCHours(), mm = v.getUTCMinutes(); return (hh || mm) ? `${dd}T${p(hh)}:${p(mm)}` : dd; } if (typeof v === "object") { if (v.text != null) return String(v.text); if (v.result != null) return String(v.result); if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join(""); if (v.hyperlink) return String(v.hyperlink); return ""; } return String(v); };
+  const colLetter = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+  const downloadTemplate = async () => {
+    setBusy(true); setResult(null);
+    try {
+      const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Activities");
+      const lists = wb.addWorksheet("Lists"); lists.state = "veryHidden";
+      const co = isAdmin ? (S.companies[0] ? S.companies[0].name : "") : null;
+      const buildings = S.areas.slice();
+      const levels = [...new Set((S.subAreas || []).map((s) => s.name))];
+      const zones = [...new Set((S.tier3s || []).map((t) => t.name))];
+      const systems = S.systems.slice();
+      const stages = Object.keys(LV);
+      [["Buildings", buildings], ["Levels", levels], ["Zones", zones], ["Systems", systems], ["Cx stages", stages]].forEach(([title, arr], cIdx) => { lists.getCell(1, cIdx + 1).value = title; arr.forEach((v, rIdx) => { lists.getCell(rIdx + 2, cIdx + 1).value = v; }); });
+      const headers = ["Description", co !== null ? "Company" : null, "Building", "Level", "Zone / Room", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"].filter((x) => x !== null);
+      const exA = S.areas[0] || ""; const exSub = (S.subAreas || []).find((s) => s.area === exA); const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
+      const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = stages[0] || "L2";
+      const start = fmtISO(new Date()); const p = (n) => String(n).padStart(2, "0");
+      const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T09:00`; })();
+      const ex1 = ["Example 1: terminate cables (DELETE before importing)", co, exA, sub, t3, sys, lv, start, 3, "No", "No", "", "Delete this example row"].filter((x) => x !== null);
+      const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", co, exA, sub, t3, sys, lv, start, 2, "Yes", "Yes", wit, "Witness invite Yes needs a date and time. Delete this row"].filter((x) => x !== null);
+      ws.addRow(headers); ws.addRow(ex1); ws.addRow(ex2);
+      ws.getRow(1).font = { bold: true };
+      ws.columns.forEach((c, i) => { c.width = Math.max(12, String(headers[i] || "").length + 3); });
+      const LAST = 300;
+      [["Building", buildings.length, 1], ["Level", levels.length, 2], ["Zone / Room", zones.length, 3], ["System", systems.length, 4], ["Cx Stage", stages.length, 5]].forEach(([name, count, listCol]) => {
+        const ci = headers.indexOf(name) + 1; if (ci < 1 || count < 1) return;
+        const cl = colLetter(ci); const ll = colLetter(listCol);
+        for (let r = 2; r <= LAST; r++) ws.getCell(`${cl}${r}`).dataValidation = { type: "list", allowBlank: true, formulae: [`Lists!$${ll}$2:$${ll}$${count + 1}`] };
+      });
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "DLP-activity-import-template.xlsx"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (err) { setResult({ imported: 0, errors: ["Could not build the Excel template: " + (err && err.message ? err.message : "unknown error")] }); }
+    setBusy(false);
   };
-  const runImport = (text) => {
-    const rows = parseCSV(text).filter((r) => r.length && r.some((c) => c.trim() !== ""));
+  const validate = (rows) => {
+    rows = rows.filter((r) => r && r.length && r.some((c) => String(c == null ? "" : c).trim() !== ""));
     if (rows.length < 2) return { imported: 0, errors: ["The file has no activity rows under the header."] };
-    const hdr = rows[0].map((h) => h.trim().toLowerCase());
+    const hdr = rows[0].map((h) => String(h == null ? "" : h).trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
     const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness at"]), notes: idx(["notes", "comment"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     if (ci.desc < 0 || ci.area < 0 || ci.system < 0) return { imported: 0, errors: ["The header is missing one of Description, Building or System. Download the template and keep its header row."] };
@@ -1094,8 +1120,8 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     const yes = (v) => /^(y|yes|true|1)$/i.test(v);
     const errors = [], staged = [];
     for (let r = 1; r < rows.length; r++) {
-      const row = rows[r]; if (!row.some((c) => c.trim() !== "")) continue;
-      const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : ""); const ln = r + 1; const e = [];
+      const row = rows[r];
+      const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : ""); const ln = r + 1; const e = [];
       const desc = g(ci.desc); if (!desc) e.push("missing Description");
       let companyId = cu.companyId; const coRaw = g(ci.company);
       if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (isAdmin) companyId = c.id; else if (c.id !== cu.companyId) e.push("you can only import activities for your own company"); }
@@ -1119,23 +1145,40 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     update((p) => ({ ...p, activities: [...p.activities, ...staged] }), { action: "Import activities", detail: `${staged.length} rows` });
     return { imported: staged.length, errors: [] };
   };
-  const onFile = (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const reader = new FileReader(); reader.onload = () => { try { setResult(runImport(String(reader.result).replace(/^\uFEFF/, ""))); } catch (err) { setResult({ imported: 0, errors: ["Could not read the file: " + (err && err.message ? err.message : "unknown error")] }); } }; reader.readAsText(f); e.target.value = ""; };
+  const onFile = async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    setBusy(true); setResult(null);
+    try {
+      const nm = f.name.toLowerCase(); let rows;
+      if (nm.endsWith(".xlsx") || nm.endsWith(".xlsm")) {
+        const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
+        const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer());
+        const ws = wb.getWorksheet("Activities") || wb.worksheets[0]; rows = [];
+        ws.eachRow({ includeEmpty: false }, (rw) => { const vals = rw.values; const arr = []; for (let i = 1; i < vals.length; i++) arr.push(cellToStr(vals[i])); rows.push(arr); });
+      } else {
+        rows = parseCSV(String(await f.text()).replace(/^\uFEFF/, ""));
+      }
+      setResult(validate(rows));
+    } catch (err) { setResult({ imported: 0, errors: ["Could not read the file: " + (err && err.message ? err.message : "unknown error")] }); }
+    setBusy(false); e.target.value = "";
+  };
   return (
     <div className="lk-modal-bg" onClick={onClose}>
       <div className="lk-modal" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Import activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
-          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from a CSV. {isAdmin ? "Rows import to the Company named in each row." : "Everything you import is added under your own company."}</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. {isAdmin ? "Rows import to the Company named in each row." : "Everything you import is added under your own company."}</div>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
             <ul>
-              <li><b>Building, Level, Zone / Room, System and Cx Stage must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
-              <li>Matching ignores case but the spelling must be exact. The valid values are listed below.</li>
+              <li>The <b>Excel template has dropdowns</b> for Building, Level, Zone / Room, System and Cx Stage, pre-loaded with this project's current values. Pick from them rather than typing.</li>
+              <li><b>Those values must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
+              <li>Matching ignores case but the spelling must be exact. The dropdowns do not enforce which Level belongs to which Building, so the app still checks that on import.</li>
               <li>If any single row is invalid, <b>nothing is imported</b>. You get a list of what to fix, then re-upload.</li>
               <li>Dates use YYYY-MM-DD. Committed and Witness invite take Yes or No.</li>
               <li>If <b>Witness invite</b> is Yes, a <b>Witness date &amp; time</b> is required, format YYYY-MM-DD HH:MM (see example 2).</li>
               <li>The template has <b>two example rows</b>. Delete them and import only your own activities.</li>
-              <li>Description, Building, System and Planned start are required on every row. The location reads as Site.Building.Level.Zone, e.g. FIN04.01.L0.GY01.</li>
+              <li>Description, Building, System and Planned start are required on every row. You can upload the filled .xlsx, or a .csv if you prefer.</li>
             </ul>
           </div>
           <div className="ref"><b>Valid buildings</b>{S.areas.length ? S.areas.map((a) => <span key={a} className="lk-tag">{a}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
@@ -1143,9 +1186,10 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
           <div className="ref"><b>Valid zones / rooms</b>{(S.tier3s || []).length ? [...new Set((S.tier3s || []).map((t) => t.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
           <div className="ref"><b>Valid systems</b>{S.systems.length ? S.systems.map((s) => <span key={s} className="lk-tag">{s}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
           <div className="ref"><b>Valid Cx stages</b>{Object.keys(LV).map((k) => <span key={k} className="lk-tag">{k} {LV[k].name}</span>)}</div>
-          <div className="lk-row" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="lk-btn" onClick={downloadTemplate}><Icon n="download" s={14} />Download template</button>
-            <label className="lk-btn primary" style={{ cursor: "pointer" }}><Icon n="upload" s={14} />Choose CSV file<input type="file" accept=".csv" style={{ display: "none" }} onChange={onFile} /></label>
+          <div className="lk-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <button className="lk-btn" onClick={downloadTemplate} disabled={busy}><Icon n="download" s={14} />Download Excel template</button>
+            <label className={"lk-btn primary" + (busy ? " disabled" : "")} style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}><Icon n="upload" s={14} />Choose file (.xlsx or .csv)<input type="file" accept=".xlsx,.xlsm,.csv" disabled={busy} style={{ display: "none" }} onChange={onFile} /></label>
+            {busy && <span style={{ fontSize: 12, color: "var(--muted)" }}>Working…</span>}
           </div>
           {result && (result.errors.length
             ? <div className="lk-res-err"><b>Nothing was imported.</b> Fix {result.errors.length} row{result.errors.length === 1 ? "" : "s"} and upload again:<ul>{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul></div>
