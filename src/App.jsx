@@ -325,6 +325,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV27", date: "2026-06-20", items: ["Add-constraint button restyled to the blue primary look matching Save", "Activity editor titles set in Title Case (New Activity, Edit Activity)"] },
   { rev: "REV26", date: "2026-06-20", items: ["Building is now locked for members in the activity editor (fixed for the project); admins can still change it", "Admins can create a new Level, Zone, System or Company inline from the activity editor without leaving the popout"] },
   { rev: "REV25", date: "2026-06-20", items: ["User management rows aligned onto a fixed grid so name, role, company, status and actions line up column to column"] },
   { rev: "REV24", date: "2026-06-20", items: ["YTT stand-up panel renamed YTT Focus", "Clearing a constraint from YTT Focus is now admin-only"] },
@@ -878,7 +879,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
-        <div className="lk-dh"><h3>{isNew ? "New activity" : canEdit ? "Edit activity" : "Activity (view only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
+        <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
           {!canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
           <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={dis} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
@@ -938,7 +939,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
               <input className="lk-in" style={{ flex: "1 1 100%" }} placeholder="Add a constraint…" value={cText} onChange={(e) => setCText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} />
               <input className="lk-in" style={{ flex: 1, minWidth: 100 }} placeholder="Owner (optional)" value={cOwner} onChange={(e) => setCOwner(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} />
               <input className="lk-in mono" style={{ maxWidth: 150 }} type="date" title="Need-by date (optional)" value={cDue} onChange={(e) => setCDue(e.target.value)} />
-              <button className="lk-btn" onClick={addC}><Icon n="plus" s={15} /></button>
+              <button className="lk-btn primary" title="Add constraint" onClick={addC}><Icon n="plus" s={15} /></button>
             </div>}</div>
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => set("committed", !a.committed)}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
           <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => set("witnessInvite", !a.witnessInvite)}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
