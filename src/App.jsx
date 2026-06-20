@@ -145,7 +145,7 @@ const css = `
 .lk-rail button:hover{background:#2a333f;color:#dfe6ef}
 .lk-rail button.on{background:var(--accent);color:#fff}
 .lk-page{flex:1;min-width:0;display:flex;flex-direction:column}
-.lk-rep{padding:18px 22px;max-width:1100px}
+.lk-rep{padding:18px 22px;max-width:1400px}
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
 .lk-adminwrap .lk-db{padding:14px 0 0}
 .lk-adminwrap .lk-tabs{padding:6px 0 0}
@@ -157,11 +157,15 @@ const css = `
 .lk-subnav button:hover{background:var(--hover)}
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
 .lk-subbody{flex:1;min-width:0;max-width:760px}
+.lk-subbody.wide{max-width:1320px}
+.lk-userwrap .lk-ufilter{position:sticky;top:62px;z-index:20;background:var(--paper);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media (max-width:860px){.lk-rep-2col{grid-template-columns:1fr}}
 .lk-subbody .lk-db{padding:2px 0 0}
 .lk-help{flex:1;min-height:0}
 .lk-userwrap{display:flex;gap:18px;align-items:flex-start}
 .lk-usermain{flex:1;min-width:0}
-.lk-userside{width:300px;flex-shrink:0;position:sticky;top:12px}
+.lk-userside{width:300px;flex-shrink:0;position:sticky;top:74px}
 .lk-online{border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
 .lk-online-h{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;color:var(--ink)}
 .lk-online-now{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:#0E9F6E;background:rgba(16,185,129,.12);padding:3px 9px 3px 7px;border-radius:20px;text-transform:none;letter-spacing:0}
@@ -1042,7 +1046,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         <div className="lk-subnav">
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>)}
         </div>
-        <div className="lk-subbody"><div className="lk-db">
+        <div className={"lk-subbody" + (tab === "users" || tab === "audit" ? " wide" : "")}><div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
             const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name]) : S[tab].map((x) => [x, x]);
@@ -1801,6 +1805,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
         <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
       </div>
+      <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
         <Gauge value={ppc} />
         <div style={{ flex: 1, minWidth: 200 }}>
@@ -1813,11 +1818,14 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
       <div className="lk-rep-cards">
         {cards.map((c, i) => <div key={i} className="lk-rep-card"><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
       </div>
+      </div>
+      <div className="lk-rep-2col">
       <div className="lk-rep-sec"><h3>Weekly PPC trend</h3>{hasTrend ? <Trend points={points} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
       <div className="lk-rep-sec"><h3>Reasons for non-completion</h3>
         {misses.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No missed commitments to date. Every committed activity whose promised finish has passed was completed on time.</div>
           : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#C0392B" }}>{misses.length}</b> committed activit{misses.length === 1 ? "y" : "ies"} due to date {misses.length === 1 ? "was" : "were"} not completed as promised{reasonTally["Unattributed"] ? <>, of which <b style={{ color: "var(--ink)" }}>{reasonTally["Unattributed"]}</b> {reasonTally["Unattributed"] === 1 ? "has" : "have"} no reason recorded</> : ""}. Recording the reason on each miss turns this into a Pareto of what is actually breaking the plan.</div>
             {reasonRows.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxR} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} />)}</>}
+      </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
         <div className="lk-rep-sec"><h3>Status mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
