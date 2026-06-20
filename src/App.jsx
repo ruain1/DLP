@@ -64,13 +64,13 @@ const css = `
 .lk-cell.we{background:var(--weekend)}.lk-cell.tod{background:var(--todcell);border-left:2px solid var(--accent)}
 .lk-cell:hover{background:var(--hover)}.lk-cell.nodrop{cursor:not-allowed}
 .lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;gap:6px;pointer-events:none}
-.lk-ticket{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:7px;
-  padding:6px 9px 10px;font-size:11.5px;cursor:grab;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);min-width:0;
-  display:flex;flex-direction:column;justify-content:flex-start;gap:3px;transition:box-shadow .12s}
+.lk-ticket{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:12px;
+  padding:9px 12px 10px;font-size:12px;cursor:grab;overflow:hidden;box-shadow:none;min-width:0;
+  display:flex;flex-direction:column;justify-content:flex-start;gap:3px;transition:box-shadow .12s,border-color .12s}
 .lk-ticket:hover{box-shadow:0 3px 10px rgba(0,0,0,.16)}.lk-ticket:active{cursor:grabbing}
 .lk-ticket.ro{cursor:default;border-style:dotted}
-.lk-ticket .desc{flex:0 0 auto;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lk-ticket .meta{flex:0 0 auto;font-size:10px;line-height:1.3;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
+.lk-ticket .desc{flex:0 0 auto;font-weight:600;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-ticket .meta{flex:0 0 auto;font-size:10.5px;line-height:1.3;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
 .lk-ticket .dot{width:7px;height:7px;border-radius:50%;flex:none}
 .lk-ticket.constrained{border-left-style:dashed}
 .lk-ticket.complete{opacity:.5}.lk-ticket.complete .desc{text-decoration:line-through}
@@ -365,6 +365,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV33", date: "2026-06-20", items: ["Planning board activity cards restyled to match the Analytics cards: same rounded corners, flat resting card, roomier padding and text scale, keeping the coloured Cx-stage edge"] },
   { rev: "REV32", date: "2026-06-20", items: ["Analytics is now interactive: click any KPI card, the PPC gauge, a trend point, a reason, a status segment, a company or a Cx stage to open a drill-down listing the exact activities behind that number; click an activity there to jump into it"] },
   { rev: "REV31", date: "2026-06-20", items: ["Analytics gained download options: a multi-sheet Excel of the metrics behind every chart (PPC, KPIs, weekly trend, reasons, by company, by Cx stage, status mix) and a Print to PDF of the dashboard, both honouring the active filters"] },
   { rev: "REV30", date: "2026-06-20", items: ["Sidebar PPC now left-aligns when the menu is expanded", "The Activity button stays pinned to the right of the board bar instead of wrapping to the left"] },
