@@ -168,6 +168,13 @@ const css = `
 .lk-railppc{text-align:center}
 .lk-rail.open .lk-railppc{text-align:left;padding:0 13px}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+@media print{
+  body.rep-print .lk-rail,body.rep-print .lk-foot,body.rep-print .lk-rep-filters{display:none!important}
+  body.rep-print .lk-bar button,body.rep-print .lk-bar .lk-who,body.rep-print .lk-bar .lk-barright{display:none!important}
+  body.rep-print .lk-shell{padding-left:0!important}
+  body.rep-print .lk-rep{max-width:none!important;padding:6px 12px!important}
+  body.rep-print .lk-rep-sec,body.rep-print .lk-rep-card,body.rep-print .lk-rep-2col{break-inside:avoid}
+}
 .lk-page{flex:1;min-width:0;display:flex;flex-direction:column}
 .lk-rep{padding:18px 22px;max-width:1400px}
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
@@ -346,6 +353,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV31", date: "2026-06-20", items: ["Analytics gained download options: a multi-sheet Excel of the metrics behind every chart (PPC, KPIs, weekly trend, reasons, by company, by Cx stage, status mix) and a Print to PDF of the dashboard, both honouring the active filters"] },
   { rev: "REV30", date: "2026-06-20", items: ["Sidebar PPC now left-aligns when the menu is expanded", "The Activity button stays pinned to the right of the board bar instead of wrapping to the left"] },
   { rev: "REV29", date: "2026-06-20", items: ["Sidebar now shows section labels beside each icon and collapses back to icons only, remembered across refreshes", "Order changed so Constraints Log sits above Schedule; Reports relabelled Analytics; Schedule tooltip no longer mentions Gantt"] },
   { rev: "REV28", date: "2026-06-20", items: ["Admin-only audit history on each activity: a collapsible section under Notes in the editor showing who created, edited or touched that activity and when"] },
@@ -2050,6 +2058,34 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const reasonTally = {}; misses.forEach((a) => { const r = a.slipReason || "Unattributed"; reasonTally[r] = (reasonTally[r] || 0) + 1; });
   const reasonRows = Object.entries(reasonTally).map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
   const maxR = Math.max(1, ...reasonRows.map((x) => x.n));
+  const printPdf = () => { document.body.classList.add("rep-print"); setTimeout(() => { try { window.print(); } finally { setTimeout(() => document.body.classList.remove("rep-print"), 300); } }, 60); };
+  const exportMetrics = async () => {
+    try {
+      const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook(); const head = (ws) => { ws.getRow(1).font = { bold: true }; };
+      const s = wb.addWorksheet("Summary"); s.columns = [{ header: "Metric", key: "m", width: 30 }, { header: "Value", key: "v", width: 18 }]; head(s);
+      s.addRow({ m: "Generated", v: new Date().toLocaleString("en-GB") });
+      s.addRow({ m: "Company filter", v: co === "all" ? "All companies" : coName(co) });
+      s.addRow({ m: "Building filter", v: ar === "all" ? "All buildings" : ar });
+      s.addRow({ m: "Cx stage filter", v: lv === "all" ? "All Cx stages" : lv });
+      s.addRow({ m: "Period", v: period === "all" ? "All time" : ((from || "start") + " to " + (to || "end")) });
+      s.addRow({ m: "PPC (committed done on time)", v: ppc == null ? "n/a" : ppc + "%" });
+      s.addRow({});
+      cards.forEach((c) => s.addRow({ m: c.l, v: c.v }));
+      const w = wb.addWorksheet("Weekly PPC"); w.columns = [{ header: "Week", key: "wk", width: 12 }, { header: "PPC %", key: "p", width: 10 }]; head(w);
+      points.forEach((p) => w.addRow({ wk: p.label, p: p.value == null ? "" : p.value }));
+      const r = wb.addWorksheet("Non-completion"); r.columns = [{ header: "Reason", key: "n", width: 34 }, { header: "Count", key: "c", width: 10 }]; head(r);
+      reasonRows.length ? reasonRows.forEach((x) => r.addRow({ n: x.name, c: x.n })) : r.addRow({ n: "No missed commitments in scope", c: 0 });
+      const bc = wb.addWorksheet("By company"); bc.columns = [{ header: "Company", key: "n", width: 26 }, { header: "Activities", key: "a", width: 12 }, { header: "Open constraints", key: "o", width: 16 }]; head(bc);
+      byCompany.forEach((x) => bc.addRow({ n: x.name, a: x.n, o: x.open }));
+      const bl = wb.addWorksheet("By Cx stage"); bl.columns = [{ header: "Cx stage", key: "n", width: 26 }, { header: "Activities", key: "a", width: 12 }]; head(bl);
+      byLevel.forEach((x) => bl.addRow({ n: x.name, a: x.n }));
+      const st = wb.addWorksheet("Status mix"); st.columns = [{ header: "Status", key: "n", width: 18 }, { header: "Count", key: "c", width: 10 }]; head(st);
+      statusData.forEach((x) => st.addRow({ n: x.name, c: x.n }));
+      const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const a = document.createElement("a"); a.href = url; a.download = `FIN04-analytics-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); }
+  };
   return (
     <div className="lk-rep">
       <div className="sub" style={{ marginTop: 2 }}>Project health across the whole plan, not just the lookahead window. Filter, then export.</div>
@@ -2062,6 +2098,8 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>}
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
         <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
+        <button className="lk-btn" onClick={exportMetrics}><Icon n="download" s={14} />Metrics (Excel)</button>
+        <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>
       </div>
       {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
