@@ -221,3 +221,23 @@ export function subscribeAll(onChange) {
     .on("postgres_changes", { event: "*", schema: "public" }, debounced)
     .subscribe();
 }
+
+// ---- presence ("Latest online") ----
+export async function heartbeat() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const user = data && data.session && data.session.user;
+    if (!user) return;
+    await supabase.from("presence").upsert({ user_id: user.id, last_seen: new Date().toISOString() }, { onConflict: "user_id" });
+  } catch (e) { /* presence is best-effort */ }
+}
+
+export async function loadPresence() {
+  try {
+    const { data, error } = await supabase.from("presence").select("user_id,last_seen");
+    if (error) return {};
+    const m = {};
+    (data || []).forEach((r) => { m[r.user_id] = r.last_seen; });
+    return m;
+  } catch (e) { return {}; }
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab, fetchUserStatus } from "./data";
+import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -159,6 +159,23 @@ const css = `
 .lk-subbody{flex:1;min-width:0;max-width:760px}
 .lk-subbody .lk-db{padding:2px 0 0}
 .lk-help{flex:1;min-height:0}
+.lk-userwrap{display:flex;gap:18px;align-items:flex-start}
+.lk-usermain{flex:1;min-width:0}
+.lk-userside{width:300px;flex-shrink:0;position:sticky;top:12px}
+.lk-online{border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
+.lk-online-h{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;color:var(--ink)}
+.lk-online-now{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:#0E9F6E;background:rgba(16,185,129,.12);padding:3px 9px 3px 7px;border-radius:20px;text-transform:none;letter-spacing:0}
+.lk-online-list{max-height:440px;overflow:auto}
+.lk-online-row{display:flex;align-items:center;gap:9px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:12.5px}
+.lk-online-row:last-child{border-bottom:0}
+.lk-online-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--ink)}
+.lk-online-time{font-size:11px;color:var(--muted);white-space:nowrap}
+.lk-online-empty{padding:16px 14px;font-size:12px;color:var(--muted)}
+.lk-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+.lk-dot.off{background:#F59E0B}
+.lk-dot.on{background:#10B981;animation:lkpulse 2s infinite}
+@keyframes lkpulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}70%{box-shadow:0 0 0 6px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+@media (max-width:900px){.lk-userwrap{flex-direction:column}.lk-userside{width:100%;position:static}}
 .lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
 .lk-ugroup{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .lk-ughead{display:flex;align-items:center;gap:8px;width:100%;font-weight:700;font-size:12.5px;padding:9px 12px;background:var(--card);border:0;color:var(--ink);cursor:pointer;text-align:left;font-family:inherit}
@@ -325,6 +342,7 @@ export default function App({ session }) {
   };
   useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const ch = subscribeAll(refresh); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { heartbeat(); const t = setInterval(heartbeat, 60000); const onVis = () => { if (document.visibilityState === "visible") heartbeat(); }; document.addEventListener("visibilitychange", onVis); return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); }; }, []);
   useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
   useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
 
@@ -826,6 +844,8 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [jsonPreview, setJsonPreview] = useState(null);
   const [ustat, setUstat] = useState({});
   useEffect(() => { fetchUserStatus().then(setUstat).catch(() => {}); }, []);
+  const [pres, setPres] = useState({});
+  useEffect(() => { let on = true; const go = () => loadPresence().then((p) => { if (on) setPres(p); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, []);
   const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
   const [impMsg, setImpMsg] = useState("");
@@ -1052,7 +1072,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             })}</div>
             <div className="lk-add"><input className="lk-in" placeholder="Add building…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
           </>}
-          {tab === "users" && <>
+          {tab === "users" && <div className="lk-userwrap"><div className="lk-usermain">
             <div className="lk-ufilter">
               <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or email…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
               <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -1120,7 +1140,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV (set-password links)</button>
               </div>}
             </div>
-          </>}
+            </div>
+            <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
+          </div>}
           {tab === "branding" && <>
             <div className="lk-f"><label>Project name</label>
               <input className="lk-in" value={S.brand?.projectName || ""} placeholder="FIN04" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, projectName: e.target.value } }))} /></div>
@@ -1642,6 +1664,31 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
           </tbody></table>
       </div>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>{rows.length} shown · {totalOpen} open across the whole project</div>
+    </div>);
+}
+
+function LatestOnline({ users, ustat, pres }) {
+  const now = Date.now();
+  const ONLINE_MS = 150000; // online if a heartbeat landed in the last 2.5 min
+  const rows = users.map((u) => {
+    const seen = ustat[u.id] && ustat[u.id].lastSignIn;
+    if (!seen) return null; // invite not yet accepted -> no status, not listed
+    const p = pres[u.id] ? new Date(pres[u.id]).getTime() : 0;
+    const last = Math.max(p, new Date(seen).getTime());
+    return { id: u.id, name: u.name || "Unknown", last, online: p > 0 && (now - p) < ONLINE_MS };
+  }).filter(Boolean).sort((a, b) => b.last - a.last);
+  const onlineCount = rows.filter((r) => r.online).length;
+  const fmt = (t) => new Date(t).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return (
+    <div className="lk-online">
+      <div className="lk-online-h"><span>Latest online</span>{onlineCount > 0 && <span className="lk-online-now"><span className="lk-dot on" />{onlineCount} online now</span>}</div>
+      {rows.length === 0
+        ? <div className="lk-online-empty">No one has accepted their invite yet.</div>
+        : <div className="lk-online-list">{rows.map((r) => <div key={r.id} className="lk-online-row">
+            <span className={"lk-dot " + (r.online ? "on" : "off")} />
+            <span className="lk-online-name" title={r.name}>{r.name}</span>
+            <span className="lk-online-time" title={"Last online " + new Date(r.last).toLocaleString("en-GB")}>{r.online ? "online now" : fmt(r.last)}</span>
+          </div>)}</div>}
     </div>);
 }
 
