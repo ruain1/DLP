@@ -367,6 +367,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV37", date: "2026-06-20", items: ["Schedule Calendar and Workload now open the same drill-down popup as Analytics: click a calendar day or a workload bar (or a company segment) to list those activities, then click one to open it", "Workload bars and segments are now interactive"] },
   { rev: "REV36", date: "2026-06-20", items: ["Per-activity audit history now records what actually changed on each edit (field by field, old value to new value) instead of a generic Edit activity; needs the activity-audit-detail.sql migration"] },
   { rev: "REV35", date: "2026-06-20", items: ["Milestone diamonds now sit centred in their day column instead of on the left gridline, so they read on the correct day", "Board metric numbers use the same font as Analytics (no more slashed zeros)"] },
   { rev: "REV34", date: "2026-06-20", items: ["Hardened predecessor logic: a link only orders work and can push a successor later if needed; it can never pull a successor earlier than its own planned start, and the card always sits on its planned date"] },
@@ -1554,6 +1555,33 @@ function ImportReview({ obj, S, onClose, onApply }) {
     </div>);
 }
 
+function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
+  return (
+    <div className="lk-bg" onClick={onClose}>
+      <div className="ytt drill" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+        <div className="ytt-head">
+          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="chart" s={17} /><h3 style={{ margin: 0, fontSize: 15.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</h3><span className="ytt-sub">{items.length} activit{items.length === 1 ? "y" : "ies"}</span></div>
+          <button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button>
+        </div>
+        <div className="drill-body">
+          {items.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>No activities in this slice.</div>
+            : items.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).map((a) => { const lv = lvOf(LV, a.level); const open = (a.constraints || []).filter((c) => !c.done).length;
+              return <div key={a.id} className="drill-row" style={{ borderLeftColor: lv.color }} onClick={() => onOpen && onOpen(a)} title="Open activity">
+                <div className="drill-main">
+                  <span className="drill-desc">{a.desc || "Untitled"}</span>
+                  <span className="drill-sub">{coName(a.companyId)} {"\u00b7"} {a.level || "-"} {"\u00b7"} {a.start || "no date"}{a.duration ? " (" + a.duration + "d)" : ""}</span>
+                </div>
+                <div className="drill-tags">
+                  {a.status === "complete" ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none" }}>done</span> : open ? <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }}>{open} open</span> : null}
+                  {a.committed && <span className="lk-chip commit">will</span>}
+                  {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
+                </div>
+              </div>; })}
+        </div>
+      </div>
+    </div>);
+}
+
 function SchedulePage({ S, coName, onOpen }) {
   const [zoom, setZoom] = useState("week");
   const [groupBy, setGroupBy] = useState("level");
@@ -1563,6 +1591,8 @@ function SchedulePage({ S, coName, onOpen }) {
   const [compact, setCompact] = useState(false);
   const [collapsed, setCollapsed] = useState({});
   const [view, setView] = useState("gantt");
+  const [drill, setDrill] = useState(null);
+  const openDrill = (title, items) => setDrill({ title, items: items || [] });
   const svgRef = useRef(null);
   const LV = S.levels || {};
   const dark = S.theme === "dark";
@@ -1726,12 +1756,13 @@ function SchedulePage({ S, coName, onOpen }) {
           })}
         </svg>}
       </div>}
-      {view === "calendar" && <CalendarView S={S} coName={coName} onOpen={onOpen} LV={LV} P={P} dark={dark} />}
-      {view === "workload" && <WorkloadView S={S} coName={coName} P={P} dark={dark} />}
+      {view === "calendar" && <CalendarView S={S} coName={coName} onDrill={openDrill} LV={LV} P={P} dark={dark} />}
+      {view === "workload" && <WorkloadView S={S} coName={coName} onDrill={openDrill} P={P} dark={dark} />}
+      {drill && <DrillModal title={drill.title} items={drill.items} S={S} LV={LV} coName={coName} onOpen={onOpen} onClose={() => setDrill(null)} />}
     </div>);
 }
 
-function CalendarView({ S, coName, onOpen, LV, P }) {
+function CalendarView({ S, coName, onDrill, LV, P }) {
   const [m, setM] = useState(() => { const d = new Date(todayMid()); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const acts = S.activities.filter((a) => a.start);
   const items = acts.map((a) => ({ a, s: parseD(a.start).getTime(), e: addDays(parseD(a.start), Math.max(1, a.duration) - 1).getTime() }));
@@ -1756,21 +1787,23 @@ function CalendarView({ S, coName, onOpen, LV, P }) {
       <div className="cal-grid">
         {dow.map((d) => <div key={d} className="cal-dow">{d}</div>)}
         {weeks.flat().map((day, i) => { const inM = day.getMonth() === m.getMonth(); const isToday = day.getTime() === today; const da = onDay(day); return (
-          <div key={i} className={"cal-cell" + (inM ? "" : " off") + (isToday ? " today" : "")}>
+          <div key={i} className={"cal-cell" + (inM ? "" : " off") + (isToday ? " today" : "")} onClick={da.length ? () => onDrill(day.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }), da.map((x) => x.a)) : undefined} style={da.length ? { cursor: "pointer" } : undefined}>
             <div className="cal-daynum">{day.getDate()}</div>
-            {da.slice(0, 4).map(({ a }) => <button key={a.id} className="cal-chip" style={{ borderLeftColor: (LV[a.level] || {}).color || "#64748B" }} title={`${a.desc || "Untitled"} \u00b7 ${coName(a.companyId)} \u00b7 ${a.level}`} onClick={() => onOpen(a)}>{a.desc || "Untitled"}</button>)}
+            {da.slice(0, 4).map(({ a }) => <span key={a.id} className="cal-chip" style={{ borderLeftColor: (LV[a.level] || {}).color || "#64748B" }} title={`${a.desc || "Untitled"} \u00b7 ${coName(a.companyId)} \u00b7 ${a.level}`}>{a.desc || "Untitled"}</span>)}
             {da.length > 4 && <div className="cal-more">+{da.length - 4} more</div>}
           </div>); })}
       </div>
     </div>);
 }
 
-function WorkloadView({ S, coName }) {
+function WorkloadView({ S, coName, onDrill }) {
   const acts = S.activities.filter((a) => a.start);
   if (!acts.length) return <div className="lk-empty" style={{ flex: 1 }}>No activities with dates yet.</div>;
   const PAL = ["#2563EB", "#0E9384", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
   const coColor = (id) => { if (!id) return "#94A3B8"; let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PAL[h % PAL.length]; };
   const span = (a) => ({ s: parseD(a.start).getTime(), e: addDays(parseD(a.start), Math.max(1, a.duration) - 1).getTime() });
+  const weekActs = (wk, c) => { const ws = wk.getTime(), we = addDays(wk, 6).getTime(); return acts.filter((a) => { const { s, e } = span(a); return s <= we && e >= ws && (!c || a.companyId === c); }); };
+  const wkLabel = (wk) => "Week of " + wk.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const starts = acts.map((a) => parseD(a.start).getTime());
   const ends = acts.map((a) => span(a).e);
   let w = mondayOf(new Date(Math.min(...starts))); const lastW = mondayOf(new Date(Math.max(...ends)));
@@ -1787,10 +1820,10 @@ function WorkloadView({ S, coName }) {
         {data.map((d, i) => { const isW = d.wk.getTime() === mondayOf(new Date(todayMid())).getTime(); return (
           <div key={i} className="wl-col">
             <span className="wl-lab" style={{ color: d.total ? "var(--ink)" : "var(--muted)", fontWeight: d.total ? 700 : 400 }}>{d.total || ""}</span>
-            <div className="wl-stack" style={{ height: barMax, justifyContent: "flex-end", outline: isW ? "2px solid var(--accent)" : "none" }}>
-              {comps.map((c) => d.counts[c] ? <div key={c} className="wl-seg" style={{ height: (d.counts[c] / maxTotal) * barMax, background: coColor(c) }} title={`${coName(c)}: ${d.counts[c]} in week of ${d.wk.toLocaleDateString("en-GB")}`} /> : null)}
+            <div className="wl-stack" style={{ height: barMax, justifyContent: "flex-end", outline: isW ? "2px solid var(--accent)" : "none", cursor: d.total ? "pointer" : "default" }} onClick={d.total ? () => onDrill(wkLabel(d.wk), weekActs(d.wk)) : undefined} title={d.total ? "Click for this week's activities" : ""}>
+              {comps.map((c) => d.counts[c] ? <div key={c} className="wl-seg" style={{ height: (d.counts[c] / maxTotal) * barMax, background: coColor(c), cursor: "pointer" }} title={`${coName(c)}: ${d.counts[c]} \u00b7 click to list`} onClick={(ev) => { ev.stopPropagation(); onDrill(wkLabel(d.wk) + " \u00b7 " + (coName(c) || "Unassigned"), weekActs(d.wk, c)); }} /> : null)}
             </div>
-            <span className="wl-lab" style={{ fontWeight: isW ? 700 : 400, color: isW ? "var(--accent)" : "var(--muted)" }}>{d.wk.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</span>
+            <span className="wl-lab" style={{ fontWeight: isW ? 700 : 400, color: isW ? "var(--accent)" : "var(--muted)", cursor: d.total ? "pointer" : "default" }} onClick={d.total ? () => onDrill(wkLabel(d.wk), weekActs(d.wk)) : undefined}>{d.wk.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</span>
           </div>); })}
       </div>
       <div className="wl-legend">{comps.map((c) => <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: coColor(c) }} />{coName(c) || "Unassigned"}</span>)}</div>
@@ -2156,29 +2189,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen })
         <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} onClick={() => openDrill(x.name, acts.filter((a) => a.companyId === x.id))} />)}</div>
       </div>
       <div className="lk-rep-sec"><h3>By Cx stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} onClick={() => openDrill(x.name, acts.filter((a) => a.level === x.k))} />)}</div>
-      {drill && <div className="lk-bg" onClick={() => setDrill(null)}>
-        <div className="ytt drill" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
-          <div className="ytt-head">
-            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="chart" s={17} /><h3 style={{ margin: 0, fontSize: 15.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{drill.title}</h3><span className="ytt-sub">{drill.items.length} activit{drill.items.length === 1 ? "y" : "ies"}</span></div>
-            <button className="lk-btn icon" onClick={() => setDrill(null)}><Icon n="x" /></button>
-          </div>
-          <div className="drill-body">
-            {drill.items.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>No activities in this slice.</div>
-              : drill.items.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).map((a) => { const lv = lvOf(LV, a.level); const open = (a.constraints || []).filter((c) => !c.done).length;
-                return <div key={a.id} className="drill-row" style={{ borderLeftColor: lv.color }} onClick={() => onOpen && onOpen(a)} title="Open activity">
-                  <div className="drill-main">
-                    <span className="drill-desc">{a.desc || "Untitled"}</span>
-                    <span className="drill-sub">{coName(a.companyId)} {"\u00b7"} {a.level || "-"} {"\u00b7"} {a.start || "no date"}{a.duration ? " (" + a.duration + "d)" : ""}</span>
-                  </div>
-                  <div className="drill-tags">
-                    {a.status === "complete" ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none" }}>done</span> : open ? <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }}>{open} open</span> : null}
-                    {a.committed && <span className="lk-chip commit">will</span>}
-                    {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
-                  </div>
-                </div>; })}
-          </div>
-        </div>
-      </div>}
+      {drill && <DrillModal title={drill.title} items={drill.items} S={S} LV={LV} coName={coName} onOpen={onOpen} onClose={() => setDrill(null)} />}
     </div>);
 }
 
