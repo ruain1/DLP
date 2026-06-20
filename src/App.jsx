@@ -150,12 +150,21 @@ const css = `
 .lk-audwhen{color:var(--muted);font-size:11px;white-space:nowrap}
 .lk-audit{font-size:11.5px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line);padding:7px 0}
 .lk-audit .a{font-weight:600}.lk-audit .m{color:var(--muted);font-size:10.5px}
-.lk-shell{display:flex;min-height:100vh;padding-left:56px}
-.lk-rail{position:fixed;left:0;top:0;bottom:0;width:56px;background:#1d2530;z-index:50;display:flex;flex-direction:column;padding:14px 0}
+.lk-shell{display:flex;min-height:100vh;padding-left:56px;transition:padding-left .14s ease}
+.lk-shell.navopen{padding-left:212px}
+.lk-rail{position:fixed;left:0;top:0;bottom:0;width:56px;background:#1d2530;z-index:50;display:flex;flex-direction:column;padding:14px 0;transition:width .14s ease}
+.lk-rail.open{width:212px}
 .lk-rail-inner{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
-.lk-rail button{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,color .12s}
+.lk-rail.open .lk-rail-inner{align-items:stretch;padding:0 12px}
+.lk-rail button{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,color .12s;flex-shrink:0}
+.lk-rail.open button{width:100%;height:40px;justify-content:flex-start;gap:13px;padding:0 11px}
 .lk-rail button:hover{background:#2a333f;color:#dfe6ef}
 .lk-rail button.on{background:var(--accent);color:#fff}
+.lk-rail button svg{flex-shrink:0}
+.lk-rail .lbl{display:none}
+.lk-rail.open .lbl{display:inline;font-size:13px;font-weight:600;white-space:nowrap}
+.lk-railtog{color:#67768a!important;margin-bottom:6px}
+.lk-railtog:hover{color:#dfe6ef!important}
 .lk-page{flex:1;min-width:0;display:flex;flex-direction:column}
 .lk-rep{padding:18px 22px;max-width:1400px}
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
@@ -334,6 +343,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV29", date: "2026-06-20", items: ["Sidebar now shows section labels beside each icon and collapses back to icons only, remembered across refreshes", "Order changed so Constraints Log sits above Schedule; Reports relabelled Analytics; Schedule tooltip no longer mentions Gantt"] },
   { rev: "REV28", date: "2026-06-20", items: ["Admin-only audit history on each activity: a collapsible section under Notes in the editor showing who created, edited or touched that activity and when"] },
   { rev: "REV27", date: "2026-06-20", items: ["Add-constraint button restyled to the blue primary look matching Save", "Activity editor titles set in Title Case (New Activity, Edit Activity)"] },
   { rev: "REV26", date: "2026-06-20", items: ["Building is now locked for members in the activity editor (fixed for the project); admins can still change it", "Admins can create a new Level, Zone, System or Company inline from the activity editor without leaving the popout"] },
@@ -403,6 +413,8 @@ export default function App({ session }) {
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
+  const [navOpen, setNavOpen] = useState(() => { try { return localStorage.getItem("fin04_nav") !== "0"; } catch (e) { return true; } });
+  const toggleNav = () => setNavOpen((o) => { const n = !o; try { localStorage.setItem("fin04_nav", n ? "1" : "0"); } catch (e) {} return n; });
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
@@ -647,16 +659,17 @@ export default function App({ session }) {
 
   return (
     <div className="lk" style={cssVars(S.theme)}><style>{css}</style>
-      <div className="lk-shell">
-      <nav className="lk-rail"><div className="lk-rail-inner">
-        <button title="Planning board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /></button>
-        <button title="Activity table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n="grid" s={20} /></button>
-        <button title="Schedule (Gantt)" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n="gantt" s={20} /></button>
-        <button title="Constraints log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /></button>
-        <button title="Reports & metrics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /></button>
-        <button title="Help & quick reference" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /></button>
-        {isAdmin && <button title="Admin settings" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /></button>}
-        <div style={{ marginTop: "auto", textAlign: "center", color: "#9aa7b8" }}>
+      <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
+      <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
+        <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
+        <button title="Planning Board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /><span className="lbl">Planning Board</span></button>
+        <button title="Activity Table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n="grid" s={20} /><span className="lbl">Activity Table</span></button>
+        <button title="Constraints Log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /><span className="lbl">Constraints Log</span></button>
+        <button title="Schedule" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n="gantt" s={20} /><span className="lbl">Schedule</span></button>
+        <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
+        <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
+        {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
+        <div className="lk-railppc" style={{ marginTop: "auto", textAlign: "center", color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
         </div>
