@@ -165,6 +165,9 @@ const css = `
 .lk-rail.open .lbl{display:inline;font-size:13px;font-weight:600;white-space:nowrap}
 .lk-railtog{color:#67768a!important;margin-bottom:6px}
 .lk-railtog:hover{color:#dfe6ef!important}
+.lk-railppc{text-align:center}
+.lk-rail.open .lk-railppc{text-align:left;padding:0 13px}
+.lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .lk-page{flex:1;min-width:0;display:flex;flex-direction:column}
 .lk-rep{padding:18px 22px;max-width:1400px}
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
@@ -343,6 +346,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV30", date: "2026-06-20", items: ["Sidebar PPC now left-aligns when the menu is expanded", "The Activity button stays pinned to the right of the board bar instead of wrapping to the left"] },
   { rev: "REV29", date: "2026-06-20", items: ["Sidebar now shows section labels beside each icon and collapses back to icons only, remembered across refreshes", "Order changed so Constraints Log sits above Schedule; Reports relabelled Analytics; Schedule tooltip no longer mentions Gantt"] },
   { rev: "REV28", date: "2026-06-20", items: ["Admin-only audit history on each activity: a collapsible section under Notes in the editor showing who created, edited or touched that activity and when"] },
   { rev: "REV27", date: "2026-06-20", items: ["Add-constraint button restyled to the blue primary look matching Save", "Activity editor titles set in Title Case (New Activity, Edit Activity)"] },
@@ -669,7 +673,7 @@ export default function App({ session }) {
         <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
-        <div className="lk-railppc" style={{ marginTop: "auto", textAlign: "center", color: "#9aa7b8" }}>
+        <div className="lk-railppc" style={{ marginTop: "auto", color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
         </div>
@@ -703,13 +707,14 @@ export default function App({ session }) {
         <button className="lk-btn icon" onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
-        <div className="lk-spacer" />
-        <div className="lk-who">
-          <span style={{ fontWeight: 600 }}>{cu.name}</span>
-          <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
-          <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
+        <div className="lk-barright">
+          <div className="lk-who">
+            <span style={{ fontWeight: 600 }}>{cu.name}</span>
+            <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
+            <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
+          </div>
+          <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
         </div>
-        <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
       </div>
 
       <div className="lk-metrics">
