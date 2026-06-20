@@ -42,7 +42,7 @@ const css = `
 .lk-pill.admin{background:#7C3AED;color:#fff}.lk-pill.member{background:var(--chipbg);color:var(--accent)}
 .lk-metrics{display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
 .lk-metric{padding:10px 20px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:118px}
-.lk-metric .v{font-size:21px;font-weight:700;line-height:1}
+.lk-metric .v{font-size:21px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .lk-metric .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 .lk-metric .sub{font-size:10.5px;color:var(--muted)}
 .lk-board{flex:1;overflow:auto;position:relative}
@@ -83,9 +83,9 @@ const css = `
 .lk-chip.wit{background:#E7E0FB;color:#5B33C7}
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
 .lk-fc{align-self:stretch;margin:3px 2px;border:1.5px dashed #E0A106;background:rgba(224,161,6,.10);border-radius:6px;z-index:0;pointer-events:none}
-.lk-ms{pointer-events:auto;display:flex;align-items:center;gap:5px;cursor:grab;overflow:visible;align-self:center;z-index:2}
+.lk-ms{position:relative;pointer-events:auto;display:flex;align-items:center;justify-content:center;cursor:grab;overflow:visible;align-self:center;z-index:2}
 .lk-ms .dia{width:12px;height:12px;transform:rotate(45deg);flex:none;border:1px solid rgba(0,0,0,.2)}
-.lk-ms .mslbl{font-size:10.5px;font-weight:600;white-space:nowrap;pointer-events:none}
+.lk-ms .mslbl{position:absolute;top:50%;left:calc(50% + 11px);transform:translateY(-50%);font-size:10.5px;font-weight:600;white-space:nowrap;pointer-events:none}
 .lk-grow{display:grid}
 .lk-grow .gl{position:sticky;left:0;z-index:3;background:var(--paper);border-right:1px solid var(--line);border-bottom:1px solid var(--line);
   padding:7px 11px;display:flex;align-items:center;gap:8px;font-size:11.5px}
@@ -365,6 +365,8 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV35", date: "2026-06-20", items: ["Milestone diamonds now sit centred in their day column instead of on the left gridline, so they read on the correct day", "Board metric numbers use the same font as Analytics (no more slashed zeros)"] },
+  { rev: "REV34", date: "2026-06-20", items: ["Hardened predecessor logic: a link only orders work and can push a successor later if needed; it can never pull a successor earlier than its own planned start, and the card always sits on its planned date"] },
   { rev: "REV33", date: "2026-06-20", items: ["Planning board activity cards restyled to match the Analytics cards: same rounded corners, flat resting card, roomier padding and text scale, keeping the coloured Cx-stage edge"] },
   { rev: "REV32", date: "2026-06-20", items: ["Analytics is now interactive: click any KPI card, the PPC gauge, a trend point, a reason, a status segment, a company or a Cx stage to open a drill-down listing the exact activities behind that number; click an activity there to jump into it"] },
   { rev: "REV31", date: "2026-06-20", items: ["Analytics gained download options: a multi-sheet Excel of the metrics behind every chart (PPC, KPIs, weekly trend, reasons, by company, by Cx stage, status mix) and a Print to PDF of the dashboard, both honouring the active filters"] },
@@ -510,6 +512,7 @@ export default function App({ session }) {
       let st = a.actualStart ? Math.round((parseD(a.actualStart) - anchor) / DAYMS) : a.startOff + own;
       a._base = st;
       (a.predecessors || []).forEach((pid) => { const pe = projEnd(pid); if (pe != null) st = Math.max(st, pe + 1); });
+      st = Math.max(st, a._base);  // a predecessor only orders work; it pushes a successor later if needed, but never earlier than its own planned start
       const pe = (a.status === "complete" && a.actualFinish) ? Math.round((parseD(a.actualFinish) - anchor) / DAYMS) : st + a.span;
       a._ps = st; a._pe = pe;
       stack[id] = false; memo[id] = pe; return pe;
@@ -740,12 +743,12 @@ export default function App({ session }) {
       </div>
 
       <div className="lk-metrics">
-        <div className="lk-metric"><span className="v mono">{inWindow.length}</span><span className="l">In lookahead</span></div>
-        <div className="lk-metric"><span className="v mono" style={{ color: "#0E9384" }}>{ready.length}</span><span className="l">Ready to run</span></div>
-        <div className="lk-metric"><span className="v mono" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
-        <div className="lk-metric"><span className="v mono" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
-        <div className="lk-metric"><span className="v mono" style={{ color: "#C0392B" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
-        <div className="lk-metric"><span className="v mono" style={{ color: "#E0A106" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
+        <div className="lk-metric"><span className="v">{inWindow.length}</span><span className="l">In lookahead</span></div>
+        <div className="lk-metric"><span className="v" style={{ color: "#0E9384" }}>{ready.length}</span><span className="l">Ready to run</span></div>
+        <div className="lk-metric"><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
+        <div className="lk-metric"><span className="v" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
+        <div className="lk-metric"><span className="v" style={{ color: "#C0392B" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
+        <div className="lk-metric"><span className="v" style={{ color: "#E0A106" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
       </div>
 
       <div className="lk-board">
