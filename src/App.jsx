@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence } from "./data";
+import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -139,6 +139,15 @@ const css = `
 .lk-urow{display:grid;grid-template-columns:minmax(150px,1fr) 96px minmax(130px,1.2fr) 132px auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--card);font-size:12.5px}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-uacts{display:flex;align-items:center;gap:5px;justify-content:flex-end}
+.lk-acc{display:flex;align-items:center;gap:7px;width:100%;background:transparent;border:0;cursor:pointer;color:var(--ink);font-weight:600;font-size:12.5px;padding:6px 0}
+.lk-acc .car{font-size:11px;color:var(--muted);width:12px}
+.lk-audhist{border:1px solid var(--line);border-radius:8px;background:var(--card);max-height:230px;overflow:auto;margin-top:2px}
+.lk-audempty{padding:12px;font-size:12px;color:var(--muted)}
+.lk-audrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:7px 11px;border-bottom:1px solid var(--line)}
+.lk-audrow:last-child{border-bottom:0}
+.lk-audact{font-weight:600;color:var(--ink);font-size:12px}
+.lk-audwho{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.lk-audwhen{color:var(--muted);font-size:11px;white-space:nowrap}
 .lk-audit{font-size:11.5px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line);padding:7px 0}
 .lk-audit .a{font-weight:600}.lk-audit .m{color:var(--muted);font-size:10.5px}
 .lk-shell{display:flex;min-height:100vh;padding-left:56px}
@@ -325,6 +334,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV28", date: "2026-06-20", items: ["Admin-only audit history on each activity: a collapsible section under Notes in the editor showing who created, edited or touched that activity and when"] },
   { rev: "REV27", date: "2026-06-20", items: ["Add-constraint button restyled to the blue primary look matching Save", "Activity editor titles set in Title Case (New Activity, Edit Activity)"] },
   { rev: "REV26", date: "2026-06-20", items: ["Building is now locked for members in the activity editor (fixed for the project); admins can still change it", "Admins can create a new Level, Zone, System or Company inline from the activity editor without leaving the popout"] },
   { rev: "REV25", date: "2026-06-20", items: ["User management rows aligned onto a fixed grid so name, role, company, status and actions line up column to column"] },
@@ -842,6 +852,9 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
   const [a, setA] = useState(act);
   const [addKind, setAddKind] = useState(null);
   const [addText, setAddText] = useState("");
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditLoaded, setAuditLoaded] = useState(false);
+  const [auditRows, setAuditRows] = useState([]);
   const [cText, setCText] = useState("");
   const [cOwner, setCOwner] = useState("");
   const [cDue, setCDue] = useState("");
@@ -959,6 +972,20 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
               <option value="">-- record why it slipped --</option>{SLIP_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>; })()}
           <div className="lk-f"><label>Notes / comment</label>
             <textarea className="lk-in" value={a.notes || ""} disabled={dis} placeholder="Anything the team should know: access, sequencing, contacts, risks…" rows={3} style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }} onChange={(e) => set("notes", e.target.value)} /></div>
+          {isAdmin && !isNew && <div className="lk-f" style={{ marginTop: 2 }}>
+            <button type="button" className="lk-acc" onClick={() => { const n = !auditOpen; setAuditOpen(n); if (n && !auditLoaded) { setAuditLoaded(true); fetchActivityAudit(a.id).then(setAuditRows).catch(() => {}); } }}>
+              <span className="car">{auditOpen ? "\u25BE" : "\u25B8"}</span>Audit history{auditLoaded && auditRows.length ? " (" + auditRows.length + ")" : ""}<span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 11 }}>admin only</span>
+            </button>
+            {auditOpen && <div className="lk-audhist">
+              {!auditLoaded ? <div className="lk-audempty">Loading…</div>
+                : auditRows.length === 0 ? <div className="lk-audempty">No history recorded for this activity yet.</div>
+                : auditRows.map((e) => <div key={e.id} className="lk-audrow">
+                    <span className="lk-audact">{e.action}</span>
+                    <span className="lk-audwho">{e.user || "Unknown"}</span>
+                    <span className="lk-audwhen" title={new Date(e.ts).toLocaleString("en-GB")}>{relTime(new Date(e.ts).getTime())}</span>
+                  </div>)}
+            </div>}
+          </div>}
         </div>
         {canEdit && <div className="lk-df">
           {!isNew && <button className="lk-btn" onClick={() => onDelete(a)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>}

@@ -241,3 +241,14 @@ export async function loadPresence() {
     return m;
   } catch (e) { return {}; }
 }
+
+// Full audit history for a single activity (admin-only; RLS enforces it).
+export async function fetchActivityAudit(activityId) {
+  try {
+    const { data, error } = await supabase.from("audit_log").select("*")
+      .eq("entity", "activity").eq("entity_id", String(activityId))
+      .order("ts", { ascending: false }).limit(200);
+    if (error) return [];
+    return (data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail }));
+  } catch (e) { return []; }
+}
