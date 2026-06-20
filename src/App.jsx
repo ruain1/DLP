@@ -322,6 +322,17 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV24", date: "2026-06-20", items: ["YTT stand-up panel renamed YTT Focus", "Clearing a constraint from YTT Focus is now admin-only"] },
+  { rev: "REV23", date: "2026-06-20", items: ["Reports gained a Period filter: all time or a custom date range, scoping every metric, card and chart; the weekly trend clips to the range"] },
+  { rev: "REV22", date: "2026-06-20", items: ["New YTT Focus button on the board: a yesterday/today/tomorrow stand-up panel listing each day's activities with their open constraints, ticked off in place; yesterday flags missed commitments"] },
+  { rev: "REV21", date: "2026-06-20", items: ["Schedule page is now a suite with a view switcher", "New Calendar (month) view", "New Workload view: activities per week stacked by company to spot over-commitment"] },
+  { rev: "REV20", date: "2026-06-20", items: ["User management tables widened and the user search and filters stay frozen while scrolling", "Reports laid out as a two-column dashboard to fill the page"] },
+  { rev: "REV19", date: "2026-06-20", items: ["Constraints log now uses the full page width", "Page titles enlarged and set in Title Case"] },
+  { rev: "REV18", date: "2026-06-20", items: ["A page refresh keeps you on the current view instead of dropping back to the board"] },
+  { rev: "REV17", date: "2026-06-20", items: ["Latest online: a live presence panel in admin showing who is online now and everyone's last-online time, driven by a lightweight heartbeat"] },
+  { rev: "REV16", date: "2026-06-19", items: ["The footer is a proper full-width bar on every page rather than a floating badge that overlapped content"] },
+  { rev: "REV15", date: "2026-06-19", items: ["Refreshed, wider in-app Help page that follows light and dark mode"] },
+  { rev: "REV14", date: "2026-06-19", items: ["Constraints log date and owner columns widened so they no longer wrap", "Admin Changelog added under a new About section"] },
   { rev: "REV13", date: "2026-06-19", items: ["JSON project import now opens a review screen: overwrite, ignore or clone each clashing item, with a global default and per-section bulk actions", "Company references and predecessor links from the file are remapped on import; cloned Cx stages carry their activities onto the new key", "Override import still replaces the whole project wholesale"] },
   { rev: "REV12", date: "2026-06-19", items: ["Admin Import / Export got its own importer, separate from the member one: set Company per row to load work for every contractor at once", "Admin Excel template with dropdowns that allow new values, which are created on import; admin importer now reads .xlsx directly", "Witness date and time now import from CSV and Excel"] },
   { rev: "REV11", date: "2026-06-19", items: ["Reason for non-completion stays editable on a late-but-complete activity, the one exception to the complete-lock"] },
@@ -467,7 +478,7 @@ export default function App({ session }) {
 
   const isAdmin = cu.role === "admin";
   const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
-  const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !canEdit(a)) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
+  const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
   const mk = S.settings.makeReadyDays;
   const inWindow = visible.filter((a) => a.inWin);
   const ready = inWindow.filter((a) => a.open === 0 && a.status !== "complete");
@@ -651,7 +662,7 @@ export default function App({ session }) {
             <button key={k} className={S.laneBy === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, laneBy: k }))}>{l}</button>))}
         </div>}
         <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
-        <button className={"lk-btn" + (ytt ? " on" : "")} title="Stand-up focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
+        <button className={"lk-btn" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
         <button className="lk-btn icon" onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
@@ -775,7 +786,7 @@ export default function App({ session }) {
           <div className="lk-bg" onClick={() => setYtt(false)}>
             <div className="ytt" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
               <div className="ytt-head">
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>Stand-up focus</h3><span className="ytt-sub">Yesterday, today and tomorrow, with open constraints. Tick a constraint to clear it.</span></div>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>YTT Focus</h3><span className="ytt-sub">Yesterday, today and tomorrow, with open constraints. Tick a constraint to clear it.</span></div>
                 <button className="lk-btn icon" onClick={() => setYtt(false)}><Icon n="x" /></button>
               </div>
               <div className="ytt-cols">
@@ -784,7 +795,7 @@ export default function App({ session }) {
                     <div className="ytt-colhead"><span className="ytt-lab">{label}</span><span className="ytt-date">{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span></div>
                     <div className="ytt-list">
                       {list.length === 0 ? <div className="ytt-empty">Nothing scheduled.</div> :
-                        list.map(({ a, open }) => { const can = canEdit(a); const lv = lvOf(LV, a.level); const missed = label === "Yesterday" && a.committed && a.status !== "complete";
+                        list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const missed = label === "Yesterday" && a.committed && a.status !== "complete";
                           return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
                             <div className="ytt-card-desc" onClick={() => setEditing({ ...a })}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
                             <div className="ytt-card-meta">
@@ -797,7 +808,7 @@ export default function App({ session }) {
                             </div>
                             {open.length > 0
                               ? <div className="ytt-cons">{open.map((c) => <label key={c.id} className="ytt-con">
-                                  <input type="checkbox" disabled={!can} checked={false} onChange={() => toggleConstraint(a.id, c.id)} title={can ? "Mark cleared" : "Only this company can clear it"} />
+                                  <input type="checkbox" disabled={!isAdmin} checked={false} onChange={() => toggleConstraint(a.id, c.id)} title={isAdmin ? "Mark cleared" : "Only admins can clear constraints here"} />
                                   <span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span>
                                 </label>)}</div>
                               : (a.status !== "complete" && <div className="ytt-ready">No open constraints</div>)}
@@ -1912,8 +1923,12 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
-  const acts = S.activities.filter((a) => (co === "all" || a.companyId === co) && (ar === "all" || a.area === ar) && (lv === "all" || a.level === lv));
+  const [period, setPeriod] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const finishOf = (a) => addDays(parseD(a.start), (a.duration || 1) - 1);
+  const inPeriod = (a) => { if (period === "all") return true; if (!a.start) return false; const s = parseD(a.start).getTime(), e = finishOf(a).getTime(); if (from && e < parseD(from).getTime()) return false; if (to && s > parseD(to).getTime()) return false; return true; };
+  const acts = S.activities.filter((a) => (co === "all" || a.companyId === co) && (ar === "all" || a.area === ar) && (lv === "all" || a.level === lv) && inPeriod(a));
   const made = (a) => a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= finishOf(a));
   const openOf = (a) => (a.constraints || []).filter((c) => !c.done).length;
   const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps, (a.duration || 1) - 1); if (a.status === "complete" && a.actualFinish) return parseD(a.actualFinish) > pf; if (a.actualStart) return parseD(a.actualStart) > ps; return false; };
@@ -1940,7 +1955,8 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const points = [];
   if (withDates.length) {
     let cur = mondayOf(new Date(Math.min(...withDates.map((a) => parseD(a.start).getTime()))));
-    const end = mondayOf(new Date(Math.max(...withDates.map((a) => finishOf(a).getTime()))));
+    let end = mondayOf(new Date(Math.max(...withDates.map((a) => finishOf(a).getTime()))));
+    if (period === "range") { if (from) cur = new Date(Math.max(cur.getTime(), mondayOf(parseD(from)).getTime())); if (to) end = new Date(Math.min(end.getTime(), mondayOf(parseD(to)).getTime())); }
     let guard = 0;
     while (cur.getTime() <= end.getTime() && guard < 60) {
       const wk = new Date(cur);
@@ -1964,9 +1980,13 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 130 }}><label>Cx Stage</label><select className="lk-select" value={lv} onChange={(e) => setLv(e.target.value)}><option value="all">All Cx stages</option>{Object.keys(LV).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 120 }}><label>Period</label><select className="lk-select" value={period} onChange={(e) => setPeriod(e.target.value)}><option value="all">All time</option><option value="range">Date range</option></select></div>
+        {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>From</label><input className="lk-in mono" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>}
+        {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>}
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
         <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
       </div>
+      {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
         <Gauge value={ppc} />
