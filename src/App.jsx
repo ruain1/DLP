@@ -325,6 +325,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV26", date: "2026-06-20", items: ["Building is now locked for members in the activity editor (fixed for the project); admins can still change it", "Admins can create a new Level, Zone, System or Company inline from the activity editor without leaving the popout"] },
   { rev: "REV25", date: "2026-06-20", items: ["User management rows aligned onto a fixed grid so name, role, company, status and actions line up column to column"] },
   { rev: "REV24", date: "2026-06-20", items: ["YTT stand-up panel renamed YTT Focus", "Clearing a constraint from YTT Focus is now admin-only"] },
   { rev: "REV23", date: "2026-06-20", items: ["Reports gained a Period filter: all time or a custom date range, scoping every metric, card and chart; the weekly trend clips to the range"] },
@@ -483,6 +484,14 @@ export default function App({ session }) {
   const isAdmin = cu.role === "admin";
   const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
   const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
+  const addOption = (kind, name, ctx) => {
+    if (!isAdmin) return ""; name = (name || "").trim(); if (!name) return ""; const lc = name.toLowerCase(); ctx = ctx || {};
+    if (kind === "company") { const ex = S.companies.find((c) => c.name.toLowerCase() === lc); if (ex) return ex.id; const id = uid("co"); update((p) => ({ ...p, companies: [...p.companies, { id, name }] }), { action: "Add company", detail: name }); return id; }
+    if (kind === "system") { const ex = S.systems.find((s) => s.toLowerCase() === lc); if (ex) return ex; update((p) => ({ ...p, systems: [...p.systems, name] }), { action: "Add system", detail: name }); return name; }
+    if (kind === "subArea") { if (!ctx.area) return ""; const ex = (S.subAreas || []).find((s) => s.area === ctx.area && s.name.toLowerCase() === lc); if (ex) return ex.name; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area: ctx.area, name }] }), { action: "Add level", detail: ctx.area + " / " + name }); return name; }
+    if (kind === "tier3") { if (!ctx.area || !ctx.subArea) return ""; const ex = (S.tier3s || []).find((t) => t.area === ctx.area && t.subArea === ctx.subArea && t.name.toLowerCase() === lc); if (ex) return ex.name; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area: ctx.area, subArea: ctx.subArea, name }] }), { action: "Add zone", detail: ctx.area + " / " + ctx.subArea + " / " + name }); return name; }
+    return "";
+  };
   const mk = S.settings.makeReadyDays;
   const inWindow = visible.filter((a) => a.inWin);
   const ready = inWindow.filter((a) => a.open === 0 && a.status !== "complete");
@@ -779,7 +788,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {page === "board" && ytt && (() => {
         const cols = [["Yesterday", todayOffset - 1], ["Today", todayOffset], ["Tomorrow", todayOffset + 1]];
@@ -828,8 +837,10 @@ export default function App({ session }) {
 
 function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--hover": t.hover, "--chipbg": t.chipbg }; }
 
-function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
+function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) {
   const [a, setA] = useState(act);
+  const [addKind, setAddKind] = useState(null);
+  const [addText, setAddText] = useState("");
   const [cText, setCText] = useState("");
   const [cOwner, setCOwner] = useState("");
   const [cDue, setCDue] = useState("");
@@ -840,6 +851,15 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
   const isNew = !act.desc && act.constraints.length === 0;
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), due: cDue }]); setCText(""); setCOwner(""); setCDue(""); };
   const dis = !canEdit || locked;
+  const cancelAdd = () => { setAddKind(null); setAddText(""); };
+  const confirmAdd = (kind, ctx) => { const v = onAdd && onAdd(kind, addText, ctx); if (!v) { cancelAdd(); return; } if (kind === "company") set("companyId", v); else if (kind === "subArea") { set("subArea", v); set("tier3", ""); } else if (kind === "tier3") set("tier3", v); else if (kind === "system") set("system", v); cancelAdd(); };
+  const renderAdd = (kind, placeholder, ctx) => addKind !== kind ? null : (
+    <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
+      <input className="lk-in" autoFocus value={addText} placeholder={placeholder} style={{ fontSize: 12, padding: "5px 8px" }} onChange={(e) => setAddText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmAdd(kind, ctx); } if (e.key === "Escape") cancelAdd(); }} />
+      <button className="lk-btn primary" title="Create and select" onClick={() => confirmAdd(kind, ctx)}><Icon n="check" s={14} /></button>
+      <button className="lk-btn" title="Cancel" onClick={cancelAdd}><Icon n="x" s={14} /></button>
+    </div>);
+  const ADD_OPT = <option value="__add__">{"\uFF0B Add new\u2026"}</option>;
   const hasLevels = !!a.area && (S.subAreas || []).some((s) => s.area === a.area);
   const hasZones = !!a.subArea && (S.tier3s || []).some((t) => t.area === a.area && t.subArea === a.subArea);
   const missing = [];
@@ -864,24 +884,29 @@ function Drawer({ act, S, canEdit, isAdmin, onSave, onClose, onDelete }) {
           <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={dis} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
           <div className="lk-row">
             <div className="lk-f"><label>Company (performing)</label>
-              <select className="lk-select" value={a.companyId || ""} disabled={dis || !isAdmin} onChange={(e) => set("companyId", e.target.value)}>
-                {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}</div>
+              <select className="lk-select" value={a.companyId || ""} disabled={dis || !isAdmin} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("company"); } else set("companyId", e.target.value); }}>
+                {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}{isAdmin && !dis && ADD_OPT}
+              </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}
+              {renderAdd("company", "New company name", {})}</div>
             <div className="lk-f"><label>Building</label>
-              <select className="lk-select" value={a.area} disabled={dis} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
-                <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select></div>
+              <select className="lk-select" value={a.area} disabled={dis || !isAdmin} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
+                <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select>
+              {!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Building is fixed for the project.</span>}</div>
           </div>
           <div className="lk-f"><label>Level</label>
-            <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}>
-              <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select>
-            {a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No levels defined for {a.area}. Add them in Admin, Locations.</span>}</div>
+            <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("subArea"); } else { set("subArea", e.target.value); set("tier3", ""); } }}>
+              <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}{isAdmin && !dis && a.area && ADD_OPT}</select>
+            {!isAdmin && a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No levels defined for {a.area}.</span>}
+            {renderAdd("subArea", "New level name", { area: a.area })}</div>
           <div className="lk-f"><label>Zone / Room</label>
-            <select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => set("tier3", e.target.value)}>
-              <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select>
-            {a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}. Add them in Admin, Locations.</span>}</div>
+            <select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("tier3"); } else set("tier3", e.target.value); }}>
+              <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}{isAdmin && !dis && a.subArea && ADD_OPT}</select>
+            {!isAdmin && a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}.</span>}
+            {renderAdd("tier3", "New zone / room name", { area: a.area, subArea: a.subArea })}</div>
           <div className="lk-f"><label>System</label>
-            <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => set("system", e.target.value)}>
-              <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select></div>
+            <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
+              <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
+            {renderAdd("system", "New system name", {})}</div>
           <div className="lk-f"><label>Asset (optional)</label>
             <input className="lk-in" value={a.asset || ""} disabled={dis} placeholder="e.g. EPOD108.DB001.U003" onChange={(e) => set("asset", e.target.value)} /></div>
           <div className="lk-f"><label>Cx Stage</label>
