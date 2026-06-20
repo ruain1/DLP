@@ -694,7 +694,7 @@ export default function App({ session }) {
           {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
           <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
         </div>
-        <div style={{ fontWeight: 700, fontSize: 14, marginLeft: 6 }}>{page === "table" ? "Activity table" : page === "schedule" ? "Schedule" : page === "constraints" ? "Constraints log" : page === "reports" ? "Reports & metrics" : page === "admin" ? "Admin settings" : page === "help" ? "Help & quick reference" : ""}</div>
+        <div style={{ fontWeight: 700, fontSize: 17, marginLeft: 6 }}>{page === "table" ? "Activity Table" : page === "schedule" ? "Schedule" : page === "constraints" ? "Constraints Log" : page === "reports" ? "Reports & Metrics" : page === "admin" ? "Admin Settings" : page === "help" ? "Help & Quick Reference" : ""}</div>
         <div className="lk-spacer" />
         <div className="lk-who">
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
@@ -1636,7 +1636,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const totalOpen = S.activities.reduce((n, a) => n + (a.constraints || []).filter((c) => !c.done).length, 0);
   const exportCsv = () => { const headers = ["Activity", "Company", "Location code", "Building", "Level", "Zone / Room", "Cx Stage", "Planned start", "Constraint", "Owner", "Need-by", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join("."), a.area, a.subArea || "", a.tier3 || "", a.level, a.start, c.text, c.owner || "", c.due || "", c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
   return (
-    <div className="lk-rep">
+    <div className="lk-rep" style={{ maxWidth: "none" }}>
       <div className="sub" style={{ marginTop: 2 }}>Every make-ready constraint across the project. Tick one to clear it; the board updates straight away. Use the pen to edit a constraint's wording, owner or need-by date.</div>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
