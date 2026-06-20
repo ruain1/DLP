@@ -160,6 +160,24 @@ const css = `
 .lk-subbody.wide{max-width:1320px}
 .lk-userwrap .lk-ufilter{position:sticky;top:62px;z-index:20;background:var(--paper);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
+.cal-head h3{font-size:15px;color:var(--ink)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cal-dow{padding:6px 8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
+.cal-cell{min-height:104px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px;display:flex;flex-direction:column;gap:3px;background:var(--paper);min-width:0}
+.cal-cell.off{background:var(--card);opacity:.5}
+.cal-cell.today{background:rgba(37,99,235,.08)}
+.cal-daynum{font-size:11px;font-weight:600;color:var(--muted)}
+.cal-cell.today .cal-daynum{color:var(--accent);font-weight:800}
+.cal-chip{display:block;width:100%;max-width:100%;text-align:left;border:0;border-left:3px solid #64748B;background:var(--hover);color:var(--ink);font-size:11px;line-height:1.3;padding:2px 5px;border-radius:4px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-more{font-size:10px;color:var(--muted);padding-left:3px}
+.wl-wrap{padding:14px 16px}
+.wl-bars{display:flex;align-items:flex-end;gap:10px;overflow-x:auto;padding:6px 2px 4px}
+.wl-col{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
+.wl-stack{display:flex;flex-direction:column;width:30px;border-radius:5px 5px 0 0;overflow:hidden;background:var(--hover)}
+.wl-seg{width:100%}
+.wl-lab{font-size:10px;color:var(--muted);white-space:nowrap}
+.wl-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;color:var(--ink)}
 @media (max-width:860px){.lk-rep-2col{grid-template-columns:1fr}}
 .lk-subbody .lk-db{padding:2px 0 0}
 .lk-help{flex:1;min-height:0}
@@ -1353,6 +1371,7 @@ function SchedulePage({ S, coName, onOpen }) {
   const [showDeps, setShowDeps] = useState(true);
   const [compact, setCompact] = useState(false);
   const [collapsed, setCollapsed] = useState({});
+  const [view, setView] = useState("gantt");
   const svgRef = useRef(null);
   const LV = S.levels || {};
   const dark = S.theme === "dark";
@@ -1429,6 +1448,8 @@ function SchedulePage({ S, coName, onOpen }) {
   return (
     <div className="lk-sch" style={cssVars(S.theme)}><style>{css}</style>
       <div className="lk-sch-bar">
+        <div className="grp"><label>View</label><div className="seg">{[["gantt", "Gantt"], ["calendar", "Calendar"], ["workload", "Workload"]].map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}</div></div>
+        {view === "gantt" && <>
         <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
         <div className="grp"><label>Group by</label><select className="lk-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="none">None</option><option value="company">Company</option><option value="area">Building</option><option value="level">Cx Stage</option><option value="system">System</option></select></div>
         <div className="grp"><label>Colour by</label><select className="lk-select" value={colorBy} onChange={(e) => setColorBy(e.target.value)}><option value="level">Cx Stage</option><option value="company">Company</option><option value="status">Status</option></select></div>
@@ -1440,8 +1461,9 @@ function SchedulePage({ S, coName, onOpen }) {
         <button className="lk-btn" onClick={() => exportImg("jpg")}><Icon n="download" s={13} />JPG</button>
         <button className="lk-btn" onClick={exportPdf}><Icon n="download" s={13} />PDF</button>
         <button className="lk-btn" onClick={exportXlsx}><Icon n="download" s={13} />Excel</button>
+        </>}
       </div>
-      <div className="lk-sch-scroll" style={{ background: P.bg }}>
+      {view === "gantt" && <div className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
         <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
           <rect x={0} y={0} width={W} height={H} fill={P.bg} />
@@ -1512,7 +1534,75 @@ function SchedulePage({ S, coName, onOpen }) {
             </g>;
           })}
         </svg>}
+      </div>}
+      {view === "calendar" && <CalendarView S={S} coName={coName} onOpen={onOpen} LV={LV} P={P} dark={dark} />}
+      {view === "workload" && <WorkloadView S={S} coName={coName} P={P} dark={dark} />}
+    </div>);
+}
+
+function CalendarView({ S, coName, onOpen, LV, P }) {
+  const [m, setM] = useState(() => { const d = new Date(todayMid()); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const acts = S.activities.filter((a) => a.start);
+  const items = acts.map((a) => ({ a, s: parseD(a.start).getTime(), e: addDays(parseD(a.start), Math.max(1, a.duration) - 1).getTime() }));
+  const first = new Date(m.getFullYear(), m.getMonth(), 1);
+  const last = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+  const weeks = []; let cur = mondayOf(first);
+  while (cur.getTime() <= last.getTime()) { const days = []; for (let d = 0; d < 7; d++) days.push(addDays(cur, d)); weeks.push(days); cur = addDays(cur, 7); }
+  const today = todayMid();
+  const onDay = (day) => { const t = day.getTime(); return items.filter((it) => t >= it.s && t <= it.e).sort((x, y) => (x.a.start || "").localeCompare(y.a.start || "")); };
+  const step = (n) => setM(new Date(m.getFullYear(), m.getMonth() + n, 1));
+  const dow = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return (
+    <div style={{ flex: 1, overflow: "auto", background: "var(--paper)" }}>
+      <div className="cal-head">
+        <button className="lk-btn" onClick={() => step(-1)}>{"\u2039"}</button>
+        <button className="lk-btn" onClick={() => setM(() => { const d = new Date(todayMid()); return new Date(d.getFullYear(), d.getMonth(), 1); })}>Today</button>
+        <button className="lk-btn" onClick={() => step(1)}>{"\u203A"}</button>
+        <h3 style={{ margin: "0 0 0 6px" }}>{m.toLocaleString("en-GB", { month: "long", year: "numeric" })}</h3>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{acts.length} dated activit{acts.length === 1 ? "y" : "ies"}</span>
       </div>
+      <div className="cal-grid">
+        {dow.map((d) => <div key={d} className="cal-dow">{d}</div>)}
+        {weeks.flat().map((day, i) => { const inM = day.getMonth() === m.getMonth(); const isToday = day.getTime() === today; const da = onDay(day); return (
+          <div key={i} className={"cal-cell" + (inM ? "" : " off") + (isToday ? " today" : "")}>
+            <div className="cal-daynum">{day.getDate()}</div>
+            {da.slice(0, 4).map(({ a }) => <button key={a.id} className="cal-chip" style={{ borderLeftColor: (LV[a.level] || {}).color || "#64748B" }} title={`${a.desc || "Untitled"} \u00b7 ${coName(a.companyId)} \u00b7 ${a.level}`} onClick={() => onOpen(a)}>{a.desc || "Untitled"}</button>)}
+            {da.length > 4 && <div className="cal-more">+{da.length - 4} more</div>}
+          </div>); })}
+      </div>
+    </div>);
+}
+
+function WorkloadView({ S, coName }) {
+  const acts = S.activities.filter((a) => a.start);
+  if (!acts.length) return <div className="lk-empty" style={{ flex: 1 }}>No activities with dates yet.</div>;
+  const PAL = ["#2563EB", "#0E9384", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
+  const coColor = (id) => { if (!id) return "#94A3B8"; let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PAL[h % PAL.length]; };
+  const span = (a) => ({ s: parseD(a.start).getTime(), e: addDays(parseD(a.start), Math.max(1, a.duration) - 1).getTime() });
+  const starts = acts.map((a) => parseD(a.start).getTime());
+  const ends = acts.map((a) => span(a).e);
+  let w = mondayOf(new Date(Math.min(...starts))); const lastW = mondayOf(new Date(Math.max(...ends)));
+  const weeks = []; while (w.getTime() <= lastW.getTime()) { weeks.push(new Date(w)); w = addDays(w, 7); }
+  const comps = [...new Set(acts.map((a) => a.companyId))].sort((a, b) => coName(a).localeCompare(coName(b)));
+  const data = weeks.map((wk) => { const ws = wk.getTime(), we = addDays(wk, 6).getTime(); const counts = {}; let total = 0; acts.forEach((a) => { const { s, e } = span(a); if (s <= we && e >= ws) { counts[a.companyId] = (counts[a.companyId] || 0) + 1; total++; } }); return { wk, counts, total }; });
+  const maxTotal = Math.max(1, ...data.map((d) => d.total));
+  const peak = data.reduce((m, d) => (d.total > m.total ? d : m), data[0]);
+  const barMax = 240;
+  return (
+    <div style={{ flex: 1, overflow: "auto", background: "var(--paper)" }} className="wl-wrap">
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 4 }}>Activities running each week, stacked by company. The taller the week, the more is in flight at once. Busiest week is <b style={{ color: "var(--ink)" }}>{peak.wk.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</b> with <b style={{ color: "var(--ink)" }}>{peak.total}</b> activit{peak.total === 1 ? "y" : "ies"}.</div>
+      <div className="wl-bars">
+        {data.map((d, i) => { const isW = d.wk.getTime() === mondayOf(new Date(todayMid())).getTime(); return (
+          <div key={i} className="wl-col">
+            <span className="wl-lab" style={{ color: d.total ? "var(--ink)" : "var(--muted)", fontWeight: d.total ? 700 : 400 }}>{d.total || ""}</span>
+            <div className="wl-stack" style={{ height: barMax, justifyContent: "flex-end", outline: isW ? "2px solid var(--accent)" : "none" }}>
+              {comps.map((c) => d.counts[c] ? <div key={c} className="wl-seg" style={{ height: (d.counts[c] / maxTotal) * barMax, background: coColor(c) }} title={`${coName(c)}: ${d.counts[c]} in week of ${d.wk.toLocaleDateString("en-GB")}`} /> : null)}
+            </div>
+            <span className="wl-lab" style={{ fontWeight: isW ? 700 : 400, color: isW ? "var(--accent)" : "var(--muted)" }}>{d.wk.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</span>
+          </div>); })}
+      </div>
+      <div className="wl-legend">{comps.map((c) => <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: coColor(c) }} />{coName(c) || "Unassigned"}</span>)}</div>
     </div>);
 }
 
