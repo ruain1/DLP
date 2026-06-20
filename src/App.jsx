@@ -143,8 +143,10 @@ const css = `
 .lk-acc .car{font-size:11px;color:var(--muted);width:12px}
 .lk-audhist{border:1px solid var(--line);border-radius:8px;background:var(--card);max-height:230px;overflow:auto;margin-top:2px}
 .lk-audempty{padding:12px;font-size:12px;color:var(--muted)}
-.lk-audrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:7px 11px;border-bottom:1px solid var(--line)}
+.lk-audrow{display:flex;flex-direction:column;gap:3px;padding:8px 11px;border-bottom:1px solid var(--line)}
 .lk-audrow:last-child{border-bottom:0}
+.lk-audtop{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center}
+.lk-auddet{font-size:11px;color:var(--muted);line-height:1.45;word-break:break-word}
 .lk-audact{font-weight:600;color:var(--ink);font-size:12px}
 .lk-audwho{color:var(--muted);font-size:11.5px;white-space:nowrap}
 .lk-audwhen{color:var(--muted);font-size:11px;white-space:nowrap}
@@ -365,6 +367,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV36", date: "2026-06-20", items: ["Per-activity audit history now records what actually changed on each edit (field by field, old value to new value) instead of a generic Edit activity; needs the activity-audit-detail.sql migration"] },
   { rev: "REV35", date: "2026-06-20", items: ["Milestone diamonds now sit centred in their day column instead of on the left gridline, so they read on the correct day", "Board metric numbers use the same font as Analytics (no more slashed zeros)"] },
   { rev: "REV34", date: "2026-06-20", items: ["Hardened predecessor logic: a link only orders work and can push a successor later if needed; it can never pull a successor earlier than its own planned start, and the card always sits on its planned date"] },
   { rev: "REV33", date: "2026-06-20", items: ["Planning board activity cards restyled to match the Analytics cards: same rounded corners, flat resting card, roomier padding and text scale, keeping the coloured Cx-stage edge"] },
@@ -1023,9 +1026,12 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
               {!auditLoaded ? <div className="lk-audempty">Loading…</div>
                 : auditRows.length === 0 ? <div className="lk-audempty">No history recorded for this activity yet.</div>
                 : auditRows.map((e) => <div key={e.id} className="lk-audrow">
-                    <span className="lk-audact">{e.action}</span>
-                    <span className="lk-audwho">{e.user || "Unknown"}</span>
-                    <span className="lk-audwhen" title={new Date(e.ts).toLocaleString("en-GB")}>{relTime(new Date(e.ts).getTime())}</span>
+                    <div className="lk-audtop">
+                      <span className="lk-audact">{e.action}</span>
+                      <span className="lk-audwho">{e.user || "Unknown"}</span>
+                      <span className="lk-audwhen" title={new Date(e.ts).toLocaleString("en-GB")}>{relTime(new Date(e.ts).getTime())}</span>
+                    </div>
+                    {e.detail && e.detail !== "No field changes" && <div className="lk-auddet">{e.detail}</div>}
                   </div>)}
             </div>}
           </div>}
