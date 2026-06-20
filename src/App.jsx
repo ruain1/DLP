@@ -136,6 +136,9 @@ const css = `
 .lk-li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);font-size:12.5px}
 .lk-li .g{flex:1;min-width:0}.lk-li .g .s{font-size:10.5px;color:var(--muted)}
 .lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
+.lk-urow{display:grid;grid-template-columns:minmax(150px,1fr) 96px minmax(130px,1.2fr) 132px auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--card);font-size:12.5px}
+.lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
+.lk-uacts{display:flex;align-items:center;gap:5px;justify-content:flex-end}
 .lk-audit{font-size:11.5px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line);padding:7px 0}
 .lk-audit .a{font-weight:600}.lk-audit .m{color:var(--muted);font-size:10.5px}
 .lk-shell{display:flex;min-height:100vh;padding-left:56px}
@@ -322,6 +325,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV25", date: "2026-06-20", items: ["User management rows aligned onto a fixed grid so name, role, company, status and actions line up column to column"] },
   { rev: "REV24", date: "2026-06-20", items: ["YTT stand-up panel renamed YTT Focus", "Clearing a constraint from YTT Focus is now admin-only"] },
   { rev: "REV23", date: "2026-06-20", items: ["Reports gained a Period filter: all time or a custom date range, scoping every metric, card and chart; the weekly trend clips to the range"] },
   { rev: "REV22", date: "2026-06-20", items: ["New YTT Focus button on the board: a yesterday/today/tomorrow stand-up panel listing each day's activities with their open constraints, ticked off in place; yesterday flags missed commitments"] },
@@ -1196,19 +1200,21 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               });
               const groups = {};
               filtered.forEach((u) => { const key = u.role === "admin" ? "\u0000Admins" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
-              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; return <div key={u.id} className="lk-li">
+              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; return <div key={u.id} className="lk-urow">
                 <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
-                  style={{ flex: "1 1 96px", minWidth: 80, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
+                  style={{ width: "100%", minWidth: 0, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
                   onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
-                <select className="lk-select" style={{ width: 86, padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
-                <select className="lk-select" style={{ flex: 1, minWidth: 70, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                {seen
-                  ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none" }} title={"Last seen " + new Date(seen).toLocaleString("en-GB")}>accepted &middot; {relTime(seen)}</span>
-                  : <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }} title="Invite not yet accepted (no sign-in recorded)">pending</span>}
-                <button title="View this user's audit trail" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); }} style={{ fontSize: 13, lineHeight: 1 }}>{"\uD83D\uDCDC"}</button>
-                <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
-                <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
-                {u.id !== S.currentUserId && <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button>}
+                <select className="lk-select" style={{ width: "100%", padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
+                <select className="lk-select" style={{ width: "100%", minWidth: 0, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                <span style={{ justifySelf: "start" }}>{seen
+                  ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none", whiteSpace: "nowrap" }} title={"Last seen " + new Date(seen).toLocaleString("en-GB")}>accepted &middot; {relTime(seen)}</span>
+                  : <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }} title="Invite not yet accepted (no sign-in recorded)">pending</span>}</span>
+                <div className="lk-uacts">
+                  <button title="View this user's audit trail" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); }} style={{ fontSize: 13, lineHeight: 1 }}>{"\uD83D\uDCDC"}</button>
+                  <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
+                  <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
+                  {u.id !== S.currentUserId ? <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button> : <span style={{ width: 20 }} />}
+                </div>
               </div>; };
               if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No users match these filters.</div>;
               return Object.keys(groups).sort().map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
