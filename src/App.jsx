@@ -329,7 +329,7 @@ export default function App({ session }) {
   const [makeReady, setMakeReady] = useState(false);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState("board");
+  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
@@ -345,6 +345,8 @@ export default function App({ session }) {
   useEffect(() => { heartbeat(); const t = setInterval(heartbeat, 60000); const onVis = () => { if (document.visibilityState === "visible") heartbeat(); }; document.addEventListener("visibilitychange", onVis); return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); }; }, []);
   useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
   useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
+  useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
+  useEffect(() => { if (!S) return; const me = S.users.find((u) => u.id === S.currentUserId); if (page === "admin" && !(me && me.role === "admin")) setPage("board"); }, [S, page]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
   const cu = S && (S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null });
