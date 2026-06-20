@@ -168,6 +168,18 @@ const css = `
 .lk-railppc{text-align:center}
 .lk-rail.open .lk-railppc{text-align:left;padding:0 13px}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+.lk-rep-card.clickable{cursor:pointer;transition:border-color .12s,background .12s}
+.lk-rep-card.clickable:hover{border-color:var(--accent);background:var(--hover)}
+.lk-bar-row.clickable{cursor:pointer;border-radius:6px;transition:background .12s}
+.lk-bar-row.clickable:hover{background:var(--hover)}
+.ytt.drill{width:min(780px,96vw)}
+.drill-body{overflow:auto;flex:1;padding:10px 12px}
+.drill-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-left:3px solid #64748B;border-radius:9px;background:var(--card);padding:8px 11px;margin-bottom:7px;cursor:pointer}
+.drill-row:hover{background:var(--hover)}
+.drill-main{min-width:0;display:flex;flex-direction:column;gap:2px}
+.drill-desc{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drill-sub{font-size:11px;color:var(--muted)}
+.drill-tags{display:flex;align-items:center;gap:5px;flex-shrink:0}
 @media print{
   body.rep-print .lk-rail,body.rep-print .lk-foot,body.rep-print .lk-rep-filters{display:none!important}
   body.rep-print .lk-bar button,body.rep-print .lk-bar .lk-who,body.rep-print .lk-bar .lk-barright{display:none!important}
@@ -353,6 +365,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV32", date: "2026-06-20", items: ["Analytics is now interactive: click any KPI card, the PPC gauge, a trend point, a reason, a status segment, a company or a Cx stage to open a drill-down listing the exact activities behind that number; click an activity there to jump into it"] },
   { rev: "REV31", date: "2026-06-20", items: ["Analytics gained download options: a multi-sheet Excel of the metrics behind every chart (PPC, KPIs, weekly trend, reasons, by company, by Cx stage, status mix) and a Print to PDF of the dashboard, both honouring the active filters"] },
   { rev: "REV30", date: "2026-06-20", items: ["Sidebar PPC now left-aligns when the menu is expanded", "The Activity button stays pinned to the right of the board bar instead of wrapping to the left"] },
   { rev: "REV29", date: "2026-06-20", items: ["Sidebar now shows section labels beside each icon and collapses back to icons only, remembered across refreshes", "Order changed so Constraints Log sits above Schedule; Reports relabelled Analytics; Schedule tooltip no longer mentions Gantt"] },
@@ -818,7 +831,7 @@ export default function App({ session }) {
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} />}
+      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
@@ -1964,28 +1977,28 @@ function HelpPage({ dark }) {
   );
 }
 
-function Gauge({ value, size = 150, label = "PPC" }) {
+function Gauge({ value, size = 150, label = "PPC", onClick }) {
   const r = size / 2 - 14, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
   const frac = value == null ? 0 : Math.max(0, Math.min(1, value / 100));
   const col = value == null ? "var(--muted)" : value >= 80 ? "#0E9384" : value >= 50 ? "#D97706" : "#C0392B";
-  return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+  return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
     <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--hover)" strokeWidth="14" />
     <circle cx={cx} cy={cy} r={r} fill="none" stroke={col} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${C * frac} ${C}`} transform={`rotate(-90 ${cx} ${cy})`} />
     <text x={cx} y={cy + 4} textAnchor="middle" fontSize={size * 0.27} fontWeight="700" fill="var(--ink)" fontFamily="inherit">{value == null ? "\u2014" : value + "%"}</text>
     <text x={cx} y={cy + size * 0.19} textAnchor="middle" fontSize="11" fill="var(--muted)" fontFamily="inherit" style={{ letterSpacing: "0.12em" }}>{label}</text>
   </svg>;
 }
-function Donut({ data, size = 150 }) {
+function Donut({ data, size = 150, onSlice }) {
   const total = data.reduce((s, d) => s + d.n, 0);
   const r = size / 2 - 14, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r; let off = 0;
   return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
     <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--hover)" strokeWidth="14" />
-    {total > 0 && data.filter((d) => d.n > 0).map((d, i) => { const frac = d.n / total; const el = <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth="14" strokeDasharray={`${C * frac} ${C}`} strokeDashoffset={-C * off} transform={`rotate(-90 ${cx} ${cy})`} />; off += frac; return el; })}
+    {total > 0 && data.filter((d) => d.n > 0).map((d, i) => { const frac = d.n / total; const el = <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth="14" strokeDasharray={`${C * frac} ${C}`} strokeDashoffset={-C * off} transform={`rotate(-90 ${cx} ${cy})`} onClick={onSlice ? () => onSlice(d) : undefined} style={onSlice ? { cursor: "pointer" } : undefined} />; off += frac; return el; })}
     <text x={cx} y={cy} textAnchor="middle" fontSize={size * 0.27} fontWeight="700" fill="var(--ink)" fontFamily="inherit">{total}</text>
     <text x={cx} y={cy + size * 0.16} textAnchor="middle" fontSize="10.5" fill="var(--muted)" fontFamily="inherit">activities</text>
   </svg>;
 }
-function Trend({ points, h = 168 }) {
+function Trend({ points, h = 168, onPoint }) {
   const w = Math.max(440, points.length * 60);
   const padL = 26, padR = 14, padT = 14, padB = 24, iw = w - padL - padR, ih = h - padT - padB;
   const xs = (i) => padL + (points.length <= 1 ? iw / 2 : (i / (points.length - 1)) * iw);
@@ -1999,15 +2012,18 @@ function Trend({ points, h = 168 }) {
     {area && <path d={area} fill="url(#ppcg)" />}
     {line && <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
     {valid.map((p) => <circle key={p.i} cx={xs(p.i)} cy={ys(p.value)} r="3.5" fill="var(--accent)" />)}
+    {onPoint && valid.map((p) => <circle key={"h" + p.i} cx={xs(p.i)} cy={ys(p.value)} r="12" fill="transparent" style={{ cursor: "pointer" }} onClick={() => onPoint(p.i)}><title>{p.label + ": " + p.value + "%"}</title></circle>)}
     {points.map((p, i) => <text key={i} x={xs(i)} y={h - 7} textAnchor="middle" fontSize="9" fill="var(--muted)" fontFamily="inherit">{p.label}</text>)}
   </svg>;
 }
-const RepBar = ({ label, n, max, color }) => <div className="lk-bar-row"><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span><div className="lk-bar-track"><div className="lk-bar-fill" style={{ width: `${Math.round((n / max) * 100)}%`, background: color || "var(--accent)" }} /></div><span className="n">{n}</span></div>;
+const RepBar = ({ label, n, max, color, onClick }) => <div className={"lk-bar-row" + (onClick ? " clickable" : "")} onClick={onClick}><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span><div className="lk-bar-track"><div className="lk-bar-fill" style={{ width: `${Math.round((n / max) * 100)}%`, background: color || "var(--accent)" }} /></div><span className="n">{n}</span></div>;
 
-function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
+function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
+  const [drill, setDrill] = useState(null);
+  const openDrill = (title, items) => setDrill({ title, items: items || [] });
   const [period, setPeriod] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -2020,18 +2036,19 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
   const committed = acts.filter((a) => a.committed);
   const ppc = committed.length ? Math.round(committed.filter(made).length / committed.length * 100) : null;
   const complete = acts.filter((a) => a.status === "complete").length;
-  const cards = [
-    { v: acts.length, l: "Total activities" },
-    { v: committed.length, l: "Committed" },
-    { v: complete, l: "Complete", c: "#0E9384" },
-    { v: acts.filter((a) => a.status === "in_progress").length, l: "In progress" },
-    { v: acts.filter((a) => openOf(a) === 0 && a.status !== "complete").length, l: "Ready to run", c: "#0E9384" },
-    { v: acts.filter((a) => openOf(a) > 0 && a.status !== "complete").length, l: "Need make-ready", c: "#D97706" },
-    { v: acts.filter(isDelayed).length, l: "Delayed", c: "#C0392B" },
-    { v: acts.filter((a) => a.witnessInvite).length, l: "Witness required", c: "#5B33C7" },
+  const cardDefs = [
+    { l: "Total activities", f: () => true },
+    { l: "Committed", f: (a) => a.committed },
+    { l: "Complete", c: "#0E9384", f: (a) => a.status === "complete" },
+    { l: "In progress", f: (a) => a.status === "in_progress" },
+    { l: "Ready to run", c: "#0E9384", f: (a) => openOf(a) === 0 && a.status !== "complete" },
+    { l: "Need make-ready", c: "#D97706", f: (a) => openOf(a) > 0 && a.status !== "complete" },
+    { l: "Delayed", c: "#C0392B", f: isDelayed },
+    { l: "Witness required", c: "#5B33C7", f: (a) => a.witnessInvite },
   ];
-  const byCompany = S.companies.map((c) => ({ name: c.name, n: acts.filter((a) => a.companyId === c.id).length, open: acts.filter((a) => a.companyId === c.id).reduce((s, a) => s + openOf(a), 0) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
-  const byLevel = Object.keys(LV).map((k) => ({ name: `${k} ${LV[k].name}`, color: LV[k].color, n: acts.filter((a) => a.level === k).length })).filter((x) => x.n > 0);
+  const cards = cardDefs.map((d) => ({ ...d, v: acts.filter(d.f).length }));
+  const byCompany = S.companies.map((c) => ({ id: c.id, name: c.name, n: acts.filter((a) => a.companyId === c.id).length, open: acts.filter((a) => a.companyId === c.id).reduce((s, a) => s + openOf(a), 0) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+  const byLevel = Object.keys(LV).map((k) => ({ k, name: `${k} ${LV[k].name}`, color: LV[k].color, n: acts.filter((a) => a.level === k).length })).filter((x) => x.n > 0);
   const statusData = [{ k: "planned", name: "Planned", color: "#94A3B8" }, { k: "in_progress", name: "In progress", color: "#2563EB" }, { k: "complete", name: "Complete", color: "#0E9384" }].map((s) => ({ ...s, n: acts.filter((a) => a.status === s.k).length }));
   const maxCo = Math.max(1, ...byCompany.map((x) => x.n));
   const maxLv = Math.max(1, ...byLevel.map((x) => x.n));
@@ -2047,7 +2064,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
       const wk = new Date(cur);
       const due = withDates.filter((a) => mondayOf(finishOf(a)).getTime() === wk.getTime());
       const comm = due.filter((a) => a.committed);
-      points.push({ label: "W" + isoWeek(wk), value: comm.length ? Math.round(comm.filter(made).length / comm.length * 100) : null });
+      points.push({ label: "W" + isoWeek(wk), value: comm.length ? Math.round(comm.filter(made).length / comm.length * 100) : null, items: comm });
       cur = addDays(cur, 7); guard++;
     }
   }
@@ -2104,7 +2121,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
       {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
-        <Gauge value={ppc} />
+        <Gauge value={ppc} onClick={() => openDrill("PPC \u00b7 committed activities", committed)} />
         <div style={{ flex: 1, minWidth: 200 }}>
           <h3 style={{ marginBottom: 8 }}>Percent Plan Complete</h3>
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>
@@ -2113,22 +2130,45 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness }) {
         </div>
       </div>
       <div className="lk-rep-cards">
-        {cards.map((c, i) => <div key={i} className="lk-rep-card"><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
+        {cards.map((c, i) => <div key={i} className="lk-rep-card clickable" onClick={() => openDrill(c.l, acts.filter(c.f))}><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
       </div>
       </div>
       <div className="lk-rep-2col">
-      <div className="lk-rep-sec"><h3>Weekly PPC trend</h3>{hasTrend ? <Trend points={points} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
+      <div className="lk-rep-sec"><h3>Weekly PPC trend</h3>{hasTrend ? <Trend points={points} onPoint={(i) => openDrill("Week " + points[i].label + " \u00b7 committed due", points[i].items)} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
       <div className="lk-rep-sec"><h3>Reasons for non-completion</h3>
         {misses.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No missed commitments to date. Every committed activity whose promised finish has passed was completed on time.</div>
           : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#C0392B" }}>{misses.length}</b> committed activit{misses.length === 1 ? "y" : "ies"} due to date {misses.length === 1 ? "was" : "were"} not completed as promised{reasonTally["Unattributed"] ? <>, of which <b style={{ color: "var(--ink)" }}>{reasonTally["Unattributed"]}</b> {reasonTally["Unattributed"] === 1 ? "has" : "have"} no reason recorded</> : ""}. Recording the reason on each miss turns this into a Pareto of what is actually breaking the plan.</div>
-            {reasonRows.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxR} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} />)}</>}
+            {reasonRows.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxR} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} onClick={() => openDrill("Missed \u00b7 " + x.name, misses.filter((m) => (m.slipReason || "Unattributed") === x.name))} />)}</>}
       </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
-        <div className="lk-rep-sec"><h3>Status mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
-        <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} />)}</div>
+        <div className="lk-rep-sec"><h3>Status mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} onSlice={(d) => openDrill(d.name, acts.filter((a) => a.status === d.k))} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} onClick={() => openDrill(s.name, acts.filter((a) => a.status === s.k))} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
+        <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} onClick={() => openDrill(x.name, acts.filter((a) => a.companyId === x.id))} />)}</div>
       </div>
-      <div className="lk-rep-sec"><h3>By Cx stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} />)}</div>
+      <div className="lk-rep-sec"><h3>By Cx stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} onClick={() => openDrill(x.name, acts.filter((a) => a.level === x.k))} />)}</div>
+      {drill && <div className="lk-bg" onClick={() => setDrill(null)}>
+        <div className="ytt drill" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+          <div className="ytt-head">
+            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="chart" s={17} /><h3 style={{ margin: 0, fontSize: 15.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{drill.title}</h3><span className="ytt-sub">{drill.items.length} activit{drill.items.length === 1 ? "y" : "ies"}</span></div>
+            <button className="lk-btn icon" onClick={() => setDrill(null)}><Icon n="x" /></button>
+          </div>
+          <div className="drill-body">
+            {drill.items.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>No activities in this slice.</div>
+              : drill.items.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).map((a) => { const lv = lvOf(LV, a.level); const open = (a.constraints || []).filter((c) => !c.done).length;
+                return <div key={a.id} className="drill-row" style={{ borderLeftColor: lv.color }} onClick={() => onOpen && onOpen(a)} title="Open activity">
+                  <div className="drill-main">
+                    <span className="drill-desc">{a.desc || "Untitled"}</span>
+                    <span className="drill-sub">{coName(a.companyId)} {"\u00b7"} {a.level || "-"} {"\u00b7"} {a.start || "no date"}{a.duration ? " (" + a.duration + "d)" : ""}</span>
+                  </div>
+                  <div className="drill-tags">
+                    {a.status === "complete" ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none" }}>done</span> : open ? <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }}>{open} open</span> : null}
+                    {a.committed && <span className="lk-chip commit">will</span>}
+                    {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
+                  </div>
+                </div>; })}
+          </div>
+        </div>
+      </div>}
     </div>);
 }
 
