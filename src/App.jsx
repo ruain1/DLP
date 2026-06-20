@@ -162,6 +162,32 @@ const css = `
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
 .cal-head h3{font-size:15px;color:var(--ink)}
+.ytt{background:var(--paper);color:var(--ink);width:min(1240px,96vw);max-height:92vh;margin:auto;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.28)}
+.ytt-head{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
+.ytt-sub{font-size:11.5px;color:var(--muted);margin-left:4px}
+.ytt-cols{display:grid;grid-template-columns:repeat(3,1fr);overflow:auto;flex:1}
+.ytt-col{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.ytt-col:last-child{border-right:0}
+.ytt-col.today{background:rgba(37,99,235,.045)}
+.ytt-colhead{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);padding:10px 13px;display:flex;align-items:baseline;justify-content:space-between;z-index:1}
+.ytt-lab{font-weight:800;font-size:13px;color:var(--ink)}
+.ytt-col.today .ytt-lab{color:var(--accent)}
+.ytt-date{font-size:11px;color:var(--muted)}
+.ytt-list{padding:10px;display:flex;flex-direction:column;gap:9px}
+.ytt-empty{font-size:12px;color:var(--muted);padding:8px 4px}
+.ytt-card{border:1px solid var(--line);border-left:3px solid #64748B;border-radius:9px;background:var(--card);padding:9px 11px}
+.ytt-card-desc{font-weight:700;font-size:13px;line-height:1.3;cursor:pointer}
+.ytt-card-desc:hover{text-decoration:underline}
+.ytt-card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--muted)}
+.ytt-card-meta .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ytt-loc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ytt-cons{margin-top:8px;border-top:1px dashed var(--line);padding-top:7px;display:flex;flex-direction:column;gap:6px}
+.ytt-con{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;line-height:1.35}
+.ytt-con input{margin-top:2px;flex-shrink:0}
+.ytt-meta2{color:var(--muted)}
+.ytt-due{color:#C0392B}
+.ytt-ready{margin-top:7px;font-size:11px;font-weight:700;color:#0E9384}
+@media (max-width:760px){.ytt-cols{grid-template-columns:1fr}.ytt-col{border-right:0;border-bottom:1px solid var(--line)}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
 .cal-dow{padding:6px 8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
 .cal-cell{min-height:104px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px;display:flex;flex-direction:column;gap:3px;background:var(--paper);min-width:0}
@@ -349,6 +375,8 @@ export default function App({ session }) {
   const [S, setS] = useState(null);
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
   const [makeReady, setMakeReady] = useState(false);
+  const [ytt, setYtt] = useState(false);
+  useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
@@ -439,6 +467,7 @@ export default function App({ session }) {
 
   const isAdmin = cu.role === "admin";
   const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
+  const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !canEdit(a)) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
   const mk = S.settings.makeReadyDays;
   const inWindow = visible.filter((a) => a.inWin);
   const ready = inWindow.filter((a) => a.open === 0 && a.status !== "complete");
@@ -622,6 +651,7 @@ export default function App({ session }) {
             <button key={k} className={S.laneBy === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, laneBy: k }))}>{l}</button>))}
         </div>}
         <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
+        <button className={"lk-btn" + (ytt ? " on" : "")} title="Stand-up focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
         <button className="lk-btn icon" onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
@@ -736,6 +766,48 @@ export default function App({ session }) {
 
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
+      {page === "board" && ytt && (() => {
+        const cols = [["Yesterday", todayOffset - 1], ["Today", todayOffset], ["Tomorrow", todayOffset + 1]];
+        const onDay = (off) => visible.filter((a) => a.isMilestone ? a.startOff === off : (a.startOff <= off && a.endOff >= off))
+          .map((a) => ({ a, open: (a.constraints || []).filter((c) => !c.done) }))
+          .sort((x, y) => (y.open.length > 0) - (x.open.length > 0) || (y.a.committed ? 1 : 0) - (x.a.committed ? 1 : 0));
+        return (
+          <div className="lk-bg" onClick={() => setYtt(false)}>
+            <div className="ytt" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+              <div className="ytt-head">
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>Stand-up focus</h3><span className="ytt-sub">Yesterday, today and tomorrow, with open constraints. Tick a constraint to clear it.</span></div>
+                <button className="lk-btn icon" onClick={() => setYtt(false)}><Icon n="x" /></button>
+              </div>
+              <div className="ytt-cols">
+                {cols.map(([label, off]) => { const d = addDays(anchor, off); const list = onDay(off); const isToday = off === todayOffset;
+                  return <div key={label} className={"ytt-col" + (isToday ? " today" : "")}>
+                    <div className="ytt-colhead"><span className="ytt-lab">{label}</span><span className="ytt-date">{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span></div>
+                    <div className="ytt-list">
+                      {list.length === 0 ? <div className="ytt-empty">Nothing scheduled.</div> :
+                        list.map(({ a, open }) => { const can = canEdit(a); const lv = lvOf(LV, a.level); const missed = label === "Yesterday" && a.committed && a.status !== "complete";
+                          return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
+                            <div className="ytt-card-desc" onClick={() => setEditing({ ...a })}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
+                            <div className="ytt-card-meta">
+                              <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : open.length ? "#E0A106" : "#0E9384" }} />
+                              {missed && <span className="lk-chip late">missed</span>}
+                              {a.committed && <span className="lk-chip commit">will</span>}
+                              {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
+                              {a.status === "complete" && <span style={{ color: "#0E9384", fontWeight: 700 }}>done</span>}
+                              <span className="ytt-loc">{coName(a.companyId)} {"\u00b7"} {locCode(a)}</span>
+                            </div>
+                            {open.length > 0
+                              ? <div className="ytt-cons">{open.map((c) => <label key={c.id} className="ytt-con">
+                                  <input type="checkbox" disabled={!can} checked={false} onChange={() => toggleConstraint(a.id, c.id)} title={can ? "Mark cleared" : "Only this company can clear it"} />
+                                  <span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span>
+                                </label>)}</div>
+                              : (a.status !== "complete" && <div className="ytt-ready">No open constraints</div>)}
+                          </div>; })}
+                    </div>
+                  </div>; })}
+              </div>
+            </div>
+          </div>);
+      })()}
     </div>);
 }
 
