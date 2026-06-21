@@ -40,7 +40,7 @@ export async function loadAll(session) {
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
   return {
-    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "" })),
+    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "" })),
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
     levels: levelsObj,
@@ -59,6 +59,7 @@ const brandFrom = (d) => ({
   appName: d?.app_name ?? "DLP",
   tagline: d?.tagline ?? "Collaborative Digital Planning",
   logoUrl: d?.logo_url ?? null,
+  logoDark: d?.logo_url_dark ?? null,
 });
 
 // Set the browser tab title and favicon from branding.
@@ -89,7 +90,7 @@ export async function syncCollections(prev, next, session) {
   if (next.companies !== prev.companies) {
     const nm = Object.fromEntries(next.companies.map((c) => [c.id, c]));
     const pm = Object.fromEntries(prev.companies.map((c) => [c.id, c]));
-    const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name || (pm[c.id].logoUrl || "") !== (c.logoUrl || "")).map((c) => ({ id: c.id, name: c.name, logo_url: c.logoUrl || null }));
+    const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name || (pm[c.id].logoUrl || "") !== (c.logoUrl || "") || (pm[c.id].logoDark || "") !== (c.logoDark || "")).map((c) => ({ id: c.id, name: c.name, logo_url: c.logoUrl || null, logo_url_dark: c.logoDark || null }));
     const del = prev.companies.filter((c) => !nm[c.id]).map((c) => c.id);
     if (ups.length) ops.push(supabase.from("companies").upsert(ups));
     if (del.length) ops.push(supabase.from("companies").delete().in("id", del));
@@ -201,15 +202,15 @@ export async function updateBranding(patch) {
   if (error) throw error;
 }
 
-// Admin: upload a logo file, return its public URL, and store it.
-export async function uploadLogo(file) {
+// Admin: upload a customer logo file, return its public URL, and store it (light or dark slot).
+export async function uploadLogo(file, dark = false) {
   const ext = (file.name.split(".").pop() || "png").toLowerCase();
-  const path = `logo-${Date.now()}.${ext}`;
+  const path = `logo-${dark ? "dark-" : ""}${Date.now()}.${ext}`;
   const up = await supabase.storage.from("branding").upload(path, file, { upsert: true, cacheControl: "3600" });
   if (up.error) throw up.error;
   const { data } = supabase.storage.from("branding").getPublicUrl(path);
   const url = data.publicUrl;
-  await updateBranding({ logo_url: url });
+  await updateBranding({ [dark ? "logo_url_dark" : "logo_url"]: url });
   return url;
 }
 

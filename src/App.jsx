@@ -379,6 +379,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV44", date: "2026-06-21", items: ["Logos now support separate light-mode and dark-mode versions, for both the customer logo and each company logo. The board, headers and lane labels show the right one for the current theme. If you upload only one, it is used in both modes. Admin upload boxes preview the dark version on a dark background"] },
   { rev: "REV43", date: "2026-06-21", items: ["Planning Board: when grouped by Company, each swimlane label now shows the company logo (if uploaded) with the company name underneath"] },
   { rev: "REV42", date: "2026-06-21", items: ["Admin can upload a logo per company (Project setup, Companies). The logo replaces the company name text in the header beside each user's name, between the name and Sign out. Remove the logo to fall back to the text"] },
   { rev: "REV41", date: "2026-06-21", items: ["Planning Board swimlane grouping now offers Level and Zone instead of Building (Building only appears when a project has more than one building); dragging a card between Level or Zone lanes re-tags its Level or Zone", "Import window: the title bar now stays fixed to the top of the popup and only the content below it scrolls, instead of the banner sticking to the browser window"] },
@@ -503,8 +504,10 @@ export default function App({ session }) {
   const WEEKS = S ? S.settings.weeks : 4;
   const todayOffset = useMemo(() => Math.round((todayMid() - anchor) / DAYMS), [anchor]);
   const days = useMemo(() => Array.from({ length: DAYS }, (_, i) => addDays(anchor, i)), [anchor, DAYS]);
+  const pickLogo = (o) => !o ? "" : (S.theme === "dark" ? (o.logoDark || o.logoUrl || "") : (o.logoUrl || o.logoDark || ""));
   const coName = (id) => (S.companies.find((c) => c.id === id) || {}).name || "Unassigned";
-  const coLogo = (id) => (S.companies.find((c) => c.id === id) || {}).logoUrl || "";
+  const coLogo = (id) => pickLogo(S.companies.find((c) => c.id === id));
+  const brandLogo = pickLogo(S.brand);
   const locCode = (a) => [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".");
 
   const visible = useMemo(() => {
@@ -731,7 +734,7 @@ export default function App({ session }) {
       {page === "board" && <>
       <div className="lk-bar">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
+          {brandLogo && <img src={brandLogo} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
           <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
         </div>
         <div className="lk-nav">
@@ -801,7 +804,7 @@ export default function App({ session }) {
           const rows = []; la.forEach((a) => { const su = sU(a), eu = eU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; });
           const sw = S.laneBy === "level" ? lvOf(LV, lane).color : "var(--muted)";
           const co = S.laneBy === "company" ? S.companies.find((c) => c.name === lane) : null;
-          const laneLogo = co ? (co.logoUrl || "") : "";
+          const laneLogo = pickLogo(co);
           return (
             <div key={lane} className="lk-lane" style={{ gridTemplateColumns: gridCols, minWidth: minW }}>
               <div className="lk-llbl">{!laneLogo && <span className="sw" style={{ background: sw }} />}
@@ -847,7 +850,7 @@ export default function App({ session }) {
       </>}
       {page !== "board" && <div className="lk-bar">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
+          {brandLogo && <img src={brandLogo} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
           <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
         </div>
         <div style={{ fontWeight: 700, fontSize: 17, marginLeft: 6 }}>{page === "table" ? "Activity Table" : page === "schedule" ? "Schedule" : page === "constraints" ? "Constraints Log" : page === "reports" ? "Reports & Metrics" : page === "admin" ? "Admin Settings" : page === "help" ? "Help & Quick Reference" : ""}</div>
@@ -1281,17 +1284,18 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         <div className={"lk-subbody" + (tab === "users" || tab === "audit" ? " wide" : "")}><div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
-            const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || ""]) : S[tab].map((x) => [x, x]);
+            const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || "", c.logoDark || ""]) : S[tab].map((x) => [x, x]);
             return <>
-              <div className="lk-list">{items.map(([id, name, logo]) => <div key={id} className="lk-li">{tab === "systems"
+              <div className="lk-list">{items.map(([id, name, logo, logoDark]) => <div key={id} className="lk-li" style={tab === "companies" ? { flexWrap: "wrap", gap: 6 } : undefined}>{tab === "systems"
                 ? <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
-                : <><span className="g" style={{ flex: 1 }}>{name}</span>
-                  {logo && <img src={logo} alt="" style={{ height: 22, maxWidth: 84, objectFit: "contain" }} />}
-                  <label className="lk-btn" style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 11, padding: "4px 8px", margin: 0 }} title="Upload a PNG logo for this company. It replaces the company name in the header next to each user.">
-                    <Icon n="upload" s={12} />{logo ? "Replace" : "Logo"}
-                    <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { const url = await uploadCompanyLogo(f, id); update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, logoUrl: url } : c) }), { action: "Company logo set", detail: name }); } catch (x) { alert("Logo upload failed: " + (x.message || x)); } e.target.value = ""; }} />
-                  </label>
-                  {logo && <button title="Remove logo and show the company name again" onClick={() => update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, logoUrl: "" } : c) }), { action: "Company logo removed", detail: name })}><Icon n="x" s={13} /></button>}
+                : <><span className="g" style={{ flex: 1, minWidth: 90 }}>{name}</span>
+                  {[["light", "Light", logo], ["dark", "Dark", logoDark]].map(([k, lbl, url]) => <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid var(--line)", borderRadius: 7, padding: "2px 4px 2px 7px", background: k === "dark" ? "#0f172a" : "transparent" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 10.5, color: k === "dark" ? "#cbd5e1" : "var(--muted)" }} title={"Upload the " + lbl.toLowerCase() + "-mode logo for " + name}>
+                      {url ? <img src={url} alt="" style={{ height: 18, maxWidth: 56, objectFit: "contain" }} /> : <Icon n="upload" s={11} />}<span>{lbl}</span>
+                      <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { const u = await uploadCompanyLogo(f, id); update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, [k === "dark" ? "logoDark" : "logoUrl"]: u } : c) }), { action: "Company logo set", detail: name + " (" + lbl + ")" }); } catch (x) { alert("Logo upload failed: " + (x.message || x)); } e.target.value = ""; }} />
+                    </label>
+                    {url && <button title={"Remove " + lbl.toLowerCase() + " logo"} style={{ padding: 2 }} onClick={() => update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, [k === "dark" ? "logoDark" : "logoUrl"]: "" } : c) }), { action: "Company logo removed", detail: name + " (" + lbl + ")" })}><Icon n="x" s={11} /></button>}
+                  </span>)}
                 </>}<button onClick={() => delList(tab, id, label)}><Icon n="trash" s={14} /></button></div>)}</div>
               <div className="lk-add"><input className="lk-in" placeholder={`Add ${label}…`} value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList(tab, label)} /><button className="lk-btn primary" onClick={() => addList(tab, label)}><Icon n="plus" s={15} /></button></div>
             </>;
@@ -1405,15 +1409,23 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               catch (e) { setBrandMsg("Failed: " + (e.message || e)); }
             }}><Icon n="check" s={15} />Save text</button>
             <div className="lk-f" style={{ marginTop: 14 }}><label>Customer logo</label>
-              {S.brand?.logoUrl && <img src={S.brand.logoUrl} alt="" style={{ height: 44, maxWidth: 180, objectFit: "contain", margin: "4px 0 8px", display: "block" }} />}
-              <input className="lk-in" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={async (e) => {
-                const f = e.target.files && e.target.files[0]; if (!f) return;
-                setBrandMsg("Uploading logo…");
-                try { const url = await uploadLogo(f); update((p) => ({ ...p, brand: { ...p.brand, logoUrl: url } })); setBrandMsg("Logo updated"); }
-                catch (x) { setBrandMsg("Failed: " + (x.message || x)); }
-                e.target.value = "";
-              }} />
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4 }}>PNG, JPG, SVG or WebP. A wide transparent PNG looks best in the bar.</div>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 4 }}>
+                {[["light", "Light mode", S.brand?.logoUrl, false, "#ffffff"], ["dark", "Dark mode", S.brand?.logoDark, true, "#0f172a"]].map(([k, lbl, url, dark, bg]) => <div key={k} style={{ flex: "1 1 170px" }}>
+                  <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 4 }}>{lbl}</div>
+                  <div style={{ background: bg, border: "1px solid var(--line)", borderRadius: 8, padding: 8, minHeight: 56, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {url ? <img src={url} alt="" style={{ height: 40, maxWidth: 160, objectFit: "contain" }} /> : <span style={{ fontSize: 11, color: "#94a3b8" }}>none</span>}
+                  </div>
+                  <input className="lk-in" style={{ marginTop: 6 }} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={async (e) => {
+                    const f = e.target.files && e.target.files[0]; if (!f) return;
+                    setBrandMsg("Uploading " + lbl + " logo…");
+                    try { const u = await uploadLogo(f, dark); update((p) => ({ ...p, brand: { ...p.brand, [dark ? "logoDark" : "logoUrl"]: u } })); setBrandMsg(lbl + " logo updated"); }
+                    catch (x) { setBrandMsg("Failed: " + (x.message || x)); }
+                    e.target.value = "";
+                  }} />
+                  {url && <button className="lk-btn" style={{ marginTop: 6, fontSize: 11 }} onClick={async () => { try { await updateBranding({ [dark ? "logo_url_dark" : "logo_url"]: null }); update((p) => ({ ...p, brand: { ...p.brand, [dark ? "logoDark" : "logoUrl"]: null } })); setBrandMsg(lbl + " logo removed"); } catch (x) { setBrandMsg("Failed: " + (x.message || x)); } }}>Remove</button>}
+                </div>)}
+              </div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>PNG, JPG, SVG or WebP, wide transparent PNG looks best. Set one for each theme; if you set only one, it is used in both modes.</div>
             </div>
             {brandMsg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{brandMsg}</div>}
           </>}
