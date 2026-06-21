@@ -377,6 +377,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV40", date: "2026-06-21", items: ["Admin Users: new Invite filter (All, Pending, Accepted) to quickly find who still has not accepted their invite"] },
   { rev: "REV39", date: "2026-06-21", items: ["Light/dark theme toggle now sits next to your name on every page, not just the Planning Board", "Admin: the Project setup submenu Settings is now called Lookahead (lookahead length and make-ready window)"] },
   { rev: "REV38", date: "2026-06-20", items: ["New admin-only Weekly DLP Report on the Analytics page: one click opens a styled, print-ready report (PPC and promise reliability, open constraints with owners and need-by dates, non-completion reasons, by contractor, by Cx stage, committed next week, milestones) built from live data, ready to Save as PDF", "Report config window: defaults to the week just ended, optional custom date range, an auto-drafted editable executive summary, and an optional 4 week schedule snapshot"] },
   { rev: "REV37", date: "2026-06-20", items: ["Schedule Calendar and Workload now open the same drill-down popup as Analytics: click a calendar day or a workload bar (or a company segment) to list those activities, then click one to open it", "Workload bars and segments are now interactive"] },
@@ -1081,6 +1082,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [uq, setUq] = useState("");
   const [uCo, setUCo] = useState("all");
   const [uRole, setURole] = useState("all");
+  const [uInvite, setUInvite] = useState("all");
   const [openGroups, setOpenGroups] = useState({});
   const [subInput, setSubInput] = useState({});
   const [t3Input, setT3Input] = useState({});
@@ -1304,6 +1306,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or email…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
               <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
               <div className="lk-f" style={{ minWidth: 100 }}><label>Role</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">All roles</option><option value="member">Members</option><option value="admin">Admins</option></select></div>
+              <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
             </div>
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
@@ -1311,6 +1314,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               const filtered = S.users.filter((u) => {
                 if (uRole !== "all" && u.role !== uRole) return false;
                 if (uCo === "none") { if (u.companyId) return false; } else if (uCo !== "all" && u.companyId !== uCo) return false;
+                if (uInvite !== "all") { const accepted = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (uInvite === "accepted" && !accepted) return false; if (uInvite === "pending" && accepted) return false; }
                 if (q && !(`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q))) return false;
                 return true;
               });
