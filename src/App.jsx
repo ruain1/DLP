@@ -379,6 +379,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV45", date: "2026-06-21", items: ["Fix: blank page on load introduced in REV44. The theme-aware customer logo was being read before data finished loading, which threw on first render. Now guarded"] },
   { rev: "REV44", date: "2026-06-21", items: ["Logos now support separate light-mode and dark-mode versions, for both the customer logo and each company logo. The board, headers and lane labels show the right one for the current theme. If you upload only one, it is used in both modes. Admin upload boxes preview the dark version on a dark background"] },
   { rev: "REV43", date: "2026-06-21", items: ["Planning Board: when grouped by Company, each swimlane label now shows the company logo (if uploaded) with the company name underneath"] },
   { rev: "REV42", date: "2026-06-21", items: ["Admin can upload a logo per company (Project setup, Companies). The logo replaces the company name text in the header beside each user's name, between the name and Sign out. Remove the logo to fall back to the text"] },
@@ -507,7 +508,7 @@ export default function App({ session }) {
   const pickLogo = (o) => !o ? "" : (S.theme === "dark" ? (o.logoDark || o.logoUrl || "") : (o.logoUrl || o.logoDark || ""));
   const coName = (id) => (S.companies.find((c) => c.id === id) || {}).name || "Unassigned";
   const coLogo = (id) => pickLogo(S.companies.find((c) => c.id === id));
-  const brandLogo = pickLogo(S.brand);
+  const brandLogo = pickLogo(S && S.brand);
   const locCode = (a) => [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".");
 
   const visible = useMemo(() => {
