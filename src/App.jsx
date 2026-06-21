@@ -2336,7 +2336,7 @@ footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;f
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
 <div class="mast"><div class="mast-top">
-<div class="brand"><img class="logo" src="${ATNORTH_LOGO}" alt="atNorth"><div class="proj"><div class="p1">FIN04 Data Centre</div><div class="p2">Koski, Finland</div></div></div>
+<div class="brand"><img class="logo" src="${ATNORTH_LOGO}" alt="atnorth"><div class="proj"><div class="p1">FIN04 Data Centre</div><div class="p2">Koski, Finland</div></div></div>
 <div class="issued">Issued <b>${fmtFull(r.today)}</b><br>${esc(by||"")}</div></div>
 <h1>Weekly DLP Report</h1><div class="wk num">${periodLabel} &nbsp;|&nbsp; lookahead to ${fmtFull(r.laEnd)}</div></div>
 <div class="body">
