@@ -22,7 +22,9 @@ const css = `
   min-height:100vh;width:100%;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
 .lk *{box-sizing:border-box}
 .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
-.lk-bar{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap;position:sticky;top:0;z-index:30;background:var(--paper)}
+.lk-bar{display:flex;align-items:center;gap:12px;padding:0 18px;height:54px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;background:var(--paper)}
+.lk-brandlogo{display:block}
+.lk-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
 .lk-title{font-weight:700;font-size:16px;letter-spacing:-0.01em}
 .lk-sub{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;margin-top:2px}
 .lk-nav{display:flex;align-items:center;gap:4px}
@@ -205,7 +207,7 @@ const css = `
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
 .lk-subbody{flex:1;min-width:0;max-width:760px}
 .lk-subbody.wide{max-width:1320px}
-.lk-userwrap .lk-ufilter{position:sticky;top:62px;z-index:20;background:var(--paper);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.lk-userwrap .lk-ufilter{position:sticky;top:54px;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
 .cal-head h3{font-size:15px;color:var(--ink)}
@@ -279,7 +281,7 @@ const css = `
 .lk-ufilter{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:6px}
 .lk-rep h2{font-size:17px;font-weight:700;margin:0 0 2px}
 .lk-rep .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
-.lk-rep-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:14px;position:sticky;top:62px;z-index:20;background:var(--paper);padding:10px 0;border-bottom:1px solid var(--line)}
+.lk-rep-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 -22px 14px;position:sticky;top:54px;z-index:20;background:var(--card);padding:10px 22px;border-bottom:1px solid var(--line)}
 .lk-rep-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px;margin-bottom:22px}
 .lk-rep-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
 .lk-rep-card .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
@@ -299,11 +301,11 @@ const css = `
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
 .lk-tblwrap{width:100%}
 .lk-sch{width:100%;display:flex;flex-direction:column;height:calc(100vh - 110px)}
-.lk-sch-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--card)}
-.lk-sch-bar .grp{display:flex;flex-direction:column;gap:2px}
+.lk-sch-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
+.lk-sch-bar .grp{display:flex;flex-direction:column;gap:4px}
 .lk-sch-bar .grp>label{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
-.lk-sch-bar .seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
-.lk-sch-bar .seg button{border:0;background:var(--card);color:var(--muted);padding:5px 11px;font-size:11.5px;font-weight:600;cursor:pointer}
+.lk-sch-bar .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.lk-sch-bar .seg button{border:0;background:transparent;color:var(--muted);padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer}
 .lk-sch-bar .seg button.on{background:var(--ink);color:var(--paper)}
 .lk-sch-scroll{flex:1;overflow:auto;background:#fff}
 .lk-tblscroll{overflow-x:auto;padding:8px 16px 64px}
@@ -379,6 +381,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV49", date: "2026-06-21", items: ["Consistent chrome across pages: one slim top bar everywhere holding the logo, your name, role or company logo and Sign out, with the page title removed (the sidebar shows where you are)", "Every page's filters now share one look: the board controls moved into a toolbar, and the Schedule, Analytics, Table and Users filter bars use the same card background, bottom border, labels and segmented-control style", "Constraints Log now uses a warning-triangle icon in the sidebar"] },
   { rev: "REV48", date: "2026-06-21", items: ["Delete confirmation now applies across Admin too. Deleting a company, building, level, zone, system, Cx stage or user asks 'Are you sure?' with Yes and No first. Cx stage still tells you how many activities will be moved"] },
   { rev: "REV47", date: "2026-06-21", items: ["New / Edit Activity: clicking the dimmed area outside the window no longer discards what you typed. The window stays put until you Save, Cancel, or close it with the X", "Deleting an activity now asks 'Delete this activity?' with Yes and No before removing it"] },
   { rev: "REV46", date: "2026-06-21", items: ["Schedule Gantt: clicking a bar or milestone now opens the activity card popup (like the Calendar and Workload views) instead of jumping straight to the Planning Board. Open the card to go to the board"] },
@@ -724,7 +727,7 @@ export default function App({ session }) {
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
         <button title="Planning Board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /><span className="lbl">Planning Board</span></button>
         <button title="Activity Table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n="grid" s={20} /><span className="lbl">Activity Table</span></button>
-        <button title="Constraints Log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="list" s={20} /><span className="lbl">Constraints Log</span></button>
+        <button title="Constraints Log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="alert" s={20} /><span className="lbl">Constraints Log</span></button>
         <button title="Schedule" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n="gantt" s={20} /><span className="lbl">Schedule</span></button>
         <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
@@ -735,12 +738,18 @@ export default function App({ session }) {
         </div>
       </div></nav>
       <div className="lk-page">
-      {page === "board" && <>
       <div className="lk-bar">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {brandLogo && <img src={brandLogo} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
-          <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
+        {brandLogo && <img className="lk-brandlogo" src={brandLogo} alt="" style={{ height: 28, maxWidth: 130, objectFit: "contain" }} />}
+        <div className="lk-spacer" />
+        <div className="lk-who">
+          <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
+          <span style={{ fontWeight: 600 }}>{cu.name}</span>
+          {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
+          <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
+      </div>
+      {page === "board" && <>
+      <div className="lk-toolbar">
         <div className="lk-nav">
           <button className="lk-btn icon" onClick={() => setAnchor(addDays(anchor, -7))}><Icon n="cl" /></button>
           <button className="lk-btn" onClick={() => setAnchor(mondayOf(new Date()))}><Icon n="cal" s={14} />Today</button>
@@ -760,17 +769,10 @@ export default function App({ session }) {
         </div>}
         <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
         <button className={"lk-btn" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
+        <div className="lk-spacer" />
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
-        <div className="lk-barright">
-          <div className="lk-who">
-            <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
-            <span style={{ fontWeight: 600 }}>{cu.name}</span>
-            {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
-            <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
-          </div>
-          <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
-        </div>
+        <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
       </div>
 
       <div className="lk-metrics">
@@ -852,20 +854,6 @@ export default function App({ session }) {
         <span className="it"><span style={{ height: 12, width: 16, borderRadius: 4, border: "1.5px dashed #E0A106", background: "rgba(224,161,6,.10)" }} />forecast (knock-on)</span>
       </div>
       </>}
-      {page !== "board" && <div className="lk-bar">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {brandLogo && <img src={brandLogo} alt="" style={{ height: 30, maxWidth: 130, objectFit: "contain" }} />}
-          <div><div className="lk-title">{(S.brand?.projectName || "FIN04")} {(S.brand?.appName || "DLP")}</div><div className="lk-sub">{S.brand?.tagline || "Collaborative Digital Planning"}</div></div>
-        </div>
-        <div style={{ fontWeight: 700, fontSize: 17, marginLeft: 6 }}>{page === "table" ? "Activity Table" : page === "schedule" ? "Schedule" : page === "constraints" ? "Constraints Log" : page === "reports" ? "Reports & Metrics" : page === "admin" ? "Admin Settings" : page === "help" ? "Help & Quick Reference" : ""}</div>
-        <div className="lk-spacer" />
-        <div className="lk-who">
-          <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
-          <span style={{ fontWeight: 600 }}>{cu.name}</span>
-          {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
-          <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
-        </div>
-      </div>}
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
