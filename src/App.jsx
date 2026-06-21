@@ -377,6 +377,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV39", date: "2026-06-21", items: ["Light/dark theme toggle now sits next to your name on every page, not just the Planning Board", "Admin: the Project setup submenu Settings is now called Lookahead (lookahead length and make-ready window)"] },
   { rev: "REV38", date: "2026-06-20", items: ["New admin-only Weekly DLP Report on the Analytics page: one click opens a styled, print-ready report (PPC and promise reliability, open constraints with owners and need-by dates, non-completion reasons, by contractor, by Cx stage, committed next week, milestones) built from live data, ready to Save as PDF", "Report config window: defaults to the week just ended, optional custom date range, an auto-drafted editable executive summary, and an optional 4 week schedule snapshot"] },
   { rev: "REV37", date: "2026-06-20", items: ["Schedule Calendar and Workload now open the same drill-down popup as Analytics: click a calendar day or a workload bar (or a company segment) to list those activities, then click one to open it", "Workload bars and segments are now interactive"] },
   { rev: "REV36", date: "2026-06-20", items: ["Per-activity audit history now records what actually changed on each edit (field by field, old value to new value) instead of a generic Edit activity; needs the activity-audit-detail.sql migration"] },
@@ -744,11 +745,11 @@ export default function App({ session }) {
         </div>}
         <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
         <button className={"lk-btn" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
-        <button className="lk-btn icon" onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
         <div className="lk-barright">
           <div className="lk-who">
+            <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
             <span style={{ fontWeight: 600 }}>{cu.name}</span>
             <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
             <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
@@ -842,6 +843,7 @@ export default function App({ session }) {
         <div style={{ fontWeight: 700, fontSize: 17, marginLeft: 6 }}>{page === "table" ? "Activity Table" : page === "schedule" ? "Schedule" : page === "constraints" ? "Constraints Log" : page === "reports" ? "Reports & Metrics" : page === "admin" ? "Admin Settings" : page === "help" ? "Help & Quick Reference" : ""}</div>
         <div className="lk-spacer" />
         <div className="lk-who">
+          <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
           <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
@@ -1254,7 +1256,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     e.target.value = "";
   };
   const navGroups = [
-    ["Project setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Settings"]]],
+    ["Project setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
     ["User management", [["users", "Users"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
