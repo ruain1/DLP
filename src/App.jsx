@@ -24,6 +24,10 @@ const css = `
 .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 .lk-bar{display:flex;align-items:center;gap:12px;padding:0 18px;height:54px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;background:var(--paper)}
 .lk-brandlogo{display:block}
+.lk-branddiv{width:1px;height:20px;background:var(--line);flex:none}
+.lk-brandid{display:flex;align-items:baseline;gap:7px;min-width:0}
+.lk-projname{font-weight:700;font-size:14px;letter-spacing:-.01em;white-space:nowrap}
+.lk-appname{font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.13em;white-space:nowrap}
 .lk-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
 .lk-title{font-weight:700;font-size:16px;letter-spacing:-0.01em}
 .lk-sub{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;margin-top:2px}
@@ -381,6 +385,8 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV51", date: "2026-06-21", items: ["Restored the Project and App name (from Admin settings) to the top bar on every page, set just after the customer logo with a divider: project name in bold and app name as a small accent tag. The per-page title stays gone"] },
+  { rev: "REV50", date: "2026-06-21", items: ["Constraints Log: Search now comes first, then the filters, matching the Activity Table", "Removed the descriptive sub-text lines from the Analytics and Constraints pages", "Title Case sweep: multi-word labels, titles and options in the popups (New/Edit Activity, Admin, Import, Weekly Report) are now capitalised consistently"] },
   { rev: "REV49", date: "2026-06-21", items: ["Consistent chrome across pages: one slim top bar everywhere holding the logo, your name, role or company logo and Sign out, with the page title removed (the sidebar shows where you are)", "Every page's filters now share one look: the board controls moved into a toolbar, and the Schedule, Analytics, Table and Users filter bars use the same card background, bottom border, labels and segmented-control style", "Constraints Log now uses a warning-triangle icon in the sidebar"] },
   { rev: "REV48", date: "2026-06-21", items: ["Delete confirmation now applies across Admin too. Deleting a company, building, level, zone, system, Cx stage or user asks 'Are you sure?' with Yes and No first. Cx stage still tells you how many activities will be moved"] },
   { rev: "REV47", date: "2026-06-21", items: ["New / Edit Activity: clicking the dimmed area outside the window no longer discards what you typed. The window stays put until you Save, Cancel, or close it with the X", "Deleting an activity now asks 'Delete this activity?' with Yes and No before removing it"] },
@@ -740,6 +746,8 @@ export default function App({ session }) {
       <div className="lk-page">
       <div className="lk-bar">
         {brandLogo && <img className="lk-brandlogo" src={brandLogo} alt="" style={{ height: 28, maxWidth: 130, objectFit: "contain" }} />}
+        {brandLogo && <span className="lk-branddiv" />}
+        <div className="lk-brandid"><span className="lk-projname">{S.brand?.projectName || "FIN04"}</span><span className="lk-appname">{S.brand?.appName || "DLP"}</span></div>
         <div className="lk-spacer" />
         <div className="lk-who">
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
@@ -963,7 +971,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
           {!canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
           <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={dis} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
           <div className="lk-row">
-            <div className="lk-f"><label>Company (performing)</label>
+            <div className="lk-f"><label>Company (Performing)</label>
               <select className="lk-select" value={a.companyId || ""} disabled={dis || !isAdmin} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("company"); } else set("companyId", e.target.value); }}>
                 {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}{isAdmin && !dis && ADD_OPT}
               </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}
@@ -987,7 +995,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
             <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
             {renderAdd("system", "New system name", {})}</div>
-          <div className="lk-f"><label>Asset (optional)</label>
+          <div className="lk-f"><label>Asset (Optional)</label>
             <input className="lk-in" value={a.asset || ""} disabled={dis} placeholder="e.g. EPOD108.DB001.U003" onChange={(e) => set("asset", e.target.value)} /></div>
           <div className="lk-f"><label>Cx Stage</label>
             <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => set("level", k)}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
@@ -1000,7 +1008,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
             {(a.predecessors || []).length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>None. Not waiting on another activity.</div>}
             {!dis && predOptions.length > 0 && <div className="lk-add"><select className="lk-select" value="" onChange={(e) => { if (e.target.value) set("predecessors", [...(a.predecessors || []), e.target.value]); }}><option value="">Add a predecessor…</option>{predOptions.map((x) => <option key={x.id} value={x.id}>#{x.code ?? "?"} - {x.desc || "Untitled"}</option>)}</select></div>}
           </div>
-          <div className="lk-f"><label>Constraints to clear (make-ready)</label>
+          <div className="lk-f"><label>Constraints To Clear (Make-Ready)</label>
             {a.constraints.map((c) => <div key={c.id} className="lk-cstr2">
               <input type="checkbox" checked={c.done} disabled={dis} onChange={() => setC(c.id, "done", !c.done)} />
               <div className="cmain">
@@ -1029,14 +1037,14 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
           {locked && canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit them. The reason for non-completion can still be recorded.</div>}
           <div className="lk-f"><label>Status</label><div className="lk-status">{[["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]].map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; })}>{l}</button>)}</div></div>
           <div className="lk-row">
-            <div className="lk-f"><label>Actual start</label><input className="lk-in mono" type="date" value={a.actualStart || ""} disabled={dis} onChange={(e) => set("actualStart", e.target.value)} /></div>
-            <div className="lk-f"><label>Actual finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
+            <div className="lk-f"><label>Actual Start</label><input className="lk-in mono" type="date" value={a.actualStart || ""} disabled={dis} onChange={(e) => set("actualStart", e.target.value)} /></div>
+            <div className="lk-f"><label>Actual Finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
           </div>
           {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "#0E9384" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
           {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
             <select className="lk-select" value={a.slipReason || ""} disabled={!canEdit} onChange={(e) => setReason(e.target.value)}>
               <option value="">-- record why it slipped --</option>{SLIP_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>; })()}
-          <div className="lk-f"><label>Notes / comment</label>
+          <div className="lk-f"><label>Notes / Comment</label>
             <textarea className="lk-in" value={a.notes || ""} disabled={dis} placeholder="Anything the team should know: access, sequencing, contacts, risks…" rows={3} style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }} onChange={(e) => set("notes", e.target.value)} /></div>
           {isAdmin && !isNew && <div className="lk-f" style={{ marginTop: 2 }}>
             <button type="button" className="lk-acc" onClick={() => { const n = !auditOpen; setAuditOpen(n); if (n && !auditLoaded) { setAuditLoaded(true); fetchActivityAudit(a.id).then(setAuditRows).catch(() => {}); } }}>
@@ -1267,7 +1275,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     e.target.value = "";
   };
   const navGroups = [
-    ["Project setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
+    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
     ["User management", [["users", "Users"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
@@ -1362,7 +1370,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>}
               </div>; });
             })()}
-            <div className="lk-f"><label>Add user (email required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
+            <div className="lk-f"><label>Add User (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
             <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
             <div className="lk-row">
               <select className="lk-select" value={nu.role} onChange={(e) => setNu({ ...nu, role: e.target.value })}><option value="member">Member</option><option value="admin">Admin</option></select>
@@ -1380,7 +1388,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             </div>}
             {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{userMsg}</div>}
             <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-              <div className="lk-f"><label>Bulk add users</label>
+              <div className="lk-f"><label>Bulk Add Users</label>
                 <textarea className="lk-in" rows={5} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"One per line:  email, name, role, company\njdoe@acme.com, John Doe, member, ABB\nmsmith@acme.com, Mary Smith, member, Schneider"} style={{ resize: "vertical", minHeight: 92, fontFamily: "inherit" }} /></div>
               <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own set-password link in the downloadable CSV. No email is sent from here, mail-merge the CSV from Outlook.</div>
               <button className="lk-btn primary" disabled={bulkBusy} onClick={bulkCreate}>{bulkBusy ? `Creating… (${(bulkResults || []).length})` : "Create all"}</button>
@@ -1394,9 +1402,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
           </div>}
           {tab === "branding" && <>
-            <div className="lk-f"><label>Project name</label>
+            <div className="lk-f"><label>Project Name</label>
               <input className="lk-in" value={S.brand?.projectName || ""} placeholder="FIN04" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, projectName: e.target.value } }))} /></div>
-            <div className="lk-f"><label>App name</label>
+            <div className="lk-f"><label>App Name</label>
               <input className="lk-in" value={S.brand?.appName || ""} placeholder="DLP" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, appName: e.target.value } }))} /></div>
             <div className="lk-f"><label>Tagline</label>
               <input className="lk-in" value={S.brand?.tagline || ""} placeholder="Collaborative Digital Planning" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, tagline: e.target.value } }))} /></div>
@@ -1405,7 +1413,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               try { await updateBranding({ project_name: S.brand.projectName, app_name: S.brand.appName, tagline: S.brand.tagline }); setBrandMsg("Text saved"); }
               catch (e) { setBrandMsg("Failed: " + (e.message || e)); }
             }}><Icon n="check" s={15} />Save text</button>
-            <div className="lk-f" style={{ marginTop: 14 }}><label>Customer logo</label>
+            <div className="lk-f" style={{ marginTop: 14 }}><label>Customer Logo</label>
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 4 }}>
                 {[["light", "Light mode", S.brand?.logoUrl, false, "#ffffff"], ["dark", "Dark mode", S.brand?.logoDark, true, "#0f172a"]].map(([k, lbl, url, dark, bg]) => <div key={k} style={{ flex: "1 1 170px" }}>
                   <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 4 }}>{lbl}</div>
@@ -1427,9 +1435,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             {brandMsg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{brandMsg}</div>}
           </>}
           {tab === "settings" && <>
-            <div className="lk-f"><label>Lookahead length</label>
+            <div className="lk-f"><label>Lookahead Length</label>
               <div className="lk-status">{[2, 4, 6].map((w) => <button key={w} className={S.settings.weeks === w ? "sel" : ""} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, weeks: w } }), { action: "Change setting", detail: `Lookahead ${w} weeks` })}>{w} weeks</button>)}</div></div>
-            <div className="lk-f"><label>Make-ready window (days)</label>
+            <div className="lk-f"><label>Make-Ready Window (Days)</label>
               <input className="lk-in mono" type="number" min="1" value={S.settings.makeReadyDays} onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, makeReadyDays: Math.max(1, +e.target.value || 1) } }))} /></div>
           </>}
           {tab === "levels" && <div className="lk-list">
@@ -1458,16 +1466,16 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             <div className="lk-f"><label>Export</label>
               <div className="lk-row"><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button>
                 <button className="lk-btn" onClick={exportProject}><Icon n="download" s={14} />Project (JSON)</button></div></div>
-            <div className="lk-f"><label>Import mode</label>
+            <div className="lk-f"><label>Import Mode</label>
               <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
-            <div className="lk-f"><label>Import file (.xlsx or .csv activities, or .json project)</label>
+            <div className="lk-f"><label>Import File (.xlsx or .csv Activities, or .json Project)</label>
               <input className="lk-in" type="file" accept=".json,.csv,.xlsx" onChange={handleImportFile} /></div>
             <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces the project wholesale; Append in JSON opens a review screen where you overwrite, ignore or clone each clashing item.</div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
           {tab === "audit" && <>
             <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Complete history of every action by every user, admin only. In production the database writes this on every change and it cannot be edited here.</div>
-            <div className="lk-f"><label>Filter by user</label>
+            <div className="lk-f"><label>Filter By User</label>
               <select className="lk-select" value={auditUser} onChange={(e) => setAuditUser(e.target.value)}>
                 <option value="all">All users ({S.audit.length})</option>
                 {S.users.map((u) => <option key={u.id} value={u.name}>{u.name} ({S.audit.filter((e) => e.user === u.name).length})</option>)}
@@ -1564,7 +1572,7 @@ function ImportReview({ obj, S, onClose, onApply }) {
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
       <div style={{ background: "var(--card)", color: "var(--ink)", borderRadius: 14, border: "1px solid var(--line)", width: "min(720px,94vw)", maxHeight: "88vh", overflow: "auto", padding: "20px 22px", margin: "auto", ...cssVars(S.theme) }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><h3 style={{ margin: 0 }}>Review project import</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><h3 style={{ margin: 0 }}>Review Project Import</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55, marginBottom: 12 }}>New project setup data is merged in automatically. Where the file collides with something already here, choose what to do. Overwrite replaces the existing item, Ignore keeps what you have, Clone adds the incoming one alongside under a new name.</div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
@@ -1721,8 +1729,8 @@ function SchedulePage({ S, coName, onOpen }) {
         <div className="grp"><label>View</label><div className="seg">{[["gantt", "Gantt"], ["calendar", "Calendar"], ["workload", "Workload"]].map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}</div></div>
         {view === "gantt" && <>
         <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
-        <div className="grp"><label>Group by</label><select className="lk-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="none">None</option><option value="company">Company</option><option value="area">Building</option><option value="level">Cx Stage</option><option value="system">System</option></select></div>
-        <div className="grp"><label>Colour by</label><select className="lk-select" value={colorBy} onChange={(e) => setColorBy(e.target.value)}><option value="level">Cx Stage</option><option value="company">Company</option><option value="status">Status</option></select></div>
+        <div className="grp"><label>Group By</label><select className="lk-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="none">None</option><option value="company">Company</option><option value="area">Building</option><option value="level">Cx Stage</option><option value="system">System</option></select></div>
+        <div className="grp"><label>Colour By</label><select className="lk-select" value={colorBy} onChange={(e) => setColorBy(e.target.value)}><option value="level">Cx Stage</option><option value="company">Company</option><option value="status">Status</option></select></div>
         <button className={"lk-btn" + (showResp ? " on" : "")} onClick={() => setShowResp((v) => !v)}>Responsible</button>
         <button className={"lk-btn" + (showDeps ? " on" : "")} onClick={() => setShowDeps((v) => !v)}>Links</button>
         <button className={"lk-btn" + (compact ? " on" : "")} onClick={() => setCompact((v) => !v)}>Compact</button>
@@ -2004,12 +2012,11 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const exportCsv = () => { const headers = ["Activity", "Company", "Location code", "Building", "Level", "Zone / Room", "Cx Stage", "Planned start", "Constraint", "Owner", "Need-by", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join("."), a.area, a.subArea || "", a.tier3 || "", a.level, a.start, c.text, c.owner || "", c.due || "", c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
   return (
     <div className="lk-rep" style={{ maxWidth: "none" }}>
-      <div className="sub" style={{ marginTop: 2 }}>Every make-ready constraint across the project. Tick one to clear it; the board updates straight away. Use the pen to edit a constraint's wording, owner or need-by date.</div>
       <div className="lk-rep-filters">
+        <div className="lk-f" style={{ minWidth: 180 }}><label>Search</label><input className="lk-in" placeholder="Activity or constraint…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 180 }}><label>Search</label><input className="lk-in" placeholder="Activity or constraint…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <button className={"lk-btn" + (openOnly ? " on" : "")} onClick={() => setOpenOnly((v) => !v)}>{openOnly ? "Open only" : "Showing all"}</button>
+        <button className={"lk-btn" + (openOnly ? " on" : "")} onClick={() => setOpenOnly((v) => !v)}>{openOnly ? "Open Only" : "Showing All"}</button>
         <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
       </div>
       <div className="lk-rep-sec" style={{ padding: 0, overflow: "auto" }}>
@@ -2050,7 +2057,7 @@ function LatestOnline({ users, ustat, pres }) {
   const fmt = (t) => new Date(t).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   return (
     <div className="lk-online">
-      <div className="lk-online-h"><span>Latest online</span>{onlineCount > 0 && <span className="lk-online-now"><span className="lk-dot on" />{onlineCount} online now</span>}</div>
+      <div className="lk-online-h"><span>Latest Online</span>{onlineCount > 0 && <span className="lk-online-now"><span className="lk-dot on" />{onlineCount} online now</span>}</div>
       {rows.length === 0
         ? <div className="lk-online-empty">No one has accepted their invite yet.</div>
         : <div className="lk-online-list">{rows.map((r) => <div key={r.id} className="lk-online-row">
@@ -2458,7 +2465,6 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen, i
   };
   return (
     <div className="lk-rep">
-      <div className="sub" style={{ marginTop: 2 }}>Project health across the whole plan, not just the lookahead window. Filter, then export.</div>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
@@ -2488,34 +2494,34 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen, i
       </div>
       </div>
       <div className="lk-rep-2col">
-      <div className="lk-rep-sec"><h3>Weekly PPC trend</h3>{hasTrend ? <Trend points={points} onPoint={(i) => openDrill("Week " + points[i].label + " \u00b7 committed due", points[i].items)} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
-      <div className="lk-rep-sec"><h3>Reasons for non-completion</h3>
+      <div className="lk-rep-sec"><h3>Weekly PPC Trend</h3>{hasTrend ? <Trend points={points} onPoint={(i) => openDrill("Week " + points[i].label + " \u00b7 committed due", points[i].items)} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
+      <div className="lk-rep-sec"><h3>Reasons For Non-Completion</h3>
         {misses.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No missed commitments to date. Every committed activity whose promised finish has passed was completed on time.</div>
           : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#C0392B" }}>{misses.length}</b> committed activit{misses.length === 1 ? "y" : "ies"} due to date {misses.length === 1 ? "was" : "were"} not completed as promised{reasonTally["Unattributed"] ? <>, of which <b style={{ color: "var(--ink)" }}>{reasonTally["Unattributed"]}</b> {reasonTally["Unattributed"] === 1 ? "has" : "have"} no reason recorded</> : ""}. Recording the reason on each miss turns this into a Pareto of what is actually breaking the plan.</div>
             {reasonRows.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxR} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} onClick={() => openDrill("Missed \u00b7 " + x.name, misses.filter((m) => (m.slipReason || "Unattributed") === x.name))} />)}</>}
       </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
-        <div className="lk-rep-sec"><h3>Status mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} onSlice={(d) => openDrill(d.name, acts.filter((a) => a.status === d.k))} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} onClick={() => openDrill(s.name, acts.filter((a) => a.status === s.k))} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
-        <div className="lk-rep-sec"><h3>Activities by company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} onClick={() => openDrill(x.name, acts.filter((a) => a.companyId === x.id))} />)}</div>
+        <div className="lk-rep-sec"><h3>Status Mix</h3><div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Donut data={statusData} onSlice={(d) => openDrill(d.name, acts.filter((a) => a.status === d.k))} /><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{statusData.map((s) => <div key={s.k} onClick={() => openDrill(s.name, acts.filter((a) => a.status === s.k))} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}><span style={{ width: 11, height: 11, borderRadius: 3, background: s.color }} />{s.name}<span style={{ color: "var(--muted)" }}>{s.n}</span></div>)}</div></div></div>
+        <div className="lk-rep-sec"><h3>Activities By Company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : byCompany.map((x) => <RepBar key={x.name} label={`${x.name}${x.open ? ` (${x.open} open)` : ""}`} n={x.n} max={maxCo} onClick={() => openDrill(x.name, acts.filter((a) => a.companyId === x.id))} />)}</div>
       </div>
-      <div className="lk-rep-sec"><h3>By Cx stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} onClick={() => openDrill(x.name, acts.filter((a) => a.level === x.k))} />)}</div>
+      <div className="lk-rep-sec"><h3>By Cx Stage</h3>{byLevel.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxLv} color={x.color} onClick={() => openDrill(x.name, acts.filter((a) => a.level === x.k))} />)}</div>
       {repOpen && <div className="lk-modal-bg" onClick={() => setRepOpen(false)}>
         <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
           <div className="lk-dh"><h3>Generate Weekly DLP Report</h3><button className="lk-btn icon" onClick={() => setRepOpen(false)}><Icon n="x" /></button></div>
           <div className="bd">
-            <div className="rep-fld"><label>Reporting period</label>
+            <div className="rep-fld"><label>Reporting Period</label>
               <div className="rep-seg">
-                <button className={repMode === "week" ? "on" : ""} onClick={() => { setRepMode("week"); setRepSummary(null); }}>Week just ended</button>
-                <button className={repMode === "range" ? "on" : ""} onClick={() => { setRepMode("range"); setRepSummary(null); }}>Custom range</button>
+                <button className={repMode === "week" ? "on" : ""} onClick={() => { setRepMode("week"); setRepSummary(null); }}>Week Just Ended</button>
+                <button className={repMode === "range" ? "on" : ""} onClick={() => { setRepMode("range"); setRepSummary(null); }}>Custom Range</button>
               </div>
             </div>
             {repMode === "week"
               ? <div className="rep-hint">Week {isoWeek(defWeek.start)} {"\u00b7"} {fmtDoW(defWeek.start)} to {fmtDoW(defWeek.end)}</div>
               : <div className="rep-dates"><div className="lk-f"><label>From</label><input className="lk-in mono" type="date" value={repFrom} onChange={(e) => { setRepFrom(e.target.value); setRepSummary(null); }} /></div><div className="lk-f"><label>To</label><input className="lk-in mono" type="date" value={repTo} onChange={(e) => { setRepTo(e.target.value); setRepSummary(null); }} /></div></div>}
-            <div className="rep-fld"><label>Executive summary <span className="rep-mut">(auto-drafted, editable)</span></label>
+            <div className="rep-fld"><label>Executive Summary <span className="rep-mut">(auto-drafted, editable)</span></label>
               <textarea className="lk-in rep-sum" rows={4} value={repSummaryVal} onChange={(e) => setRepSummary(e.target.value)} /></div>
-            <label className="rep-check"><input type="checkbox" checked={repSchedule} onChange={(e) => setRepSchedule(e.target.checked)} /> Include schedule snapshot (4 week lookahead)</label>
+            <label className="rep-check"><input type="checkbox" checked={repSchedule} onChange={(e) => setRepSchedule(e.target.checked)} /> Include Schedule Snapshot (4 Week Lookahead)</label>
           </div>
           <div className="rep-foot"><button className="lk-btn" onClick={() => setRepOpen(false)}>Cancel</button><button className="lk-btn primary" onClick={generateReport}><Icon n="chart" s={14} />Generate report</button></div>
         </div>
@@ -2633,7 +2639,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
   return (
     <div className="lk-modal-bg" onClick={onClose}>
       <div className="lk-modal" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
-        <div className="lk-dh"><h3>Import activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
+        <div className="lk-dh"><h3>Import Activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. Everything you import is added under your own company.</div>
           <div>
