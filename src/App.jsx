@@ -391,6 +391,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV55", date: "2026-06-21", items: ["Weekly DLP Report: new Light / Dark choice in the report window. Light is unchanged; Dark renders the whole report on a dark sheet. To keep the dark background when saving to PDF, tick 'Background graphics' in the browser print dialog"] },
   { rev: "REV54", date: "2026-06-21", items: ["Planning Board (Day view): you can now drag the left or right edge of an activity to change its start or finish. Hover near an edge and the cursor becomes a resize arrow; drag in whole-day steps, minimum one day. Available to admins (and to members on their own activities that are not yet committed)"] },
   { rev: "REV53", date: "2026-06-21", items: ["Admin > Companies: company names are now editable inline, like buildings, levels, zones and systems. Type a new name and press Enter or click away; it updates everywhere the company is shown. Activities stay linked because they reference the company, not its name"] },
   { rev: "REV52", date: "2026-06-21", items: ["Changed atNorth to atnorth (lowercase) on the Help page and in the Weekly Report, to match the logo"] },
@@ -2233,7 +2234,7 @@ function draftSummary(r){
   return s.trim();
 }
 
-function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode }){
+function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme }){
   const dueColor = (d) => { if(!d) return "ok"; const t=parseD(d).getTime(), now=r.today.getTime(); if(t<now) return "over"; if(t<=addDays(r.today,2).getTime()) return "soon"; return "ok"; };
   const dueLabel = (d) => { if(!d) return ["set","need by"]; const t=parseD(d).getTime(); return [fmtD(parseD(d)), t<r.today.getTime()?"overdue":"need by"]; };
   // KPI tiles
@@ -2314,10 +2315,17 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode }){
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#0F1E2E;--ink-2:#33485C;--muted:#647689;--paper:#FFFFFF;--backdrop:#E9EDF1;--line:#E0E6EC;--line-2:#EEF2F6;--signal:#1E63D6;--green:#0E9384;--amber:#C07A00;--red:#C0392B;--display:"Space Grotesk","Inter",system-ui,sans-serif;--body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+body.dark{--ink:#E8EDF3;--ink-2:#B4C0CD;--muted:#8593A2;--paper:#161D26;--backdrop:#0C1116;--line:#2A3542;--line-2:#1E2732;--signal:#5B9BF5;--green:#2FB6A6;--amber:#E0A33A;--red:#E76A5C}
+body.dark .sheet{box-shadow:0 18px 50px rgba(0,0,0,.55)}
+body.dark .hero{background:linear-gradient(180deg,#1B2430,#161D26)}
+body.dark .b-will{background:rgba(91,155,245,.18)}
+body.dark .b-wit{background:rgba(141,107,232,.22);color:#B89CF2}
+body.dark .pill.ontrack{background:rgba(47,182,166,.18)}
+body.dark .pill.risk{background:rgba(224,163,58,.18)}
 *{box-sizing:border-box}html,body{margin:0;padding:0}
 body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px}
 .num{font-variant-numeric:tabular-nums lining-nums}
-.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 18px;background:var(--ink);color:#fff}
+.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 18px;background:#13202F;color:#fff}
 .bar .hint{font-size:12.5px;color:#A9BBCD}.bar button{font-family:var(--body);font-size:13px;font-weight:600;border:0;border-radius:8px;background:var(--signal);color:#fff;padding:9px 16px;cursor:pointer}
 .bar button:hover{filter:brightness(1.08)}
 .sheet{max-width:880px;margin:26px auto;background:var(--paper);box-shadow:0 18px 50px rgba(15,30,46,.14);border-radius:4px;overflow:hidden}
@@ -2371,8 +2379,8 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;font-size:11px;color:var(--muted)}footer b{color:var(--ink-2);font-weight:600}
 @media (max-width:720px){.hero{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.twocol{grid-template-columns:1fr}.g-row,.g-head{grid-template-columns:120px 1fr}.body,.mast,footer{padding-left:20px;padding-right:20px}}
 @page{size:A4;margin:13mm 12mm}
-@media print{body{background:#fff}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}.mast{padding:0 0 16px}.body{padding:18px 0 0}footer{padding:14px 0 0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row{break-inside:avoid}.sec-head{break-after:avoid}}
-</style></head><body>
+@media print{body{background:#fff}body.dark{background:#0C1116}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}.mast{padding:0 0 16px}.body{padding:18px 0 0}footer{padding:14px 0 0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row{break-inside:avoid}.sec-head{break-after:avoid}}
+</style></head><body class="${theme === 'dark' ? 'dark' : ''}">
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
 <div class="mast"><div class="mast-top">
@@ -2416,15 +2424,16 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen, i
   const [repTo, setRepTo] = useState(fmtISO(defWeek.end));
   const [repSummary, setRepSummary] = useState(null);
   const [repSchedule, setRepSchedule] = useState(true);
+  const [repTheme, setRepTheme] = useState("light");
   const repStart = repMode === "week" ? defWeek.start : (repFrom ? parseD(repFrom) : defWeek.start);
   const repEnd = repMode === "week" ? defWeek.end : (repTo ? parseD(repTo) : defWeek.end);
   const repData = useMemo(() => repOpen ? computeReport({ S, LV, coName, start: repStart, end: repEnd }) : null, [repOpen, S, LV, repStart.getTime(), repEnd.getTime()]);
   const repSummaryVal = repSummary != null ? repSummary : (repData ? draftSummary(repData) : "");
   const generateReport = () => {
-    const html = buildWeeklyReportHTML({ r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode });
+    const html = buildWeeklyReportHTML({ r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-    else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-weekly-report-${fmtISO(repStart)}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
+    else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-weekly-report-${fmtISO(repStart)}${repTheme === "dark" ? "-dark" : ""}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
     setRepOpen(false);
   };
   const finishOf = (a) => addDays(parseD(a.start), (a.duration || 1) - 1);
@@ -2562,6 +2571,12 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen, i
             <div className="rep-fld"><label>Executive Summary <span className="rep-mut">(auto-drafted, editable)</span></label>
               <textarea className="lk-in rep-sum" rows={4} value={repSummaryVal} onChange={(e) => setRepSummary(e.target.value)} /></div>
             <label className="rep-check"><input type="checkbox" checked={repSchedule} onChange={(e) => setRepSchedule(e.target.checked)} /> Include Schedule Snapshot (4 Week Lookahead)</label>
+            <div className="rep-fld" style={{ marginTop: 14 }}><label>Appearance</label>
+              <div className="rep-seg">
+                <button className={repTheme === "light" ? "on" : ""} onClick={() => setRepTheme("light")}>Light</button>
+                <button className={repTheme === "dark" ? "on" : ""} onClick={() => setRepTheme("dark")}>Dark</button>
+              </div>
+            </div>
           </div>
           <div className="rep-foot"><button className="lk-btn" onClick={() => setRepOpen(false)}>Cancel</button><button className="lk-btn primary" onClick={generateReport}><Icon n="chart" s={14} />Generate report</button></div>
         </div>
