@@ -379,6 +379,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV46", date: "2026-06-21", items: ["Schedule Gantt: clicking a bar or milestone now opens the activity card popup (like the Calendar and Workload views) instead of jumping straight to the Planning Board. Open the card to go to the board"] },
   { rev: "REV45", date: "2026-06-21", items: ["Fix: blank page on load introduced in REV44. The theme-aware customer logo was being read before data finished loading, which threw on first render. Now guarded"] },
   { rev: "REV44", date: "2026-06-21", items: ["Logos now support separate light-mode and dark-mode versions, for both the customer logo and each company logo. The board, headers and lane labels show the right one for the current theme. If you upload only one, it is used in both modes. Admin upload boxes preview the dark version on a dark background"] },
   { rev: "REV43", date: "2026-06-21", items: ["Planning Board: when grouped by Company, each swimlane label now shows the company logo (if uploaded) with the company name underneath"] },
@@ -1788,7 +1789,7 @@ function SchedulePage({ S, coName, onOpen }) {
             const dx1 = xOf(g.pE + 1), dx2 = xOf(projE + 1);
             const respBase = delay ? dx2 : g.x + g.w;
             const respX = respBase + ((showDeps && hasOut.has(a.id) && !delay) ? 16 : 6);
-            return <g key={"tf" + a.id} style={{ cursor: "pointer" }} onClick={() => onOpen(a)}>
+            return <g key={"tf" + a.id} style={{ cursor: "pointer" }} onClick={() => openDrill(a.desc || "Activity", [a])}>
               {a.isMilestone
                 ? <polygon points={`${g.x},${yc - 6} ${g.x + 6},${yc} ${g.x},${yc + 6} ${g.x - 6},${yc}`} fill={col} />
                 : <g>
