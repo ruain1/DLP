@@ -72,11 +72,17 @@ const css = `
 .lk-cell.we{background:var(--weekend)}.lk-cell.tod{background:var(--todcell);border-left:2px solid var(--accent)}
 .lk-cell:hover{background:var(--hover)}.lk-cell.nodrop{cursor:not-allowed}
 .lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;gap:6px;pointer-events:none}
-.lk-ticket{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:12px;
+.lk-ticket{position:relative;pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:12px;
   padding:9px 12px 10px;font-size:12px;cursor:grab;overflow:hidden;box-shadow:none;min-width:0;
   display:flex;flex-direction:column;justify-content:flex-start;gap:3px;transition:box-shadow .12s,border-color .12s}
 .lk-ticket:hover{box-shadow:0 3px 10px rgba(0,0,0,.16)}.lk-ticket:active{cursor:grabbing}
 .lk-ticket.ro{cursor:default;border-style:dotted}
+.lk-rsz{position:absolute;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:3}
+.lk-rsz.l{left:0}.lk-rsz.r{right:0}
+.lk-rsz::after{content:"";position:absolute;top:50%;transform:translateY(-50%);width:3px;height:42%;border-radius:2px;background:var(--muted);opacity:0;transition:opacity .12s}
+.lk-rsz.l::after{left:2px}.lk-rsz.r::after{right:2px}
+.lk-ticket:hover .lk-rsz::after{opacity:.45}.lk-rsz:hover::after{opacity:.9}
+.lk-ticket.resizing{box-shadow:0 3px 12px rgba(0,0,0,.22);cursor:ew-resize}
 .lk-ticket .desc{flex:0 0 auto;font-weight:600;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lk-ticket .meta{flex:0 0 auto;font-size:10.5px;line-height:1.3;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
 .lk-ticket .dot{width:7px;height:7px;border-radius:50%;flex:none}
@@ -385,6 +391,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV54", date: "2026-06-21", items: ["Planning Board (Day view): you can now drag the left or right edge of an activity to change its start or finish. Hover near an edge and the cursor becomes a resize arrow; drag in whole-day steps, minimum one day. Available to admins (and to members on their own activities that are not yet committed)"] },
   { rev: "REV53", date: "2026-06-21", items: ["Admin > Companies: company names are now editable inline, like buildings, levels, zones and systems. Type a new name and press Enter or click away; it updates everywhere the company is shown. Activities stay linked because they reference the company, not its name"] },
   { rev: "REV52", date: "2026-06-21", items: ["Changed atNorth to atnorth (lowercase) on the Help page and in the Weekly Report, to match the logo"] },
   { rev: "REV51", date: "2026-06-21", items: ["Restored the Project and App name (from Admin settings) to the top bar on every page, set just after the customer logo with a divider: project name in bold and app name as a small accent tag. The per-page title stays gone"] },
@@ -479,6 +486,7 @@ export default function App({ session }) {
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
+  const [resize, setResize] = useState(null);
   const [navOpen, setNavOpen] = useState(() => { try { return localStorage.getItem("fin04_nav") !== "0"; } catch (e) { return true; } });
   const toggleNav = () => setNavOpen((o) => { const n = !o; try { localStorage.setItem("fin04_nav", n ? "1" : "0"); } catch (e) {} return n; });
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
@@ -622,6 +630,32 @@ export default function App({ session }) {
     }) }), { action: "Move activity", detail: `${a.desc} to ${fmtISO(addDays(anchor, dayIdx))}` });
     dragId.current = null;
   };
+  const resizable = (a) => !a.isMilestone && canEdit(a) && (isAdmin || !a.committed);
+  const commitResize = (a, edge, delta) => {
+    update((p) => ({ ...p, activities: p.activities.map((x) => {
+      if (x.id !== a.id) return x;
+      if (edge === "r") return { ...x, duration: Math.max(1, x.duration + delta) };
+      return { ...x, start: fmtISO(addDays(parseD(x.start), delta)), duration: Math.max(1, x.duration - delta) };
+    }) }), { action: "Resize activity", detail: `${a.desc} (${edge === "l" ? "start" : "finish"} ${delta > 0 ? "+" : ""}${delta}d)` });
+  };
+  const startResize = (e, a, edge) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!resizable(a)) return;
+    const tk = e.currentTarget.closest(".lk-tk");
+    const dayW = tk && tk.offsetWidth ? tk.offsetWidth / cols : 36;
+    const startX = e.clientX, origDur = a.duration;
+    let last = 0;
+    const onMove = (ev) => {
+      let d = Math.round((ev.clientX - startX) / dayW);
+      d = edge === "l" ? Math.min(d, origDur - 1) : Math.max(d, -(origDur - 1));
+      if (d !== last) { last = d; setResize({ id: a.id, edge, delta: d }); }
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp);
+      setResize(null); if (last !== 0) commitResize(a, edge, last);
+    };
+    window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
+  };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
       start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [] };
@@ -670,7 +704,9 @@ export default function App({ session }) {
   const fmtWC = (d) => `${d.getDate()} ${d.toLocaleString("en-GB", { month: "short" })}`;
 
   const Ticket = ({ a, row }) => {
-    const s = Math.max(0, sU(a)), e = Math.min(cols - 1, eU(a));
+    const rz = resize && resize.id === a.id ? resize : null;
+    let s = Math.max(0, sU(a)), e = Math.min(cols - 1, eU(a));
+    if (rz) { if (rz.edge === "l") s = Math.max(0, Math.min(e, sU(a) + rz.delta)); else e = Math.min(cols - 1, Math.max(s, eU(a) + rz.delta)); }
     const lv = lvOf(LV, a.level);
     const editable = canEdit(a);
     const movable = isAdmin || (editable && !a.committed);
@@ -685,9 +721,9 @@ export default function App({ session }) {
     const spot = makeReady && constrained && a.startOff < mk;
     const dim = makeReady && !spot;
     return (
-      <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
-        draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
+      <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "")}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)) }}
+        draggable={movable && !rz} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <div className="desc">{a.desc || "Untitled activity"}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
@@ -698,6 +734,7 @@ export default function App({ session }) {
           {a.knockOn > 0 && a.status !== "complete" && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
+        {grain === "day" && resizable(a) && <><div className="lk-rsz l" title="Drag to change the start" onMouseDown={(ev) => startResize(ev, a, "l")} /><div className="lk-rsz r" title="Drag to change the finish" onMouseDown={(ev) => startResize(ev, a, "r")} /></>}
       </div>);
   };
 
