@@ -40,7 +40,7 @@ export async function loadAll(session) {
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
   return {
-    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name })),
+    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "" })),
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
     levels: levelsObj,
@@ -89,7 +89,7 @@ export async function syncCollections(prev, next, session) {
   if (next.companies !== prev.companies) {
     const nm = Object.fromEntries(next.companies.map((c) => [c.id, c]));
     const pm = Object.fromEntries(prev.companies.map((c) => [c.id, c]));
-    const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name).map((c) => ({ id: c.id, name: c.name }));
+    const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name || (pm[c.id].logoUrl || "") !== (c.logoUrl || "")).map((c) => ({ id: c.id, name: c.name, logo_url: c.logoUrl || null }));
     const del = prev.companies.filter((c) => !nm[c.id]).map((c) => c.id);
     if (ups.length) ops.push(supabase.from("companies").upsert(ups));
     if (del.length) ops.push(supabase.from("companies").delete().in("id", del));
@@ -211,6 +211,16 @@ export async function uploadLogo(file) {
   const url = data.publicUrl;
   await updateBranding({ logo_url: url });
   return url;
+}
+
+// Admin: upload a per-company logo, return its public URL (caller stores it on the company).
+export async function uploadCompanyLogo(file, companyId) {
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const path = `company-${companyId}-${Date.now()}.${ext}`;
+  const up = await supabase.storage.from("branding").upload(path, file, { upsert: true, cacheControl: "3600" });
+  if (up.error) throw up.error;
+  const { data } = supabase.storage.from("branding").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export function subscribeAll(onChange) {

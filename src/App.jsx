@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit } from "./data";
+import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -38,6 +38,7 @@ const css = `
 .lk-spacer{flex:1}
 .lk-sel{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:inherit;cursor:pointer}
 .lk-who{display:flex;align-items:center;gap:7px;font-size:12px}
+.lk-colead{height:22px;max-width:96px;object-fit:contain;display:block;border-radius:3px}
 .lk-pill{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
 .lk-pill.admin{background:#7C3AED;color:#fff}.lk-pill.member{background:var(--chipbg);color:var(--accent)}
 .lk-metrics{display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
@@ -58,6 +59,7 @@ const css = `
   display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
 .lk-llbl .cnt{font-size:9.5px;color:var(--muted);font-weight:500}
 .lk-llbl .sw{width:8px;height:8px;border-radius:2px;flex:none}
+.lk-lanelogo{height:24px;max-width:124px;object-fit:contain;object-position:left center;display:block;margin-bottom:3px}
 .lk-track{position:relative}
 .lk-under{position:absolute;inset:0;display:grid;z-index:0}
 .lk-cell{border-right:1px solid var(--line);cursor:cell}
@@ -377,6 +379,8 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV43", date: "2026-06-21", items: ["Planning Board: when grouped by Company, each swimlane label now shows the company logo (if uploaded) with the company name underneath"] },
+  { rev: "REV42", date: "2026-06-21", items: ["Admin can upload a logo per company (Project setup, Companies). The logo replaces the company name text in the header beside each user's name, between the name and Sign out. Remove the logo to fall back to the text"] },
   { rev: "REV41", date: "2026-06-21", items: ["Planning Board swimlane grouping now offers Level and Zone instead of Building (Building only appears when a project has more than one building); dragging a card between Level or Zone lanes re-tags its Level or Zone", "Import window: the title bar now stays fixed to the top of the popup and only the content below it scrolls, instead of the banner sticking to the browser window"] },
   { rev: "REV40", date: "2026-06-21", items: ["Admin Users: new Invite filter (All, Pending, Accepted) to quickly find who still has not accepted their invite"] },
   { rev: "REV39", date: "2026-06-21", items: ["Light/dark theme toggle now sits next to your name on every page, not just the Planning Board", "Admin: the Project setup submenu Settings is now called Lookahead (lookahead length and make-ready window)"] },
@@ -500,6 +504,7 @@ export default function App({ session }) {
   const todayOffset = useMemo(() => Math.round((todayMid() - anchor) / DAYMS), [anchor]);
   const days = useMemo(() => Array.from({ length: DAYS }, (_, i) => addDays(anchor, i)), [anchor, DAYS]);
   const coName = (id) => (S.companies.find((c) => c.id === id) || {}).name || "Unassigned";
+  const coLogo = (id) => (S.companies.find((c) => c.id === id) || {}).logoUrl || "";
   const locCode = (a) => [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join(".");
 
   const visible = useMemo(() => {
@@ -754,7 +759,7 @@ export default function App({ session }) {
           <div className="lk-who">
             <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
             <span style={{ fontWeight: 600 }}>{cu.name}</span>
-            <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
+            {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
             <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
           </div>
           <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
@@ -795,10 +800,12 @@ export default function App({ session }) {
           if (S.laneBy !== "level" && la.length === 0) return null;
           const rows = []; la.forEach((a) => { const su = sU(a), eu = eU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; });
           const sw = S.laneBy === "level" ? lvOf(LV, lane).color : "var(--muted)";
+          const co = S.laneBy === "company" ? S.companies.find((c) => c.name === lane) : null;
+          const laneLogo = co ? (co.logoUrl || "") : "";
           return (
             <div key={lane} className="lk-lane" style={{ gridTemplateColumns: gridCols, minWidth: minW }}>
-              <div className="lk-llbl"><span className="sw" style={{ background: sw }} />
-                <div>{S.laneBy === "level" ? `${lane} · ${lvOf(LV, lane).name}` : lane}<div className="cnt mono">{la.length} act</div></div></div>
+              <div className="lk-llbl">{!laneLogo && <span className="sw" style={{ background: sw }} />}
+                <div style={{ minWidth: 0 }}>{laneLogo && <img className="lk-lanelogo" src={laneLogo} alt={lane} />}<div className="lanenm">{S.laneBy === "level" ? `${lane} · ${lvOf(LV, lane).name}` : lane}</div><div className="cnt mono">{la.length} act</div></div></div>
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={lane} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${Math.max(1, rows.length)},minmax(48px,auto))` }}>
@@ -848,7 +855,7 @@ export default function App({ session }) {
         <div className="lk-who">
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
-          <span className={"lk-pill " + cu.role}>{cu.role === "admin" ? "Admin" : coName(cu.companyId)}</span>
+          {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
       </div>}
@@ -1274,11 +1281,18 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         <div className={"lk-subbody" + (tab === "users" || tab === "audit" ? " wide" : "")}><div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
-            const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name]) : S[tab].map((x) => [x, x]);
+            const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || ""]) : S[tab].map((x) => [x, x]);
             return <>
-              <div className="lk-list">{items.map(([id, name]) => <div key={id} className="lk-li">{tab === "systems"
+              <div className="lk-list">{items.map(([id, name, logo]) => <div key={id} className="lk-li">{tab === "systems"
                 ? <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
-                : <span className="g">{name}</span>}<button onClick={() => delList(tab, id, label)}><Icon n="trash" s={14} /></button></div>)}</div>
+                : <><span className="g" style={{ flex: 1 }}>{name}</span>
+                  {logo && <img src={logo} alt="" style={{ height: 22, maxWidth: 84, objectFit: "contain" }} />}
+                  <label className="lk-btn" style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 11, padding: "4px 8px", margin: 0 }} title="Upload a PNG logo for this company. It replaces the company name in the header next to each user.">
+                    <Icon n="upload" s={12} />{logo ? "Replace" : "Logo"}
+                    <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { const url = await uploadCompanyLogo(f, id); update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, logoUrl: url } : c) }), { action: "Company logo set", detail: name }); } catch (x) { alert("Logo upload failed: " + (x.message || x)); } e.target.value = ""; }} />
+                  </label>
+                  {logo && <button title="Remove logo and show the company name again" onClick={() => update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, logoUrl: "" } : c) }), { action: "Company logo removed", detail: name })}><Icon n="x" s={13} /></button>}
+                </>}<button onClick={() => delList(tab, id, label)}><Icon n="trash" s={14} /></button></div>)}</div>
               <div className="lk-add"><input className="lk-in" placeholder={`Add ${label}…`} value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList(tab, label)} /><button className="lk-btn primary" onClick={() => addList(tab, label)}><Icon n="plus" s={15} /></button></div>
             </>;
           })()}
