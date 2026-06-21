@@ -379,6 +379,8 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV48", date: "2026-06-21", items: ["Delete confirmation now applies across Admin too. Deleting a company, building, level, zone, system, Cx stage or user asks 'Are you sure?' with Yes and No first. Cx stage still tells you how many activities will be moved"] },
+  { rev: "REV47", date: "2026-06-21", items: ["New / Edit Activity: clicking the dimmed area outside the window no longer discards what you typed. The window stays put until you Save, Cancel, or close it with the X", "Deleting an activity now asks 'Delete this activity?' with Yes and No before removing it"] },
   { rev: "REV46", date: "2026-06-21", items: ["Schedule Gantt: clicking a bar or milestone now opens the activity card popup (like the Calendar and Workload views) instead of jumping straight to the Planning Board. Open the card to go to the board"] },
   { rev: "REV45", date: "2026-06-21", items: ["Fix: blank page on load introduced in REV44. The theme-aware customer logo was being read before data finished loading, which threw on first render. Now guarded"] },
   { rev: "REV44", date: "2026-06-21", items: ["Logos now support separate light-mode and dark-mode versions, for both the customer logo and each company logo. The board, headers and lane labels show the right one for the current theme. If you upload only one, it is used in both modes. Admin upload boxes preview the dark version on a dark background"] },
@@ -930,6 +932,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditLoaded, setAuditLoaded] = useState(false);
   const [auditRows, setAuditRows] = useState([]);
+  const [confirmDel, setConfirmDel] = useState(false);
   const [cText, setCText] = useState("");
   const [cOwner, setCOwner] = useState("");
   const [cDue, setCDue] = useState("");
@@ -965,7 +968,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
   const predOptions = (S.activities || []).filter((x) => x.id !== a.id && !descend.has(x.id) && !(a.predecessors || []).includes(x.id));
   const predLabel = (id) => { const x = (S.activities || []).find((p) => p.id === id); return x ? `#${x.code ?? "?"} ${x.desc || "Untitled"}` : "(removed)"; };
   return (
-    <div className="lk-bg" onClick={onClose}><style>{css}</style>
+    <div className="lk-bg"><style>{css}</style>
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
@@ -1066,7 +1069,9 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
           </div>}
         </div>
         {canEdit && <div className="lk-df">
-          {!isNew && <button className="lk-btn" onClick={() => onDelete(a)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>}
+          {!isNew && (confirmDel
+            ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete this activity?</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => onDelete(a)}>Yes, delete</button><button className="lk-btn" onClick={() => setConfirmDel(false)}>No</button></span>
+            : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
           <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11, color: "var(--muted)", alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
           <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
         </div>}
@@ -1102,6 +1107,8 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [t3Input, setT3Input] = useState({});
   const [copyFrom, setCopyFrom] = useState({});
   const addList = (key, label) => { if (!nv.trim()) return; update((p) => ({ ...p, [key]: key === "companies" ? [...p.companies, { id: uid("co"), name: nv.trim() }] : [...p[key], nv.trim()] }), { action: "Add " + label, detail: nv.trim() }); setNv(""); };
+  const [confirmAsk, setConfirmAsk] = useState(null);
+  const askDel = (msg, fn) => setConfirmAsk({ msg, fn });
   const delList = (key, val, label) => update((p) => {
     const n = { ...p };
     if (key === "companies") n.companies = p.companies.filter((c) => c.id !== val);
@@ -1111,7 +1118,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
   const renameSystem = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if (S.systems.some((s) => s !== oldName && s.toLowerCase() === name.toLowerCase())) { alert(`System "${name}" already exists.`); return; } update((p) => ({ ...p, systems: p.systems.map((s) => s === oldName ? name : s), activities: p.activities.map((a) => a.system === oldName ? { ...a, system: name } : a) }), { action: "Rename system", detail: `${oldName} -> ${name}` }); };
   const addLevel = () => { const used = Object.keys(S.levels); let key = (lvKey || "").trim().toUpperCase().replace(/\s+/g, ""); if (!key) { let n = used.length + 1; key = "L" + n; while (S.levels[key]) { n++; key = "L" + n; } } if (S.levels[key]) { alert(`Cx stage "${key}" already exists.`); return; } const name = (lvName || "").trim() || "New stage"; update((p) => ({ ...p, levels: { ...p.levels, [key]: { name, color: lvColor || "#64748B", sort: Object.keys(p.levels).length } } }), { action: "Add Cx stage", detail: `${key} ${name}` }); setLvKey(""); setLvName(""); setLvColor("#64748B"); };
-  const delLevel = (k) => { const keys = Object.keys(S.levels); if (keys.length <= 1) { alert("Keep at least one Cx stage."); return; } const fallback = keys.find((x) => x !== k); const used = S.activities.filter((a) => a.level === k).length; if (used && !window.confirm(`${used} activit${used === 1 ? "y" : "ies"} use ${k}. Delete it and move them to ${fallback}?`)) return; update((p) => { const lv = { ...p.levels }; delete lv[k]; return { ...p, levels: lv, activities: p.activities.map((a) => a.level === k ? { ...a, level: fallback } : a) }; }, { action: "Delete Cx stage", detail: k }); };
+  const delLevel = (k) => { const keys = Object.keys(S.levels); if (keys.length <= 1) { alert("Keep at least one Cx stage."); return; } const fallback = keys.find((x) => x !== k); const used = S.activities.filter((a) => a.level === k).length; const msg = used ? `${used} activit${used === 1 ? "y" : "ies"} use ${k}. Delete it and move them to ${fallback}?` : `Delete Cx stage ${k}?`; askDel(msg, () => update((p) => { const lv = { ...p.levels }; delete lv[k]; return { ...p, levels: lv, activities: p.activities.map((a) => a.level === k ? { ...a, level: fallback } : a) }; }, { action: "Delete Cx stage", detail: k })); };
   const downloadCsvTemplate = () => { const headers = ["Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"]; const example = ["UPS module SAT", (S.companies[0] || {}).name || "", S.areas[0] || "", "", "", S.systems[0] || "", Object.keys(S.levels)[0] || "L2", fmtISO(new Date()), "2", "No", "No", "", "Example row - delete before importing"]; downloadFile("FIN04-activities-template.csv", toCSV(headers, [example])); };
   const [tplBusy, setTplBusy] = useState(false);
   const downloadAdminTemplate = async () => {
@@ -1298,7 +1305,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                     </label>
                     {url && <button title={"Remove " + lbl.toLowerCase() + " logo"} style={{ padding: 2 }} onClick={() => update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, [k === "dark" ? "logoDark" : "logoUrl"]: "" } : c) }), { action: "Company logo removed", detail: name + " (" + lbl + ")" })}><Icon n="x" s={11} /></button>}
                   </span>)}
-                </>}<button onClick={() => delList(tab, id, label)}><Icon n="trash" s={14} /></button></div>)}</div>
+                </>}<button onClick={() => askDel('Delete "' + name + '"' + (tab === "companies" ? " and unassign it from any activities?" : "?"), () => delList(tab, id, label))}><Icon n="trash" s={14} /></button></div>)}</div>
               <div className="lk-add"><input className="lk-in" placeholder={`Add ${label}…`} value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList(tab, label)} /><button className="lk-btn primary" onClick={() => addList(tab, label)}><Icon n="plus" s={15} /></button></div>
             </>;
           })()}
@@ -1306,14 +1313,14 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             <div className="lk-list">{S.areas.map((area) => {
               const subs = (S.subAreas || []).filter((s) => s.area === area).map((s) => s.name).sort();
               return <div key={area} style={{ borderBottom: "1px solid var(--line)", padding: "6px 0" }}>
-                <div className="lk-li" style={{ borderBottom: 0, gap: 6 }}><input className="lk-in" key={"a:" + area} defaultValue={area} style={{ fontWeight: 600, flex: 1 }} title="Rename building (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameArea(area, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = area; e.target.blur(); } }} onBlur={(e) => renameArea(area, e.target.value)} /><button title="Delete building" onClick={() => delList("areas", area, "area")}><Icon n="trash" s={14} /></button></div>
+                <div className="lk-li" style={{ borderBottom: 0, gap: 6 }}><input className="lk-in" key={"a:" + area} defaultValue={area} style={{ fontWeight: 600, flex: 1 }} title="Rename building (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameArea(area, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = area; e.target.blur(); } }} onBlur={(e) => renameArea(area, e.target.value)} /><button title="Delete building" onClick={() => askDel('Delete building "' + area + '" and its levels and zones?', () => delList("areas", area, "area"))}><Icon n="trash" s={14} /></button></div>
                 <div style={{ paddingLeft: 14 }}>
                   {subs.map((sn) => { const t3 = (S.tier3s || []).filter((t) => t.area === area && t.subArea === sn).map((t) => t.name).sort(); const k = area + "\u0001" + sn; const sibs = subs.filter((x) => x !== sn && (S.tier3s || []).some((t) => t.area === area && t.subArea === x)); return <div key={sn} style={{ paddingBottom: 4 }}>
                     <div className="lk-li" style={{ borderBottom: 0, gap: 6, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "var(--muted)" }}>↳</span><input className="lk-in" key={"s:" + area + ":" + sn} defaultValue={sn} style={{ flex: 1, fontSize: 12, minWidth: 80 }} title="Rename level" onKeyDown={(e) => { if (e.key === "Enter") { renameSub(area, sn, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = sn; e.target.blur(); } }} onBlur={(e) => renameSub(area, sn, e.target.value)} />
                       {sibs.length > 0 && <><select className="lk-select" style={{ fontSize: 11, maxWidth: 150 }} value={copyFrom[k] || ""} onChange={(e) => setCopyFrom({ ...copyFrom, [k]: e.target.value })}><option value="">Copy zones from…</option>{sibs.map((x) => <option key={x} value={x}>{x} ({(S.tier3s || []).filter((t) => t.area === area && t.subArea === x).length})</option>)}</select><button className="lk-btn" style={{ fontSize: 11 }} title="Copy every zone / room from the chosen level into this one" disabled={!copyFrom[k]} onClick={() => copyZones(area, copyFrom[k], sn)}>Copy</button></>}
-                      <button title="Delete level" onClick={() => delSub(area, sn)}><Icon n="trash" s={13} /></button></div>
+                      <button title="Delete level" onClick={() => askDel('Delete level "' + sn + '" and its zones?', () => delSub(area, sn))}><Icon n="trash" s={13} /></button></div>
                     <div style={{ paddingLeft: 16 }}>
-                      {t3.map((tn) => <div key={tn} className="lk-li" style={{ borderBottom: 0, gap: 6 }}><span style={{ fontSize: 11.5, color: "var(--muted)" }}>↳↳</span><input className="lk-in" key={"t:" + area + ":" + sn + ":" + tn} defaultValue={tn} style={{ flex: 1, fontSize: 11.5, minWidth: 80 }} title="Rename zone / room" onKeyDown={(e) => { if (e.key === "Enter") { renameT3(area, sn, tn, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = tn; e.target.blur(); } }} onBlur={(e) => renameT3(area, sn, tn, e.target.value)} /><button title="Delete zone / room" onClick={() => delT3(area, sn, tn)}><Icon n="trash" s={12} /></button></div>)}
+                      {t3.map((tn) => <div key={tn} className="lk-li" style={{ borderBottom: 0, gap: 6 }}><span style={{ fontSize: 11.5, color: "var(--muted)" }}>↳↳</span><input className="lk-in" key={"t:" + area + ":" + sn + ":" + tn} defaultValue={tn} style={{ flex: 1, fontSize: 11.5, minWidth: 80 }} title="Rename zone / room" onKeyDown={(e) => { if (e.key === "Enter") { renameT3(area, sn, tn, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = tn; e.target.blur(); } }} onBlur={(e) => renameT3(area, sn, tn, e.target.value)} /><button title="Delete zone / room" onClick={() => askDel('Delete zone / room "' + tn + '"?', () => delT3(area, sn, tn))}><Icon n="trash" s={12} /></button></div>)}
                       <div className="lk-add"><input className="lk-in" placeholder="Add zone / room…" value={t3Input[k] || ""} onChange={(e) => setT3Input({ ...t3Input, [k]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addT3(area, sn)} /><button className="lk-btn" onClick={() => addT3(area, sn)}><Icon n="plus" s={14} /></button></div>
                     </div>
                   </div>; })}
@@ -1355,7 +1362,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   <button title="View this user's audit trail" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); }} style={{ fontSize: 13, lineHeight: 1 }}>{"\uD83D\uDCDC"}</button>
                   <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
                   <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
-                  {u.id !== S.currentUserId ? <button title="Remove user" onClick={() => delUser(u.id, u.name)}><Icon n="trash" s={14} /></button> : <span style={{ width: 20 }} />}
+                  {u.id !== S.currentUserId ? <button title="Remove user" onClick={() => askDel('Remove ' + (u.name || "this user") + ' from the project?', () => delUser(u.id, u.name))}><Icon n="trash" s={14} /></button> : <span style={{ width: 20 }} />}
                 </div>
               </div>; };
               if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No users match these filters.</div>;
@@ -1502,6 +1509,13 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           </>}
         </div></div>
       {jsonPreview && <ImportReview obj={jsonPreview} S={S} onClose={() => setJsonPreview(null)} onApply={(producer, detail) => { update(producer, { action: "Import JSON (merge)", detail }); setJsonPreview(null); setImpMsg("Imported JSON with your conflict choices."); }} />}
+      {confirmAsk && <div className="lk-modal-bg" onClick={() => setConfirmAsk(null)}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+          <div className="lk-dh"><h3>Are you sure?</h3><button className="lk-btn icon" onClick={() => setConfirmAsk(null)}><Icon n="x" /></button></div>
+          <div className="bd"><div style={{ fontSize: 14, lineHeight: 1.5 }}>{confirmAsk.msg}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>This cannot be undone.</div></div>
+          <div className="rep-foot"><button className="lk-btn" onClick={() => setConfirmAsk(null)}>No</button><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => { const fn = confirmAsk.fn; setConfirmAsk(null); fn && fn(); }}><Icon n="trash" s={14} />Yes, delete</button></div>
+        </div>
+      </div>}
     </div>);
 }
 
