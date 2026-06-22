@@ -393,7 +393,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
-  { rev: "REV56", date: "2026-06-21", items: ["Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it", "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users", "Activity Table: the Building filter only shows on projects with more than one building"] },
+  { rev: "REV56", date: "2026-06-21", items: ["Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it", "Companies now have a short description (role & scope), editable inline in Admin > Companies. On the Planning Board grouped by Company, click a company's logo to see a popup card with that role & scope", "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users", "Activity Table: the Building filter only shows on projects with more than one building"] },
   { rev: "REV55", date: "2026-06-21", items: ["Weekly DLP Report: new Light / Dark choice in the report window. Light is unchanged; Dark renders the whole report on a dark sheet. To keep the dark background when saving to PDF, tick 'Background graphics' in the browser print dialog"] },
   { rev: "REV54", date: "2026-06-21", items: ["Planning Board (Day view): you can now drag the left or right edge of an activity to change its start or finish. Hover near an edge and the cursor becomes a resize arrow; drag in whole-day steps, minimum one day. Available to admins (and to members on their own activities that are not yet committed)"] },
   { rev: "REV53", date: "2026-06-21", items: ["Admin > Companies: company names are now editable inline, like buildings, levels, zones and systems. Type a new name and press Enter or click away; it updates everywhere the company is shown. Activities stay linked because they reference the company, not its name"] },
@@ -492,6 +492,7 @@ export default function App({ session }) {
   const [ytt, setYtt] = useState(false);
   const [resize, setResize] = useState(null);
   const [metricDrill, setMetricDrill] = useState(null);
+  const [companyInfo, setCompanyInfo] = useState(null);
   const [navOpen, setNavOpen] = useState(() => { try { return localStorage.getItem("fin04_nav") !== "0"; } catch (e) { return true; } });
   const toggleNav = () => setNavOpen((o) => { const n = !o; try { localStorage.setItem("fin04_nav", n ? "1" : "0"); } catch (e) {} return n; });
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
@@ -866,7 +867,7 @@ export default function App({ session }) {
           return (
             <div key={lane} className="lk-lane" style={{ gridTemplateColumns: gridCols, minWidth: minW }}>
               <div className="lk-llbl">{!laneLogo && <span className="sw" style={{ background: sw }} />}
-                <div style={{ minWidth: 0 }}>{laneLogo && <img className="lk-lanelogo" src={laneLogo} alt={lane} />}<div className="lanenm">{S.laneBy === "level" ? `${lane} · ${lvOf(LV, lane).name}` : lane}</div><div className="cnt mono">{la.length} act</div></div></div>
+                <div style={{ minWidth: 0 }}>{laneLogo && <img className="lk-lanelogo" src={laneLogo} alt={lane} style={{ cursor: co ? "pointer" : "default" }} title={co ? "Company role & scope" : undefined} onClick={() => co && setCompanyInfo(co)} />}<div className="lanenm">{S.laneBy === "level" ? `${lane} · ${lvOf(LV, lane).name}` : lane}</div><div className="cnt mono">{la.length} act</div></div></div>
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={lane} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${Math.max(1, rows.length)},minmax(48px,auto))` }}>
@@ -918,6 +919,7 @@ export default function App({ session }) {
 
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
+      {companyInfo && <CompanyModal co={companyInfo} logo={pickLogo(companyInfo)} S={S} onClose={() => setCompanyInfo(null)} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {page === "board" && ytt && (() => {
         const cols = [["Yesterday", todayOffset - 1], ["Today", todayOffset], ["Tomorrow", todayOffset + 1]];
@@ -1159,6 +1161,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
   const renameSystem = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if (S.systems.some((s) => s !== oldName && s.toLowerCase() === name.toLowerCase())) { alert(`System "${name}" already exists.`); return; } update((p) => ({ ...p, systems: p.systems.map((s) => s === oldName ? name : s), activities: p.activities.map((a) => a.system === oldName ? { ...a, system: name } : a) }), { action: "Rename system", detail: `${oldName} -> ${name}` }); };
   const renameCompany = (id, raw) => { const name = (raw || "").trim(); const cur = S.companies.find((c) => c.id === id); if (!cur || !name || name === cur.name) return; if (S.companies.some((c) => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) { alert(`Company "${name}" already exists.`); return; } update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, name } : c) }), { action: "Rename company", detail: `${cur.name} -> ${name}` }); };
+  const setCompanyDesc = (id, raw) => { const description = (raw || "").trim(); const cur = S.companies.find((c) => c.id === id); if (!cur || (cur.description || "") === description) return; update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, description } : c) }), { action: "Edit company description", detail: cur.name }); };
   const addLevel = () => { const used = Object.keys(S.levels); let key = (lvKey || "").trim().toUpperCase().replace(/\s+/g, ""); if (!key) { let n = used.length + 1; key = "L" + n; while (S.levels[key]) { n++; key = "L" + n; } } if (S.levels[key]) { alert(`Cx stage "${key}" already exists.`); return; } const name = (lvName || "").trim() || "New stage"; update((p) => ({ ...p, levels: { ...p.levels, [key]: { name, color: lvColor || "#64748B", sort: Object.keys(p.levels).length } } }), { action: "Add Cx stage", detail: `${key} ${name}` }); setLvKey(""); setLvName(""); setLvColor("#64748B"); };
   const delLevel = (k) => { const keys = Object.keys(S.levels); if (keys.length <= 1) { alert("Keep at least one Cx stage."); return; } const fallback = keys.find((x) => x !== k); const used = S.activities.filter((a) => a.level === k).length; const msg = used ? `${used} activit${used === 1 ? "y" : "ies"} use ${k}. Delete it and move them to ${fallback}?` : `Delete Cx stage ${k}?`; askDel(msg, () => update((p) => { const lv = { ...p.levels }; delete lv[k]; return { ...p, levels: lv, activities: p.activities.map((a) => a.level === k ? { ...a, level: fallback } : a) }; }, { action: "Delete Cx stage", detail: k })); };
   const downloadCsvTemplate = () => { const headers = ["Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"]; const example = ["UPS module SAT", (S.companies[0] || {}).name || "", S.areas[0] || "", "", "", S.systems[0] || "", Object.keys(S.levels)[0] || "L2", fmtISO(new Date()), "2", "No", "No", "", "Example row - delete before importing"]; downloadFile("FIN04-activities-template.csv", toCSV(headers, [example])); };
@@ -1335,9 +1338,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         <div className={"lk-subbody" + (tab === "users" || tab === "audit" ? " wide" : "")}><div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
-            const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || "", c.logoDark || ""]) : S[tab].map((x) => [x, x]);
+            const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || "", c.logoDark || "", c.description || ""]) : S[tab].map((x) => [x, x]);
             return <>
-              <div className="lk-list">{items.map(([id, name, logo, logoDark]) => <div key={id} className="lk-li" style={tab === "companies" ? { flexWrap: "wrap", gap: 6 } : undefined}>{tab === "systems"
+              <div className="lk-list">{items.map(([id, name, logo, logoDark, desc]) => <div key={id} className="lk-li" style={tab === "companies" ? { flexWrap: "wrap", gap: 6 } : undefined}>{tab === "systems"
                 ? <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
                 : <><input className="lk-in" key={"co:" + id} defaultValue={name} style={{ flex: 1, minWidth: 90, fontWeight: 600 }} title="Rename company" onKeyDown={(e) => { if (e.key === "Enter") { renameCompany(id, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameCompany(id, e.target.value)} />
                   {[["light", "Light", logo], ["dark", "Dark", logoDark]].map(([k, lbl, url]) => <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid var(--line)", borderRadius: 7, padding: "2px 4px 2px 7px", background: k === "dark" ? "#0f172a" : "transparent" }}>
@@ -1347,7 +1350,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                     </label>
                     {url && <button title={"Remove " + lbl.toLowerCase() + " logo"} style={{ padding: 2 }} onClick={() => update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, [k === "dark" ? "logoDark" : "logoUrl"]: "" } : c) }), { action: "Company logo removed", detail: name + " (" + lbl + ")" })}><Icon n="x" s={11} /></button>}
                   </span>)}
-                </>}<button onClick={() => askDel('Delete "' + name + '"' + (tab === "companies" ? " and unassign it from any activities?" : "?"), () => delList(tab, id, label))}><Icon n="trash" s={14} /></button></div>)}</div>
+                </>}<button onClick={() => askDel('Delete "' + name + '"' + (tab === "companies" ? " and unassign it from any activities?" : "?"), () => delList(tab, id, label))}><Icon n="trash" s={14} /></button>{tab === "companies" && <input className="lk-in" key={"codesc:" + id} defaultValue={desc} placeholder="Short description: role & scope on the project (shown on the board when the logo is clicked)" style={{ flexBasis: "100%", fontSize: 12 }} title="Company role & scope" onKeyDown={(e) => { if (e.key === "Enter") { setCompanyDesc(id, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = desc; e.target.blur(); } }} onBlur={(e) => setCompanyDesc(id, e.target.value)} />}</div>)}</div>
               <div className="lk-add"><input className="lk-in" placeholder={`Add ${label}…`} value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList(tab, label)} /><button className="lk-btn primary" onClick={() => addList(tab, label)}><Icon n="plus" s={15} /></button></div>
             </>;
           })()}
@@ -1656,6 +1659,27 @@ function ImportReview({ obj, S, onClose, onApply }) {
         </div>
       </div>
     </div>);
+}
+
+function CompanyModal({ co, logo, S, onClose }) {
+  return (
+    <div className="lk-bg" onClick={onClose}>
+      <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="ytt-head">
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            {logo ? <img src={logo} alt="" style={{ height: 30, maxWidth: 150, objectFit: "contain" }} /> : <Icon n="shield" s={18} />}
+            <h3 style={{ margin: 0, fontSize: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{co.name}</h3>
+          </div>
+          <button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button>
+        </div>
+        <div className="drill-body" style={{ padding: "14px 16px 18px" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--muted)", marginBottom: 7 }}>Role &amp; Scope</div>
+          {co.description ? <div style={{ fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{co.description}</div>
+            : <div style={{ fontSize: 13, color: "var(--muted)" }}>No description added yet. An admin can add one in Settings, Companies.</div>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {

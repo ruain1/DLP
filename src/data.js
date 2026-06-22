@@ -40,7 +40,7 @@ export async function loadAll(session) {
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
   return {
-    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "" })),
+    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "", description: c.description || "" })),
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
     levels: levelsObj,
@@ -90,7 +90,7 @@ export async function syncCollections(prev, next, session) {
   if (next.companies !== prev.companies) {
     const nm = Object.fromEntries(next.companies.map((c) => [c.id, c]));
     const pm = Object.fromEntries(prev.companies.map((c) => [c.id, c]));
-    const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name || (pm[c.id].logoUrl || "") !== (c.logoUrl || "") || (pm[c.id].logoDark || "") !== (c.logoDark || "")).map((c) => ({ id: c.id, name: c.name, logo_url: c.logoUrl || null, logo_url_dark: c.logoDark || null }));
+    const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name || (pm[c.id].logoUrl || "") !== (c.logoUrl || "") || (pm[c.id].logoDark || "") !== (c.logoDark || "") || (pm[c.id].description || "") !== (c.description || "")).map((c) => ({ id: c.id, name: c.name, logo_url: c.logoUrl || null, logo_url_dark: c.logoDark || null, description: c.description || null }));
     const del = prev.companies.filter((c) => !nm[c.id]).map((c) => c.id);
     if (ups.length) ops.push(supabase.from("companies").upsert(ups));
     if (del.length) ops.push(supabase.from("companies").delete().in("id", del));
