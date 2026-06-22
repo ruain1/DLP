@@ -52,6 +52,8 @@ const css = `
 .lk-metric .v{font-size:21px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .lk-metric .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 .lk-metric .sub{font-size:10.5px;color:var(--muted)}
+.lk-metric.clickable{cursor:pointer;transition:background .12s}
+.lk-metric.clickable:hover{background:var(--hover)}
 .lk-board{flex:1;overflow:auto;position:relative}
 .lk-head{display:grid;position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
 .lk-wk{border-right:1px solid var(--line);padding:6px 9px 3px;font-size:10.5px;font-weight:700;letter-spacing:.04em;border-bottom:1px solid var(--line)}
@@ -391,6 +393,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV56", date: "2026-06-21", items: ["Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it", "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users", "Activity Table: the Building filter only shows on projects with more than one building"] },
   { rev: "REV55", date: "2026-06-21", items: ["Weekly DLP Report: new Light / Dark choice in the report window. Light is unchanged; Dark renders the whole report on a dark sheet. To keep the dark background when saving to PDF, tick 'Background graphics' in the browser print dialog"] },
   { rev: "REV54", date: "2026-06-21", items: ["Planning Board (Day view): you can now drag the left or right edge of an activity to change its start or finish. Hover near an edge and the cursor becomes a resize arrow; drag in whole-day steps, minimum one day. Available to admins (and to members on their own activities that are not yet committed)"] },
   { rev: "REV53", date: "2026-06-21", items: ["Admin > Companies: company names are now editable inline, like buildings, levels, zones and systems. Type a new name and press Enter or click away; it updates everywhere the company is shown. Activities stay linked because they reference the company, not its name"] },
@@ -488,6 +491,7 @@ export default function App({ session }) {
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
   const [resize, setResize] = useState(null);
+  const [metricDrill, setMetricDrill] = useState(null);
   const [navOpen, setNavOpen] = useState(() => { try { return localStorage.getItem("fin04_nav") !== "0"; } catch (e) { return true; } });
   const toggleNav = () => setNavOpen((o) => { const n = !o; try { localStorage.setItem("fin04_nav", n ? "1" : "0"); } catch (e) {} return n; });
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
@@ -824,12 +828,12 @@ export default function App({ session }) {
       </div>
 
       <div className="lk-metrics">
-        <div className="lk-metric"><span className="v">{inWindow.length}</span><span className="l">In lookahead</span></div>
-        <div className="lk-metric"><span className="v" style={{ color: "#0E9384" }}>{ready.length}</span><span className="l">Ready to run</span></div>
-        <div className="lk-metric"><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
-        <div className="lk-metric"><span className="v" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
-        <div className="lk-metric"><span className="v" style={{ color: "#C0392B" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
-        <div className="lk-metric"><span className="v" style={{ color: "#E0A106" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "In Lookahead", items: inWindow })}><span className="v">{inWindow.length}</span><span className="l">In lookahead</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Ready To Run", items: ready })}><span className="v" style={{ color: "#0E9384" }}>{ready.length}</span><span className="l">Ready to run</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Need Make-Ready", items: needMR })}><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Committed This Week", items: committedWk })}><span className="v" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Delayed", items: delayedList })}><span className="v" style={{ color: "#C0392B" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "At Risk", items: atRiskList })}><span className="v" style={{ color: "#E0A106" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
       </div>
 
       <div className="lk-board">
@@ -913,6 +917,7 @@ export default function App({ session }) {
       </div>
 
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
+      {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {page === "board" && ytt && (() => {
         const cols = [["Yesterday", todayOffset - 1], ["Today", todayOffset], ["Tomorrow", todayOffset + 1]];
@@ -1969,7 +1974,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
       <div className="lk-ufilter" style={{ padding: "10px 16px 0", alignItems: "flex-end" }}>
         <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 120 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        {S.areas.length > 1 && <div className="lk-f" style={{ minWidth: 120 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>}
         <div className="lk-f" style={{ minWidth: 90 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 105 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
         <div style={{ position: "relative" }}>
