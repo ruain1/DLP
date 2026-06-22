@@ -183,7 +183,8 @@ const css = `
 .lk-rail.open .lbl{display:inline;font-size:13px;font-weight:600;white-space:nowrap}
 .lk-railtog{color:#67768a!important;margin-bottom:6px}
 .lk-railtog:hover{color:#dfe6ef!important}
-.lk-railppc{text-align:center}
+.lk-railppc{text-align:center;cursor:pointer;border-radius:10px;padding:4px 0;transition:background .12s}
+.lk-railppc:hover{background:#2a333f}
 .lk-rail.open .lk-railppc{text-align:left;padding:0 13px}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .lk-rep-card.clickable{cursor:pointer;transition:border-color .12s,background .12s}
@@ -393,6 +394,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV57", date: "2026-06-22", items: ["Activity duration is calendar days, weekends included. The New / Edit Activity field is now labelled Days (Calendar) and shows the resulting finish date so it is clear weekends are counted (they were never skipped; this makes it explicit)", "The PPC figure at the foot of the left sidebar is now clickable and opens the Analytics page"] },
   { rev: "REV56", date: "2026-06-21", items: ["Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it", "Companies now have a short description (role & scope), editable inline in Admin > Companies. On the Planning Board grouped by Company, click a company's logo to see a popup card with that role & scope", "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users", "Activity Table: the Building filter only shows on projects with more than one building"] },
   { rev: "REV55", date: "2026-06-21", items: ["Weekly DLP Report: new Light / Dark choice in the report window. Light is unchanged; Dark renders the whole report on a dark sheet. To keep the dark background when saving to PDF, tick 'Background graphics' in the browser print dialog"] },
   { rev: "REV54", date: "2026-06-21", items: ["Planning Board (Day view): you can now drag the left or right edge of an activity to change its start or finish. Hover near an edge and the cursor becomes a resize arrow; drag in whole-day steps, minimum one day. Available to admins (and to members on their own activities that are not yet committed)"] },
@@ -783,7 +785,7 @@ export default function App({ session }) {
         <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
-        <div className="lk-railppc" style={{ marginTop: "auto", color: "#9aa7b8" }}>
+        <div className="lk-railppc" title="Open Analytics" onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
         </div>
@@ -1048,7 +1050,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
             <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => set("level", k)}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
           <div className="lk-row">
             <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={dis} onChange={(e) => set("start", e.target.value)} /></div>
-            <div className="lk-f"><label>Days</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={dis} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /></div>
+            <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={dis} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div>
           </div>
           <div className="lk-f"><label>Predecessors <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this starts after these finish; a slip upstream pushes this forward)</span></label>
             {(a.predecessors || []).map((pid) => <div key={pid} className="lk-cstr"><span className="t">{predLabel(pid)}</span>{!dis && <button onClick={() => set("predecessors", a.predecessors.filter((x) => x !== pid))}><Icon n="trash" s={13} /></button>}</div>)}
