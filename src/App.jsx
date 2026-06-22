@@ -80,7 +80,8 @@ const css = `
 .lk-track{position:relative}
 .lk-under{position:absolute;inset:0;display:grid;z-index:0}
 .lk-cell{border-right:1px solid var(--line);cursor:cell}
-.lk-cell.we{background:var(--weekend)}.lk-cell.tod{background:var(--todcell);border-left:2px solid var(--accent)}
+.lk-cell.we{background:var(--weekend)}.lk-cell.tod{background:var(--todcell);position:relative}
+.lk-cell.tod::after{content:"";position:absolute;top:0;bottom:0;left:-5px;width:2px;background:var(--accent);pointer-events:none}
 .lk-cell:hover{background:var(--hover)}.lk-cell.nodrop{cursor:not-allowed}
 .lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;gap:6px;pointer-events:none}
 .lk-ticket{position:relative;pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:12px;
@@ -408,6 +409,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV64", date: "2026-06-22", items: ["Planning Board: the blue current-day line no longer touches the coloured left border of activity cards. It now sits a few pixels clear of the column edge so there is a clean gap between the today line and the card edge"] },
   { rev: "REV63", date: "2026-06-22", items: ["The Assigned To You popup now uses the YTT card format: constraints are grouped under their activity, and each has a tick box so you can acknowledge (clear) it directly in the popup. Acknowledging removes it from your list and drops the badge count. You can clear a constraint assigned to you or your company even if the activity belongs to another company; admins can clear any"] },
   { rev: "REV62", date: "2026-06-22", items: ["Dark mode: the calendar icon inside date fields was a dark glyph on a dark field and almost invisible. It is now inverted to a light icon in dark mode (and left as-is in light mode), driven by the theme so it follows the light/dark toggle"] },
   { rev: "REV61", date: "2026-06-22", items: ["Date fields (planned start, actual start and finish, constraint need-by, report range) now open the calendar picker as soon as you click anywhere on the field, not only on the small calendar icon"] },
