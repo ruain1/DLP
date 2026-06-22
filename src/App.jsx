@@ -131,6 +131,8 @@ const css = `
 .lk-in,.lk-select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--ink);font-family:inherit;width:100%}
 .lk-in:focus,.lk-select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .lk-in:disabled{opacity:.6}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(var(--cal-invert,0));cursor:pointer;opacity:.8}
+input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-row{display:flex;gap:10px}.lk-row>*{flex:1}
 .lk-levels{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 .lk-lvl{border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer;font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:7px;background:var(--card)}
@@ -406,6 +408,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV62", date: "2026-06-22", items: ["Dark mode: the calendar icon inside date fields was a dark glyph on a dark field and almost invisible. It is now inverted to a light icon in dark mode (and left as-is in light mode), driven by the theme so it follows the light/dark toggle"] },
   { rev: "REV61", date: "2026-06-22", items: ["Date fields (planned start, actual start and finish, constraint need-by, report range) now open the calendar picker as soon as you click anywhere on the field, not only on the small calendar icon"] },
   { rev: "REV60", date: "2026-06-22", items: ["Fix: the REV59 build caused a white screen on load. The notification calculations were written as React hooks placed after the app's loading guard, which violates the rules of hooks and crashed the app once data loaded. Rewritten as plain calculations; no behaviour change to the notifications feature"] },
   { rev: "REV59", date: "2026-06-22", items: ["Constraints can now be assigned to a person or a company: in the responsible field of a constraint (activity drawer and Constraints Log), type @ to pick from a list of project members and companies", "New envelope icon in the top bar, between the theme toggle and your name, with a red count badge showing how many open constraints are assigned to you or your company. Click it for a popup list; click any item to open the activity", "Admins receive notifications for constraints assigned to them personally and to the CSN company"] },
@@ -1020,7 +1023,7 @@ export default function App({ session }) {
     </div>);
 }
 
-function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--hover": t.hover, "--chipbg": t.chipbg }; }
+function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; }
 
 function OwnerField({ value, ownerType, ownerId, companies, users, onChange, style, placeholder, dis }) {
   const [open, setOpen] = useState(false);
