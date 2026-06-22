@@ -394,6 +394,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV58", date: "2026-06-22", items: ["Planning Board: the actual-progress bar no longer overshoots the left edge of an activity card or cut across its coloured side border. When work started on plan, the bar now begins neatly under the readiness dot inside the card; bars whose actual start is a later day keep their exact position on the day grid"] },
   { rev: "REV57", date: "2026-06-22", items: ["Activity duration is calendar days, weekends included. The New / Edit Activity field is now labelled Days (Calendar) and shows the resulting finish date so it is clear weekends are counted (they were never skipped; this makes it explicit)", "The PPC figure at the foot of the left sidebar is now clickable and opens the Analytics page"] },
   { rev: "REV56", date: "2026-06-21", items: ["Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it", "Companies now have a short description (role & scope), editable inline in Admin > Companies. On the Planning Board grouped by Company, click a company's logo to see a popup card with that role & scope", "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users", "Activity Table: the Building filter only shows on projects with more than one building"] },
   { rev: "REV55", date: "2026-06-21", items: ["Weekly DLP Report: new Light / Dark choice in the report window. Light is unchanged; Dark renders the whole report on a dark sheet. To keep the dark background when saving to PDF, tick 'Background graphics' in the browser print dialog"] },
@@ -754,7 +755,9 @@ export default function App({ session }) {
     if (eo < 0 || so >= DAYS) return null;
     const su = grain === "day" ? so : Math.floor(so / 7), eu = grain === "day" ? eo : Math.floor(eo / 7);
     const s = Math.max(0, su), e = Math.min(cols - 1, eu);
-    return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: "0 2px 3px", borderRadius: 3, background: a.delayed ? "#C0392B" : "#0E9384", zIndex: 2, pointerEvents: "none" }} />;
+    const startsAtPlanCol = s === Math.max(0, sU(a));
+    const mLeft = startsAtPlanCol ? 16 : 2;
+    return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: `0 2px 3px ${mLeft}px`, borderRadius: 3, background: a.delayed ? "#C0392B" : "#0E9384", zIndex: 2, pointerEvents: "none" }} />;
   };
 
   const Forecast = ({ a, row }) => {
