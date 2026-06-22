@@ -408,6 +408,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV63", date: "2026-06-22", items: ["The Assigned To You popup now uses the YTT card format: constraints are grouped under their activity, and each has a tick box so you can acknowledge (clear) it directly in the popup. Acknowledging removes it from your list and drops the badge count. You can clear a constraint assigned to you or your company even if the activity belongs to another company; admins can clear any"] },
   { rev: "REV62", date: "2026-06-22", items: ["Dark mode: the calendar icon inside date fields was a dark glyph on a dark field and almost invisible. It is now inverted to a light icon in dark mode (and left as-is in light mode), driven by the theme so it follows the light/dark toggle"] },
   { rev: "REV61", date: "2026-06-22", items: ["Date fields (planned start, actual start and finish, constraint need-by, report range) now open the calendar picker as soon as you click anywhere on the field, not only on the small calendar icon"] },
   { rev: "REV60", date: "2026-06-22", items: ["Fix: the REV59 build caused a white screen on load. The notification calculations were written as React hooks placed after the app's loading guard, which violates the rules of hooks and crashed the app once data loaded. Rewritten as plain calculations; no behaviour change to the notifications feature"] },
@@ -629,6 +630,13 @@ export default function App({ session }) {
   const notifCount = myConstraints.length;
   const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
   const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
+  const acknowledgeConstraint = (actId, cId) => {
+    const a = S.activities.find((x) => x.id === actId); if (!a) return;
+    const c = (a.constraints || []).find((y) => y.id === cId); if (!c) return;
+    const mine = isAdmin || (c.ownerType === "user" && c.ownerId === cu.id) || (c.ownerType === "company" && csnCompanyId && c.ownerId === csnCompanyId);
+    if (!mine) return;
+    update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((y) => y.id === cId ? { ...y, done: true } : y) } : x) }), { action: "Acknowledge constraint", detail: `${c.text} (${a.desc})` });
+  };
   const addOption = (kind, name, ctx) => {
     if (!isAdmin) return ""; name = (name || "").trim(); if (!name) return ""; const lc = name.toLowerCase(); ctx = ctx || {};
     if (kind === "company") { const ex = S.companies.find((c) => c.name.toLowerCase() === lc); if (ex) return ex.id; const id = uid("co"); update((p) => ({ ...p, companies: [...p.companies, { id, name }] }), { action: "Add company", detail: name }); return id; }
@@ -960,22 +968,34 @@ export default function App({ session }) {
 
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
-      {notifOpen && <div className="lk-modal-bg" onClick={() => setNotifOpen(false)}>
-        <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
-          <div className="ytt-head">
-            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Assigned To You</h3><span className="ytt-sub">{notifCount} open constraint{notifCount === 1 ? "" : "s"}</span></div>
-            <button className="lk-btn icon" onClick={() => setNotifOpen(false)}><Icon n="x" /></button>
+      {notifOpen && (() => {
+        const seen = {}; const byAct = [];
+        myConstraints.forEach(({ a, c }) => { if (!seen[a.id]) { seen[a.id] = { a, cons: [] }; byAct.push(seen[a.id]); } seen[a.id].cons.push(c); });
+        return <div className="lk-modal-bg" onClick={() => setNotifOpen(false)}>
+          <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
+            <div className="ytt-head">
+              <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Assigned To You</h3><span className="ytt-sub">{notifCount} open constraint{notifCount === 1 ? "" : "s"}. Tick to acknowledge.</span></div>
+              <button className="lk-btn icon" onClick={() => setNotifOpen(false)}><Icon n="x" /></button>
+            </div>
+            <div className="ytt-list" style={{ maxHeight: "70vh", overflow: "auto" }}>
+              {byAct.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing is assigned to you or your company right now.</div>
+                : byAct.map(({ a, cons }) => { const lv = lvOf(LV, a.level); return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
+                    <div className="ytt-card-desc" onClick={() => { setNotifOpen(false); setPage("board"); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
+                    <div className="ytt-card-meta">
+                      <span className="dot" style={{ background: "#E0A106" }} />
+                      {a.committed && <span className="lk-chip commit">will</span>}
+                      {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
+                      <span className="ytt-loc">{coName(a.companyId)} {"\u00b7"} {locCode(a)}</span>
+                    </div>
+                    <div className="ytt-cons">{cons.map((c) => { const over = c.due && c.due < fmtISO(new Date()); return <label key={c.id} className="ytt-con">
+                        <input type="checkbox" checked={false} onChange={() => acknowledgeConstraint(a.id, c.id)} title="Acknowledge / mark cleared" />
+                        <span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className={over ? "ytt-due" : "ytt-meta2"}> {"\u00b7"} need {c.due}</span> : ""}</span>
+                      </label>; })}</div>
+                  </div>; })}
+            </div>
           </div>
-          <div className="ytt-list" style={{ maxHeight: "70vh", overflow: "auto" }}>
-            {notifCount === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing is assigned to you or your company right now.</div>
-              : myConstraints.map(({ a, c }) => { const over = c.due && !c.done && c.due < fmtISO(new Date()); return <div key={a.id + c.id} className={"lk-ncard" + (over ? " over" : "")} onClick={() => { setNotifOpen(false); setPage("board"); setEditing({ ...a }); }} title="Open activity">
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{c.text}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.desc || "Untitled activity"} {"\u00b7"} {coName(a.companyId)}</div>
-                  <div style={{ fontSize: 11, display: "flex", gap: 10, flexWrap: "wrap" }}><span style={{ color: "var(--muted)" }}>To: {c.owner || "-"}</span>{c.due && <span style={{ color: over ? "#C0392B" : "var(--muted)", fontWeight: over ? 700 : 400 }}>need-by {c.due}{over ? " (overdue)" : ""}</span>}</div>
-                </div>; })}
-          </div>
-        </div>
-      </div>}
+        </div>;
+      })()}
       {companyInfo && <CompanyModal co={companyInfo} logo={pickLogo(companyInfo)} S={S} onClose={() => setCompanyInfo(null)} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {page === "board" && ytt && (() => {
