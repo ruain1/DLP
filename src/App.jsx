@@ -406,6 +406,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV60", date: "2026-06-22", items: ["Fix: the REV59 build caused a white screen on load. The notification calculations were written as React hooks placed after the app's loading guard, which violates the rules of hooks and crashed the app once data loaded. Rewritten as plain calculations; no behaviour change to the notifications feature"] },
   { rev: "REV59", date: "2026-06-22", items: ["Constraints can now be assigned to a person or a company: in the responsible field of a constraint (activity drawer and Constraints Log), type @ to pick from a list of project members and companies", "New envelope icon in the top bar, between the theme toggle and your name, with a red count badge showing how many open constraints are assigned to you or your company. Click it for a popup list; click any item to open the activity", "Admins receive notifications for constraints assigned to them personally and to the CSN company"] },
   { rev: "REV58", date: "2026-06-22", items: ["Planning Board: the actual-progress bar no longer overshoots the left edge of an activity card or cut across its coloured side border. When work started on plan, the bar now begins neatly under the readiness dot inside the card; bars whose actual start is a later day keep their exact position on the day grid"] },
   { rev: "REV57", date: "2026-06-22", items: ["Activity duration is calendar days, weekends included. The New / Edit Activity field is now labelled Days (Calendar) and shows the resulting finish date so it is clear weekends are counted (they were never skipped; this makes it explicit)", "The PPC figure at the foot of the left sidebar is now clickable and opens the Analytics page"] },
@@ -606,13 +607,8 @@ export default function App({ session }) {
   const LV = S.levels || DEFAULT_LEVELS;
 
   const isAdmin = cu.role === "admin";
-  const csnCompanyId = useMemo(() => {
-    if (cu.companyId) return cu.companyId;
-    if (cu.role !== "admin") return null;
-    const hit = (S.companies || []).find((c) => (c.name || "").trim().toLowerCase() === "csn");
-    return hit ? hit.id : null;
-  }, [S.companies, cu.companyId, cu.role]);
-  const myConstraints = useMemo(() => {
+  const csnCompanyId = cu.companyId ? cu.companyId : (cu.role === "admin" ? (((S.companies || []).find((c) => (c.name || "").trim().toLowerCase() === "csn") || {}).id || null) : null);
+  const myConstraints = (() => {
     const out = [];
     (S.activities || []).forEach((a) => (a.constraints || []).forEach((c) => {
       if (c.done) return;
@@ -620,7 +616,7 @@ export default function App({ session }) {
       if (mine) out.push({ a, c });
     }));
     return out.sort((x, y) => (x.c.due || "9999").localeCompare(y.c.due || "9999"));
-  }, [S.activities, cu.id, csnCompanyId]);
+  })();
   const notifCount = myConstraints.length;
   const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
   const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
