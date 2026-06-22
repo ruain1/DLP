@@ -131,6 +131,11 @@
   .cadence > .hd{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
   .cadence > .hd .pin{ width:25px;height:25px;border-radius:8px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:600;font-size:13px; }
   .cadence > .hd h2{ font-family:var(--disp); font-weight:600; font-size:15.5px; }
+  .glance{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .glance .g-item{ background:var(--canvas); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
+  .glance .g-item b{ display:block; font-family:var(--disp); font-weight:600; font-size:13.5px; color:var(--ink); margin-bottom:3px; }
+  .glance .g-item span{ font-size:12.5px; color:var(--mut); line-height:1.5; }
+  @media (max-width:640px){ .glance{ grid-template-columns:1fr; } }
   .twocol{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
   .lane h3{ font-family:var(--disp); font-weight:600; font-size:13.5px; display:flex; align-items:center; gap:8px; margin-bottom:7px; }
   .lane h3 .dot{ width:9px; height:9px; border-radius:50%; }
@@ -240,9 +245,10 @@
     <article class="card span2">
       <div class="hd"><span class="num">1</span><h2>Find your way around</h2><span class="tag">Everyone</span></div>
       <ol class="steps">
-        <li>Two schedule views from the top bar. <b>Swimlane</b> gives draggable lanes, grouped by <b>Company, Building, Level or Cx Stage</b>. <b>Gantt</b> gives one row per activity, sorted by start, with bars you drag to reschedule, dependency links between them, and milestones as diamonds.</li>
-        <li><b>Day or Week</b> zoom applies to both. In Week, a drag snaps to the week you drop it on.</li>
+        <li>Two schedule views from the top bar. <b>Swimlane</b> gives draggable lanes, grouped by <b>Company, Level, Zone or Cx Stage</b> (and by Building only on projects with more than one). <b>Gantt</b> gives one row per activity, sorted by start, with bars you drag to reschedule, dependency links between them, and milestones as diamonds.</li>
+        <li><b>Day or Week</b> zoom applies to both. In Week, a drag snaps to the week you drop it on. On <b>Day</b> view you can also drag either end of a bar to change its start or finish in whole-day steps.</li>
         <li>The <b>lookahead length</b> (2, 4 or 6 weeks, default 4) and the make-ready window are set for the project.</li>
+        <li>Two focus toggles sit in the toolbar. <b>Make-ready</b> fades everything that is ready and spotlights constrained work inside the window. <b>YTT</b> (Yesterday, Today, Tomorrow) narrows the board to just those three days and the activities carrying open constraints, for a tight daily stand-up view; toggle it off to see the full lookahead again.</li>
       </ol>
     </article>
 
@@ -309,7 +315,7 @@
       <div class="hd"><span class="num">8</span><h2>Table view</h2><span class="tag">Anytime</span></div>
       <ol class="steps">
         <li>A spreadsheet of every activity with an <b>edit pen</b> on each row. Same permissions as the board.</li>
-        <li>Filter by <b>search, Company, Status, Building and Cx Stage</b>. Use <b>Columns</b> to show or hide fields, including <b>Witness</b> and <b>Witness time</b> (off by default).</li>
+        <li>Filter by <b>search, Company, Cx Stage and Status</b> (Building appears too on multi-building projects). Use <b>Columns</b> to show or hide fields, including <b>Witness</b> and <b>Witness time</b> (off by default).</li>
         <li><b>Save as default</b> stores your columns and filters on this device, so you land on that view next time.</li>
       </ol>
     </article>
@@ -340,7 +346,7 @@
       <div class="lane daily">
         <h3><span class="dot"></span>Daily Cx meeting <span class="when">every morning</span></h3>
         <ul>
-          <li>Open <b>Make-ready view</b>; walk only the constrained work due inside the window.</li>
+          <li>Flip on <b>YTT</b> (Yesterday, Today, Tomorrow) with <b>Make-ready</b>, so the board shows only the constrained work across those three days; walk that.</li>
           <li>Clear constraints live as make-ready completes; cards flip to ready in the room.</li>
           <li>Update <b>status and actuals</b> on yesterday's committed work; flag anything <span class="chip late">LATE</span>.</li>
           <li>Confirm today's and tomorrow's <span class="chip wit">WIT</span> inspections are booked.</li>
@@ -349,9 +355,20 @@
     </div>
   </section>
 
+  <section class="cadence">
+    <div class="hd"><span class="pin">&#9636;</span><h2>The app at a glance</h2></div>
+    <div class="glance">
+      <div class="g-item"><b>Planning Board</b><span>Your home view: the lookahead as draggable, day-by-day lanes. Add and sequence work, log constraints, commit promises, and run the daily Make-ready and YTT focus. The tiles across the top (In Lookahead, Ready To Run, Need Make-Ready and so on) each open the list of activities behind the number.</span></div>
+      <div class="g-item"><b>Activity Table</b><span>Every activity as a filterable spreadsheet with an edit pen on each row, same permissions as the board. Best for scanning, sorting and quick edits across companies. Save your columns and filters as a default for next time.</span></div>
+      <div class="g-item"><b>Schedule</b><span>The same activities seen as a Gantt, calendar or workload view. Read dependencies between activities, milestones as diamonds, and how the plan lands over time. Drag bars to reschedule work that is not yet committed.</span></div>
+      <div class="g-item"><b>Constraints Log</b><span>One running list of every open make-ready constraint with its owner and need-by date. Edit the wording, owner or date inline and tick items clear; cards flip to ready and the board and metrics update straight away.</span></div>
+      <div class="g-item"><b>Analytics</b><span>The reliability picture: PPC trend week on week, the reasons promises were missed, and breakdowns by company and Cx stage. Click any figure or tile to drill into the exact activities behind it.</span></div>
+    </div>
+  </section>
+
   <footer>
     <span>DLP Digital Planning &middot; FIN04 Help &middot; you edit your own company's work</span>
-    <span class="ver">REV 1</span>
+    <span class="ver">REV 2</span>
   </footer>
 
 </div>
