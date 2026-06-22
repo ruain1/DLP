@@ -406,6 +406,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV61", date: "2026-06-22", items: ["Date fields (planned start, actual start and finish, constraint need-by, report range) now open the calendar picker as soon as you click anywhere on the field, not only on the small calendar icon"] },
   { rev: "REV60", date: "2026-06-22", items: ["Fix: the REV59 build caused a white screen on load. The notification calculations were written as React hooks placed after the app's loading guard, which violates the rules of hooks and crashed the app once data loaded. Rewritten as plain calculations; no behaviour change to the notifications feature"] },
   { rev: "REV59", date: "2026-06-22", items: ["Constraints can now be assigned to a person or a company: in the responsible field of a constraint (activity drawer and Constraints Log), type @ to pick from a list of project members and companies", "New envelope icon in the top bar, between the theme toggle and your name, with a red count badge showing how many open constraints are assigned to you or your company. Click it for a popup list; click any item to open the activity", "Admins receive notifications for constraints assigned to them personally and to the CSN company"] },
   { rev: "REV58", date: "2026-06-22", items: ["Planning Board: the actual-progress bar no longer overshoots the left edge of an activity card or cut across its coloured side border. When work started on plan, the bar now begins neatly under the readiness dot inside the card; bars whose actual start is a later day keep their exact position on the day grid"] },
@@ -531,6 +532,11 @@ export default function App({ session }) {
   useEffect(() => { const ch = subscribeAll(refresh); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { heartbeat(); const t = setInterval(heartbeat, 60000); const onVis = () => { if (document.visibilityState === "visible") heartbeat(); }; document.addEventListener("visibilitychange", onVis); return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); }; }, []);
   useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
+  useEffect(() => {
+    const open = (e) => { const t = e.target; if (t && t.tagName === "INPUT" && t.type === "date" && !t.disabled && !t.readOnly && typeof t.showPicker === "function") { try { t.showPicker(); } catch (err) {} } };
+    document.addEventListener("click", open);
+    return () => document.removeEventListener("click", open);
+  }, []);
   useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
   useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
   useEffect(() => { if (!S) return; const me = S.users.find((u) => u.id === S.currentUserId); if (page === "admin" && !(me && me.role === "admin")) setPage("board"); }, [S, page]);
