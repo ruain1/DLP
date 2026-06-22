@@ -136,6 +136,11 @@
   .glance .g-item b{ display:block; font-family:var(--disp); font-weight:600; font-size:13.5px; color:var(--ink); margin-bottom:3px; }
   .glance .g-item span{ font-size:12.5px; color:var(--mut); line-height:1.5; }
   @media (max-width:640px){ .glance{ grid-template-columns:1fr; } }
+  .chip.ms{ background:var(--brand); color:#fff; }
+  .poplist .ph{ font-family:var(--disp); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--brand); margin:13px 0 6px; }
+  .poplist ul{ list-style:none; margin:0; padding:0; }
+  .poplist li{ position:relative; padding-left:15px; margin-bottom:5px; font-size:12.5px; }
+  .poplist li::before{ content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:var(--line); border:1px solid var(--faint); }
   .twocol{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
   .lane h3{ font-family:var(--disp); font-weight:600; font-size:13.5px; display:flex; align-items:center; gap:8px; margin-bottom:7px; }
   .lane h3 .dot{ width:9px; height:9px; border-radius:50%; }
@@ -364,6 +369,51 @@
       <div class="g-item"><b>Constraints Log</b><span>One running list of every open make-ready constraint with its owner and need-by date. Edit the wording, owner or date inline and tick items clear; cards flip to ready and the board and metrics update straight away.</span></div>
       <div class="g-item"><b>Analytics</b><span>The reliability picture: PPC trend week on week, the reasons promises were missed, and breakdowns by company and Cx stage. Click any figure or tile to drill into the exact activities behind it.</span></div>
     </div>
+  </section>
+
+  <section class="cadence">
+    <div class="hd"><span class="pin">&#9636;</span><h2>What to put on the board (contractors)</h2></div>
+    <p style="font-size:13px; color:var(--mut); line-height:1.55; margin:2px 0 4px;">You own your own lookahead. Populate every commissioning and testing activity in your scope, asset by asset, and push them out as far as you can see. Four weeks is the bare minimum, six weeks or more is better, and milestones should sit as far into the future as you can plan them, well beyond the window. For now, leave the installation works out (cable pulling, containment and duct install, and the like); the board is being used for the commissioning and testing chain.</p>
+    <div class="poplist">
+      <div class="ph">Receipt &amp; placement</div>
+      <ul>
+        <li>Delivery of asset <span class="chip ms">MILESTONE</span></li>
+        <li>Site arrival inspection</li>
+        <li>Set-in-place inspection</li>
+        <li>Red tag</li>
+      </ul>
+      <div class="ph">Static checks &amp; pre-energisation</div>
+      <ul>
+        <li>Torque verification</li>
+        <li>Pressure / leak / flushing test &rarr; Flushing complete <span class="chip ms">MILESTONE</span></li>
+        <li>Electrical dead test</li>
+        <li>Breaker settings input</li>
+        <li>Secondary injection testing</li>
+        <li>W2 inspection</li>
+      </ul>
+      <div class="ph">Energisation</div>
+      <ul>
+        <li>MV power on <span class="chip ms">MILESTONE</span></li>
+        <li>Energisation</li>
+        <li>Live cable tests</li>
+        <li>Power released to the PODs <span class="chip ms">MILESTONE</span></li>
+      </ul>
+      <div class="ph">Startup &amp; functional (L3)</div>
+      <ul>
+        <li>L3 startup</li>
+        <li>L3 SAT</li>
+        <li>L3 FoK tests <span class="chip ms">MILESTONE</span></li>
+        <li>IR scanning</li>
+        <li>TAB (testing, adjusting, balancing)</li>
+        <li>Load banks, on their own line item</li>
+      </ul>
+      <div class="ph">Integrated (L4)</div>
+      <ul>
+        <li>L4 FPT (functional performance test)</li>
+        <li>IST (integrated systems test)</li>
+      </ul>
+    </div>
+    <p style="font-size:12px; color:var(--faint); line-height:1.5; margin:10px 0 0;">Set the milestones (delivery, MV power on, power released to the PODs, flushing complete, L3 FoK) early and far out: they are the moments everyone else plans around, even while the detailed activities feeding them are still beyond the lookahead.</p>
   </section>
 
   <footer>
