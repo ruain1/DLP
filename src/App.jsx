@@ -44,6 +44,15 @@ const css = `
 .lk-spacer{flex:1}
 .lk-sel{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:inherit;cursor:pointer}
 .lk-who{display:flex;align-items:center;gap:7px;font-size:12px}
+.lk-notifbtn{position:relative}
+.lk-notifbadge{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:#E5484D;color:#fff;font-size:10px;font-weight:800;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--paper);pointer-events:none}
+.lk-ment{position:absolute;left:0;top:calc(100% + 3px);z-index:60;background:var(--card);border:1px solid var(--line);border-radius:9px;box-shadow:0 10px 30px rgba(0,0,0,.2);min-width:210px;max-height:240px;overflow:auto;padding:4px}
+.lk-ment-i{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--ink)}
+.lk-ment-i:hover{background:var(--hover)}
+.lk-ment-tag{margin-left:auto;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.lk-ncard{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid #E0A106;border-radius:9px;background:var(--card);cursor:pointer}
+.lk-ncard:hover{box-shadow:0 3px 10px rgba(0,0,0,.14)}
+.lk-ncard.over{border-left-color:#C0392B}
 .lk-colead{height:22px;max-width:96px;object-fit:contain;display:block;border-radius:3px}
 .lk-pill{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
 .lk-pill.admin{background:#7C3AED;color:#fff}.lk-pill.member{background:var(--chipbg);color:var(--accent)}
@@ -380,6 +389,9 @@ const I = {
   upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>,
   cog: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
   help: <><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></>,
+  person: <><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></>,
+  office: <><rect x="4" y="3" width="16" height="18" rx="1.5"/><line x1="9" y1="7" x2="9.01" y2="7"/><line x1="15" y1="7" x2="15.01" y2="7"/><line x1="9" y1="11" x2="9.01" y2="11"/><line x1="15" y1="11" x2="15.01" y2="11"/><line x1="9" y1="15" x2="9.01" y2="15"/><line x1="15" y1="15" x2="15.01" y2="15"/></>,
 };
 const Icon = ({ n, s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
@@ -394,6 +406,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV59", date: "2026-06-22", items: ["Constraints can now be assigned to a person or a company: in the responsible field of a constraint (activity drawer and Constraints Log), type @ to pick from a list of project members and companies", "New envelope icon in the top bar, between the theme toggle and your name, with a red count badge showing how many open constraints are assigned to you or your company. Click it for a popup list; click any item to open the activity", "Admins receive notifications for constraints assigned to them personally and to the CSN company"] },
   { rev: "REV58", date: "2026-06-22", items: ["Planning Board: the actual-progress bar no longer overshoots the left edge of an activity card or cut across its coloured side border. When work started on plan, the bar now begins neatly under the readiness dot inside the card; bars whose actual start is a later day keep their exact position on the day grid"] },
   { rev: "REV57", date: "2026-06-22", items: ["Activity duration is calendar days, weekends included. The New / Edit Activity field is now labelled Days (Calendar) and shows the resulting finish date so it is clear weekends are counted (they were never skipped; this makes it explicit)", "The PPC figure at the foot of the left sidebar is now clickable and opens the Analytics page"] },
   { rev: "REV56", date: "2026-06-21", items: ["Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it", "Companies now have a short description (role & scope), editable inline in Admin > Companies. On the Planning Board grouped by Company, click a company's logo to see a popup card with that role & scope", "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users", "Activity Table: the Building filter only shows on projects with more than one building"] },
@@ -495,6 +508,7 @@ export default function App({ session }) {
   const [ytt, setYtt] = useState(false);
   const [resize, setResize] = useState(null);
   const [metricDrill, setMetricDrill] = useState(null);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
   const [navOpen, setNavOpen] = useState(() => { try { return localStorage.getItem("fin04_nav") !== "0"; } catch (e) { return true; } });
   const toggleNav = () => setNavOpen((o) => { const n = !o; try { localStorage.setItem("fin04_nav", n ? "1" : "0"); } catch (e) {} return n; });
@@ -592,6 +606,22 @@ export default function App({ session }) {
   const LV = S.levels || DEFAULT_LEVELS;
 
   const isAdmin = cu.role === "admin";
+  const csnCompanyId = useMemo(() => {
+    if (cu.companyId) return cu.companyId;
+    if (cu.role !== "admin") return null;
+    const hit = (S.companies || []).find((c) => (c.name || "").trim().toLowerCase() === "csn");
+    return hit ? hit.id : null;
+  }, [S.companies, cu.companyId, cu.role]);
+  const myConstraints = useMemo(() => {
+    const out = [];
+    (S.activities || []).forEach((a) => (a.constraints || []).forEach((c) => {
+      if (c.done) return;
+      const mine = (c.ownerType === "user" && c.ownerId === cu.id) || (c.ownerType === "company" && csnCompanyId && c.ownerId === csnCompanyId);
+      if (mine) out.push({ a, c });
+    }));
+    return out.sort((x, y) => (x.c.due || "9999").localeCompare(y.c.due || "9999"));
+  }, [S.activities, cu.id, csnCompanyId]);
+  const notifCount = myConstraints.length;
   const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
   const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
   const addOption = (kind, name, ctx) => {
@@ -801,6 +831,7 @@ export default function App({ session }) {
         <div className="lk-spacer" />
         <div className="lk-who">
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
+          <button className="lk-btn icon lk-notifbtn" title={notifCount ? `${notifCount} constraint${notifCount === 1 ? "" : "s"} assigned to you or your company` : "No constraints assigned to you"} onClick={() => setNotifOpen(true)}><Icon n="mail" s={16} />{notifCount > 0 && <span className="lk-notifbadge">{notifCount > 99 ? "99+" : notifCount}</span>}</button>
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
           {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
@@ -924,6 +955,22 @@ export default function App({ session }) {
 
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
+      {notifOpen && <div className="lk-modal-bg" onClick={() => setNotifOpen(false)}>
+        <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
+          <div className="ytt-head">
+            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Assigned To You</h3><span className="ytt-sub">{notifCount} open constraint{notifCount === 1 ? "" : "s"}</span></div>
+            <button className="lk-btn icon" onClick={() => setNotifOpen(false)}><Icon n="x" /></button>
+          </div>
+          <div className="ytt-list" style={{ maxHeight: "70vh", overflow: "auto" }}>
+            {notifCount === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing is assigned to you or your company right now.</div>
+              : myConstraints.map(({ a, c }) => { const over = c.due && !c.done && c.due < fmtISO(new Date()); return <div key={a.id + c.id} className={"lk-ncard" + (over ? " over" : "")} onClick={() => { setNotifOpen(false); setPage("board"); setEditing({ ...a }); }} title="Open activity">
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{c.text}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.desc || "Untitled activity"} {"\u00b7"} {coName(a.companyId)}</div>
+                  <div style={{ fontSize: 11, display: "flex", gap: 10, flexWrap: "wrap" }}><span style={{ color: "var(--muted)" }}>To: {c.owner || "-"}</span>{c.due && <span style={{ color: over ? "#C0392B" : "var(--muted)", fontWeight: over ? 700 : 400 }}>need-by {c.due}{over ? " (overdue)" : ""}</span>}</div>
+                </div>; })}
+          </div>
+        </div>
+      </div>}
       {companyInfo && <CompanyModal co={companyInfo} logo={pickLogo(companyInfo)} S={S} onClose={() => setCompanyInfo(null)} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {page === "board" && ytt && (() => {
@@ -973,6 +1020,29 @@ export default function App({ session }) {
 
 function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--hover": t.hover, "--chipbg": t.chipbg }; }
 
+function OwnerField({ value, ownerType, ownerId, companies, users, onChange, style, placeholder, dis }) {
+  const [open, setOpen] = useState(false);
+  const v = value || "";
+  const at = v.lastIndexOf("@");
+  const showing = open && at >= 0;
+  const q = showing ? v.slice(at + 1).toLowerCase().trim() : "";
+  const opts = showing ? [
+    ...(companies || []).filter((c) => c.name.toLowerCase().includes(q)).map((c) => ({ type: "company", id: c.id, name: c.name })),
+    ...(users || []).filter((u) => (u.name || "").toLowerCase().includes(q)).map((u) => ({ type: "user", id: u.id, name: u.name })),
+  ].slice(0, 8) : [];
+  const pick = (o) => { onChange(o.name, o.type, o.id); setOpen(false); };
+  return <div style={{ position: "relative", ...style }}>
+    <input className="lk-in" style={{ width: "100%", fontSize: 11.5, padding: "4px 7px" }} placeholder={placeholder || "Owner (type @ to assign)"} value={v} disabled={dis}
+      onChange={(e) => { const t = e.target.value; onChange(t, "", null); setOpen(t.lastIndexOf("@") >= 0); }}
+      onFocus={() => setOpen(v.lastIndexOf("@") >= 0)} onBlur={() => setTimeout(() => setOpen(false), 160)} />
+    {showing && opts.length > 0 && <div className="lk-ment">
+      {opts.map((o) => <div key={o.type + o.id} className="lk-ment-i" onMouseDown={(e) => { e.preventDefault(); pick(o); }}>
+        <Icon n={o.type === "company" ? "office" : "person"} s={13} /><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.name}</span><span className="lk-ment-tag">{o.type === "company" ? "Company" : "Person"}</span>
+      </div>)}
+    </div>}
+  </div>;
+}
+
 function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) {
   const [a, setA] = useState(act);
   const [addKind, setAddKind] = useState(null);
@@ -983,13 +1053,15 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
   const [confirmDel, setConfirmDel] = useState(false);
   const [cText, setCText] = useState("");
   const [cOwner, setCOwner] = useState("");
+  const [cOwnerType, setCOwnerType] = useState("");
+  const [cOwnerId, setCOwnerId] = useState(null);
   const [cDue, setCDue] = useState("");
   const setC = (id, k, v) => set("constraints", a.constraints.map((x) => x.id === id ? { ...x, [k]: v } : x));
   const locked = a.status === "complete";
   const set = (k, v) => { if (!canEdit || locked) return; setA((p) => ({ ...p, [k]: v })); };
   const setReason = (v) => { if (!canEdit) return; setA((p) => ({ ...p, slipReason: v })); };
   const isNew = !act.desc && act.constraints.length === 0;
-  const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), due: cDue }]); setCText(""); setCOwner(""); setCDue(""); };
+  const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
   const dis = !canEdit || locked;
   const cancelAdd = () => { setAddKind(null); setAddText(""); };
   const confirmAdd = (kind, ctx) => { const v = onAdd && onAdd(kind, addText, ctx); if (!v) { cancelAdd(); return; } if (kind === "company") set("companyId", v); else if (kind === "subArea") { set("subArea", v); set("tier3", ""); } else if (kind === "tier3") set("tier3", v); else if (kind === "system") set("system", v); cancelAdd(); };
@@ -1066,7 +1138,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
               <div className="cmain">
                 <span className={"t" + (c.done ? " done" : "")}>{c.text}</span>
                 {!dis && <div className="crow">
-                  <input className="lk-in" style={{ fontSize: 11.5, padding: "4px 7px" }} placeholder="Owner" value={c.owner || ""} onChange={(e) => setC(c.id, "owner", e.target.value)} />
+                  <OwnerField value={c.owner} ownerType={c.ownerType} ownerId={c.ownerId} companies={S.companies} users={S.users} dis={dis} style={{ flex: 1, minWidth: 100 }} onChange={(name, t, id) => set("constraints", a.constraints.map((x) => x.id === c.id ? { ...x, owner: name, ownerType: t, ownerId: id } : x))} />
                   <input className="lk-in mono" style={{ fontSize: 11.5, padding: "4px 7px", maxWidth: 150 }} type="date" title="Need-by date" value={c.due || ""} onChange={(e) => setC(c.id, "due", e.target.value)} />
                 </div>}
                 {dis && (c.owner || c.due) && <div className="crow" style={{ fontSize: 11, color: "var(--muted)" }}>{c.owner ? "Owner: " + c.owner : ""}{c.owner && c.due ? " \u00b7 " : ""}{c.due ? "need-by " + c.due : ""}</div>}
@@ -1076,7 +1148,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
             {a.constraints.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>No constraints. Reads as ready to run.</div>}
             {!dis && <div className="lk-add" style={{ flexWrap: "wrap" }}>
               <input className="lk-in" style={{ flex: "1 1 100%" }} placeholder="Add a constraint…" value={cText} onChange={(e) => setCText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} />
-              <input className="lk-in" style={{ flex: 1, minWidth: 100 }} placeholder="Owner (optional)" value={cOwner} onChange={(e) => setCOwner(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} />
+              <OwnerField value={cOwner} ownerType={cOwnerType} ownerId={cOwnerId} companies={S.companies} users={S.users} style={{ flex: 1, minWidth: 100 }} placeholder="Owner (type @ to assign)" onChange={(name, t, id) => { setCOwner(name); setCOwnerType(t); setCOwnerId(id); }} />
               <input className="lk-in mono" style={{ maxWidth: 150 }} type="date" title="Need-by date (optional)" value={cDue} onChange={(e) => setCDue(e.target.value)} />
               <button className="lk-btn primary" title="Add constraint" onClick={addC}><Icon n="plus" s={15} /></button>
             </div>}</div>
@@ -2108,7 +2180,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
               <td>{a.level}</td>
               <td className="mono" style={{ whiteSpace: "nowrap" }}>{a.start}</td>
               <td className={c.done ? "lk-cdone" : ""} style={{ minWidth: 160 }}>{ed ? <input className="lk-in" style={cell} value={cd.text} onChange={(e) => setD("text", e.target.value)} /> : c.text}</td>
-              <td style={{ minWidth: 130 }}>{ed ? <input className="lk-in" style={{ ...cell, minWidth: 110 }} placeholder="Owner" value={cd.owner || ""} onChange={(e) => setD("owner", e.target.value)} /> : (c.owner || "")}</td>
+              <td style={{ minWidth: 130 }}>{ed ? <OwnerField value={cd.owner} ownerType={cd.ownerType} ownerId={cd.ownerId} companies={S.companies} users={S.users} style={{ minWidth: 110 }} onChange={(name, t, id) => setCd((d) => ({ ...d, owner: name, ownerType: t, ownerId: id }))} /> : (c.owner || "")}</td>
               <td className="mono" style={{ whiteSpace: "nowrap", color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{ed ? <input className="lk-in mono" style={{ ...cell, maxWidth: 140 }} type="date" value={cd.due || ""} onChange={(e) => setD("due", e.target.value)} /> : (c.due || "")}</td>
             </tr>; })}
             {rows.length === 0 && <tr><td colSpan={10} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
