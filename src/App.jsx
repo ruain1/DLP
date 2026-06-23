@@ -830,9 +830,14 @@ export default function App({ session }) {
     const oE = grain === "day" ? origOff + dur - 1 : Math.floor((origOff + dur - 1) / 7);
     const cS = sU(a), cE = eU(a);
     const out = [];
-    let gapFrom, gapTo;
-    if (cS > oE) { gapFrom = oE + 1; gapTo = cS - 1; } else if (cE < oS) { gapFrom = cE + 1; gapTo = oS - 1; }
-    if (gapFrom != null && gapTo >= gapFrom) { const gs = Math.max(0, gapFrom), ge = Math.min(cols - 1, gapTo); if (ge >= gs) out.push(<div key="rt" className="lk-rtrail" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1 }} title={`Rescheduled from ${rs[0].from}`} />); }
+    const inWin = (u) => u >= 0 && u < cols;
+    if (a.isMilestone) {
+      if (inWin(oS) && inWin(cS) && oS !== cS) { const gs = Math.min(oS, cS), ge = Math.max(oS, cS); const N = ge - gs + 1; const inset = `calc(${(50 / N).toFixed(4)}% + 8px)`; out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}><div style={{ position: "absolute", top: -1, left: inset, right: inset, borderTop: "2px dotted #C0392B" }} /></div>); }
+    } else {
+      let gapFrom, gapTo;
+      if (cS > oE) { gapFrom = oE + 1; gapTo = cS - 1; } else if (cE < oS) { gapFrom = cE + 1; gapTo = oS - 1; }
+      if (gapFrom != null && gapTo >= gapFrom) { const gs = Math.max(0, gapFrom), ge = Math.min(cols - 1, gapTo); if (ge >= gs) out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}><div style={{ position: "absolute", top: -1, left: -2, right: -2, borderTop: "2px dotted #C0392B" }} /></div>); }
+    }
     if ((oS >= 0 && oS < cols) || (oE >= 0 && oE < cols)) {
       const gs = Math.max(0, oS), ge = Math.min(cols - 1, oE);
       if (a.isMilestone) out.push(<div key="gh" className="lk-ghost ms" style={{ gridColumn: `${gs + 1} / ${gs + 2}`, gridRow: row + 1 }} title={`Originally ${rs[0].from}`}><span className="dia" /></div>);
