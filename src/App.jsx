@@ -2797,12 +2797,13 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : ""); const ln = r + 1; const e = [];
       const desc = g(ci.desc); if (!desc) e.push("missing Description");
       let companyId = cu.companyId; const coRaw = g(ci.company);
-      if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (c.id !== cu.companyId) e.push(`you can only import activities for your own company (${myCoName || "your company"})`); }
-      if (!companyId) e.push("your account has no company assigned; ask an admin to set one before importing");
-      const areaRaw = g(ci.area); let area = ""; if (!areaRaw) e.push("missing Building"); else { const m = areaMap.get(areaRaw.toLowerCase()); if (!m) e.push(`building "${areaRaw}" does not exist`); else area = m; }
+      if (isAdmin) { if (!coRaw) e.push("missing Company (name an existing company on each row)"); else { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else companyId = c.id; } }
+      else { if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (c.id !== cu.companyId) e.push(`you can only import activities for your own company (${myCoName || "your company"})`); } if (!companyId) e.push("your account has no company assigned; ask an admin to set one before importing"); }
+      const isMs = yes(g(ci.ms));
+      const areaRaw = g(ci.area); let area = ""; if (areaRaw) { const m = areaMap.get(areaRaw.toLowerCase()); if (!m) e.push(`building "${areaRaw}" does not exist`); else area = m; } else if (!isMs) e.push("missing Building");
       const subRaw = g(ci.subarea); let subArea = ""; if (subRaw) { if (area && subSet.has(`${area.toLowerCase()}|${subRaw.toLowerCase()}`)) subArea = subRaw; else e.push(`level "${subRaw}" does not exist under building "${areaRaw}"`); }
       const t3Raw = g(ci.tier3); let tier3 = ""; if (t3Raw) { if (area && subArea && t3Set.has(`${area.toLowerCase()}|${subArea.toLowerCase()}|${t3Raw.toLowerCase()}`)) tier3 = t3Raw; else e.push(`zone/room "${t3Raw}" does not exist under "${areaRaw}" / "${subRaw}"`); }
-      const sysRaw = g(ci.system); let system = ""; if (!sysRaw) e.push("missing System"); else { const m = sysMap.get(sysRaw.toLowerCase()); if (!m) e.push(`system "${sysRaw}" does not exist`); else system = m; }
+      const sysRaw = g(ci.system); let system = ""; if (sysRaw) { const m = sysMap.get(sysRaw.toLowerCase()); if (!m) e.push(`system "${sysRaw}" does not exist`); else system = m; } else if (!isMs) e.push("missing System");
       const lvRaw = g(ci.level).toUpperCase(); let level = lvKeys[0] || "L2"; if (lvRaw) { if (lvKeys.includes(lvRaw)) level = lvRaw; else e.push(`Cx stage "${lvRaw}" is not one of ${lvKeys.join(", ")}`); }
       const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
       if (!start) e.push("missing or invalid Planned start (use YYYY-MM-DD)");
@@ -2811,7 +2812,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       if (witInvite && !witAt) e.push("Witness invite is Yes, so a valid Witness date & time is required (YYYY-MM-DD HH:MM)");
       const cons = g(ci.cons); const constraints = cons ? cons.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
       if (e.length) { errors.push(`Row ${ln}: ${e.join("; ")}`); continue; }
-      staged.push({ id: uid("a"), desc, companyId, area, subArea, tier3, asset: g(ci.asset), system, level, isMilestone: yes(g(ci.ms)), witnessInvite: witInvite, witnessAt: witInvite ? witAt : "", notes: g(ci.notes), start, duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: "", actualFinish: "", constraints });
+      staged.push({ id: uid("a"), desc, companyId, area, subArea, tier3, asset: g(ci.asset), system, level, isMilestone: isMs, witnessInvite: witInvite, witnessAt: witInvite ? witAt : "", notes: g(ci.notes), start, duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: "", actualFinish: "", constraints });
     }
     if (errors.length) return { imported: 0, errors };
     if (!staged.length) return { imported: 0, errors: ["No activity rows found."] };
@@ -2840,11 +2841,11 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       <div className="lk-modal" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Import Activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
-          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. Everything you import is added under your own company.</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. Members import under their own company; admins can set any existing company per row.</div>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
             <ul>
-              <li><b>Do not change the Company column.</b> It is pre-set to your company. Activities can only be imported for your own company; any other value is rejected.</li>
+              <li><b>Company:</b> members can only import under their own company; <b>admins</b> can name any existing company per row (it must match a company on the project).</li>
               <li>The <b>Excel template has dropdowns</b> for Building, Level, Zone / Room, System and Cx Stage, pre-loaded with this project's current values. Pick from them rather than typing.</li>
               <li><b>Those values must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
               <li>Matching ignores case but the spelling must be exact. The dropdowns do not enforce which Level belongs to which Building, so the app still checks that on import.</li>
@@ -2852,7 +2853,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
               <li>Dates use YYYY-MM-DD. Committed and Witness invite take Yes or No.</li>
               <li>If <b>Witness invite</b> is Yes, a <b>Witness date &amp; time</b> is required, format YYYY-MM-DD HH:MM (see example 2).</li>
               <li>The template has <b>two example rows</b>. Delete them and import only your own activities.</li>
-              <li>Description, Building, System and Planned start are required on every row. You can upload the filled .xlsx, or a .csv if you prefer.</li>
+              <li>Description and Planned start are required on every row; Building and System too, <b>except on milestone rows</b> (Milestone = Yes), where they are optional. You can upload the filled .xlsx, or a .csv if you prefer.</li>
             </ul>
           </div>
           <div className="ref"><b>Valid buildings</b>{S.areas.length ? S.areas.map((a) => <span key={a} className="lk-tag">{a}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
