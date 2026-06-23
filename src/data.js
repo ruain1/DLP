@@ -8,6 +8,7 @@ const fromActivity = (r) => ({
   subArea: r.sub_area || "", tier3: r.tier3 || "", asset: r.asset || "", witnessInvite: !!r.witness_invite, witnessAt: r.witness_at || "", notes: r.notes || "", slipReason: r.slip_reason || "",
   code: r.code ?? null, predecessors: Array.isArray(r.predecessors) ? r.predecessors : [],
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
+  reschedules: Array.isArray(r.reschedules) ? r.reschedules : [],
 });
 const toActivity = (a, session, isNew) => {
   const row = {
@@ -16,7 +17,7 @@ const toActivity = (a, session, isNew) => {
     committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null,
     sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, notes: a.notes || null, slip_reason: a.slipReason || null,
     code: isNew ? null : (a.code ?? null), predecessors: a.predecessors || [],
-    constraints: a.constraints || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
+    constraints: a.constraints || [], reschedules: a.reschedules || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
   };
   if (isNew) row.created_by = session.user.id;
   return row;
