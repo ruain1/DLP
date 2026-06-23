@@ -84,8 +84,8 @@ const css = `
 .lk-cell.tod::after{content:"";position:absolute;inset:0;border-left:1px solid var(--todedge);border-right:1px solid var(--todedge);pointer-events:none}
 .lk-day.tod::after{content:"";position:absolute;inset:0;border-left:1px solid var(--todedge);border-right:1px solid var(--todedge);border-top:1px solid var(--todedge);pointer-events:none}
 .lk-cell:hover{background:var(--hover)}.lk-cell.nodrop{cursor:not-allowed}
-.lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;gap:6px;pointer-events:none}
-.lk-ticket{position:relative;pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:12px;
+.lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;row-gap:6px;column-gap:0;pointer-events:none}
+.lk-ticket{position:relative;pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:12px;margin:0 2px;
   padding:9px 12px 10px;font-size:12px;cursor:grab;overflow:hidden;box-shadow:none;min-width:0;
   display:flex;flex-direction:column;justify-content:flex-start;gap:3px;transition:box-shadow .12s,border-color .12s}
 .lk-ticket:hover{box-shadow:0 3px 10px rgba(0,0,0,.16)}.lk-ticket:active{cursor:grabbing}
@@ -396,6 +396,11 @@ const I = {
   mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></>,
   person: <><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></>,
   office: <><rect x="4" y="3" width="16" height="18" rx="1.5"/><line x1="9" y1="7" x2="9.01" y2="7"/><line x1="15" y1="7" x2="15.01" y2="7"/><line x1="9" y1="11" x2="9.01" y2="11"/><line x1="15" y1="11" x2="15.01" y2="11"/><line x1="9" y1="15" x2="9.01" y2="15"/><line x1="15" y1="15" x2="15.01" y2="15"/></>,
+  play: <polygon points="6 4 20 12 6 20"/>,
+  wrench: <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>,
+  checkcircle: <><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></>,
+  loader: <><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 4 21 9 16 9"/></>,
+  eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
 };
 const Icon = ({ n, s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
@@ -1788,12 +1793,16 @@ function CompanyModal({ co, logo, S, onClose }) {
   );
 }
 
+const DRILL_ICONS = { "in lookahead": ["cal", "var(--muted)"], "total activities": ["list", "var(--muted)"], "ready to run": ["play", "#0E9384"], "need make-ready": ["wrench", "#D97706"], "committed this week": ["checkcircle", "var(--accent)"], "committed": ["checkcircle", "var(--accent)"], "delayed": ["clock", "#C0392B"], "at risk": ["alert", "#E0A106"], "complete": ["check", "#0E9384"], "in progress": ["loader", "var(--muted)"], "planned": ["cal", "var(--muted)"], "witness required": ["eye", "#7A4FD0"] };
+const drillIcon = (t) => DRILL_ICONS[(t || "").trim().toLowerCase()] || ["chart", null];
+
 function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
+  const [dIcon, dColor] = drillIcon(title);
   return (
     <div className="lk-bg" onClick={onClose}>
       <div className="ytt drill" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
         <div className="ytt-head">
-          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="chart" s={17} /><h3 style={{ margin: 0, fontSize: 15.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</h3><span className="ytt-sub">{items.length} activit{items.length === 1 ? "y" : "ies"}</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><span style={{ color: dColor || "inherit", display: "inline-flex", flex: "none" }}><Icon n={dIcon} s={17} /></span><h3 style={{ margin: 0, fontSize: 15.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</h3><span className="ytt-sub">{items.length} activit{items.length === 1 ? "y" : "ies"}</span></div>
           <button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button>
         </div>
         <div className="drill-body">
