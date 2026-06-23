@@ -21,7 +21,7 @@ const css = `
 .lk{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--paper);
   min-height:100vh;width:100%;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
 .lk *{box-sizing:border-box}
-.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.mono{font-variant-numeric:tabular-nums}
 .lk-bar{display:flex;align-items:center;gap:12px;padding:0 18px;height:54px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;background:var(--paper)}
 .lk-brandlogo{display:block}
 .lk-branddiv{width:1px;height:20px;background:var(--line);flex:none}
@@ -1811,7 +1811,7 @@ function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
               return <div key={a.id} className="drill-row" style={{ borderLeftColor: lv.color }} onClick={() => onOpen && onOpen(a)} title="Open activity">
                 <div className="drill-main">
                   <span className="drill-desc">{a.desc || "Untitled"}</span>
-                  <span className="drill-sub">{coName(a.companyId)} {"\u00b7"} {a.level || "-"} {"\u00b7"} <span className="mono">{a.start || "no date"}{a.duration ? " (" + a.duration + "d)" : ""}</span></span>
+                  <span className="drill-sub">{coName(a.companyId)} {"\u00b7"} {a.level || "-"} {"\u00b7"} {a.start || "no date"}{a.duration ? " (" + a.duration + "d)" : ""}</span>
                 </div>
                 <div className="drill-tags">
                   {a.status === "complete" ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none" }}>done</span> : open ? <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }}>{open} open</span> : null}
@@ -2154,12 +2154,12 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
                 {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea || lk} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
                 {C("system") && <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} disabled={lk} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>}
                 {C("cx") && <td>{ed ? <select className="lk-select" style={cell} value={d.level} disabled={lk} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>}
-                {C("start") && <td className="mono">{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} disabled={lk} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
-                {C("days") && <td className="mono">{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} disabled={lk} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
+                {C("start") && <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} disabled={lk} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
+                {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} disabled={lk} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
                 {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} disabled={lk} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
                 {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>}
                 {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={lk} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
-                {C("witnessat") && <td className="mono">{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={lk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
+                {C("witnessat") && <td>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={lk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
                 {C("notes") && <td style={{ minWidth: 150 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <span style={{ color: "var(--muted)" }}>{a.notes || ""}</span>}</td>}
               </tr>;
             })}
