@@ -1227,7 +1227,8 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
 }
 
 function AdminPanel({ S, cu, update, exportActivities }) {
-  const [tab, setTab] = useState("companies");
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "users", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false);
