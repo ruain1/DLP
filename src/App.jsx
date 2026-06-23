@@ -2136,7 +2136,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
       <div className="lk-tblscroll">
         <table className="lk-grid">
           <thead><tr>
-            <th style={{ width: 56 }}></th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("witness") && <th>Witness</th>}{C("witnessat") && <th>Witness time</th>}{C("notes") && <th>Notes</th>}
+            <th style={{ width: 56 }}></th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("witness") && <th>Witness</th>}{C("witnessat") && <th>Witness time</th>}{C("notes") && <th style={{ width: 320 }}>Notes</th>}
           </tr></thead>
           <tbody>
             {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
@@ -2160,7 +2160,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
                 {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>}
                 {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={lk} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
                 {C("witnessat") && <td>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={lk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
-                {C("notes") && <td style={{ minWidth: 150 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <span style={{ color: "var(--muted)" }}>{a.notes || ""}</span>}</td>}
+                {C("notes") && <td style={{ width: 320, maxWidth: 320 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <div style={{ maxWidth: 320, whiteSpace: "normal", overflowWrap: "break-word", color: "var(--muted)" }}>{a.notes || ""}</div>}</td>}
               </tr>;
             })}
           </tbody>
