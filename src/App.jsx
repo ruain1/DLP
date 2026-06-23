@@ -2085,6 +2085,11 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const [fLv, setFLv] = useState(savedView.fLv || "all");
   const [colsOpen, setColsOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [sel, setSel] = useState(() => new Set());
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  useEffect(() => { setSel(new Set()); setConfirmBulk(false); }, [fCo, fStatus, fAr, fLv, q]);
+  const toggleSel = (id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const delSelected = () => { const ids = sel; if (!ids.size) return; update((p) => ({ ...p, activities: p.activities.filter((x) => !ids.has(x.id)).map((x) => (x.predecessors && x.predecessors.some((pid) => ids.has(pid))) ? { ...x, predecessors: x.predecessors.filter((pid) => !ids.has(pid)) } : x) }), { action: "Delete activities (table)", detail: ids.size + " activit" + (ids.size === 1 ? "y" : "ies") }); setSel(new Set()); setConfirmBulk(false); };
   const [cols, setCols] = useState(() => ({ ...TBL_DEFAULT_COLS, ...(savedView.cols || {}) }));
   const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
   const rowEditable = (a) => a.status === "complete" ? isAdmin : (isAdmin || (canEdit(a) && !a.committed));
@@ -2105,6 +2110,9 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
     if (q.trim() && !(`${a.desc || ""} ${cn(a.companyId)} ${a.system || ""}`.toLowerCase().includes(q.trim().toLowerCase()))) return false;
     return true;
   }).sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || 0) - (b.code || 0));
+  const allSel = list.length > 0 && list.every((a) => sel.has(a.id));
+  const someSel = sel.size > 0 && !allSel;
+  const toggleAll = () => setSel(() => (list.length && list.every((a) => sel.has(a.id))) ? new Set() : new Set(list.map((a) => a.id)));
   const cell = { padding: "5px 7px", fontSize: 11.5 };
   const C = (k) => cols[k];
   const visCount = 2 + TBL_COLS.filter(([k]) => cols[k]).length;
@@ -2133,10 +2141,16 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
         </div>
       </div>
       {savedMsg && <div style={{ padding: "4px 16px 0", fontSize: 11.5, color: "var(--muted)" }}>{savedMsg}</div>}
+      {isAdmin && sel.size > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", margin: "8px 16px 0", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 600 }}>{sel.size} selected</span>
+        {confirmBulk
+          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete {sel.size} activit{sel.size === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={delSelected}><Icon n="trash" s={14} />Yes, delete</button><button className="lk-btn" onClick={() => setConfirmBulk(false)}>Cancel</button></span>
+          : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><button className="lk-btn" style={{ color: "#C0392B" }} onClick={() => setConfirmBulk(true)}><Icon n="trash" s={14} />Delete selected</button><button className="lk-btn" onClick={() => setSel(new Set())}>Clear</button></span>}
+      </div>}
       <div className="lk-tblscroll">
         <table className="lk-grid">
           <thead><tr>
-            <th style={{ width: 56 }}></th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("witness") && <th>Witness</th>}{C("witnessat") && <th>Witness time</th>}{C("notes") && <th style={{ width: 320 }}>Notes</th>}
+            <th style={{ width: isAdmin ? 74 : 56 }}>{isAdmin && <input type="checkbox" checked={allSel} ref={(el) => { if (el) el.indeterminate = someSel; }} onChange={toggleAll} title="Select all / none" />}</th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("witness") && <th>Witness</th>}{C("witnessat") && <th>Witness time</th>}{C("notes") && <th style={{ width: 320 }}>Notes</th>}
           </tr></thead>
           <tbody>
             {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
@@ -2145,7 +2159,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
               return <tr key={a.id} className={ed ? "ed" : ""}>
                 <td>{ed
                   ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
-                  : <button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}</td>
+                  : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{isAdmin && <input type="checkbox" checked={sel.has(a.id)} onChange={() => toggleSel(a.id)} title="Select for bulk delete" />}<button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button></span>}</td>
                 {C("code") && <td className="mono">#{a.code ?? "?"}</td>}
                 <td>{ed ? <input className="lk-in" style={cell} value={d.desc} disabled={lk} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
                 {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin || lk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
