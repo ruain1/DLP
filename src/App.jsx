@@ -13,8 +13,8 @@ const DEFAULT_LEVELS = {
 const tintOf = (hex) => { try { let h = (hex || "#64748B").replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255, mix = (c) => Math.round(c + (255 - c) * 0.86); return `rgb(${mix(r)},${mix(g)},${mix(b)})`; } catch (e) { return "#EEF1F5"; } };
 const lvOf = (levels, k) => (levels && levels[k]) || (levels && Object.values(levels)[0]) || DEFAULT_LEVELS.L2;
 const THEMES = {
-  light: { ink: "#16202E", paper: "#F7F8FA", card: "#FFFFFF", line: "#DCE1E8", muted: "#6B7785", accent: "#1E5FCC", weekend: "#EFF1F5", todcell: "#F0F5FE", todhead: "#E8EFFB", hover: "#EAF0F9", chipbg: "#E8EFFB" },
-  dark: { ink: "#E6EAF0", paper: "#10151C", card: "#1A222D", line: "#2A3543", muted: "#8A97A6", accent: "#6B9BF2", weekend: "#161D26", todcell: "#18222F", todhead: "#1B2737", hover: "#202B38", chipbg: "#22324A" },
+  light: { ink: "#16202E", paper: "#F7F8FA", card: "#FFFFFF", line: "#DCE1E8", muted: "#6B7785", accent: "#1E5FCC", weekend: "#EFF1F5", todcell: "#F0F5FE", todhead: "#E8EFFB", todedge: "#A3BEEC", hover: "#EAF0F9", chipbg: "#E8EFFB" },
+  dark: { ink: "#E6EAF0", paper: "#10151C", card: "#1A222D", line: "#2A3543", muted: "#8A97A6", accent: "#6B9BF2", weekend: "#161D26", todcell: "#18222F", todhead: "#1B2737", todedge: "#476AA0", hover: "#202B38", chipbg: "#22324A" },
 };
 
 const css = `
@@ -70,7 +70,7 @@ const css = `
 .lk-day{padding:4px 0 5px;text-align:center;border-right:1px solid var(--line);font-size:9.5px;color:var(--muted)}
 .lk-day .wd{text-transform:uppercase;letter-spacing:.06em}
 .lk-day .dn{font-size:12.5px;color:var(--ink);font-weight:600;margin-top:1px}
-.lk-day.we{background:var(--weekend)}.lk-day.tod{background:var(--todhead)}.lk-day.tod .dn{color:var(--accent)}
+.lk-day.we{background:var(--weekend)}.lk-day.tod{background:var(--todhead);position:relative}.lk-day.tod .dn{color:var(--accent)}
 .lk-lane{display:grid;border-bottom:1px solid var(--line)}
 .lk-llbl{position:sticky;left:0;z-index:4;background:var(--paper);border-right:1px solid var(--line);padding:9px 11px;
   display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
@@ -81,7 +81,8 @@ const css = `
 .lk-under{position:absolute;inset:0;display:grid;z-index:0}
 .lk-cell{border-right:1px solid var(--line);cursor:cell}
 .lk-cell.we{background:var(--weekend)}.lk-cell.tod{background:var(--todcell);position:relative}
-.lk-cell.tod::after{content:"";position:absolute;top:0;bottom:0;left:-5px;width:2px;background:var(--accent);pointer-events:none}
+.lk-cell.tod::after{content:"";position:absolute;inset:0;border-left:1px solid var(--todedge);border-right:1px solid var(--todedge);pointer-events:none}
+.lk-day.tod::after{content:"";position:absolute;inset:0;border-left:1px solid var(--todedge);border-right:1px solid var(--todedge);border-top:1px solid var(--todedge);pointer-events:none}
 .lk-cell:hover{background:var(--hover)}.lk-cell.nodrop{cursor:not-allowed}
 .lk-tk{position:relative;z-index:1;display:grid;padding:6px 0;gap:6px;pointer-events:none}
 .lk-ticket{position:relative;pointer-events:auto;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:12px;
@@ -226,7 +227,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-adminwrap2{display:flex;gap:24px;width:100%;padding:10px 22px 52px;align-items:flex-start}
 .lk-subnav{flex:0 0 188px;display:flex;flex-direction:column;gap:14px;position:sticky;top:10px}
 .lk-subnav .grp{display:flex;flex-direction:column;gap:2px}
-.lk-subnav .grphd{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 8px 3px}
+.lk-subnav .grphd{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:0 8px 3px}
 .lk-subnav button{text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:7px;padding:7px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
 .lk-subnav button:hover{background:var(--hover)}
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
@@ -1045,7 +1046,7 @@ export default function App({ session }) {
     </div>);
 }
 
-function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; }
+function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--todedge": t.todedge, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; }
 
 function OwnerField({ value, ownerType, ownerId, companies, users, onChange, style, placeholder, dis }) {
   const [open, setOpen] = useState(false);
