@@ -110,6 +110,8 @@ const css = `
 .lk-chip.wit{background:#E7E0FB;color:#5B33C7}
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
 .lk-fc{align-self:stretch;margin:3px 2px;border:1.5px dashed #E0A106;background:rgba(224,161,6,.10);border-radius:6px;z-index:0;pointer-events:none}
+.lk-ghost{opacity:.5;pointer-events:none;z-index:0}.lk-ghost.bar{align-self:stretch;margin:3px 2px;border:1.5px dashed var(--muted);border-radius:6px;background:transparent}.lk-ghost.ms{align-self:center;display:flex;align-items:center;justify-content:center}.lk-ghost.ms .dia{width:12px;height:12px;transform:rotate(45deg);border:1.5px dashed var(--muted);background:transparent}
+.lk-rtrail{align-self:center;height:0;border-top:2px dotted #C0392B;z-index:0;pointer-events:none}
 .lk-ms{position:relative;pointer-events:auto;display:flex;align-items:center;justify-content:center;cursor:grab;overflow:visible;align-self:center;z-index:2}
 .lk-ms .dia{width:12px;height:12px;transform:rotate(45deg);flex:none;border:1px solid rgba(0,0,0,.2)}
 .lk-ms .mslbl{position:absolute;top:50%;left:calc(50% + 11px);transform:translateY(-50%);font-size:10.5px;font-weight:600;white-space:nowrap;pointer-events:none}
@@ -718,7 +720,7 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
-      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [] };
+      start: fmtISO(addDays(anchor, Math.max(0, dayIdx ?? Math.max(0, todayOffset)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
@@ -818,6 +820,25 @@ export default function App({ session }) {
     if (eo < 0 || so >= cols) return null;
     const s = Math.max(0, so), e = Math.min(cols - 1, eo);
     return <div className="lk-fc" title={`Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1 }} />;
+  };
+
+  const RescheduleTrail = ({ a, row }) => {
+    const rs = a.reschedules || []; if (!rs.length) return null;
+    const origOff = Math.round((parseD(rs[0].from) - anchor) / DAYMS);
+    const dur = a.isMilestone ? 1 : Math.max(1, a.duration || 1);
+    const oS = grain === "day" ? origOff : Math.floor(origOff / 7);
+    const oE = grain === "day" ? origOff + dur - 1 : Math.floor((origOff + dur - 1) / 7);
+    const cS = sU(a), cE = eU(a);
+    const out = [];
+    let gapFrom, gapTo;
+    if (cS > oE) { gapFrom = oE + 1; gapTo = cS - 1; } else if (cE < oS) { gapFrom = cE + 1; gapTo = oS - 1; }
+    if (gapFrom != null && gapTo >= gapFrom) { const gs = Math.max(0, gapFrom), ge = Math.min(cols - 1, gapTo); if (ge >= gs) out.push(<div key="rt" className="lk-rtrail" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1 }} title={`Rescheduled from ${rs[0].from}`} />); }
+    if ((oS >= 0 && oS < cols) || (oE >= 0 && oE < cols)) {
+      const gs = Math.max(0, oS), ge = Math.min(cols - 1, oE);
+      if (a.isMilestone) out.push(<div key="gh" className="lk-ghost ms" style={{ gridColumn: `${gs + 1} / ${gs + 2}`, gridRow: row + 1 }} title={`Originally ${rs[0].from}`}><span className="dia" /></div>);
+      else out.push(<div key="gh" className="lk-ghost bar" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1 }} title={`Originally ${rs[0].from}`} />);
+    }
+    return <>{out}</>;
   };
 
   const Underlay = ({ lane }) => (
@@ -929,6 +950,7 @@ export default function App({ session }) {
                 <Underlay lane={lane} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${Math.max(1, rows.length)},minmax(48px,auto))` }}>
                   {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}
+                  {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
                   {la.map((a) => <ActualBar key={"ab" + a.id} a={a} row={a._row} />)}
                 </div>
@@ -946,6 +968,7 @@ export default function App({ session }) {
                 <Underlay lane={null} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: "minmax(48px,auto)" }}>
                   <Forecast a={a} row={0} />
+                  <RescheduleTrail a={a} row={0} />
                   <Ticket a={a} row={0} />
                   <ActualBar a={a} row={0} />
                 </div>
@@ -974,7 +997,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -1076,8 +1099,10 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) {
+function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete }) {
   const [a, setA] = useState(act);
+  const [rsDate, setRsDate] = useState("");
+  const [rsReason, setRsReason] = useState("");
   const [addKind, setAddKind] = useState(null);
   const [addText, setAddText] = useState("");
   const [auditOpen, setAuditOpen] = useState(false);
@@ -1094,6 +1119,7 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
   const set = (k, v) => { if (!canEdit || locked) return; setA((p) => ({ ...p, [k]: v })); };
   const setReason = (v) => { if (!canEdit) return; setA((p) => ({ ...p, slipReason: v })); };
   const isNew = !act.desc && act.constraints.length === 0;
+  const doReschedule = () => { if (!isAdmin || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
   const dis = !canEdit || locked;
   const cancelAdd = () => { setAddKind(null); setAddText(""); };
@@ -1160,6 +1186,19 @@ function Drawer({ act, S, canEdit, isAdmin, onAdd, onSave, onClose, onDelete }) 
             <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={dis} onChange={(e) => set("start", e.target.value)} /></div>
             <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={dis} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div>
           </div>
+          {isAdmin && !isNew && <div className="lk-f" style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon n="loader" s={13} />Reschedule <span style={{ fontWeight: 400, color: "var(--muted)" }}>(keeps the original date on record)</span></label>
+            <div style={{ fontSize: 11, color: "var(--muted)", margin: "2px 0 8px" }}>Current planned start <span className="mono">{a.start}</span>. Moving it leaves a faded marker on the board with a red dotted line to the new date, and logs the change. The original is never overwritten.</div>
+            <div className="lk-row">
+              <div className="lk-f"><label>New date</label><input className="lk-in mono" type="date" value={rsDate} onChange={(e) => setRsDate(e.target.value)} /></div>
+              <div className="lk-f"><label>Reason (required)</label><input className="lk-in" value={rsReason} placeholder="Why is it moving?" onChange={(e) => setRsReason(e.target.value)} /></div>
+            </div>
+            <button className="lk-btn primary" style={{ marginTop: 8 }} disabled={!rsDate || !rsReason.trim() || rsDate === a.start} onClick={doReschedule}><Icon n="loader" s={13} />Reschedule</button>
+            {(a.reschedules || []).length > 0 && <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>Reschedule History</div>
+              {(a.reschedules || []).map((r, i) => <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11.5, padding: "3px 0", borderTop: i ? "1px solid var(--line)" : "none" }}><span className="mono">{r.from}</span><span style={{ color: "#C0392B" }}>{"\u2192"}</span><span className="mono">{r.to}</span><span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--muted)" }}>{r.by || "—"} · <span className="mono">{r.at}</span></span>{r.reason && <span style={{ flexBasis: "100%", fontSize: 10.5, color: "var(--muted)" }}>{r.reason}</span>}</div>)}
+            </div>}
+          </div>}
           <div className="lk-f"><label>Predecessors <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this starts after these finish; a slip upstream pushes this forward)</span></label>
             {(a.predecessors || []).map((pid) => <div key={pid} className="lk-cstr"><span className="t">{predLabel(pid)}</span>{!dis && <button onClick={() => set("predecessors", a.predecessors.filter((x) => x !== pid))}><Icon n="trash" s={13} /></button>}</div>)}
             {(a.predecessors || []).length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>None. Not waiting on another activity.</div>}
