@@ -773,7 +773,7 @@ export default function App({ session }) {
     const editable = canEdit(a);
     const movable = isAdmin || (editable && !a.committed);
     if (a.isMilestone) {
-      return <div className="lk-ms" style={{ gridColumn: `${s + 1} / ${s + 2}`, gridRow: row + 1 }}
+      return <div className="lk-ms" style={{ gridColumn: `${s + 1} / ${s + 2}`, gridRow: row + 1, transform: a._stepMax ? `translateY(${(a._step - a._stepMax / 2) * 14}px)` : undefined }}
         draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <span className="dia" style={{ background: a.delayed ? "#C0392B" : lv.color }} title={a.desc} />
         <span className="mslbl">{a.desc || "Milestone"}{a.delayed ? ` +${a.delayDays}d` : (a.knockOn > 0 ? ` (forecast +${a.knockOn}d)` : "")}</span>
@@ -943,7 +943,9 @@ export default function App({ session }) {
         {S.view === "swimlane" && lanesList.map((lane) => {
           const la = visible.filter((a) => a.inWin && laneOf(a) === lane).sort((a, b) => a.startOff - b.startOff);
           if (S.laneBy !== "level" && la.length === 0) return null;
-          const rows = []; la.forEach((a) => { const su = sU(a), eu = eU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; });
+          const rows = []; la.forEach((a) => { const su = sU(a), eu = eU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; a._step = 0; a._stepMax = 0; });
+          const msByRow = {}; la.forEach((a) => { if (a.isMilestone) (msByRow[a._row] = msByRow[a._row] || []).push(a); });
+          Object.keys(msByRow).forEach((k) => { const ms = msByRow[k].sort((x, y) => sU(x) - sU(y)); let prev = -99, lvl = 0, mx = 0; ms.forEach((a) => { const su = sU(a); lvl = (su - prev <= 3) ? (lvl + 1) % 4 : 0; a._step = lvl; if (lvl > mx) mx = lvl; prev = su; }); ms.forEach((a) => { a._stepMax = mx; }); });
           const sw = S.laneBy === "level" ? lvOf(LV, lane).color : "var(--muted)";
           const co = S.laneBy === "company" ? S.companies.find((c) => c.name === lane) : null;
           const laneLogo = pickLogo(co);
@@ -953,7 +955,7 @@ export default function App({ session }) {
                 <div style={{ minWidth: 0 }}>{laneLogo && <img className="lk-lanelogo" src={laneLogo} alt={lane} style={{ cursor: co ? "pointer" : "default" }} title={co ? "Company role & scope" : undefined} onClick={() => co && setCompanyInfo(co)} />}<div className="lanenm">{S.laneBy === "level" ? `${lane} · ${lvOf(LV, lane).name}` : lane}</div><div className="cnt mono">{la.length} act</div></div></div>
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={lane} />
-                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${Math.max(1, rows.length)},minmax(48px,auto))` }}>
+                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: (rows.length ? rows : [0]).map((_, r) => { const mx = la.reduce((m, a) => (a._row === r && a._stepMax > m ? a._stepMax : m), 0); return `minmax(${48 + mx * 14}px,auto)`; }).join(" ") }}>
                   {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
