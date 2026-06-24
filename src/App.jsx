@@ -327,7 +327,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
-.lk-tblwrap{width:100%;flex:1;min-height:0;display:flex;flex-direction:column}
+.lk-tblwrap{width:100%;height:calc(100vh - 54px);min-height:0;display:flex;flex-direction:column}
 .lk-sch{width:100%;display:flex;flex-direction:column;height:calc(100vh - 110px)}
 .lk-sch-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
 .lk-sch-bar .grp{display:flex;flex-direction:column;gap:4px}
@@ -2129,6 +2129,9 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const [fStatus, setFStatus] = useState(savedView.fStatus || "all");
   const [fAr, setFAr] = useState(savedView.fAr || "all");
   const [fLv, setFLv] = useState(savedView.fLv || "all");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
+  const [bulkStatus, setBulkStatus] = useState("");
   const [colsOpen, setColsOpen] = useState(false);
   const [frOpen, setFrOpen] = useState(false);
   const [frFind, setFrFind] = useState("");
@@ -2140,9 +2143,10 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const [savedMsg, setSavedMsg] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
-  useEffect(() => { setSel(new Set()); setConfirmBulk(false); }, [fCo, fStatus, fAr, fLv, q]);
+  useEffect(() => { setSel(new Set()); setConfirmBulk(false); }, [fCo, fStatus, fAr, fLv, q, fFrom, fTo]);
   const toggleSel = (id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const delSelected = () => { const ids = sel; if (!ids.size) return; update((p) => ({ ...p, activities: p.activities.filter((x) => !ids.has(x.id)).map((x) => (x.predecessors && x.predecessors.some((pid) => ids.has(pid))) ? { ...x, predecessors: x.predecessors.filter((pid) => !ids.has(pid)) } : x) }), { action: "Delete activities (table)", detail: ids.size + " activit" + (ids.size === 1 ? "y" : "ies") }); setSel(new Set()); setConfirmBulk(false); };
+  const setSelStatus = () => { if (!sel.size || !bulkStatus) return; const ids = sel; const n = ids.size; const today = fmtISO(new Date()); update((p) => ({ ...p, activities: p.activities.map((x) => { if (!ids.has(x.id)) return x; const nn = { ...x, status: bulkStatus }; if (bulkStatus === "in_progress" && !nn.actualStart) nn.actualStart = today; if (bulkStatus === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish) nn.actualFinish = today; } return nn; }) }), { action: "Bulk set status (table)", detail: `${n} activit${n === 1 ? "y" : "ies"} -> ${bulkStatus.replace("_", " ")}` }); setSavedMsg(`Set ${n} activit${n === 1 ? "y" : "ies"} to ${bulkStatus.replace("_", " ")}`); setTimeout(() => setSavedMsg(""), 3000); setSel(new Set()); setBulkStatus(""); };
   const [cols, setCols] = useState(() => ({ ...TBL_DEFAULT_COLS, ...(savedView.cols || {}) }));
   const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
   const rowEditable = (a) => a.status === "complete" ? isAdmin : (isAdmin || (canEdit(a) && !a.committed));
@@ -2152,7 +2156,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const setStatus = (v) => setDraft((d) => { const n = { ...d, status: v }; if (v === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (v === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; });
   const save = () => { if (!draft.desc.trim()) return; const d = draft; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === d.id ? d : x) }), { action: "Edit activity (table)", detail: `${d.desc} (${coName(d.companyId)})` }); cancel(); };
   const saveView = () => { try { localStorage.setItem("fin04_tblview", JSON.stringify({ cols, fCo, fAr, fLv, fStatus })); setSavedMsg("Saved as your default view"); setTimeout(() => setSavedMsg(""), 2200); } catch (e) {} };
-  const resetView = () => { setCols({ ...TBL_DEFAULT_COLS }); setFCo("all"); setFAr("all"); setFLv("all"); setFStatus("all"); try { localStorage.removeItem("fin04_tblview"); } catch (e) {} setSavedMsg("Reset to defaults"); setTimeout(() => setSavedMsg(""), 2200); };
+  const resetView = () => { setCols({ ...TBL_DEFAULT_COLS }); setFCo("all"); setFAr("all"); setFLv("all"); setFStatus("all"); setFFrom(""); setFTo(""); try { localStorage.removeItem("fin04_tblview"); } catch (e) {} setSavedMsg("Reset to defaults"); setTimeout(() => setSavedMsg(""), 2200); };
   const subsFor = (area) => (S.subAreas || []).filter((s) => s.area === area);
   const zonesFor = (area, sub) => (S.tier3s || []).filter((t) => t.area === area && t.subArea === sub);
   const list = S.activities.filter((a) => {
@@ -2160,6 +2164,8 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
     if (fCo === "none") { if (a.companyId) return false; } else if (fCo !== "all" && a.companyId !== fCo) return false;
     if (fAr !== "all" && a.area !== fAr) return false;
     if (fLv !== "all" && a.level !== fLv) return false;
+    if (fFrom && (a.start || "") < fFrom) return false;
+    if (fTo && (a.start || "") > fTo) return false;
     if (q.trim() && !(`${a.desc || ""} ${cn(a.companyId)} ${a.system || ""}`.toLowerCase().includes(q.trim().toLowerCase()))) return false;
     return true;
   }).sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || 0) - (b.code || 0));
@@ -2206,6 +2212,8 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
         {S.areas.length > 1 && <div className="lk-f" style={{ minWidth: 120 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>}
         <div className="lk-f" style={{ minWidth: 90 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 105 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
+        <div className="lk-f" style={{ minWidth: 124 }}><label>Start From</label><input className="lk-in mono" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} /></div>
+        <div className="lk-f" style={{ minWidth: 124 }}><label>Start To</label><input className="lk-in mono" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} /></div>
         <div style={{ position: "relative" }}>
           {isAdmin && <button className={"lk-btn" + (frOpen ? " on" : "")} style={{ marginRight: 8 }} onClick={() => setFrOpen((v) => !v)}>Find &amp; replace</button>}
           <button className={"lk-btn" + (colsOpen ? " on" : "")} onClick={() => setColsOpen((v) => !v)}><Icon n="grid" s={14} />Columns</button>
@@ -2248,6 +2256,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
       </div>}
       {isAdmin && sel.size > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", margin: "8px 16px 0", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600 }}>{sel.size} selected</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><select className="lk-select" style={{ fontSize: 12, padding: "5px 8px" }} value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Set status to…</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select><button className="lk-btn" disabled={!bulkStatus} onClick={setSelStatus}>Apply</button></span>
         {confirmBulk
           ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete {sel.size} activit{sel.size === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={delSelected}><Icon n="trash" s={14} />Yes, delete</button><button className="lk-btn" onClick={() => setConfirmBulk(false)}>Cancel</button></span>
           : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><button className="lk-btn" style={{ color: "#C0392B" }} onClick={() => setConfirmBulk(true)}><Icon n="trash" s={14} />Delete selected</button><button className="lk-btn" onClick={() => setSel(new Set())}>Clear</button></span>}
