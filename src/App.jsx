@@ -327,7 +327,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
-.lk-tblwrap{width:100%}
+.lk-tblwrap{width:100%;flex:1;min-height:0;display:flex;flex-direction:column}
 .lk-sch{width:100%;display:flex;flex-direction:column;height:calc(100vh - 110px)}
 .lk-sch-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
 .lk-sch-bar .grp{display:flex;flex-direction:column;gap:4px}
@@ -336,7 +336,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-sch-bar .seg button{border:0;background:transparent;color:var(--muted);padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer}
 .lk-sch-bar .seg button.on{background:var(--ink);color:var(--paper)}
 .lk-sch-scroll{flex:1;overflow:auto;background:#fff}
-.lk-tblscroll{overflow-x:auto;padding:8px 16px 64px}
+.lk-tblscroll{flex:1;min-height:0;overflow:auto;padding:8px 16px 64px}
 .lk-grid{border-collapse:collapse;width:100%;font-size:11.5px;min-width:1040px}
 .lk-grid th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:8px 7px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--paper);z-index:1}
 .lk-grid td{padding:4px 7px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink)}
@@ -2168,12 +2168,35 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const toggleAll = () => setSel(() => (list.length && list.every((a) => sel.has(a.id))) ? new Set() : new Set(list.map((a) => a.id)));
   const cell = { padding: "5px 7px", fontSize: 11.5 };
   const C = (k) => cols[k];
-  const FR_FIELDS = [["desc", "Activity name"], ["notes", "Notes"], ["asset", "Asset code"]];
+  const FR_FIELDS = [["desc", "Activity name", "text"], ["notes", "Notes", "text"], ["asset", "Asset code", "text"], ["system", "System", "enum"], ["area", "Building", "area"], ["level", "Cx Stage", "enum"], ["status", "Status", "status"], ["companyId", "Company", "company"], ["committed", "Committed", "bool"], ["witnessInvite", "Witness", "bool"]];
+  const frType = (FR_FIELDS.find((f) => f[0] === frField) || [])[2] || "text";
+  const frIsText = frType === "text";
+  const frBool = frType === "bool";
+  const frOptsFor = (f) => { switch (f) { case "system": return [["", "(Blank)"], ...S.systems.map((s) => [s, s])]; case "area": return S.areas.map((x) => [x, x]); case "level": return Object.keys(S.levels).map((k) => [k, k]); case "status": return [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]; case "companyId": return [["", "(None)"], ...S.companies.map((c) => [c.id, c.name])]; case "committed": case "witnessInvite": return [["true", "Yes"], ["false", "No"]]; default: return []; } };
+  const frOpts = frOptsFor(frField);
+  const frCur = (a) => frBool ? String(!!a[frField]) : String(a[frField] == null ? "" : a[frField]);
+  const frLbl = (v) => { const o = frOpts.find((x) => x[0] === v); return o ? o[1] : (v || "(Blank)"); };
   const frMk = () => { const esc = frFind.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); return new RegExp(frWhole ? `\\b${esc}\\b` : esc, frCase ? "g" : "gi"); };
   const frVal = (a) => (a[frField] || "");
-  const frMatched = frFind ? list.filter((a) => frMk().test(frVal(a))) : [];
-  const frOccur = frMatched.reduce((n, a) => n + (frVal(a).match(frMk()) || []).length, 0);
-  const frApply = () => { if (!frFind || !frMatched.length) return; const ids = new Set(frMatched.map((a) => a.id)); const fl = (FR_FIELDS.find((f) => f[0] === frField) || ["", frField])[1]; const n = ids.size; update((p) => ({ ...p, activities: p.activities.map((x) => ids.has(x.id) ? ({ ...x, [frField]: (x[frField] || "").replace(frMk(), frRepl) }) : x) }), { action: "Find & replace (table)", detail: `"${frFind}" -> "${frRepl}" in ${fl} on ${n} activit${n === 1 ? "y" : "ies"}` }); setSavedMsg(`Replaced in ${n} activit${n === 1 ? "y" : "ies"} (${frOccur} occurrence${frOccur === 1 ? "" : "s"})`); setTimeout(() => setSavedMsg(""), 3000); setFrConfirm(false); setFrOpen(false); setFrFind(""); setFrRepl(""); };
+  const frMatched = frIsText ? (frFind ? list.filter((a) => frMk().test(frVal(a))) : []) : list.filter((a) => frFind === "__any__" || frCur(a) === frFind);
+  const frOccur = frIsText ? frMatched.reduce((n, a) => n + (frVal(a).match(frMk()) || []).length, 0) : frMatched.length;
+  const frBefore = (a) => frIsText ? frVal(a) : frLbl(frCur(a));
+  const frAfter = (a) => frIsText ? frVal(a).replace(frMk(), frRepl) : frLbl(frRepl);
+  const frApply = () => {
+    if (!frMatched.length || (frIsText && !frFind)) return;
+    const ids = new Set(frMatched.map((a) => a.id)); const n = ids.size; const fl = (FR_FIELDS.find((f) => f[0] === frField) || ["", frField])[1]; const today = fmtISO(new Date());
+    const apply = (x) => {
+      if (frIsText) return { ...x, [frField]: (x[frField] || "").replace(frMk(), frRepl) };
+      if (frType === "bool") return { ...x, [frField]: frRepl === "true" };
+      if (frType === "area") return { ...x, area: frRepl, subArea: "", tier3: "" };
+      if (frType === "company") return { ...x, companyId: frRepl || null };
+      if (frType === "status") { const nn = { ...x, status: frRepl }; if (frRepl === "in_progress" && !nn.actualStart) nn.actualStart = today; if (frRepl === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish) nn.actualFinish = today; } return nn; }
+      return { ...x, [frField]: frRepl };
+    };
+    const det = frIsText ? `"${frFind}" -> "${frRepl}" in ${fl}` : `${fl} set to "${frLbl(frRepl)}"${frFind === "__any__" ? "" : ` (where ${fl} = "${frLbl(frFind)}")`}`;
+    update((p) => ({ ...p, activities: p.activities.map((x) => ids.has(x.id) ? apply(x) : x) }), { action: "Find & replace (table)", detail: `${det} on ${n} activit${n === 1 ? "y" : "ies"}` });
+    setSavedMsg(`Updated ${n} activit${n === 1 ? "y" : "ies"}${frIsText ? ` (${frOccur} occurrence${frOccur === 1 ? "" : "s"})` : ""}`); setTimeout(() => setSavedMsg(""), 3000); setFrConfirm(false); setFrOpen(false); if (frIsText) { setFrFind(""); setFrRepl(""); }
+  };
   const visCount = 2 + TBL_COLS.filter(([k]) => cols[k]).length;
   return (
     <div className="lk-tblwrap" style={cssVars(S.theme)}><style>{css}</style>
@@ -2203,21 +2226,24 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
       {savedMsg && <div style={{ padding: "4px 16px 0", fontSize: 11.5, color: "var(--muted)" }}>{savedMsg}</div>}
       {isAdmin && frOpen && <div style={{ margin: "8px 16px 0", padding: "12px 14px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
-          <div className="lk-f" style={{ minWidth: 150 }}><label>Find</label><input className="lk-in" value={frFind} placeholder="e.g. Generator" onChange={(e) => { setFrFind(e.target.value); setFrConfirm(false); }} /></div>
-          <div className="lk-f" style={{ minWidth: 150 }}><label>Replace With</label><input className="lk-in" value={frRepl} placeholder="e.g. GEN" onChange={(e) => { setFrRepl(e.target.value); setFrConfirm(false); }} /></div>
-          <div className="lk-f" style={{ minWidth: 130 }}><label>In</label><select className="lk-select" value={frField} onChange={(e) => { setFrField(e.target.value); setFrConfirm(false); }}>{FR_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, paddingBottom: 7 }}><input type="checkbox" checked={frCase} onChange={(e) => { setFrCase(e.target.checked); setFrConfirm(false); }} />Match Case</label>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, paddingBottom: 7 }}><input type="checkbox" checked={frWhole} onChange={(e) => { setFrWhole(e.target.checked); setFrConfirm(false); }} />Whole Word</label>
+          <div className="lk-f" style={{ minWidth: 140 }}><label>In</label><select className="lk-select" value={frField} onChange={(e) => { const f = e.target.value; const t = (FR_FIELDS.find((x) => x[0] === f) || [])[2] || "text"; setFrField(f); setFrConfirm(false); if (t === "text") { setFrFind(""); setFrRepl(""); } else { setFrFind("__any__"); const o = frOptsFor(f); setFrRepl(o.length ? o[0][0] : ""); } }}>{FR_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+          {frIsText
+            ? <><div className="lk-f" style={{ minWidth: 150 }}><label>Find</label><input className="lk-in" value={frFind} placeholder="e.g. Generator" onChange={(e) => { setFrFind(e.target.value); setFrConfirm(false); }} /></div>
+                <div className="lk-f" style={{ minWidth: 150 }}><label>Replace With</label><input className="lk-in" value={frRepl} placeholder="e.g. GEN" onChange={(e) => { setFrRepl(e.target.value); setFrConfirm(false); }} /></div>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, paddingBottom: 7 }}><input type="checkbox" checked={frCase} onChange={(e) => { setFrCase(e.target.checked); setFrConfirm(false); }} />Match Case</label>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, paddingBottom: 7 }}><input type="checkbox" checked={frWhole} onChange={(e) => { setFrWhole(e.target.checked); setFrConfirm(false); }} />Whole Word</label></>
+            : <><div className="lk-f" style={{ minWidth: 150 }}><label>Where</label><select className="lk-select" value={frFind} onChange={(e) => { setFrFind(e.target.value); setFrConfirm(false); }}><option value="__any__">(Any value)</option>{frOpts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+                <div className="lk-f" style={{ minWidth: 150 }}><label>Set To</label><select className="lk-select" value={frRepl} onChange={(e) => { setFrRepl(e.target.value); setFrConfirm(false); }}>{frOpts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div></>}
         </div>
-        {frFind && <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>{frMatched.length === 0 ? "No matches in the current view." : <span>Matches <b style={{ color: "var(--ink)" }}>{frMatched.length}</b> activit{frMatched.length === 1 ? "y" : "ies"} ({frOccur} occurrence{frOccur === 1 ? "" : "s"}) in the current view of {list.length}.</span>}</div>}
-        {frFind && frMatched.length > 0 && <div style={{ marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 168, overflow: "auto" }}>
-          {frMatched.slice(0, 8).map((a) => <div key={a.id} style={{ fontSize: 11.5, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}><span style={{ color: "var(--muted)", textDecoration: "line-through" }}>{frVal(a)}</span><span style={{ color: "var(--muted)" }}>{"\u2192"}</span><span style={{ color: "var(--ink)", fontWeight: 600 }}>{frVal(a).replace(frMk(), frRepl)}</span></div>)}
+        {(!frIsText || frFind) && <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>{frMatched.length === 0 ? "No matching activities in the current view." : <span>Will change <b style={{ color: "var(--ink)" }}>{frMatched.length}</b> activit{frMatched.length === 1 ? "y" : "ies"}{frIsText ? ` (${frOccur} occurrence${frOccur === 1 ? "" : "s"})` : ""} in the current view of {list.length}.</span>}</div>}
+        {(!frIsText || frFind) && frMatched.length > 0 && <div style={{ marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 168, overflow: "auto" }}>
+          {frMatched.slice(0, 8).map((a) => <div key={a.id} style={{ fontSize: 11.5, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>{!frIsText && <span style={{ color: "var(--muted)", minWidth: 130, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.desc || "Untitled"}</span>}<span style={{ color: "var(--muted)", textDecoration: "line-through" }}>{frBefore(a) || "(Blank)"}</span><span style={{ color: "var(--muted)" }}>{"\u2192"}</span><span style={{ color: "var(--ink)", fontWeight: 600 }}>{frAfter(a) || "(Blank)"}</span></div>)}
           {frMatched.length > 8 && <div style={{ fontSize: 11, color: "var(--muted)" }}>+{frMatched.length - 8} more</div>}
         </div>}
         <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
           {frConfirm
-            ? <><span style={{ fontSize: 12, color: "#C0392B", fontWeight: 600 }}>Apply to {frMatched.length} activit{frMatched.length === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }} onClick={frApply}>Yes, Replace</button><button className="lk-btn" onClick={() => setFrConfirm(false)}>Cancel</button></>
-            : <><button className="lk-btn primary" disabled={!frFind || frMatched.length === 0} onClick={() => setFrConfirm(true)}>Replace</button><button className="lk-btn" onClick={() => { setFrOpen(false); setFrConfirm(false); }}>Close</button></>}
+            ? <><span style={{ fontSize: 12, color: "#C0392B", fontWeight: 600 }}>Apply to {frMatched.length} activit{frMatched.length === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }} onClick={frApply}>Yes, Apply</button><button className="lk-btn" onClick={() => setFrConfirm(false)}>Cancel</button></>
+            : <><button className="lk-btn primary" disabled={frMatched.length === 0 || (frIsText && !frFind)} onClick={() => setFrConfirm(true)}>{frIsText ? "Replace" : "Apply"}</button><button className="lk-btn" onClick={() => { setFrOpen(false); setFrConfirm(false); }}>Close</button></>}
         </div>
       </div>}
       {isAdmin && sel.size > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", margin: "8px 16px 0", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
