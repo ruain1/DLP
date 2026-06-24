@@ -2130,6 +2130,13 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const [fAr, setFAr] = useState(savedView.fAr || "all");
   const [fLv, setFLv] = useState(savedView.fLv || "all");
   const [colsOpen, setColsOpen] = useState(false);
+  const [frOpen, setFrOpen] = useState(false);
+  const [frFind, setFrFind] = useState("");
+  const [frRepl, setFrRepl] = useState("");
+  const [frField, setFrField] = useState("desc");
+  const [frCase, setFrCase] = useState(false);
+  const [frWhole, setFrWhole] = useState(false);
+  const [frConfirm, setFrConfirm] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
@@ -2161,6 +2168,12 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const toggleAll = () => setSel(() => (list.length && list.every((a) => sel.has(a.id))) ? new Set() : new Set(list.map((a) => a.id)));
   const cell = { padding: "5px 7px", fontSize: 11.5 };
   const C = (k) => cols[k];
+  const FR_FIELDS = [["desc", "Activity name"], ["notes", "Notes"], ["asset", "Asset code"]];
+  const frMk = () => { const esc = frFind.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); return new RegExp(frWhole ? `\\b${esc}\\b` : esc, frCase ? "g" : "gi"); };
+  const frVal = (a) => (a[frField] || "");
+  const frMatched = frFind ? list.filter((a) => frMk().test(frVal(a))) : [];
+  const frOccur = frMatched.reduce((n, a) => n + (frVal(a).match(frMk()) || []).length, 0);
+  const frApply = () => { if (!frFind || !frMatched.length) return; const ids = new Set(frMatched.map((a) => a.id)); const fl = (FR_FIELDS.find((f) => f[0] === frField) || ["", frField])[1]; const n = ids.size; update((p) => ({ ...p, activities: p.activities.map((x) => ids.has(x.id) ? ({ ...x, [frField]: (x[frField] || "").replace(frMk(), frRepl) }) : x) }), { action: "Find & replace (table)", detail: `"${frFind}" -> "${frRepl}" in ${fl} on ${n} activit${n === 1 ? "y" : "ies"}` }); setSavedMsg(`Replaced in ${n} activit${n === 1 ? "y" : "ies"} (${frOccur} occurrence${frOccur === 1 ? "" : "s"})`); setTimeout(() => setSavedMsg(""), 3000); setFrConfirm(false); setFrOpen(false); setFrFind(""); setFrRepl(""); };
   const visCount = 2 + TBL_COLS.filter(([k]) => cols[k]).length;
   return (
     <div className="lk-tblwrap" style={cssVars(S.theme)}><style>{css}</style>
@@ -2171,6 +2184,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
         <div className="lk-f" style={{ minWidth: 90 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 105 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
         <div style={{ position: "relative" }}>
+          {isAdmin && <button className={"lk-btn" + (frOpen ? " on" : "")} style={{ marginRight: 8 }} onClick={() => setFrOpen((v) => !v)}>Find &amp; replace</button>}
           <button className={"lk-btn" + (colsOpen ? " on" : "")} onClick={() => setColsOpen((v) => !v)}><Icon n="grid" s={14} />Columns</button>
           {colsOpen && <><div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={() => setColsOpen(false)} />
             <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 31, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 6px", minWidth: 190, boxShadow: "0 10px 30px rgba(0,0,0,.18)" }}>
@@ -2187,6 +2201,25 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
         </div>
       </div>
       {savedMsg && <div style={{ padding: "4px 16px 0", fontSize: 11.5, color: "var(--muted)" }}>{savedMsg}</div>}
+      {isAdmin && frOpen && <div style={{ margin: "8px 16px 0", padding: "12px 14px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+          <div className="lk-f" style={{ minWidth: 150 }}><label>Find</label><input className="lk-in" value={frFind} placeholder="e.g. Generator" onChange={(e) => { setFrFind(e.target.value); setFrConfirm(false); }} /></div>
+          <div className="lk-f" style={{ minWidth: 150 }}><label>Replace With</label><input className="lk-in" value={frRepl} placeholder="e.g. GEN" onChange={(e) => { setFrRepl(e.target.value); setFrConfirm(false); }} /></div>
+          <div className="lk-f" style={{ minWidth: 130 }}><label>In</label><select className="lk-select" value={frField} onChange={(e) => { setFrField(e.target.value); setFrConfirm(false); }}>{FR_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, paddingBottom: 7 }}><input type="checkbox" checked={frCase} onChange={(e) => { setFrCase(e.target.checked); setFrConfirm(false); }} />Match Case</label>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, paddingBottom: 7 }}><input type="checkbox" checked={frWhole} onChange={(e) => { setFrWhole(e.target.checked); setFrConfirm(false); }} />Whole Word</label>
+        </div>
+        {frFind && <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>{frMatched.length === 0 ? "No matches in the current view." : <span>Matches <b style={{ color: "var(--ink)" }}>{frMatched.length}</b> activit{frMatched.length === 1 ? "y" : "ies"} ({frOccur} occurrence{frOccur === 1 ? "" : "s"}) in the current view of {list.length}.</span>}</div>}
+        {frFind && frMatched.length > 0 && <div style={{ marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 168, overflow: "auto" }}>
+          {frMatched.slice(0, 8).map((a) => <div key={a.id} style={{ fontSize: 11.5, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}><span style={{ color: "var(--muted)", textDecoration: "line-through" }}>{frVal(a)}</span><span style={{ color: "var(--muted)" }}>{"\u2192"}</span><span style={{ color: "var(--ink)", fontWeight: 600 }}>{frVal(a).replace(frMk(), frRepl)}</span></div>)}
+          {frMatched.length > 8 && <div style={{ fontSize: 11, color: "var(--muted)" }}>+{frMatched.length - 8} more</div>}
+        </div>}
+        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+          {frConfirm
+            ? <><span style={{ fontSize: 12, color: "#C0392B", fontWeight: 600 }}>Apply to {frMatched.length} activit{frMatched.length === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }} onClick={frApply}>Yes, Replace</button><button className="lk-btn" onClick={() => setFrConfirm(false)}>Cancel</button></>
+            : <><button className="lk-btn primary" disabled={!frFind || frMatched.length === 0} onClick={() => setFrConfirm(true)}>Replace</button><button className="lk-btn" onClick={() => { setFrOpen(false); setFrConfirm(false); }}>Close</button></>}
+        </div>
+      </div>}
       {isAdmin && sel.size > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", margin: "8px 16px 0", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600 }}>{sel.size} selected</span>
         {confirmBulk
@@ -2201,7 +2234,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
           <tbody>
             {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
             {list.map((a) => {
-              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete";
+              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete" && !isAdmin;
               return <tr key={a.id} className={ed ? "ed" : ""}>
                 <td>{ed
                   ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
