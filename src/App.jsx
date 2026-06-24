@@ -783,9 +783,10 @@ export default function App({ session }) {
     const spot = makeReady && constrained && a.startOff < mk;
     const dim = makeReady && !spot;
     const hasTail = a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
+    const tailLate = a.delayed;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRightWidth: 0 } : {}) }}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
         draggable={movable && !rz} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
         <div className="desc">{a.desc || "Untitled activity"}</div>
         <div className="meta">
@@ -827,7 +828,7 @@ export default function App({ session }) {
       ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
       : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
     const badge = late ? `${a.delayDays || a.totalShift}d late` : `+${a.totalShift}d`;
-    return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", border: `1px solid ${col}`, borderLeft: 0, borderRadius: "0 12px 12px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 8px", zIndex: 0, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap" }}>{badge}</span></div>;
+    return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", border: "1px solid var(--line)", borderLeft: 0, borderRadius: "0 12px 12px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 8px", zIndex: 0, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap" }}>{badge}</span></div>;
   };
 
   const RescheduleTrail = ({ a, row }) => {
