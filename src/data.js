@@ -41,7 +41,7 @@ export async function loadAll(session) {
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
   return {
-    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "", description: c.description || "" })),
+    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "", description: c.description || "", domain: c.domain || "" })),
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
     levels: levelsObj,
@@ -178,6 +178,59 @@ export async function fetchAudit() {
 }
 
 export async function signOut() { await supabase.auth.signOut(); }
+
+// ---- access requests (self-service join) ----
+// Submit a request from the login screen. No session: the table allows an
+// anonymous insert only, and grants no read, so the queue stays admin-only.
+export async function submitAccessRequest({ name, email, organisation, note }) {
+  const payload = {
+    name: (name || "").trim(),
+    email: (email || "").trim().toLowerCase(),
+    organisation: (organisation || "").trim(),
+    note: (note || "").trim(),
+  };
+  if (!payload.email) throw new Error("Email required.");
+  const { error } = await supabase.from("access_requests").insert(payload);
+  if (error) throw error;
+  return { ok: true };
+}
+
+// Admin: read the request queue (RLS restricts this to admins).
+export async function fetchAccessRequests() {
+  const { data, error } = await supabase.from("access_requests").select("*").order("created_at", { ascending: false }).limit(200);
+  if (error) return [];
+  return (data || []).map((r) => ({
+    id: r.id, name: r.name || "", email: r.email || "", organisation: r.organisation || "", note: r.note || "",
+    status: r.status || "pending", createdAt: r.created_at, decidedByName: r.decided_by_name || "", decidedAt: r.decided_at || null, decisionNote: r.decision_note || "",
+  }));
+}
+
+export async function decideAccessRequest(id, patch) {
+  const { error } = await supabase.from("access_requests").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export function subscribeAccessRequests(onChange) {
+  let t; const debounced = () => { clearTimeout(t); t = setTimeout(onChange, 250); };
+  return supabase.channel("fin04-access-requests")
+    .on("postgres_changes", { event: "*", schema: "public", table: "access_requests" }, debounced)
+    .subscribe();
+}
+
+// Admin: create a company directly (used by the approve flow, which needs the
+// new id immediately). Optionally stamp the email domain so future requests match.
+export async function createCompany(name, domain) {
+  const row = { name: (name || "").trim() };
+  if (domain) row.domain = domain.toLowerCase();
+  const { data, error } = await supabase.from("companies").insert(row).select("id,name,domain").single();
+  if (error) throw error;
+  return { id: data.id, name: data.name, domain: data.domain || "" };
+}
+
+export async function setCompanyDomain(id, domain) {
+  const { error } = await supabase.from("companies").update({ domain: domain ? domain.toLowerCase() : null }).eq("id", id);
+  if (error) throw error;
+}
 
 // Logged-in user changes their own password.
 export async function changePassword(password) {

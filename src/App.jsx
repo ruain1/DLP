@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit } from "./data";
+import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -370,6 +370,29 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-res-err{background:#C0392B14;border:1px solid #C0392B;border-radius:9px;padding:10px 12px;font-size:12px}
 .lk-res-err ul{max-height:200px;overflow:auto;color:#C0392B}
 .lk-foot{flex-shrink:0;width:100%;margin-top:auto;border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:10.5px;line-height:1;padding:9px 18px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-reqbadge{display:inline-block;min-width:16px;height:16px;line-height:16px;padding:0 4px;margin-left:7px;border-radius:9px;background:#E5484D;color:#fff;font-size:10px;font-weight:800;text-align:center;vertical-align:middle}
+.lk-req{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px 16px;margin-bottom:12px}
+.lk-req .rtop{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.lk-req .who{font-weight:600;font-size:14.5px}
+.lk-req .rmeta{font-size:12.5px;color:var(--ink-2);margin-top:3px}
+.lk-req .rmeta .org{color:var(--ink);font-weight:600}
+.lk-req .rwhen{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.lk-req .rnote{font-size:13px;color:var(--ink-2);margin-top:10px;padding:9px 11px;background:var(--paper);border:1px solid var(--line);border-radius:9px}
+.lk-req .rnote.empty{color:var(--muted);font-style:italic}
+.lk-req .rflag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--amber);margin-top:9px}
+.lk-req .racts{display:flex;gap:10px;margin-top:13px}
+.lk-rdecided{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:12.5px;background:var(--card)}
+.lk-rstat{font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.lk-rstat.app{background:#E2F2EF;color:var(--green)}
+.lk-rstat.rej{background:#FBEBE9;color:var(--red)}
+.lk-match{font-size:12px;border-radius:8px;padding:9px 11px;margin:2px 0 0;display:flex;align-items:center;gap:8px;line-height:1.35}
+.lk-match.exact{background:#E2F2EF;color:#0B6E63}
+.lk-match.fuzzy{background:#FBEFD6;color:#8A5A00}
+.lk-match.none{background:var(--card);color:var(--muted);border:1px solid var(--line)}
+.lk-remember{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2);margin-top:10px;cursor:pointer}
+.lk-remember input{width:16px;height:16px;accent-color:var(--accent);flex:none}
+.lk-locked{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}
+.lk-locked .lkv{font-weight:600;font-size:13px}.lk-locked .lkn{font-size:11px;color:var(--muted)}
 `;
 
 const I = {
@@ -1288,7 +1311,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
 }
 
 function AdminPanel({ S, cu, update, exportActivities }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "users", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "users", "requests", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
@@ -1378,6 +1401,89 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const renameT3 = (area, subArea, oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if ((S.tier3s || []).some((t) => t.area === area && t.subArea === subArea && t.name !== oldName && t.name.toLowerCase() === name.toLowerCase())) { alert(`Zone / room "${name}" already exists in ${area} / ${subArea}.`); return; } update((p) => ({ ...p, tier3s: (p.tier3s || []).map((t) => (t.area === area && t.subArea === subArea && t.name === oldName ? { ...t, name } : t)), activities: p.activities.map((a) => (a.area === area && a.subArea === subArea && a.tier3 === oldName ? { ...a, tier3: name } : a)) }), { action: "Rename zone / room", detail: `${area} / ${subArea} / ${oldName} -> ${name}` }); };
   const copyZones = (area, fromSub, toSub) => { if (!fromSub || !toSub || fromSub === toSub) return; const src = (S.tier3s || []).filter((t) => t.area === area && t.subArea === fromSub); if (!src.length) return; update((p) => { const cur = [...(p.tier3s || [])]; src.forEach((t) => { if (!cur.some((x) => x.area === area && x.subArea === toSub && x.name.toLowerCase() === t.name.toLowerCase())) cur.push({ area, subArea: toSub, name: t.name }); }); return { ...p, tier3s: cur }; }, { action: "Copy zones / rooms", detail: `${area}: ${fromSub} -> ${toSub} (${src.length})` }); setCopyFrom({ ...copyFrom, [area + "\u0001" + toSub]: "" }); };
   const [newCred, setNewCred] = useState(null);
+  // ---- access requests ----
+  const [reqs, setReqs] = useState([]);
+  const [reqBusy, setReqBusy] = useState(false);
+  const [approve, setApprove] = useState(null);
+  const [rejecting, setRejecting] = useState(null);
+  useEffect(() => {
+    let on = true;
+    const go = () => fetchAccessRequests().then((r) => { if (on) setReqs(r); }).catch(() => {});
+    go();
+    const sub = subscribeAccessRequests(go);
+    return () => { on = false; try { sub && sub.unsubscribe && sub.unsubscribe(); } catch (e) {} };
+  }, []);
+  const pendReqs = reqs.filter((r) => r.status === "pending");
+  const decidedReqs = reqs.filter((r) => r.status !== "pending").slice(0, 12);
+  const FREE_DOMAINS = ["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "yahoo.com", "yahoo.co.uk", "icloud.com", "me.com", "proton.me", "protonmail.com", "gmx.com", "aol.com"];
+  const normName = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const domainOf = (e) => { const p = (e || "").split("@")[1]; return p ? p.toLowerCase().trim() : ""; };
+  const domainLabel = (d) => { const p = d.split("."); return p.length < 2 ? d : p[p.length - 2]; };
+  const titleCaseStr = (s) => (s || "").replace(/\b\w/g, (c) => c.toUpperCase());
+  const matchCompanyByEmail = (email) => {
+    const d = domainOf(email);
+    if (!d) return { type: "empty" };
+    if (FREE_DOMAINS.includes(d)) return { type: "free", domain: d };
+    const exact = S.companies.find((c) => (c.domain || "").toLowerCase() === d);
+    if (exact) return { type: "exact", company: exact, domain: d };
+    const lbl = normName(domainLabel(d));
+    const fuzzy = lbl && S.companies.find((c) => { const n = normName(c.name); return n && (n === lbl || n.includes(lbl) || lbl.includes(n)); });
+    if (fuzzy) return { type: "fuzzy", company: fuzzy, domain: d };
+    return { type: "unknown", domain: d };
+  };
+  const openApprove = (req) => {
+    const m = matchCompanyByEmail(req.email);
+    setApprove({
+      req, name: req.name || req.email, email: req.email,
+      companyId: (m.type === "exact" || m.type === "fuzzy") ? m.company.id : "",
+      createNew: false, touched: false,
+      newName: req.organisation || (m.domain ? titleCaseStr(domainLabel(m.domain)) : ""),
+      remember: true,
+    });
+  };
+  const setApproveEmail = (email) => setApprove((a) => {
+    if (!a) return a;
+    let companyId = a.companyId;
+    if (!a.touched && !a.createNew) { const m = matchCompanyByEmail(email); companyId = (m.type === "exact" || m.type === "fuzzy") ? m.company.id : ""; }
+    return { ...a, email, companyId };
+  });
+  const doApprove = async () => {
+    const a = approve; if (!a) return;
+    const email = (a.email || "").trim();
+    if (!email) { setUserMsg("Email required."); return; }
+    const d = domainOf(email); const free = FREE_DOMAINS.includes(d);
+    let companyId = a.companyId, companyName = "";
+    setReqBusy(true); setUserMsg("");
+    try {
+      if (a.createNew) {
+        const nm = (a.newName || "").trim();
+        if (!nm) { setUserMsg("Name the new company."); setReqBusy(false); return; }
+        const existing = S.companies.find((c) => c.name.toLowerCase() === nm.toLowerCase());
+        const co = existing || await createCompany(nm, (!free && a.remember) ? d : null);
+        companyId = co.id; companyName = co.name;
+      } else {
+        if (!companyId) { setUserMsg("Pick a company, or create one."); setReqBusy(false); return; }
+        const co = S.companies.find((c) => c.id === companyId);
+        companyName = co ? co.name : "";
+        if (co && d && !free && a.remember && (co.domain || "").toLowerCase() !== d) { try { await setCompanyDomain(co.id, d); } catch (e) {} }
+      }
+      const res = await userOp({ op: "invite", email, name: (a.name || email).trim(), role: "member", company_id: companyId, redirect: window.location.origin });
+      await decideAccessRequest(a.req.id, { status: "approved", decided_by: cu.id, decided_by_name: cu.name, decided_at: new Date().toISOString() });
+      setReqs((rs) => rs.map((r) => r.id === a.req.id ? { ...r, status: "approved", decidedByName: cu.name, decidedAt: new Date().toISOString() } : r));
+      setApprove(null); setReqBusy(false);
+      setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, title: "Approved \u00b7 " + (companyName || "member") });
+      setUserMsg("");
+    } catch (e) { setReqBusy(false); setUserMsg("Approve failed: " + (e.message || e)); }
+  };
+  const doReject = async () => {
+    const r = rejecting; if (!r) return;
+    setReqBusy(true);
+    try {
+      await decideAccessRequest(r.req.id, { status: "rejected", decided_by: cu.id, decided_by_name: cu.name, decided_at: new Date().toISOString(), decision_note: (r.reason || "").trim() || null });
+      setReqs((rs) => rs.map((x) => x.id === r.req.id ? { ...x, status: "rejected", decidedByName: cu.name, decidedAt: new Date().toISOString() } : x));
+      setRejecting(null); setReqBusy(false);
+    } catch (e) { setReqBusy(false); setUserMsg("Reject failed: " + (e.message || e)); }
+  };
   const addUser = async () => {
     if (!nu.email.trim()) { setUserMsg("Email required."); return; }
     setUserMsg("Creating account…"); setNewCred(null);
@@ -1491,7 +1597,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   };
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
-    ["User management", [["users", "Users"]]],
+    ["User management", [["users", "Users"], ["requests", "Access requests"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
     ["About", [["changelog", "Changelog"]]],
@@ -1499,9 +1605,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   return (
     <div className="lk-adminwrap2" style={cssVars(S.theme)}><style>{css}</style>
         <div className="lk-subnav">
-          {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>)}
+          {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
-        <div className={"lk-subbody" + (tab === "users" || tab === "audit" ? " wide" : "")}><div className="lk-db">
+        <div className={"lk-subbody" + (tab === "users" || tab === "audit" || tab === "requests" ? " wide" : "")}><div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
             const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || "", c.logoDark || "", c.description || ""]) : S[tab].map((x) => [x, x]);
@@ -1616,6 +1722,45 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             </div>
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
           </div>}
+          {tab === "requests" && <>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Access requests</h3>
+              {pendReqs.length > 0 && <span className="lk-reqbadge">{pendReqs.length}</span>}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 16 }}>Approve to invite the person as a Member and assign a company. Anyone can submit this form, so verify identity before approving.</div>
+            {newCred && newCred.title && newCred.title.startsWith("Approved") && <div style={{ marginBottom: 14, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
+              <div style={{ fontWeight: 700, marginBottom: 5 }}>{newCred.title}. Share with the person:</div>
+              <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{newCred.who}</span></div>
+              {newCred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{newCred.link}</span></div>}
+              {newCred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{newCred.pw}</span></div>}
+              <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(newCred.link ? `Email: ${newCred.who}\nSet your DLP password: ${newCred.link}` : `Site: ${window.location.origin}\nEmail: ${newCred.who}\nPassword: ${newCred.pw}`); setUserMsg("Copied to clipboard"); } catch (e) { setUserMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy invite details</button>
+              <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setNewCred(null)}>Done</button>
+              <div style={{ marginTop: 7, color: "var(--muted)" }}>The link lets them set their own password and signs them straight in. No email is sent automatically.</div>
+            </div>}
+            {pendReqs.length === 0
+              ? <div style={{ fontSize: 13, color: "var(--muted)", padding: "30px 0", textAlign: "center", border: "1px dashed var(--line)", borderRadius: 12 }}>No pending requests.</div>
+              : pendReqs.map((r) => { const free = FREE_DOMAINS.includes(domainOf(r.email)); const suspicious = free && !r.organisation; return (
+                <div key={r.id} className="lk-req">
+                  <div className="rtop">
+                    <div>
+                      <div className="who">{r.name || "(no name)"}</div>
+                      <div className="rmeta">{r.email}{r.organisation ? <> &middot; <span className="org">{r.organisation}</span></> : <> &middot; <span style={{ color: "var(--muted)" }}>no organisation given</span></>}</div>
+                    </div>
+                    <div className="rwhen">{relTime(r.createdAt)}</div>
+                  </div>
+                  {r.note ? <div className="rnote">{r.note}</div> : <div className="rnote empty">No reason provided.</div>}
+                  {suspicious && <div className="rflag"><Icon n="alert" s={14} />Personal email, no organisation. Verify before approving.</div>}
+                  <div className="racts">
+                    <button className="lk-btn primary" onClick={() => openApprove(r)}><Icon n="check" s={14} />Approve</button>
+                    <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => setRejecting({ req: r, reason: "" })}>Reject</button>
+                  </div>
+                </div>); })}
+            {decidedReqs.length > 0 && <>
+              <div className="grphd" style={{ marginTop: 22, color: "var(--muted)" }}>Recently decided</div>
+              {decidedReqs.map((r) => <div key={r.id} className="lk-rdecided"><div style={{ minWidth: 0 }}><div style={{ fontWeight: 600 }}>{r.name || r.email}</div><div style={{ fontSize: 11.5, color: "var(--muted)" }}>{r.email}{r.decidedByName ? " \u00b7 " + (r.status === "approved" ? "approved" : "rejected") + " by " + r.decidedByName : ""}{r.decisionNote ? " \u00b7 " + r.decisionNote : ""}</div></div><span className={"lk-rstat " + (r.status === "approved" ? "app" : "rej")}>{r.status === "approved" ? "Approved" : "Rejected"}</span></div>)}
+            </>}
+            {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>{userMsg}</div>}
+          </>}
           {tab === "branding" && <>
             <div className="lk-f"><label>Project Name</label>
               <input className="lk-in" value={S.brand?.projectName || ""} placeholder="FIN04" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, projectName: e.target.value } }))} /></div>
@@ -1725,6 +1870,48 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           <div className="lk-dh"><h3>Are you sure?</h3><button className="lk-btn icon" onClick={() => setConfirmAsk(null)}><Icon n="x" /></button></div>
           <div className="bd"><div style={{ fontSize: 14, lineHeight: 1.5 }}>{confirmAsk.msg}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>This cannot be undone.</div></div>
           <div className="rep-foot"><button className="lk-btn" onClick={() => setConfirmAsk(null)}>No</button><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => { const fn = confirmAsk.fn; setConfirmAsk(null); fn && fn(); }}><Icon n="trash" s={14} />Yes, delete</button></div>
+        </div>
+      </div>}
+      {approve && (() => {
+        const m = matchCompanyByEmail(approve.email);
+        const d = domainOf(approve.email); const free = FREE_DOMAINS.includes(d);
+        const selCo = S.companies.find((c) => c.id === approve.companyId);
+        const showRemember = !!d && !free && (approve.createNew || (approve.companyId && !(selCo && (selCo.domain || "").toLowerCase() === d)));
+        return <div className="lk-modal-bg" onClick={() => !reqBusy && setApprove(null)}>
+          <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="lk-dh"><h3>Approve Access</h3><button className="lk-btn icon" onClick={() => setApprove(null)}><Icon n="x" /></button></div>
+            <div className="bd">
+              <div className="lk-f"><label>Full Name</label><input className="lk-in" value={approve.name} onChange={(e) => setApprove((a) => ({ ...a, name: e.target.value }))} /></div>
+              <div className="lk-f"><label>Work Email</label><input className="lk-in" value={approve.email} onChange={(e) => setApproveEmail(e.target.value)} /><div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>The invite and set-password link go to this address. Editing it re-checks the company match.</div></div>
+              {m.type === "exact" && <div className="lk-match exact"><Icon n="check" s={15} />Matched to {m.company.name} on {m.domain}</div>}
+              {m.type === "fuzzy" && <div className="lk-match fuzzy"><Icon n="alert" s={15} />Best guess {m.company.name} from {m.domain}. Confirm or change.</div>}
+              {m.type === "free" && <div className="lk-match none"><Icon n="alert" s={15} />{m.domain} is a personal email provider. Assign manually.</div>}
+              {m.type === "unknown" && <div className="lk-match none"><Icon n="alert" s={15} />No company matches {m.domain}. Pick one or create a new company.</div>}
+              <div className="lk-f"><label>Assign To Company</label>
+                <select className="lk-select" value={approve.createNew ? "__new__" : approve.companyId} onChange={(e) => { const v = e.target.value; if (v === "__new__") { setApprove((a) => ({ ...a, createNew: true, touched: true, newName: a.newName || a.req.organisation || (domainOf(a.email) ? titleCaseStr(domainLabel(domainOf(a.email))) : "") })); } else { setApprove((a) => ({ ...a, createNew: false, touched: true, companyId: v })); } }}>
+                  <option value="">Select a company…</option>
+                  {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.domain ? "  (" + c.domain + ")" : ""}</option>)}
+                  <option value="__new__">+ Create new company…</option>
+                </select>
+                {approve.createNew && <input className="lk-in" style={{ marginTop: 8 }} placeholder="New company name" value={approve.newName} onChange={(e) => setApprove((a) => ({ ...a, newName: e.target.value }))} />}
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Stated organisation: <b style={{ color: "var(--ink-2)" }}>{approve.req.organisation || "none given"}</b></div>
+              </div>
+              {showRemember && <label className="lk-remember"><input type="checkbox" checked={approve.remember} onChange={(e) => setApprove((a) => ({ ...a, remember: e.target.checked }))} /><span>Remember {d} for {approve.createNew ? "this company" : (selCo ? selCo.name : "this company")}</span></label>}
+              <div className="lk-f"><label>Role</label><div className="lk-locked"><span className="lkv">Member</span><span className="lkn">Promote to Admin later in Users</span></div></div>
+              {userMsg && <div style={{ fontSize: 11.5, color: "var(--red)" }}>{userMsg}</div>}
+            </div>
+            <div className="rep-foot"><button className="lk-btn" disabled={reqBusy} onClick={() => setApprove(null)}>Cancel</button><button className="lk-btn primary" disabled={reqBusy} onClick={doApprove}>{reqBusy ? "Working…" : "Approve And Invite"}</button></div>
+          </div>
+        </div>;
+      })()}
+      {rejecting && <div className="lk-modal-bg" onClick={() => !reqBusy && setRejecting(null)}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+          <div className="lk-dh"><h3>Reject Request</h3><button className="lk-btn icon" onClick={() => setRejecting(null)}><Icon n="x" /></button></div>
+          <div className="bd">
+            <div style={{ fontSize: 14 }}>Reject the request from <b>{rejecting.req.name || rejecting.req.email}</b>?</div>
+            <div className="lk-f"><label>Reason (Optional, Internal)</label><textarea className="lk-in" rows={3} value={rejecting.reason} onChange={(e) => setRejecting((r) => ({ ...r, reason: e.target.value }))} style={{ resize: "vertical", fontFamily: "inherit" }} /></div>
+          </div>
+          <div className="rep-foot"><button className="lk-btn" disabled={reqBusy} onClick={() => setRejecting(null)}>Cancel</button><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} disabled={reqBusy} onClick={doReject}>{reqBusy ? "Working…" : "Reject Request"}</button></div>
         </div>
       </div>}
     </div>);
