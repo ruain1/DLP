@@ -2138,6 +2138,8 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
+  const [bulkCommitted, setBulkCommitted] = useState("");
+  const lastIdx = useRef(null);
   const [colsOpen, setColsOpen] = useState(false);
   const [frOpen, setFrOpen] = useState(false);
   const [frFind, setFrFind] = useState("");
@@ -2149,8 +2151,10 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const [savedMsg, setSavedMsg] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
-  useEffect(() => { setSel(new Set()); setConfirmBulk(false); }, [fCo, fStatus, fAr, fLv, q, fFrom, fTo]);
+  useEffect(() => { setSel(new Set()); setConfirmBulk(false); lastIdx.current = null; }, [fCo, fStatus, fAr, fLv, q, fFrom, fTo]);
   const toggleSel = (id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const clickRow = (e, idx, id) => { if (e.shiftKey && lastIdx.current != null) { const lo = Math.min(lastIdx.current, idx), hi = Math.max(lastIdx.current, idx); const ids = list.slice(lo, hi + 1).map((x) => x.id); setSel((s) => { const n = new Set(s); ids.forEach((x) => n.add(x)); return n; }); } else { toggleSel(id); lastIdx.current = idx; } };
+  const setSelCommitted = (val) => { if (!sel.size) return; const ids = sel; const n = ids.size; update((p) => ({ ...p, activities: p.activities.map((x) => ids.has(x.id) ? { ...x, committed: val } : x) }), { action: "Bulk set committed (table)", detail: `${n} activit${n === 1 ? "y" : "ies"} -> committed ${val ? "Yes" : "No"}` }); setSavedMsg(`Set committed = ${val ? "Yes" : "No"} on ${n} activit${n === 1 ? "y" : "ies"}`); setTimeout(() => setSavedMsg(""), 3000); setSel(new Set()); setBulkCommitted(""); };
   const delSelected = () => { const ids = sel; if (!ids.size) return; update((p) => ({ ...p, activities: p.activities.filter((x) => !ids.has(x.id)).map((x) => (x.predecessors && x.predecessors.some((pid) => ids.has(pid))) ? { ...x, predecessors: x.predecessors.filter((pid) => !ids.has(pid)) } : x) }), { action: "Delete activities (table)", detail: ids.size + " activit" + (ids.size === 1 ? "y" : "ies") }); setSel(new Set()); setConfirmBulk(false); };
   const setSelStatus = () => { if (!sel.size || !bulkStatus) return; const ids = sel; const n = ids.size; const today = fmtISO(new Date()); update((p) => ({ ...p, activities: p.activities.map((x) => { if (!ids.has(x.id)) return x; const nn = { ...x, status: bulkStatus }; if (bulkStatus === "in_progress" && !nn.actualStart) nn.actualStart = today; if (bulkStatus === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish) nn.actualFinish = today; } return nn; }) }), { action: "Bulk set status (table)", detail: `${n} activit${n === 1 ? "y" : "ies"} -> ${bulkStatus.replace("_", " ")}` }); setSavedMsg(`Set ${n} activit${n === 1 ? "y" : "ies"} to ${bulkStatus.replace("_", " ")}`); setTimeout(() => setSavedMsg(""), 3000); setSel(new Set()); setBulkStatus(""); };
   const [cols, setCols] = useState(() => ({ ...TBL_DEFAULT_COLS, ...(savedView.cols || {}) }));
@@ -2263,6 +2267,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
       {isAdmin && sel.size > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", margin: "8px 16px 0", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600 }}>{sel.size} selected</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><select className="lk-select" style={{ fontSize: 12, padding: "5px 8px" }} value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Set status to…</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select><button className="lk-btn" disabled={!bulkStatus} onClick={setSelStatus}>Apply</button></span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><select className="lk-select" style={{ fontSize: 12, padding: "5px 8px" }} value={bulkCommitted} onChange={(e) => setBulkCommitted(e.target.value)}><option value="">Set committed to…</option><option value="yes">Yes</option><option value="no">No</option></select><button className="lk-btn" disabled={!bulkCommitted} onClick={() => setSelCommitted(bulkCommitted === "yes")}>Apply</button></span>
         {confirmBulk
           ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete {sel.size} activit{sel.size === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={delSelected}><Icon n="trash" s={14} />Yes, delete</button><button className="lk-btn" onClick={() => setConfirmBulk(false)}>Cancel</button></span>
           : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><button className="lk-btn" style={{ color: "#C0392B" }} onClick={() => setConfirmBulk(true)}><Icon n="trash" s={14} />Delete selected</button><button className="lk-btn" onClick={() => setSel(new Set())}>Clear</button></span>}
@@ -2274,12 +2279,12 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
           </tr></thead>
           <tbody>
             {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
-            {list.map((a) => {
+            {list.map((a, idx) => {
               const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete" && !isAdmin;
               return <tr key={a.id} className={ed ? "ed" : ""}>
                 <td>{ed
                   ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
-                  : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{isAdmin && <input type="checkbox" checked={sel.has(a.id)} onChange={() => toggleSel(a.id)} title="Select for bulk delete" />}<button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button></span>}</td>
+                  : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{isAdmin && <input type="checkbox" checked={sel.has(a.id)} onClick={(e) => clickRow(e, idx, a.id)} onChange={() => {}} title="Select; Shift-click to select a range" />}<button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button></span>}</td>
                 {C("code") && <td className="mono">#{a.code ?? "?"}</td>}
                 <td>{ed ? <input className="lk-in" style={cell} value={d.desc} disabled={lk} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
                 {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin || lk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
