@@ -2664,8 +2664,8 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .g-legend{display:flex;gap:16px;font-size:11px;color:var(--muted);margin-top:10px}.g-legend span{display:inline-flex;align-items:center;gap:6px}
 footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;font-size:11px;color:var(--muted)}footer b{color:var(--ink-2);font-weight:600}
 @media (max-width:720px){.hero{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.twocol{grid-template-columns:1fr}.g-row,.g-head{grid-template-columns:120px 1fr}.body,.mast,footer{padding-left:20px;padding-right:20px}}
-@page{size:A4;margin:13mm 12mm}
-@media print{body{background:#fff}body.dark{background:#0C1116}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}.mast{padding:0 0 16px}.body{padding:18px 0 0}footer{padding:14px 0 0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row{break-inside:avoid}.sec-head{break-after:avoid}}
+@page{size:A4;margin:0}
+@media print{html,body{background:var(--paper)}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row{break-inside:avoid}.sec-head{break-after:avoid}}
 </style></head><body class="${theme === 'dark' ? 'dark' : ''}">
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
