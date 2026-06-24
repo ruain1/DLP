@@ -810,16 +810,22 @@ export default function App({ session }) {
     const s = Math.max(0, su), e = Math.min(cols - 1, eu);
     const startsAtPlanCol = s === Math.max(0, sU(a));
     const mLeft = startsAtPlanCol ? 16 : 2;
-    return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: `0 2px 3px ${mLeft}px`, borderRadius: 3, background: a.delayed ? "#C0392B" : "#0E9384", zIndex: 2, pointerEvents: "none" }} />;
+    return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: `0 2px 3px ${mLeft}px`, borderRadius: 3, background: "#0E9384", zIndex: 2, pointerEvents: "none" }} />;
   };
 
   const Forecast = ({ a, row }) => {
     if (a.isMilestone || a.status === "complete" || a.totalShift <= 0) return null;
-    const so = grain === "day" ? a.projStartOff : Math.floor(a.projStartOff / 7);
-    const eo = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
-    if (eo < 0 || so >= cols) return null;
-    const s = Math.max(0, so), e = Math.min(cols - 1, eo);
-    return <div className="lk-fc" title={`Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1 }} />;
+    const ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
+    const ls = eU(a) + 1;
+    if (ee < ls || ee < 0 || ls >= cols) return null;
+    const s = Math.max(0, ls), e = Math.min(cols - 1, ee);
+    const late = a.delayed;
+    const col = late ? "#C0392B" : "#E0A106";
+    const hatch = late
+      ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
+      : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
+    const badge = late ? `${a.delayDays || a.totalShift}d late` : `+${a.totalShift}d`;
+    return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "3px 2px 3px 0", border: `1px solid ${col}`, borderLeft: 0, borderRadius: "0 7px 7px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 7px", zIndex: 2, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap" }}>{badge}</span></div>;
   };
 
   const RescheduleTrail = ({ a, row }) => {
