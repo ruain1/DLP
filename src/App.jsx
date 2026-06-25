@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -173,6 +173,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-urow{display:grid;grid-template-columns:minmax(150px,1fr) 96px minmax(130px,1.2fr) 132px auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--card);font-size:12.5px}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-uacts{display:flex;align-items:center;gap:5px;justify-content:flex-end}
+.lk-mrow{display:grid;grid-template-columns:minmax(150px,1fr) minmax(110px,150px) 120px 30px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:var(--card);font-size:12.5px;margin-bottom:7px}
+.lk-mrow .lk-mname{min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden}
+.lk-mrow .lk-mname b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-mrow .lk-you{font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;flex:none}
+.lk-mrow button{background:transparent;border:0;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px;justify-self:end}
+.lk-mrow button:hover{background:var(--hover);color:var(--ink)}
 .lk-acc{display:flex;align-items:center;gap:7px;width:100%;background:transparent;border:0;cursor:pointer;color:var(--ink);font-weight:600;font-size:12.5px;padding:6px 0}
 .lk-acc .car{font-size:11px;color:var(--muted);width:12px}
 .lk-audhist{border:1px solid var(--line);border-radius:8px;background:var(--card);max-height:230px;overflow:auto;margin-top:2px}
@@ -682,6 +688,13 @@ const PORTAL_CSS = `
 .qp .tracks{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
 .qp .track{position:relative;height:24px;background:var(--chip);border-radius:6px;overflow:hidden}
 .qp .track .gl{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.55;pointer-events:none}
+.qp .track .gl.today{background:var(--accent);opacity:.85;width:2px}
+.qp .ipnav{display:flex;align-items:center;gap:6px;margin-left:auto}
+.qp .ipnav button{background:var(--chip);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:13px;font-weight:600;cursor:pointer;min-width:32px;line-height:1}
+.qp .ipnav button:hover:not(:disabled){background:var(--paper)}
+.qp .ipnav button:disabled{opacity:.4;cursor:default}
+.qp .ipnav .iprange{font-size:12px;font-weight:600;color:var(--muted);min-width:120px;text-align:center;white-space:nowrap}
+.qp .ipnav .todaybtn{padding:7px 12px;min-width:auto}
 .qp .blk{position:absolute;top:3px;height:18px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;max-width:100%;cursor:pointer}
 .qp .blk:hover{box-shadow:0 0 0 2px var(--accent) inset}
 .qp .ms{position:absolute;top:3px;display:flex;align-items:center;gap:6px;max-width:70%;cursor:pointer}
@@ -824,6 +837,8 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const [ovGroup, setOvGroup] = useState("company");
   const [ovView, setOvView] = useState("swimlane");
   const [ovGran, setOvGran] = useState("day");
+  const [ovWeeks, setOvWeeks] = useState(4);   // visible span in weeks; 0 = all dates
+  const [ovAnchor, setOvAnchor] = useState(null);   // window start (ms, Monday); null = auto
   const [ovSel, setOvSel] = useState(null);
   const [tileSel, setTileSel] = useState(null);
   useEffect(() => {
@@ -857,25 +872,36 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const ip = projects.find((p) => p.id === lastId) || projects[0];
   useEffect(() => {
     if (scene !== "inside" || !ip || !onLoadOverview) return;
-    let live = true; setOv(null);
+    let live = true; setOv(null); setOvAnchor(null);
     onLoadOverview(ip.id).then((rows) => { if (live) setOv(rows || []); }).catch(() => { if (live) setOv([]); });
     return () => { live = false; };
   }, [scene, ip && ip.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const DAY = 86400000;
   const addDays = (iso, n) => { const d = new Date(iso); d.setDate(d.getDate() + n); return d; };
+  const mondayMs = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+  const today0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const ovWindow = (() => {
+    const dated = (ov || []).filter((a) => a.start);
+    let allMin = Infinity, allMax = -Infinity;
+    dated.forEach((a) => { const s = new Date(a.start).getTime(); const e = addDays(a.start, Math.max(0, a.dur - 1)).getTime(); if (s < allMin) allMin = s; if (e > allMax) allMax = e; });
+    if (!isFinite(allMin)) { allMin = today0; allMax = today0 + 28 * DAY; }
+    if (ovWeeks === 0) return { min: allMin, max: allMax + DAY, anchored: false, anchor: null };
+    const winLen = ovWeeks * 7 * DAY;
+    let anchor;
+    if (ovAnchor != null) anchor = ovAnchor;
+    else { const tm = mondayMs(today0); const hit = dated.some((a) => { const s = new Date(a.start).getTime(); const e = addDays(a.start, Math.max(0, a.dur - 1)).getTime(); return s < tm + winLen && e >= tm; }); anchor = hit ? tm : mondayMs(allMin); }
+    return { min: anchor, max: anchor + winLen, anchored: true, anchor };
+  })();
+  const inWin = (ov || []).filter((a) => { if (!a.start) return ovWeeks === 0; const s = new Date(a.start).getTime(); const e = addDays(a.start, Math.max(0, a.dur - 1)).getTime(); return s < ovWindow.max && e >= ovWindow.min; });
   const ovLanes = (() => {
-    const rows = ov || [];
     const groups = new Map();
-    rows.forEach((a) => { const k = a[ovGroup] || "Unassigned"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
+    inWin.forEach((a) => { const k = a[ovGroup] || "Unassigned"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
     const lanes = Array.from(groups.entries()).map(([name, acts]) => ({ name, acts }));
     lanes.sort((x, y) => y.acts.length - x.acts.length || x.name.localeCompare(y.name));
-    let minMs = Infinity, maxMs = -Infinity;
-    rows.forEach((a) => { if (!a.start) return; const s = new Date(a.start).getTime(); const e = addDays(a.start, a.dur).getTime(); if (s < minMs) minMs = s; if (e > maxMs) maxMs = e; });
-    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
-    if (!isFinite(minMs)) { minMs = today0.getTime(); maxMs = minMs + 14 * DAY; }
-    const span = Math.max(DAY, maxMs - minMs);
-    return { lanes, minMs, span, today: today0.getTime() };
+    return { lanes, minMs: ovWindow.min, span: Math.max(DAY, ovWindow.max - ovWindow.min), today: today0 };
   })();
+  const panWin = (dir) => { const cur = ovWindow.anchor != null ? ovWindow.anchor : ovWindow.min; setOvAnchor(cur + dir * ovWeeks * 7 * DAY); };
+  const fmtShort = (ms) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
   const barFor = (a) => {
     const start = a.start ? new Date(a.start).getTime() : ovLanes.minMs;
     const finish = a.start ? addDays(a.start, Math.max(0, a.dur - 1)).getTime() : start + a.dur * DAY;
@@ -919,8 +945,13 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     if (out.length > cap) { const step = Math.ceil(out.length / cap); return out.filter((_, i) => i % step === 0); }
     return out;
   })();
-  const gridEls = () => ovTicks.map((t, i) => <i key={"gl" + i} className="gl" style={{ left: t.pos + "%" }} />);
-  const ovFlat = (ov || []).slice().sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999") || a.label.localeCompare(b.label));
+  const gridEls = () => {
+    const els = ovTicks.map((t, i) => <i key={"gl" + i} className="gl" style={{ left: t.pos + "%" }} />);
+    const tp = (ovLanes.today - ovLanes.minMs) / ovLanes.span * 100;
+    if (tp >= 0 && tp <= 100) els.push(<i key="today" className="gl today" style={{ left: tp + "%" }} />);
+    return els;
+  };
+  const ovFlat = inWin.slice().sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999") || a.label.localeCompare(b.label));
   const statusLabel = (a) => { if (a.status === "complete") return "Complete"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "Overdue"; if (a.status === "in_progress") return "In progress"; if (a.committed) return "Committed"; return "Planned"; };
   const statusDot = (a) => { if (a.status === "complete") return "#1FB6A6"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "#C0392B"; if (a.status === "in_progress") return "var(--accent)"; if (a.committed) return "#E6A435"; return "var(--muted)"; };
   const openNew = () => { setNf({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" }); setErr(""); setScene("newproj"); };
@@ -1057,6 +1088,15 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                   <span className={ovGroup === "level" ? "on" : ""} onClick={() => ovView === "swimlane" && setOvGroup("level")}>Level</span>
                   <span className={ovGroup === "zone" ? "on" : ""} onClick={() => ovView === "swimlane" && setOvGroup("zone")}>Zone</span>
                 </div>
+                <div className="seg">
+                  {[["2w", 2], ["4w", 4], ["8w", 8], ["All", 0]].map(([lbl, w]) => <span key={w} className={ovWeeks === w ? "on" : ""} onClick={() => setOvWeeks(w)}>{lbl}</span>)}
+                </div>
+                <div className="ipnav">
+                  <button disabled={ovWeeks === 0} onClick={() => panWin(-1)} aria-label="Earlier">{"\u2039"}</button>
+                  <span className="iprange">{ovWeeks === 0 ? "All dates" : (fmtShort(ovWindow.min) + " \u2013 " + fmtShort(ovWindow.max - DAY))}</span>
+                  <button disabled={ovWeeks === 0} onClick={() => panWin(1)} aria-label="Later">{"\u203A"}</button>
+                  <button className="todaybtn" disabled={ovWeeks === 0} onClick={() => setOvAnchor(mondayMs(today0))}>Today</button>
+                </div>
               </div>
               {ov === null
                 ? <div className="ip-empty">Loading overview\u2026</div>
@@ -1064,7 +1104,9 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                   ? <div className="ip-empty">No activities in this project yet.</div>
                   : <>
                     <div className="ip-axis"><div className="axsp" /><div className="axtrack">{ovTicks.map((t, i) => <span key={i} style={{ left: t.pos + "%" }}>{t.label}</span>)}</div></div>
-                    {ovView === "swimlane"
+                    {ovLanes.lanes.length === 0
+                      ? <div className="ip-empty">No activities in this window. Widen the span or page with the arrows.</div>
+                      : ovView === "swimlane"
                       ? ovLanes.lanes.map((ln) => (
                         <div className="lane" key={ln.name}>
                           <div className="lh"><b>{ln.name}</b><div className="s">{ln.acts.length} {ln.acts.length === 1 ? "activity" : "activities"}</div></div>
@@ -1980,7 +2022,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
 }
 
 function AdminPanel({ S, cu, update, exportActivities }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "users", "requests", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "users", "members", "requests", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
@@ -2185,6 +2227,15 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   };
   const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Set password link", "Role", "Company", "Status"], rows)); };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
+  const [members, setMembers] = useState(null);
+  const [memQ, setMemQ] = useState("");
+  const [memRole, setMemRole] = useState("member");
+  const [memMsg, setMemMsg] = useState("");
+  useEffect(() => { let live = true; if (S.projectId) loadProjectMembers(S.projectId).then((r) => { if (live) setMembers(r); }).catch((e) => { if (live) setMemMsg("Load failed: " + (e.message || e)); }); return () => { live = false; }; }, [S.projectId]);
+  const reloadMems = () => loadProjectMembers(S.projectId).then(setMembers).catch((e) => setMemMsg("Load failed: " + (e.message || e)));
+  const addMem = async (userId, name) => { setMemMsg("Adding " + (name || "") + "…"); try { await addMember(S.projectId, userId, memRole, S.currentUserId); setMemMsg((name || "User") + " added as " + memRole); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
+  const removeMem = async (userId, name) => { setMemMsg("Removing…"); try { await removeMember(S.projectId, userId); setMemMsg((name || "User") + " removed from this project"); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
+  const changeRole = async (userId, role, name, adminCount, curRole) => { if (curRole === "admin" && role === "member" && adminCount <= 1) { setMemMsg("Keep at least one admin on the project."); reloadMems(); return; } try { await setMemberRole(S.projectId, userId, role); setMemMsg((name || "Role") + " set to " + role); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); reloadMems(); } };
   const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (s == null || s === "") return ""; if (s instanceof Date) return isNaN(s) ? "" : fmtISO(s); s = String(s).trim(); if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/); if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0"); m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); } m = s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3,9})[-\/ ](\d{2}|\d{4})$/); if (m) { const mo = ({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 })[m[2].slice(0, 3).toLowerCase()]; if (mo) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + String(mo).padStart(2, "0") + "-" + m[1].padStart(2, "0"); } } const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
@@ -2266,7 +2317,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   };
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
-    ["User management", [["users", "Users"], ["requests", "Access requests"]]],
+    ["User management", [["users", "Users"], ["members", "Members"], ["requests", "Access requests"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
     ["About", [["changelog", "Changelog"]]],
@@ -2276,7 +2327,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
         <div className="lk-subnav">
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
-        <div className={"lk-subbody" + (tab === "users" || tab === "audit" || tab === "requests" ? " wide" : "")}><div className="lk-db">
+        <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "")}><div className="lk-db">
           {(tab === "companies" || tab === "systems") && (() => {
             const label = tab === "companies" ? "company" : tab.slice(0, -1);
             const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || "", c.logoDark || "", c.description || ""]) : S[tab].map((x) => [x, x]);
@@ -2387,6 +2438,50 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span style={{ fontSize: 10, color: r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "#E0A106") : "#C0392B" }}>{r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status}</span></div>)}</div>
                 <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV (set-password links)</button>
               </div>}
+            </div>
+            </div>
+            <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
+          </div>}
+          {tab === "members" && <div className="lk-userwrap"><div className="lk-usermain">
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>Members of this project</div>
+              <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{members ? members.length + " member" + (members.length === 1 ? "" : "s") : ""}</div>
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Adding someone here grants access to this project immediately, with no invite to accept. Removing them revokes only this project; they keep their account and any other projects.</div>
+            {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : (() => {
+              const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+              const byId = {}; S.users.forEach((u) => { byId[u.id] = u; });
+              const rows = members.map((m) => ({ ...m, u: byId[m.user_id] })).filter((r) => r.u);
+              rows.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1) || (a.u.name || "").localeCompare(b.u.name || ""));
+              const adminCount = rows.filter((r) => r.role === "admin").length;
+              const orphan = members.length - rows.length;
+              if (!rows.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members yet. Add people from the address book below.</div>;
+              return <><div className="lk-list" style={{ padding: "2px 0" }}>{rows.map((r) => <div key={r.user_id} className="lk-mrow">
+                <div className="lk-mname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
+                <span className="lk-chip" style={{ background: "var(--chipbg)", color: "var(--muted)", textTransform: "none", whiteSpace: "nowrap" }}>{cn(r.u.companyId) || "No company"}</span>
+                <select className="lk-select" style={{ padding: "5px 7px", fontSize: 11.5 }} value={r.role} onChange={(e) => changeRole(r.user_id, e.target.value, r.u.name, adminCount, r.role)}><option value="member">Member</option><option value="admin">Admin</option></select>
+                {r.user_id !== S.currentUserId
+                  ? <button title="Remove from this project" onClick={() => askDel("Remove " + (r.u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(r.user_id, r.u.name))}><Icon n="trash" s={14} /></button>
+                  : <span style={{ width: 20 }} title="You can't remove yourself" />}
+              </div>)}</div>{orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} member{orphan === 1 ? "" : "s"} not shown (no profile in the address book yet).</div> : null}</>;
+            })()}
+            {memMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>{memMsg}</div>}
+            <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+              <div className="lk-f"><label>Add Members From The Address Book</label><input className="lk-in" placeholder="Search people by name or company…" value={memQ} onChange={(e) => setMemQ(e.target.value)} /></div>
+              <div className="lk-row" style={{ alignItems: "center", marginBottom: 8 }}><span style={{ fontSize: 11.5, color: "var(--muted)" }}>Add as</span><select className="lk-select" style={{ maxWidth: 140 }} value={memRole} onChange={(e) => setMemRole(e.target.value)}><option value="member">Member</option><option value="admin">Admin</option></select></div>
+              {(() => {
+                const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+                const have = new Set((members || []).map((m) => m.user_id));
+                const q = memQ.trim().toLowerCase();
+                const cands = S.users.filter((u) => !have.has(u.id) && (!q || (`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q)))).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+                if (!cands.length) return <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{q ? "No one in the address book matches." : "Everyone in the address book is already a member."}</div>;
+                return <div className="lk-list" style={{ maxHeight: 260, overflow: "auto" }}>{cands.slice(0, 60).map((u) => <div key={u.id} className="lk-li" style={{ gap: 8 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name || "(unnamed)"}</span>
+                  <span className="lk-chip" style={{ background: "var(--chipbg)", color: "var(--muted)", textTransform: "none", whiteSpace: "nowrap" }}>{cn(u.companyId) || "—"}</span>
+                  <button className="lk-btn" onClick={() => addMem(u.id, u.name)}><Icon n="plus" s={13} />Add</button>
+                </div>)}{cands.length > 60 && <div style={{ fontSize: 11, color: "var(--muted)", padding: "6px 2px" }}>Showing first 60. Refine the search to narrow.</div>}</div>;
+              })()}
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Someone not listed? Add them under <button onClick={() => setTab("users")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Users</button> first; that sends the one-time onboarding link. After that they appear here with no further invite.</div>
             </div>
             </div>
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>

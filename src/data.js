@@ -421,3 +421,22 @@ export async function fetchActivityAudit(activityId) {
     return (data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail }));
   } catch (e) { return []; }
 }
+
+// ---- Per-project membership (project_members) ----
+export async function loadProjectMembers(projectId) {
+  const { data, error } = await supabase.from("project_members").select("user_id, role").eq("project_id", projectId);
+  if (error) throw error;
+  return data || [];
+}
+export async function addMember(projectId, userId, role, addedBy) {
+  const { error } = await supabase.from("project_members").insert({ project_id: projectId, user_id: userId, role: role || "member", added_by: addedBy || null });
+  if (error) throw error;
+}
+export async function setMemberRole(projectId, userId, role) {
+  const { error } = await supabase.from("project_members").update({ role }).eq("project_id", projectId).eq("user_id", userId);
+  if (error) throw error;
+}
+export async function removeMember(projectId, userId) {
+  const { error } = await supabase.from("project_members").delete().eq("project_id", projectId).eq("user_id", userId);
+  if (error) throw error;
+}
