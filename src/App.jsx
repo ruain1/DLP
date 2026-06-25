@@ -668,19 +668,42 @@ const PORTAL_CSS = `
 .qp .seg{display:flex;background:var(--chip);border:1px solid var(--line);border-radius:9px;padding:3px}
 .qp .seg span{font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:6px;color:var(--muted);cursor:pointer;user-select:none}
 .qp .seg span.on{background:var(--paper);color:var(--ink)}
-.qp .ip-empty{padding:40px 22px;text-align:center;font-size:13px;color:var(--muted)}
-.qp .lane{display:flex;align-items:flex-start;gap:18px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.qp .ip-empty{padding:36px 22px;text-align:center;font-size:13px;color:var(--muted)}
+.qp .seg.dim{opacity:.4;pointer-events:none}
+.qp .ip-axis{display:flex;align-items:center;height:24px;border-bottom:1px solid var(--line);padding:0 16px}
+.qp .ip-axis .axsp{width:164px;flex:none}
+.qp .ip-axis .axtrack{position:relative;flex:1;height:24px}
+.qp .ip-axis .axtrack span{position:absolute;top:6px;transform:translateX(-50%);font-size:10.5px;font-weight:600;letter-spacing:.3px;color:var(--muted);white-space:nowrap}
+.qp .lane{display:flex;align-items:flex-start;gap:14px;padding:9px 16px;border-bottom:1px solid var(--line)}
 .qp .lane:last-child{border-bottom:0}
-.qp .lh{width:160px;flex:none;padding-top:3px}
-.qp .lh b{font-size:14px;font-weight:600;color:var(--ink);display:block;line-height:1.2}
-.qp .lh .s{font-size:12px;color:var(--muted);margin-top:3px}
-.qp .tracks{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
-.qp .track{position:relative;height:30px;background:var(--chip);border-radius:8px}
-.qp .blk{position:absolute;top:4px;height:22px;border-radius:6px;display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;max-width:100%}
-.qp .ms{position:absolute;top:5px;display:flex;align-items:center;gap:7px;max-width:60%}
-.qp .ms .dia{width:13px;height:13px;transform:rotate(45deg);border-radius:2px;flex:none}
-.qp .ms .mslabel{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.qp .ip-foot{font-size:12.5px;color:var(--muted);margin-top:14px;text-align:center;line-height:1.5}
+.qp .lh{width:150px;flex:none;padding-top:2px}
+.qp .lh b{font-size:13px;font-weight:600;color:var(--ink);display:block;line-height:1.2}
+.qp .lh .s{font-size:11px;color:var(--muted);margin-top:2px}
+.qp .tracks{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.qp .track{position:relative;height:24px;background:var(--chip);border-radius:6px}
+.qp .blk{position:absolute;top:3px;height:18px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;max-width:100%;cursor:pointer}
+.qp .blk:hover{box-shadow:0 0 0 2px var(--accent) inset}
+.qp .ms{position:absolute;top:3px;display:flex;align-items:center;gap:6px;max-width:70%;cursor:pointer}
+.qp .ms .dia{width:12px;height:12px;transform:rotate(45deg);border-radius:2px;flex:none}
+.qp .ms .mslabel{font-size:11px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp .gantt{max-height:430px;overflow-y:auto;padding:4px 0}
+.qp .grow{display:flex;align-items:center;gap:14px;padding:4px 16px;cursor:pointer}
+.qp .grow:hover{background:var(--chip)}
+.qp .grow .glh{width:150px;flex:none;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp .grow .track{flex:1}
+.qp .ip-foot{font-size:12px;color:var(--muted);margin-top:14px;text-align:center;line-height:1.5}
+.qp .ovsel-back{position:fixed;inset:0;background:rgba(8,12,20,.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px}
+.qp .ovsel{width:340px;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden}
+.qp .ovsel-h{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.qp .ovsel-h b{flex:1;font-size:14px;font-weight:700;color:var(--ink);line-height:1.3}
+.qp .ovsel-h button{border:0;background:transparent;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 2px}
+.qp .ovsel-b{padding:4px 16px}
+.qp .ovsel-b .r{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.qp .ovsel-b .r:last-child{border-bottom:0}
+.qp .ovsel-b .r span{color:var(--muted)}
+.qp .ovsel-b .r b{color:var(--ink);font-weight:600;display:flex;align-items:center;gap:7px}
+.qp .ovsel-b .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.qp .ovsel-f{padding:12px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
 .qp .qp-foot{text-align:center;font-size:11.5px;color:var(--muted);padding:26px 22px 34px;border-top:1px solid var(--line);margin-top:34px}
 .qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
 .qp .switcher{position:relative;margin-left:6px}
@@ -782,6 +805,9 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const [err, setErr] = useState("");
   const [ov, setOv] = useState(null);
   const [ovGroup, setOvGroup] = useState("company");
+  const [ovView, setOvView] = useState("swimlane");
+  const [ovGran, setOvGran] = useState("day");
+  const [ovSel, setOvSel] = useState(null);
   useEffect(() => {
     const v = portalVars(theme); document.body.style.background = v["--backdrop"];
     try { let l = document.querySelector("link[rel='icon']"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); } l.type = "image/png"; l.href = QMC_FAV; } catch (e) {}
@@ -826,10 +852,10 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   })();
   const barFor = (a) => {
     const start = a.start ? new Date(a.start).getTime() : ovLanes.minMs;
-    const end = a.start ? addDays(a.start, a.dur).getTime() : start + a.dur * DAY;
+    const finish = a.start ? addDays(a.start, Math.max(0, a.dur - 1)).getTime() : start + a.dur * DAY;
     const left = Math.max(0, Math.min(98, (start - ovLanes.minMs) / ovLanes.span * 100));
     let width = Math.max(5, (a.dur * DAY) / ovLanes.span * 100); if (left + width > 100) width = 100 - left;
-    const overdue = a.status !== "complete" && a.start && end < ovLanes.today;
+    const overdue = a.status !== "complete" && a.start && finish < ovLanes.today;
     let bg = "var(--chip)", fg = "var(--muted)", border = "1px solid var(--line)";
     if (a.status === "complete") { bg = "#1FB6A6"; fg = "#06231f"; border = "0"; }
     else if (overdue) { bg = "repeating-linear-gradient(135deg,#C0392B 0 7px,#8C2A22 7px 14px)"; fg = "#fff"; border = "0"; }
@@ -847,6 +873,22 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     }
     return rows;
   };
+  const ovTicks = (() => {
+    const minMs = ovLanes.minMs, maxMs = ovLanes.minMs + ovLanes.span, sp = Math.max(1, maxMs - minMs);
+    const out = []; let g = 0;
+    if (ovGran === "week") {
+      let d = new Date(minMs); d = new Date(d.getFullYear(), d.getMonth(), 1);
+      while (d.getTime() <= maxMs && g++ < 60) { const pos = (d.getTime() - minMs) / sp * 100; if (pos >= -2 && pos <= 102) out.push({ pos: Math.max(0, Math.min(100, pos)), label: d.toLocaleDateString(undefined, { month: "short" }) }); d = new Date(d.getFullYear(), d.getMonth() + 1, 1); }
+    } else {
+      let d = new Date(minMs); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      while (d.getTime() <= maxMs && g++ < 90) { const pos = (d.getTime() - minMs) / sp * 100; if (pos >= -2 && pos <= 102) out.push({ pos: Math.max(0, Math.min(100, pos)), label: d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) }); d = new Date(d); d.setDate(d.getDate() + 7); }
+    }
+    if (out.length > 13) { const step = Math.ceil(out.length / 13); return out.filter((_, i) => i % step === 0); }
+    return out;
+  })();
+  const ovFlat = (ov || []).slice().sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999") || a.label.localeCompare(b.label));
+  const statusLabel = (a) => { if (a.status === "complete") return "Complete"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "Overdue"; if (a.status === "in_progress") return "In progress"; if (a.committed) return "Committed"; return "Planned"; };
+  const statusDot = (a) => { if (a.status === "complete") return "#1FB6A6"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "#C0392B"; if (a.status === "in_progress") return "var(--accent)"; if (a.committed) return "#E6A435"; return "var(--muted)"; };
   const openNew = () => { setNf({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" }); setErr(""); setScene("newproj"); };
   const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Project name and code are required."); return; } setBusy(true); setErr(""); try { await onNew(nf); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
   const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
@@ -968,34 +1010,73 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
             </div>
             <div className="ip-board">
               <div className="ip-toolbar">
-                <div className="seg"><span className="on">Swimlane</span><span>Gantt</span></div>
-                <div className="seg"><span className="on">Day</span><span>Week</span></div>
                 <div className="seg">
-                  <span className={ovGroup === "company" ? "on" : ""} onClick={() => setOvGroup("company")}>Company</span>
-                  <span className={ovGroup === "level" ? "on" : ""} onClick={() => setOvGroup("level")}>Level</span>
-                  <span className={ovGroup === "zone" ? "on" : ""} onClick={() => setOvGroup("zone")}>Zone</span>
+                  <span className={ovView === "swimlane" ? "on" : ""} onClick={() => setOvView("swimlane")}>Swimlane</span>
+                  <span className={ovView === "gantt" ? "on" : ""} onClick={() => setOvView("gantt")}>Gantt</span>
+                </div>
+                <div className="seg">
+                  <span className={ovGran === "day" ? "on" : ""} onClick={() => setOvGran("day")}>Day</span>
+                  <span className={ovGran === "week" ? "on" : ""} onClick={() => setOvGran("week")}>Week</span>
+                </div>
+                <div className={"seg" + (ovView === "gantt" ? " dim" : "")}>
+                  <span className={ovGroup === "company" ? "on" : ""} onClick={() => ovView === "swimlane" && setOvGroup("company")}>Company</span>
+                  <span className={ovGroup === "level" ? "on" : ""} onClick={() => ovView === "swimlane" && setOvGroup("level")}>Level</span>
+                  <span className={ovGroup === "zone" ? "on" : ""} onClick={() => ovView === "swimlane" && setOvGroup("zone")}>Zone</span>
                 </div>
               </div>
               {ov === null
                 ? <div className="ip-empty">Loading overview\u2026</div>
-                : ovLanes.lanes.length === 0
+                : ov.length === 0
                   ? <div className="ip-empty">No activities in this project yet.</div>
-                  : ovLanes.lanes.map((ln) => (
-                    <div className="lane" key={ln.name}>
-                      <div className="lh"><b>{ln.name}</b><div className="s">{ln.acts.length} {ln.acts.length === 1 ? "activity" : "activities"}</div></div>
-                      <div className="tracks">
-                        {packRows(ln.acts).map((row, ri) => (
-                          <div className="track" key={ri}>
-                            {row.map(({ a, b }) => a.milestone
-                              ? <div className="ms" key={a.id} style={{ left: b.left + "%" }} title={a.label}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /><span className="mslabel">{a.label}</span></div>
-                              : <div className="blk" key={a.id} style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }} title={a.label}>{a.label}</div>)}
+                  : <>
+                    <div className="ip-axis"><div className="axsp" /><div className="axtrack">{ovTicks.map((t, i) => <span key={i} style={{ left: t.pos + "%" }}>{t.label}</span>)}</div></div>
+                    {ovView === "swimlane"
+                      ? ovLanes.lanes.map((ln) => (
+                        <div className="lane" key={ln.name}>
+                          <div className="lh"><b>{ln.name}</b><div className="s">{ln.acts.length} {ln.acts.length === 1 ? "activity" : "activities"}</div></div>
+                          <div className="tracks">
+                            {packRows(ln.acts).map((row, ri) => (
+                              <div className="track" key={ri}>
+                                {row.map(({ a, b }) => a.milestone
+                                  ? <div className="ms" key={a.id} style={{ left: b.left + "%" }} title={a.label} onClick={() => setOvSel(a)}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /><span className="mslabel">{a.label}</span></div>
+                                  : <div className="blk" key={a.id} style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }} title={a.label} onClick={() => setOvSel(a)}>{a.label}</div>)}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                        </div>
+                      ))
+                      : <div className="gantt">{ovFlat.map((a) => { const b = barFor(a); return (
+                        <div className="grow" key={a.id} onClick={() => setOvSel(a)}>
+                          <div className="glh" title={a.label}>{a.label}</div>
+                          <div className="track">
+                            {a.milestone
+                              ? <div className="ms" style={{ left: b.left + "%" }}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /></div>
+                              : <div className="blk" style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }}>{a.label}</div>}
+                          </div>
+                        </div>
+                      ); })}</div>}
+                  </>}
             </div>
-            <div className="ip-foot">Live snapshot of {ip.name}, scoped to this project. Open the planning board to edit, drag, manage constraints and switch views.</div>
+            <div className="ip-foot">Live snapshot of {ip.name}, scoped to this project. Click any activity for detail; open the planning board to edit, drag and manage constraints.</div>
+            {ovSel && (
+              <div className="ovsel-back" onClick={() => setOvSel(null)}>
+                <div className="ovsel" onClick={(e) => e.stopPropagation()}>
+                  <div className="ovsel-h"><b>{ovSel.label}</b><button onClick={() => setOvSel(null)} aria-label="Close">{"\u00D7"}</button></div>
+                  <div className="ovsel-b">
+                    <div className="r"><span>Status</span><b><i className="dot" style={{ background: statusDot(ovSel) }} />{statusLabel(ovSel)}</b></div>
+                    <div className="r"><span>Company</span><b>{ovSel.company}</b></div>
+                    <div className="r"><span>Level</span><b>{ovSel.level}</b></div>
+                    <div className="r"><span>Zone</span><b>{ovSel.zone}</b></div>
+                    <div className="r"><span>Start</span><b>{fmtDate(ovSel.start)}</b></div>
+                    <div className="r"><span>Finish</span><b>{ovSel.start ? fmtDate(addDays(ovSel.start, Math.max(0, ovSel.dur - 1))) : "\u2014"}</b></div>
+                    <div className="r"><span>Duration</span><b>{ovSel.dur} {ovSel.dur === 1 ? "day" : "days"}</b></div>
+                    {ovSel.committed && <div className="r"><span>Committed</span><b>Yes</b></div>}
+                    {ovSel.milestone && <div className="r"><span>Type</span><b>Milestone</b></div>}
+                  </div>
+                  <div className="ovsel-f"><button className="btn sm" onClick={() => onEnter(ip.id)}>Open in board</button></div>
+                </div>
+              </div>
+            )}
           </> : <div className="empty">You are not a member of any project yet.</div>}
         </div>
       </div>
