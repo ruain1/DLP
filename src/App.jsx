@@ -183,6 +183,24 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-you{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;flex:none}
 .lk-mbtn{justify-self:end;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer}
 .lk-mbtn:hover{background:var(--hover)}
+.lk-cohead{display:grid;grid-template-columns:48px minmax(150px,1fr) 64px 92px;align-items:center;gap:12px;padding:2px 14px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.lk-cohead .ctr{text-align:center}
+.lk-corow{display:grid;grid-template-columns:48px minmax(150px,1fr) 64px 92px;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px}
+.lk-cologo{width:48px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none}
+.lk-cologo.dk{background:#0d1422;border:1px solid var(--line)}
+.lk-cologo.empty{background:var(--chipbg)}
+.lk-cologo img{max-width:90%;max-height:80%;object-fit:contain}
+.lk-cologo-ph{font-family:var(--display,inherit);font-weight:700;font-size:12px;color:#0b1320}
+.lk-cologo.empty .lk-cologo-ph{color:var(--muted)}
+.lk-cologo.dk .lk-cologo-ph{color:#dbe6f5}
+.lk-cologo.sm{width:34px;height:26px;border-radius:6px}
+.lk-coname{min-width:0}
+.lk-coname b{font-weight:600;font-size:13.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-coname s{text-decoration:none;font-size:11.5px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-codrop{height:72px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;border:1px solid var(--line);overflow:hidden}
+.lk-codrop img{max-width:88%;max-height:78%;object-fit:contain}
+.lk-coremove{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1}
+.lk-coremove:hover{background:rgba(0,0,0,.7)}
 .lk-platbadge{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
 .lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
@@ -2274,6 +2292,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [mfRole, setMfRole] = useState("all");
   const [mfStatus, setMfStatus] = useState("all");
   const [pmManageId, setPmManageId] = useState(null);
+  const [coManageId, setCoManageId] = useState(null);
   const [mcount, setMcount] = useState({});
   useEffect(() => { let live = true; loadMembershipCounts().then((m) => { if (live) setMcount(m); }).catch(() => {}); return () => { live = false; }; }, [S.projectId, members]);
   const meSuper = (S.users.find((u) => u.id === S.currentUserId) || {}).platformRole === "super" || !!S.isSuper;
@@ -2375,23 +2394,59 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
         <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "")}><div className="lk-db">
-          {(tab === "companies" || tab === "systems") && (() => {
-            const label = tab === "companies" ? "company" : tab.slice(0, -1);
-            const items = tab === "companies" ? S.companies.map((c) => [c.id, c.name, c.logoUrl || "", c.logoDark || "", c.description || ""]) : S[tab].map((x) => [x, x]);
-            return <>
-              <div className="lk-list">{items.map(([id, name, logo, logoDark, desc]) => <div key={id} className="lk-li" style={tab === "companies" ? { flexWrap: "wrap", gap: 6 } : undefined}>{tab === "systems"
-                ? <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
-                : <><input className="lk-in" key={"co:" + id} defaultValue={name} style={{ flex: 1, minWidth: 90, fontWeight: 600 }} title="Rename company" onKeyDown={(e) => { if (e.key === "Enter") { renameCompany(id, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameCompany(id, e.target.value)} />
-                  {[["light", "Light", logo], ["dark", "Dark", logoDark]].map(([k, lbl, url]) => <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid var(--line)", borderRadius: 7, padding: "2px 4px 2px 7px", background: k === "dark" ? "#0f172a" : "transparent" }}>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 10.5, color: k === "dark" ? "#cbd5e1" : "var(--muted)" }} title={"Upload the " + lbl.toLowerCase() + "-mode logo for " + name}>
-                      {url ? <img src={url} alt="" style={{ height: 18, maxWidth: 56, objectFit: "contain" }} /> : <Icon n="upload" s={11} />}<span>{lbl}</span>
-                      <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { const u = await uploadCompanyLogo(f, id); update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, [k === "dark" ? "logoDark" : "logoUrl"]: u } : c) }), { action: "Company logo set", detail: name + " (" + lbl + ")" }); } catch (x) { alert("Logo upload failed: " + (x.message || x)); } e.target.value = ""; }} />
-                    </label>
-                    {url && <button title={"Remove " + lbl.toLowerCase() + " logo"} style={{ padding: 2 }} onClick={() => update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, [k === "dark" ? "logoDark" : "logoUrl"]: "" } : c) }), { action: "Company logo removed", detail: name + " (" + lbl + ")" })}><Icon n="x" s={11} /></button>}
-                  </span>)}
-                </>}<button onClick={() => askDel('Delete "' + name + '"' + (tab === "companies" ? " and unassign it from any activities?" : "?"), () => delList(tab, id, label))}><Icon n="trash" s={14} /></button>{tab === "companies" && <textarea className="lk-in" key={"codesc:" + id} defaultValue={desc} rows={2} placeholder="Short description: role & scope on the project (shown on the board when the logo is clicked). Press Enter for a new line; click away to save." style={{ flexBasis: "100%", fontSize: 12, resize: "vertical", lineHeight: 1.45, fontFamily: "inherit" }} title="Company role & scope" onKeyDown={(e) => { if (e.key === "Escape") { e.target.value = desc; e.target.blur(); } }} onBlur={(e) => setCompanyDesc(id, e.target.value)} />}</div>)}</div>
-              <div className="lk-add"><input className="lk-in" placeholder={`Add ${label}…`} value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList(tab, label)} /><button className="lk-btn primary" onClick={() => addList(tab, label)}><Icon n="plus" s={15} /></button></div>
-            </>;
+          {tab === "systems" && <>
+            <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
+              <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
+              <button onClick={() => askDel('Delete "' + name + '"?', () => delList("systems", name, "system"))}><Icon n="trash" s={14} /></button>
+            </div>)}</div>
+            <div className="lk-add"><input className="lk-in" placeholder="Add system…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("systems", "system")} /><button className="lk-btn primary" onClick={() => addList("systems", "system")}><Icon n="plus" s={15} /></button></div>
+          </>}
+          {tab === "companies" && <>
+            <div className="lk-cohead"><span /><span>Company &amp; role</span><span className="ctr">People</span><span /></div>
+            <div className="lk-list" style={{ gap: 8 }}>{S.companies.map((c) => {
+              const n = S.users.filter((u) => u.companyId === c.id).length;
+              const role = (c.description || "").replace(/\s*\n\s*/g, " \u00b7 ").trim();
+              const lg = c.logoUrl ? { url: c.logoUrl, dark: false } : (c.logoDark ? { url: c.logoDark, dark: true } : null);
+              return <div key={c.id} className="lk-corow">
+                <span className={"lk-cologo" + (lg ? (lg.dark ? " dk" : "") : " empty")}>{lg ? <img src={lg.url} alt="" /> : <span className="lk-cologo-ph">{avInit(c.name)}</span>}</span>
+                <div className="lk-coname"><b>{c.name}</b>{role ? <s title={role}>{role}</s> : <s style={{ opacity: .6 }}>No role set</s>}</div>
+                <span className="lk-mpc" title={n + " contact" + (n === 1 ? "" : "s") + " in this company"} style={{ color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
+                <button className="lk-mbtn" onClick={() => setCoManageId(c.id)}>Manage</button>
+              </div>;
+            })}</div>
+            <div className="lk-add"><input className="lk-in" placeholder="Add a company…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("companies", "company")} /><button className="lk-btn primary" onClick={() => addList("companies", "company")}><Icon n="plus" s={15} />Add</button></div>
+          </>}
+          {coManageId && (() => {
+            const c = S.companies.find((x) => x.id === coManageId); if (!c) return null;
+            const n = S.users.filter((u) => u.companyId === c.id).length;
+            const headLg = c.logoUrl ? { url: c.logoUrl, dark: false } : (c.logoDark ? { url: c.logoDark, dark: true } : null);
+            return <div className="lk-modal-bg" onClick={() => setCoManageId(null)}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+                <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className={"lk-cologo sm" + (headLg ? (headLg.dark ? " dk" : "") : " empty")}>{headLg ? <img src={headLg.url} alt="" /> : <span className="lk-cologo-ph">{avInit(c.name)}</span>}</span>{c.name || "Manage company"}</h3><button className="lk-btn icon" onClick={() => setCoManageId(null)}><Icon n="x" /></button></div>
+                <div className="bd">
+                  <div className="lk-f"><label>Company Name</label><input className="lk-in" key={c.id + ":" + c.name} defaultValue={c.name} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); else if (e.key === "Escape") { e.target.value = c.name; e.target.blur(); } }} onBlur={(e) => renameCompany(c.id, e.target.value)} /></div>
+                  <div className="lk-f"><label>Role &amp; Scope</label><textarea className="lk-in" key={"d:" + c.id} defaultValue={c.description || ""} rows={3} placeholder="Role & scope on the project. Shown on the board when the logo is clicked." style={{ resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }} onKeyDown={(e) => { if (e.key === "Escape") { e.target.value = c.description || ""; e.target.blur(); } }} onBlur={(e) => setCompanyDesc(c.id, e.target.value)} /></div>
+                  <div className="lk-f"><label>Logos</label>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      {[["Light mode", c.logoUrl, "logoUrl", "#ffffff", "#0b1320", false], ["Dark mode", c.logoDark, "logoDark", "#0d1422", "#dbe6f5", true]].map(([lbl, url, field, bg, fg, dk]) => <div key={field} style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 5 }}>{lbl}</div>
+                        <label className="lk-codrop" style={{ background: bg, color: fg, borderColor: dk ? "var(--line)" : "transparent" }} title={"Upload the " + lbl.toLowerCase() + " logo for " + c.name}>
+                          {url ? <img src={url} alt="" /> : <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, opacity: .85 }}><Icon n="upload" s={13} />Upload</span>}
+                          <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { const u = await uploadCompanyLogo(f, c.id); update((p) => ({ ...p, companies: p.companies.map((x) => x.id === c.id ? { ...x, [field]: u } : x) }), { action: "Company logo set", detail: c.name + " (" + lbl + ")" }); } catch (x) { alert("Logo upload failed: " + (x.message || x)); } e.target.value = ""; }} />
+                          {url && <span className="lk-coremove" onClick={(e) => { e.preventDefault(); e.stopPropagation(); update((p) => ({ ...p, companies: p.companies.map((x) => x.id === c.id ? { ...x, [field]: "" } : x) }), { action: "Company logo removed", detail: c.name + " (" + lbl + ")" }); }} title={"Remove " + lbl.toLowerCase() + " logo"}>&times;</span>}
+                        </label>
+                      </div>)}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>Wide transparent PNG or SVG looks best. The light logo shows on light backgrounds; the dark on dark.</div>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{n} contact{n === 1 ? "" : "s"} assigned to this company.</div>
+                </div>
+                <div className="rep-foot" style={{ justifyContent: "space-between" }}>
+                  <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setCoManageId(null); askDel('Delete "' + c.name + '" and unassign it from any activities?', () => delList("companies", c.id, "company")); }}><Icon n="trash" s={14} />Delete company</button>
+                  <button className="lk-btn primary" onClick={() => setCoManageId(null)}>Done</button>
+                </div>
+              </div>
+            </div>;
           })()}
           {tab === "areas" && <>
             <div className="lk-list">{S.areas.map((area) => {
