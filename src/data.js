@@ -109,11 +109,29 @@ export async function createProject(fields, session) {
   const { error } = await supabase.from("projects").insert({
     id, code: fields.code, name: fields.name, client: fields.client || null,
     location: fields.location || null, accent: fields.accent || "#1E63D6",
+    start_date: fields.startDate || null, target_date: fields.targetDate || null,
     status: "active", created_by: session?.user?.id || null,
   });
   if (error) throw error;
   const { error: mErr } = await supabase.from("project_members").insert({ project_id: id, user_id: session.user.id, role: "admin", added_by: session.user.id });
   if (mErr) throw mErr;
+  if (fields.copyFrom) {
+    const src = fields.copyFrom;
+    const [lv, sy, ar, sa, t3] = await Promise.all([
+      supabase.from("levels").select("key,name,color,sort").eq("project_id", src),
+      supabase.from("systems").select("name").eq("project_id", src),
+      supabase.from("areas").select("name").eq("project_id", src),
+      supabase.from("sub_areas").select("area,name").eq("project_id", src),
+      supabase.from("tier3_areas").select("area,sub_area,name").eq("project_id", src),
+    ]);
+    const ops = [];
+    if (lv.data?.length) ops.push(supabase.from("levels").insert(lv.data.map((r) => ({ ...r, project_id: id }))));
+    if (sy.data?.length) ops.push(supabase.from("systems").insert(sy.data.map((r) => ({ ...r, project_id: id }))));
+    if (ar.data?.length) ops.push(supabase.from("areas").insert(ar.data.map((r) => ({ ...r, project_id: id }))));
+    if (sa.data?.length) ops.push(supabase.from("sub_areas").insert(sa.data.map((r) => ({ ...r, project_id: id }))));
+    if (t3.data?.length) ops.push(supabase.from("tier3_areas").insert(t3.data.map((r) => ({ ...r, project_id: id }))));
+    await Promise.all(ops);
+  }
   return id;
 }
 

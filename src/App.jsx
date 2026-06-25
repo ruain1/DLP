@@ -638,121 +638,237 @@ function defaults() {
   };
 }
 
-function Portal({ projects, isSuper, userName, activity, theme, onEnter, onNew, onSignOut }) {
-  useEffect(() => {
-    const t = THEMES[theme] || THEMES.light; document.body.style.background = t.paper;
-    try { let l = document.querySelector("link[rel='icon']"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); } l.type = "image/png"; l.href = QMC_FAV; } catch (e) {}
-  }, [theme]);
-  const [view, setView] = useState("home");
+function portalVars(theme) {
+  const D = { "--ink": "#E8EDF3", "--ink-2": "#B4C0CD", "--muted": "#8593A2", "--paper": "#161D26", "--backdrop": "#0C1116", "--card": "#141B24", "--line": "#27313D", "--line-2": "#1E2732", "--signal": "#5B9BF5", "--green": "#2FB6A6", "--amber": "#E0A33A", "--red": "#E76A5C", "--chip": "#1B232E", "--ring-track": "#26303B" };
+  const L = { "--ink": "#0F1E2E", "--ink-2": "#33485C", "--muted": "#647689", "--paper": "#FFFFFF", "--backdrop": "#EEF1F5", "--card": "#FFFFFF", "--line": "#E2E7EE", "--line-2": "#EEF2F6", "--signal": "#1E63D6", "--green": "#0E9384", "--amber": "#C07A00", "--red": "#C0392B", "--chip": "#F2F5F9", "--ring-track": "#E6EBF1" };
+  return { ...(theme === "dark" ? D : L), "--display": '"Space Grotesk","Inter",system-ui,sans-serif', "--body": '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif' };
+}
+const PORTAL_CSS = `
+.qp{min-height:100vh;background:var(--backdrop);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.qp h2{font-family:var(--display);margin:0}
+.qp .mono{font-variant-numeric:tabular-nums}
+.qp .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;height:58px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
+.qp .brandmark{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:-.01em;font-family:var(--display)}
+.qp .brandmark .glyphimg{height:26px;width:auto;display:block}
+.qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
+.qp .switcher{position:relative;margin-left:6px}
+.qp .switcher>button{display:flex;align-items:center;gap:9px;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
+.qp .switcher .dot{width:8px;height:8px;border-radius:50%;background:var(--signal)}
+.qp .swback{position:fixed;inset:0;z-index:39}
+.qp .swmenu{position:absolute;top:46px;left:0;width:280px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(8,14,22,.28);padding:6px;z-index:40}
+.qp .swmenu .it{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px}
+.qp .swmenu .it:hover{background:var(--chip)}
+.qp .swmenu .it .ac{width:9px;height:9px;border-radius:50%;flex:none}
+.qp .swmenu .it .mt{font-size:11px;color:var(--muted)}
+.qp .swmenu .sep{height:1px;background:var(--line);margin:6px 4px}
+.qp .swmenu .all{font-weight:600;color:var(--signal)}
+.qp .spacer{flex:1}
+.qp .tbtn{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--paper);color:var(--ink-2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.qp .user{display:flex;align-items:center;gap:10px}
+.qp .user .av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3E5C82,#6A8CB8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.qp .user .nm{font-size:13px;font-weight:600;line-height:1.1}
+.qp .user .rl{font-size:10px;color:var(--muted)}
+.qp .pill-plat{font-size:9.5px;font-weight:800;letter-spacing:.06em;background:#7C4DFF1f;color:#9B7BFF;border-radius:999px;padding:3px 8px;text-transform:uppercase}
+.qp .wrap{max-width:1240px;margin:0 auto;padding:26px 22px 60px}
+.qp .scene{display:none}.qp .scene.on{display:block}
+.qp .hello{font-size:24px;font-weight:700;letter-spacing:-.02em;font-family:var(--display)}
+.qp .subhello{color:var(--muted);font-size:13px;margin-top:3px}
+.qp .sech{display:flex;align-items:center;justify-content:space-between;margin:26px 0 13px}
+.qp .sech h2{font-size:15px;font-weight:600}
+.qp .sech .lk{font-size:12.5px;color:var(--signal);font-weight:600;cursor:pointer}
+.qp .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.qp .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px}
+.qp .tile .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.qp .tile .v{font-family:var(--display);font-size:30px;font-weight:700;letter-spacing:-.02em;margin-top:7px;line-height:1}
+.qp .tile .d{font-size:11.5px;color:var(--muted);margin-top:6px}
+.qp .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.qp .pcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;cursor:pointer;transition:.16s;display:flex;flex-direction:column}
+.qp .pcard:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(8,14,22,.16);border-color:var(--signal)}
+.qp .pcard .head{height:7px}
+.qp .pcard .body{padding:16px 17px;display:flex;flex-direction:column;gap:11px;flex:1}
+.qp .pcard .code{font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--muted)}
+.qp .pcard .nm{font-size:16px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.qp .pcard .loc{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.qp .pcard .midrow{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.qp .ring{position:relative;width:52px;height:52px}
+.qp .ring svg{transform:rotate(-90deg)}
+.qp .ring .lbl{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.qp .ring .lbl small{font-size:8px;color:var(--muted);font-weight:600;letter-spacing:.05em}
+.qp .kv{display:flex;gap:18px}
+.qp .kv .c{font-size:11px;color:var(--muted)}
+.qp .kv .c b{display:block;font-size:16px;color:var(--ink);font-weight:700;font-family:var(--display)}
+.qp .kv .c b.warn{color:var(--red)}
+.qp .rolechip{font-size:10px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:999px;background:var(--chip);border:1px solid var(--line)}
+.qp .rolechip.admin{background:#1E63D618;color:var(--signal);border-color:transparent}
+.qp .pcard .foot{display:flex;align-items:center;justify-content:space-between;padding:11px 17px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.qp .enter{font-size:12.5px;font-weight:700;color:var(--signal);display:flex;align-items:center;gap:5px}
+.qp .newcard{border:1.5px dashed var(--line);background:transparent;display:flex;align-items:center;justify-content:center;min-height:200px;cursor:pointer;border-radius:16px;color:var(--muted);font-weight:600;font-size:13px;gap:8px}
+.qp .newcard:hover{border-color:var(--signal);color:var(--signal)}
+.qp .feed{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 4px}
+.qp .frow{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line-2)}
+.qp .frow:last-child{border-bottom:0}
+.qp .frow .fav{width:28px;height:28px;border-radius:50%;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-2);flex:none;text-transform:uppercase}
+.qp .frow .ft{font-size:12.5px;flex:1}
+.qp .frow .ft b{font-weight:600}
+.qp .frow .ptag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--chip);color:var(--ink-2)}
+.qp .frow .fw{font-size:11px;color:var(--muted);white-space:nowrap}
+.qp .ptable{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.qp .ptable .hd,.qp .ptable .row{display:grid;grid-template-columns:2.4fr 1.3fr 1fr 1.1fr 0.8fr 1.2fr auto;gap:12px;align-items:center;padding:13px 18px}
+.qp .ptable .hd{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--chip)}
+.qp .ptable .row{border-top:1px solid var(--line);cursor:pointer}
+.qp .ptable .row:hover{background:var(--chip)}
+.qp .ptable .pn{font-weight:600;font-size:13.5px}.qp .ptable .pc{font-size:11px;color:var(--muted)}
+.qp .ptable .bar{height:6px;border-radius:4px;background:var(--ring-track);overflow:hidden}
+.qp .ptable .bar i{display:block;height:100%;border-radius:4px}
+.qp .searchbar{display:flex;gap:10px;margin-bottom:14px;margin-top:18px}
+.qp .searchbar input{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 13px;font-family:inherit;font-size:13px;color:var(--ink)}
+.qp .form{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;max-width:760px;margin-top:18px}
+.qp .frow2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.qp .f{margin-bottom:16px}
+.qp .f label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;display:block;margin-bottom:6px}
+.qp .f input,.qp .f select{width:100%;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:13.5px;color:var(--ink)}
+.qp .f .hint{font-size:11px;color:var(--muted);margin-top:5px}
+.qp .swatches{display:flex;gap:8px}
+.qp .swatch{width:30px;height:30px;border-radius:8px;cursor:pointer;border:2px solid transparent}
+.qp .swatch.sel{border-color:var(--ink)}
+.qp .adminrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.qp .adminchip{font-size:12px;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 11px;display:flex;align-items:center;gap:6px}
+.qp .btn{font-family:var(--body);font-size:13.5px;font-weight:700;border-radius:10px;padding:11px 20px;cursor:pointer;border:1px solid transparent;background:var(--signal);color:#fff}
+.qp .btn.ghost{background:var(--paper);color:var(--ink-2);border-color:var(--line)}
+.qp .btn.sm{padding:8px 14px;font-size:12.5px}
+.qp .err{color:var(--red);font-size:12.5px;margin:10px 0}
+.qp .empty{color:var(--muted);text-align:center;padding:30px}
+@media (max-width:900px){.qp .tiles{grid-template-columns:repeat(2,1fr)}.qp .pgrid{grid-template-columns:1fr 1fr}.qp .frow2{grid-template-columns:1fr}}
+`;
+function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter, onNew, onSignOut }) {
+  const [theme, setTheme] = useState(theme0 || "light");
+  const [scene, setScene] = useState("home");
+  const [swOpen, setSwOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [showNew, setShowNew] = useState(false);
-  const [nf, setNf] = useState({ name: "", code: "", client: "", location: "", accent: "#1E63D6" });
+  const [nf, setNf] = useState({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  useEffect(() => {
+    const v = portalVars(theme); document.body.style.background = v["--backdrop"];
+    try { let l = document.querySelector("link[rel='icon']"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); } l.type = "image/png"; l.href = QMC_FAV; } catch (e) {}
+    try { if (!document.getElementById("qp-font")) { const f = document.createElement("link"); f.id = "qp-font"; f.rel = "stylesheet"; f.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap"; document.head.appendChild(f); } } catch (e) {}
+  }, [theme]);
+  const toggleTheme = () => { const t = theme === "dark" ? "light" : "dark"; setTheme(t); try { const p = JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); p.theme = t; localStorage.setItem("fin04_prefs", JSON.stringify(p)); } catch (e) {} };
   const first = (userName || "").trim().split(/\s+/)[0] || "there";
+  const initials = (n) => (n || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   const dstr = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const tot = projects.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete, inProgress: a.inProgress + (p.stats.inProgress || 0) }), { total: 0, overdue: 0, complete: 0, inProgress: 0 });
   const pcomplete = tot.total ? Math.round(tot.complete / tot.total * 100) : 0;
+  const clients = new Set(projects.map((p) => p.client).filter(Boolean)).size;
   const fmtAgo = (ts) => { if (!ts) return ""; const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const d = Math.floor(h / 24); if (d === 1) return "yesterday"; if (d < 7) return d + " days ago"; return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
-  const ring = (pct, accent) => { const r = 20, c = 2 * Math.PI * r, off = c * (1 - pct / 100); return (<div className="lk-pring"><svg width="48" height="48"><circle cx="24" cy="24" r={r} fill="none" stroke="var(--line)" strokeWidth="5" /><circle cx="24" cy="24" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 24 24)" /></svg><div className="lk-pringlbl">{pct}<small>%</small></div></div>); };
-  const openNew = () => { setNf({ name: "", code: "", client: "", location: "", accent: "#1E63D6" }); setErr(""); setShowNew(true); };
-  const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Name and code are required."); return; } setBusy(true); setErr(""); try { await onNew({ name: nf.name.trim(), code: nf.code.trim(), client: nf.client.trim(), location: nf.location.trim(), accent: nf.accent }); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
-  const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
+  const ringEl = (pct, accent) => { const r = 22, c = 2 * Math.PI * r, off = c * (1 - pct / 100); return (<div className="ring"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r={r} fill="none" stroke="var(--ring-track)" strokeWidth="5" /><circle cx="26" cy="26" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} /></svg><div className="lbl">{pct}<small>%</small></div></div>); };
   const ql = q.trim().toLowerCase();
   const filtered = ql ? projects.filter((p) => (p.name + " " + p.code + " " + p.location + " " + p.client).toLowerCase().includes(ql)) : projects;
-  const card = (p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
-    <div key={p.id} className="lk-pcard" onClick={() => onEnter(p.id)}>
-      <div className="lk-pcardhead" style={{ background: p.accent }} />
-      <div className="lk-pcardbody">
-        <div><div className="lk-pcode">{p.code}</div><div className="lk-pname">{p.name}</div></div>
-        {p.location && <div className="lk-ploc">{p.location}</div>}
-        <div className="lk-pmid">{ring(pct, p.accent)}<div className="lk-pkv"><div><b>{p.stats.total}</b>activities</div><div><b className={p.stats.overdue ? "warn" : ""}>{p.stats.overdue}</b>overdue</div></div><span className={"lk-prole" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
+  const openNew = () => { setNf({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" }); setErr(""); setScene("newproj"); };
+  const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Project name and code are required."); return; } setBusy(true); setErr(""); try { await onNew(nf); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
+  const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
+  const cardEl = (p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
+    <div key={p.id} className="pcard" onClick={() => onEnter(p.id)}>
+      <div className="head" style={{ background: p.accent }} />
+      <div className="body">
+        <div><div className="code">{p.code}</div><div className="nm">{p.name}</div></div>
+        {p.location && <div className="loc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>{p.location}</div>}
+        <div className="midrow">{ringEl(pct, p.accent)}<div className="kv"><div className="c">Activities<b>{p.stats.total}</b></div><div className="c">Overdue<b className={p.stats.overdue ? "warn" : ""}>{p.stats.overdue}</b></div></div><span className={"rolechip" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
       </div>
-      <div className="lk-pcardfoot"><span>{p.client || "\u00A0"}</span><span className="lk-penter">Enter &rsaquo;</span></div>
+      <div className="foot"><span>{p.startDate ? fmtDate(p.startDate) + (p.targetDate ? " \u2192 " + fmtDate(p.targetDate) : "") : (p.client || "\u00A0")}</span><span className="enter">Enter<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m9 18 6-6-6-6" /></svg></span></div>
     </div>); };
   return (
-    <div className="lk lk-portal" style={cssVars(theme)}><style>{css}</style>
-      <div className="lk-pbar">
-        <div className="lk-pbrand"><img className="lk-pglyph-img" src={theme === "dark" ? QMC_DARK : QMC_LIGHT} alt="QMC" />DLP<span className="lk-psub">Platform</span></div>
-        <div className="lk-pnav">
-          <button className={view === "home" ? "on" : ""} onClick={() => setView("home")}>Home</button>
-          <button className={view === "projects" ? "on" : ""} onClick={() => setView("projects")}>Projects</button>
+    <div className="qp" style={portalVars(theme)}><style>{PORTAL_CSS}</style>
+      <div className="top">
+        <div className="brandmark"><img className="glyphimg" src={theme === "dark" ? QMC_DARK : QMC_LIGHT} alt="QMC" />DLP<span className="sub">Platform</span></div>
+        <div className="switcher">
+          {swOpen && <div className="swback" onClick={() => setSwOpen(false)} />}
+          <button onClick={() => setSwOpen((o) => !o)}><span className="dot" />All projects<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg></button>
+          {swOpen && <div className="swmenu">
+            <div className="it all" onClick={() => { setSwOpen(false); setScene("home"); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>All projects</div>
+            <div className="sep" />
+            {projects.map((p) => <div key={p.id} className="it" onClick={() => { setSwOpen(false); onEnter(p.id); }}><span className="ac" style={{ background: p.accent }} /><div style={{ flex: 1 }}><div>{p.name}</div><div className="mt">{p.code} &middot; {p.role === "admin" ? "Admin" : "Member"}</div></div></div>)}
+          </div>}
         </div>
-        <div className="lk-spacer" />
-        {isSuper && <button className="lk-btn primary" onClick={openNew}>+ New project</button>}
-        <span style={{ fontSize: 13, color: "var(--muted)" }}>{userName}</span>
-        {isSuper && <span className="lk-pill admin">Super</span>}
-        <button className="lk-btn" onClick={onSignOut}>Sign out</button>
+        <div className="spacer" />
+        <button className="tbtn" onClick={toggleTheme} title="Theme">{theme === "dark" ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" /></svg> : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19" /></svg>}</button>
+        <div className="user"><div className="av">{initials(userName)}</div><div><div className="nm">{userName}</div><div className="rl">{isSuper ? "Platform admin" : "Member"}</div></div>{isSuper && <span className="pill-plat">Super</span>}</div>
+        <button className="btn ghost sm" onClick={onSignOut}>Sign out</button>
       </div>
-      <div className="lk-pwrap">
-        {view === "home" && <>
-          <div className="lk-phello">{greet}, {first}</div>
-          <div className="lk-psubhello">{dstr} &middot; {isSuper ? "you can see every project" : ("you are on " + projects.length + " project" + (projects.length === 1 ? "" : "s"))}</div>
-          <div className="lk-ptiles">
-            <div className="lk-ptile"><div className="k">Active projects</div><div className="v">{projects.length}</div></div>
-            <div className="lk-ptile"><div className="k">In progress</div><div className="v" style={{ color: "var(--accent)" }}>{tot.inProgress}</div></div>
-            <div className="lk-ptile"><div className="k">Complete</div><div className="v">{pcomplete}%</div></div>
-            <div className="lk-ptile"><div className="k">Overdue</div><div className="v" style={{ color: "#D9534F" }}>{tot.overdue}</div></div>
+
+      <div className="wrap">
+        <div className={"scene" + (scene === "home" ? " on" : "")}>
+          <div className="hello">{greet}, {first}</div>
+          <div className="subhello">{dstr} &middot; {isSuper ? "you can see every project" : ("you are on " + projects.length + " project" + (projects.length === 1 ? "" : "s"))}</div>
+          <div className="tiles" style={{ marginTop: 20 }}>
+            <div className="tile"><div className="k">Active projects</div><div className="v mono">{projects.length}</div><div className="d">{clients ? "across " + clients + " client" + (clients === 1 ? "" : "s") : "\u00A0"}</div></div>
+            <div className="tile"><div className="k">Activities in progress</div><div className="v mono" style={{ color: "var(--signal)" }}>{tot.inProgress}</div><div className="d">portfolio-wide</div></div>
+            <div className="tile"><div className="k">Complete</div><div className="v mono" style={{ color: "var(--green)" }}>{pcomplete}%</div><div className="d">of all activities</div></div>
+            <div className="tile"><div className="k">Overdue</div><div className="v mono" style={{ color: "var(--red)" }}>{tot.overdue}</div><div className="d">need attention</div></div>
           </div>
-          <div className="lk-psection">Your projects</div>
-          <div className="lk-pgrid">
-            {projects.map(card)}
-            {isSuper && <div className="lk-pnewcard" onClick={openNew}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>New project</div>}
-            {projects.length === 0 && !isSuper && <div className="lk-pempty">You are not a member of any project yet. An administrator can add you to one.</div>}
+          <div className="sech"><h2>Your projects</h2><span className="lk" onClick={() => setScene("projects")}>View all</span></div>
+          <div className="pgrid">
+            {projects.map(cardEl)}
+            {isSuper && <div className="newcard" onClick={openNew}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>New project</div>}
+            {projects.length === 0 && !isSuper && <div className="empty">You are not a member of any project yet.</div>}
           </div>
           {activity && activity.length > 0 && <>
-            <div className="lk-psection">Recent activity</div>
-            <div className="lk-feed">
-              {activity.map((e, i) => <div key={i} className="lk-frow">
-                <div className="lk-fav">{(e.user || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("")}</div>
-                <div className="lk-ft"><b>{e.user}</b> {e.verb} {e.name ? <span className="lk-fdet">{e.name}</span> : "an activity"}</div>
-                {e.code && <span className="lk-ftag">{e.code}</span>}
-                <div className="lk-fw">{fmtAgo(e.ts)}</div>
-              </div>)}
+            <div className="sech"><h2>Recent activity</h2></div>
+            <div className="feed">
+              {activity.map((e, i) => <div key={i} className="frow"><div className="fav">{initials(e.user)}</div><div className="ft"><b>{e.user}</b> {e.verb} {e.name ? <b>{e.name}</b> : "an activity"}</div>{e.code && <span className="ptag">{e.code}</span>}<span className="fw">{fmtAgo(e.ts)}</span></div>)}
             </div>
           </>}
-        </>}
-        {view === "projects" && <>
-          <div className="lk-phello">Your projects</div>
-          <div className="lk-psubhello">{isSuper ? "Every project on the platform." : "Only the projects you have been granted access to."}</div>
-          <div className="lk-psearch"><input placeholder="Search by name, code or location\u2026" value={q} onChange={(e) => setQ(e.target.value)} />{isSuper && <button className="lk-btn primary" onClick={openNew}>+ New project</button>}</div>
-          <div className="lk-ptable">
-            <div className="lk-pth"><div>Project</div><div>Location</div><div>Role</div><div>Status</div><div>Overdue</div><div>Dates</div><div></div></div>
-            {filtered.map((p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
-              <div key={p.id} className="lk-ptr" onClick={() => onEnter(p.id)}>
-                <div><div className="lk-ptn">{p.name}</div><div className="lk-ptc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
-                <div className="lk-ptmut">{p.location || "\u2014"}</div>
-                <div><span className={"lk-prole" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
-                <div><div className="lk-ptbar"><i style={{ width: pct + "%", background: p.accent }} /></div><div className="lk-ptmut" style={{ marginTop: 4 }}>{pct}%</div></div>
-                <div className="lk-ptover" style={{ color: p.stats.overdue ? "#D9534F" : "var(--muted)" }}>{p.stats.overdue}</div>
-                <div className="lk-ptmut">{fmtDate(p.startDate)}{p.targetDate ? " \u2192 " + fmtDate(p.targetDate) : ""}</div>
-                <div className="lk-penter">Enter &rsaquo;</div>
-              </div>); })}
-            {filtered.length === 0 && <div className="lk-pempty" style={{ border: 0 }}>No projects match.</div>}
-          </div>
-        </>}
-      </div>
-      {showNew && <div className="lk-pmodback" onClick={() => !busy && setShowNew(false)}>
-        <div className="lk-pmod" onClick={(e) => e.stopPropagation()}>
-          <div className="lk-pmodh">New project</div>
-          <div className="lk-pmodsub">Creates an isolated project. Nobody else sees it until you add them.</div>
-          <label className="lk-pml">Project name</label>
-          <input className="lk-pmi" value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} placeholder="atnorth Mantsala Data Centre" />
-          <div className="lk-pmrow">
-            <div><label className="lk-pml">Code</label><input className="lk-pmi" value={nf.code} onChange={(e) => setNf({ ...nf, code: e.target.value })} placeholder="FIN05" /></div>
-            <div><label className="lk-pml">Client</label><input className="lk-pmi" value={nf.client} onChange={(e) => setNf({ ...nf, client: e.target.value })} placeholder="atnorth" /></div>
-          </div>
-          <label className="lk-pml">Location</label>
-          <input className="lk-pmi" value={nf.location} onChange={(e) => setNf({ ...nf, location: e.target.value })} placeholder="Mantsala, Finland" />
-          <label className="lk-pml">Accent</label>
-          <div className="lk-pmsw">{SW.map((c) => <span key={c} className={"lk-pmswatch" + (nf.accent === c ? " on" : "")} style={{ background: c }} onClick={() => setNf({ ...nf, accent: c })} />)}</div>
-          {err && <div className="lk-pmerr">{err}</div>}
-          <div className="lk-pmact"><button className="lk-btn" disabled={busy} onClick={() => setShowNew(false)}>Cancel</button><button className="lk-btn primary" disabled={busy} onClick={submit}>{busy ? "Creating\u2026" : "Create project"}</button></div>
         </div>
-      </div>}
+
+        <div className={"scene" + (scene === "projects" ? " on" : "")}>
+          <div className="hello">Your projects</div>
+          <div className="subhello">{isSuper ? "Every project on the platform." : "You see only the projects you have been granted access to."}</div>
+          <div className="searchbar"><input placeholder="Search projects by name, code or location\u2026" value={q} onChange={(e) => setQ(e.target.value)} />{isSuper && <button className="btn sm" onClick={openNew}>+ New project</button>}</div>
+          <div className="ptable">
+            <div className="hd"><div>Project</div><div>Location</div><div>Your role</div><div>Status</div><div>Overdue</div><div>Dates</div><div></div></div>
+            {filtered.map((p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
+              <div key={p.id} className="row" onClick={() => onEnter(p.id)}>
+                <div><div className="pn">{p.name}</div><div className="pc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{p.location || "\u2014"}</div>
+                <div><span className={"rolechip" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
+                <div><div className="bar"><i style={{ width: pct + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pct}%</div></div>
+                <div className="mono" style={{ color: p.stats.overdue ? "var(--red)" : "var(--muted)", fontWeight: 700 }}>{p.stats.overdue}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{fmtDate(p.startDate)}{p.targetDate ? <><br />{fmtDate(p.targetDate)}</> : ""}</div>
+                <div className="enter">Enter<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m9 18 6-6-6-6" /></svg></div>
+              </div>); })}
+            {filtered.length === 0 && <div className="empty">No projects match.</div>}
+          </div>
+        </div>
+
+        <div className={"scene" + (scene === "newproj" ? " on" : "")}>
+          <div className="hello">New project</div>
+          <div className="subhello">Platform admins only. Creates an isolated project; nobody sees it until you add them.</div>
+          <div className="form">
+            <div className="frow2">
+              <div className="f"><label>Project name</label><input value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} placeholder="atnorth Mantsala Data Centre" /></div>
+              <div className="f"><label>Project code</label><input value={nf.code} onChange={(e) => setNf({ ...nf, code: e.target.value })} placeholder="FIN05" /><div className="hint">Short code used in activity references, e.g. FIN05.01.L0.GY01</div></div>
+            </div>
+            <div className="frow2">
+              <div className="f"><label>Client / owner</label><input value={nf.client} onChange={(e) => setNf({ ...nf, client: e.target.value })} placeholder="atnorth" /></div>
+              <div className="f"><label>Location</label><input value={nf.location} onChange={(e) => setNf({ ...nf, location: e.target.value })} placeholder="Mantsala, Finland" /></div>
+            </div>
+            <div className="frow2">
+              <div className="f"><label>Start date</label><input type="date" value={nf.startDate} onChange={(e) => setNf({ ...nf, startDate: e.target.value })} /></div>
+              <div className="f"><label>Target completion</label><input type="date" value={nf.targetDate} onChange={(e) => setNf({ ...nf, targetDate: e.target.value })} /></div>
+            </div>
+            <div className="frow2">
+              <div className="f"><label>Accent colour</label><div className="swatches">{SW.map((c) => <div key={c} className={"swatch" + (nf.accent === c ? " sel" : "")} style={{ background: c }} onClick={() => setNf({ ...nf, accent: c })} />)}</div></div>
+              <div className="f"><label>Copy config from</label><select value={nf.copyFrom} onChange={(e) => setNf({ ...nf, copyFrom: e.target.value })}><option value="">Start blank</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.code} - {p.name} (Cx stages, systems, zones)</option>)}</select><div className="hint">Reuse Cx stages, systems and zones from an existing project. Companies are shared across all projects.</div></div>
+            </div>
+            <div className="f"><label>Initial project admin</label><div className="adminrow"><span className="adminchip">{userName} (you)</span></div><div className="hint">You are added as admin automatically. Add others from the project's Admin tab once it exists.</div></div>
+            {err && <div className="err">{err}</div>}
+            <div style={{ display: "flex", gap: 10, marginTop: 8 }}><button className="btn" disabled={busy} onClick={submit}>{busy ? "Creating\u2026" : "Create project"}</button><button className="btn ghost" disabled={busy} onClick={() => setScene("projects")}>Cancel</button></div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
