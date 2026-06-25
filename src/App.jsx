@@ -12,6 +12,9 @@ const DEFAULT_LEVELS = {
 };
 const tintOf = (hex) => { try { let h = (hex || "#64748B").replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255, mix = (c) => Math.round(c + (255 - c) * 0.86); return `rgb(${mix(r)},${mix(g)},${mix(b)})`; } catch (e) { return "#EEF1F5"; } };
 const lvOf = (levels, k) => (levels && levels[k]) || (levels && Object.values(levels)[0]) || DEFAULT_LEVELS.L2;
+const QMC_LIGHT = "data:image/png;base64,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";
+const QMC_DARK = "data:image/png;base64,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";
+const QMC_FAV = "data:image/png;base64,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";
 const THEMES = {
   light: { ink: "#16202E", paper: "#F7F8FA", card: "#FFFFFF", line: "#DCE1E8", muted: "#6B7785", accent: "#1E5FCC", weekend: "#EFF1F5", todcell: "#F0F5FE", todhead: "#E8EFFB", todedge: "#A3BEEC", hover: "#EAF0F9", chipbg: "#E8EFFB" },
   dark: { ink: "#E6EAF0", paper: "#10151C", card: "#1A222D", line: "#2A3543", muted: "#8A97A6", accent: "#6B9BF2", weekend: "#161D26", todcell: "#18222F", todhead: "#1B2737", todedge: "#476AA0", hover: "#202B38", chipbg: "#22324A" },
@@ -453,7 +456,7 @@ body.dark .lk-match.fuzzy{background:rgba(224,163,58,.18);color:#EAC178}
 .lk-frow:last-child{border-bottom:0}
 .lk-fav{width:28px;height:28px;border-radius:50%;background:var(--chipbg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink);flex:none;text-transform:uppercase}
 .lk-ft{font-size:12.5px;flex:1;color:var(--ink)}
-.lk-fdet{color:var(--muted)}
+.lk-fdet{color:var(--ink);font-weight:600}
 .lk-fw{font-size:11px;color:var(--muted);white-space:nowrap}
 .lk-pmodback{position:fixed;inset:0;z-index:60;background:rgba(8,12,18,.55);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px}
 .lk-pmod{width:480px;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:22px 22px 18px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
@@ -468,6 +471,26 @@ body.dark .lk-match.fuzzy{background:rgba(224,163,58,.18);color:#EAC178}
 .lk-pmerr{color:#D9534F;font-size:12px;margin-top:12px}
 .lk-pmact{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
 .lk-pmod .lk-btn.primary{background:var(--accent);color:#fff;border-color:transparent}
+.lk-portal .lk-btn.primary{background:var(--accent);color:#fff;border-color:transparent;font-weight:700}
+.lk-pglyph-img{height:26px;width:auto;display:block}
+.lk-pnav{display:flex;gap:2px;margin-left:14px;background:var(--chipbg);border:1px solid var(--line);border-radius:9px;padding:3px}
+.lk-pnav button{background:transparent;border:0;border-radius:6px;padding:6px 13px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer}
+.lk-pnav button.on{background:var(--card);color:var(--ink)}
+.lk-ftag{font-size:10px;font-weight:800;letter-spacing:.04em;padding:3px 8px;border-radius:6px;background:var(--chipbg);color:var(--muted)}
+.lk-psearch{display:flex;gap:10px;margin:18px 0 14px}
+.lk-psearch input{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 13px;font-family:inherit;font-size:13px;color:var(--ink)}
+.lk-ptable{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.lk-pth,.lk-ptr{display:grid;grid-template-columns:2.4fr 1.3fr .9fr 1.1fr .7fr 1.5fr auto;gap:12px;align-items:center;padding:13px 18px}
+.lk-pth{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--chipbg)}
+.lk-ptr{border-top:1px solid var(--line);cursor:pointer}
+.lk-ptr:hover{background:var(--hover)}
+.lk-ptn{font-weight:600;font-size:13.5px}
+.lk-ptc{font-size:11px;color:var(--muted)}
+.lk-ptmut{font-size:12px;color:var(--muted)}
+.lk-ptover{font-weight:700;font-size:15px;text-align:center}
+.lk-ptbar{height:6px;border-radius:4px;background:var(--line);overflow:hidden}
+.lk-ptbar i{display:block;height:100%;border-radius:4px}
+@media(max-width:820px){.lk-pnav{display:none}}
 `;
 
 const I = {
@@ -616,7 +639,12 @@ function defaults() {
 }
 
 function Portal({ projects, isSuper, userName, activity, theme, onEnter, onNew, onSignOut }) {
-  useEffect(() => { const t = THEMES[theme] || THEMES.light; document.body.style.background = t.paper; }, [theme]);
+  useEffect(() => {
+    const t = THEMES[theme] || THEMES.light; document.body.style.background = t.paper;
+    try { let l = document.querySelector("link[rel='icon']"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); } l.type = "image/png"; l.href = QMC_FAV; } catch (e) {}
+  }, [theme]);
+  const [view, setView] = useState("home");
+  const [q, setQ] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [nf, setNf] = useState({ name: "", code: "", client: "", location: "", accent: "#1E63D6" });
   const [busy, setBusy] = useState(false);
@@ -627,66 +655,83 @@ function Portal({ projects, isSuper, userName, activity, theme, onEnter, onNew, 
   const dstr = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const tot = projects.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete, inProgress: a.inProgress + (p.stats.inProgress || 0) }), { total: 0, overdue: 0, complete: 0, inProgress: 0 });
   const pcomplete = tot.total ? Math.round(tot.complete / tot.total * 100) : 0;
-  const ring = (pct, accent) => {
-    const r = 20, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
-    return (<div className="lk-pring"><svg width="48" height="48"><circle cx="24" cy="24" r={r} fill="none" stroke="var(--line)" strokeWidth="5" /><circle cx="24" cy="24" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 24 24)" /></svg><div className="lk-pringlbl">{pct}<small>%</small></div></div>);
-  };
-  const submit = async () => {
-    if (!nf.name.trim() || !nf.code.trim()) { setErr("Name and code are required."); return; }
-    setBusy(true); setErr("");
-    try { await onNew({ name: nf.name.trim(), code: nf.code.trim(), client: nf.client.trim(), location: nf.location.trim(), accent: nf.accent }); }
-    catch (e) { setErr(e.message || String(e)); setBusy(false); }
-  };
+  const fmtAgo = (ts) => { if (!ts) return ""; const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const d = Math.floor(h / 24); if (d === 1) return "yesterday"; if (d < 7) return d + " days ago"; return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
+  const ring = (pct, accent) => { const r = 20, c = 2 * Math.PI * r, off = c * (1 - pct / 100); return (<div className="lk-pring"><svg width="48" height="48"><circle cx="24" cy="24" r={r} fill="none" stroke="var(--line)" strokeWidth="5" /><circle cx="24" cy="24" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 24 24)" /></svg><div className="lk-pringlbl">{pct}<small>%</small></div></div>); };
+  const openNew = () => { setNf({ name: "", code: "", client: "", location: "", accent: "#1E63D6" }); setErr(""); setShowNew(true); };
+  const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Name and code are required."); return; } setBusy(true); setErr(""); try { await onNew({ name: nf.name.trim(), code: nf.code.trim(), client: nf.client.trim(), location: nf.location.trim(), accent: nf.accent }); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
   const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
+  const ql = q.trim().toLowerCase();
+  const filtered = ql ? projects.filter((p) => (p.name + " " + p.code + " " + p.location + " " + p.client).toLowerCase().includes(ql)) : projects;
+  const card = (p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
+    <div key={p.id} className="lk-pcard" onClick={() => onEnter(p.id)}>
+      <div className="lk-pcardhead" style={{ background: p.accent }} />
+      <div className="lk-pcardbody">
+        <div><div className="lk-pcode">{p.code}</div><div className="lk-pname">{p.name}</div></div>
+        {p.location && <div className="lk-ploc">{p.location}</div>}
+        <div className="lk-pmid">{ring(pct, p.accent)}<div className="lk-pkv"><div><b>{p.stats.total}</b>activities</div><div><b className={p.stats.overdue ? "warn" : ""}>{p.stats.overdue}</b>overdue</div></div><span className={"lk-prole" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
+      </div>
+      <div className="lk-pcardfoot"><span>{p.client || "\u00A0"}</span><span className="lk-penter">Enter &rsaquo;</span></div>
+    </div>); };
   return (
     <div className="lk lk-portal" style={cssVars(theme)}><style>{css}</style>
       <div className="lk-pbar">
-        <div className="lk-pbrand"><span className="lk-pglyph">D</span>DLP<span className="lk-psub">Platform</span></div>
+        <div className="lk-pbrand"><img className="lk-pglyph-img" src={theme === "dark" ? QMC_DARK : QMC_LIGHT} alt="QMC" />DLP<span className="lk-psub">Platform</span></div>
+        <div className="lk-pnav">
+          <button className={view === "home" ? "on" : ""} onClick={() => setView("home")}>Home</button>
+          <button className={view === "projects" ? "on" : ""} onClick={() => setView("projects")}>Projects</button>
+        </div>
         <div className="lk-spacer" />
+        {isSuper && <button className="lk-btn primary" onClick={openNew}>+ New project</button>}
         <span style={{ fontSize: 13, color: "var(--muted)" }}>{userName}</span>
         {isSuper && <span className="lk-pill admin">Super</span>}
         <button className="lk-btn" onClick={onSignOut}>Sign out</button>
       </div>
       <div className="lk-pwrap">
-        <div className="lk-phello">{greet}, {first}</div>
-        <div className="lk-psubhello">{dstr} &middot; {isSuper ? "you can see every project" : ("you are on " + projects.length + " project" + (projects.length === 1 ? "" : "s"))}</div>
-        <div className="lk-ptiles">
-          <div className="lk-ptile"><div className="k">Active projects</div><div className="v">{projects.length}</div></div>
-          <div className="lk-ptile"><div className="k">In progress</div><div className="v" style={{ color: "var(--accent)" }}>{tot.inProgress}</div></div>
-          <div className="lk-ptile"><div className="k">Complete</div><div className="v">{pcomplete}%</div></div>
-          <div className="lk-ptile"><div className="k">Overdue</div><div className="v" style={{ color: "#D9534F" }}>{tot.overdue}</div></div>
-        </div>
-        <div className="lk-psection">Your projects</div>
-        <div className="lk-pgrid">
-          {projects.map((p) => {
-            const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0;
-            return (<div key={p.id} className="lk-pcard" onClick={() => onEnter(p.id)}>
-              <div className="lk-pcardhead" style={{ background: p.accent }} />
-              <div className="lk-pcardbody">
-                <div><div className="lk-pcode">{p.code}</div><div className="lk-pname">{p.name}</div></div>
-                {p.location && <div className="lk-ploc">{p.location}</div>}
-                <div className="lk-pmid">
-                  {ring(pct, p.accent)}
-                  <div className="lk-pkv"><div><b>{p.stats.total}</b>activities</div><div><b className={p.stats.overdue ? "warn" : ""}>{p.stats.overdue}</b>overdue</div></div>
-                  <span className={"lk-prole" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span>
-                </div>
-              </div>
-              <div className="lk-pcardfoot"><span>{p.client || "\u00A0"}</span><span className="lk-penter">Enter &rsaquo;</span></div>
-            </div>);
-          })}
-          {isSuper && <div className="lk-pnewcard" onClick={() => { setNf({ name: "", code: "", client: "", location: "", accent: "#1E63D6" }); setErr(""); setShowNew(true); }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>New project
-          </div>}
-          {projects.length === 0 && !isSuper && <div className="lk-pempty">You are not a member of any project yet. An administrator can add you to one.</div>}
-        </div>
-        {activity && activity.length > 0 && <>
-          <div className="lk-psection">Recent activity</div>
-          <div className="lk-feed">
-            {activity.map((e, i) => <div key={i} className="lk-frow">
-              <div className="lk-fav">{(e.user || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("")}</div>
-              <div className="lk-ft"><b>{e.user}</b> {e.action}{e.detail ? <span className="lk-fdet"> {e.detail}</span> : null}</div>
-              <div className="lk-fw">{e.ts ? new Date(e.ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : ""}</div>
-            </div>)}
+        {view === "home" && <>
+          <div className="lk-phello">{greet}, {first}</div>
+          <div className="lk-psubhello">{dstr} &middot; {isSuper ? "you can see every project" : ("you are on " + projects.length + " project" + (projects.length === 1 ? "" : "s"))}</div>
+          <div className="lk-ptiles">
+            <div className="lk-ptile"><div className="k">Active projects</div><div className="v">{projects.length}</div></div>
+            <div className="lk-ptile"><div className="k">In progress</div><div className="v" style={{ color: "var(--accent)" }}>{tot.inProgress}</div></div>
+            <div className="lk-ptile"><div className="k">Complete</div><div className="v">{pcomplete}%</div></div>
+            <div className="lk-ptile"><div className="k">Overdue</div><div className="v" style={{ color: "#D9534F" }}>{tot.overdue}</div></div>
+          </div>
+          <div className="lk-psection">Your projects</div>
+          <div className="lk-pgrid">
+            {projects.map(card)}
+            {isSuper && <div className="lk-pnewcard" onClick={openNew}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>New project</div>}
+            {projects.length === 0 && !isSuper && <div className="lk-pempty">You are not a member of any project yet. An administrator can add you to one.</div>}
+          </div>
+          {activity && activity.length > 0 && <>
+            <div className="lk-psection">Recent activity</div>
+            <div className="lk-feed">
+              {activity.map((e, i) => <div key={i} className="lk-frow">
+                <div className="lk-fav">{(e.user || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("")}</div>
+                <div className="lk-ft"><b>{e.user}</b> {e.verb} {e.name ? <span className="lk-fdet">{e.name}</span> : "an activity"}</div>
+                {e.code && <span className="lk-ftag">{e.code}</span>}
+                <div className="lk-fw">{fmtAgo(e.ts)}</div>
+              </div>)}
+            </div>
+          </>}
+        </>}
+        {view === "projects" && <>
+          <div className="lk-phello">Your projects</div>
+          <div className="lk-psubhello">{isSuper ? "Every project on the platform." : "Only the projects you have been granted access to."}</div>
+          <div className="lk-psearch"><input placeholder="Search by name, code or location\u2026" value={q} onChange={(e) => setQ(e.target.value)} />{isSuper && <button className="lk-btn primary" onClick={openNew}>+ New project</button>}</div>
+          <div className="lk-ptable">
+            <div className="lk-pth"><div>Project</div><div>Location</div><div>Role</div><div>Status</div><div>Overdue</div><div>Dates</div><div></div></div>
+            {filtered.map((p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
+              <div key={p.id} className="lk-ptr" onClick={() => onEnter(p.id)}>
+                <div><div className="lk-ptn">{p.name}</div><div className="lk-ptc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
+                <div className="lk-ptmut">{p.location || "\u2014"}</div>
+                <div><span className={"lk-prole" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
+                <div><div className="lk-ptbar"><i style={{ width: pct + "%", background: p.accent }} /></div><div className="lk-ptmut" style={{ marginTop: 4 }}>{pct}%</div></div>
+                <div className="lk-ptover" style={{ color: p.stats.overdue ? "#D9534F" : "var(--muted)" }}>{p.stats.overdue}</div>
+                <div className="lk-ptmut">{fmtDate(p.startDate)}{p.targetDate ? " \u2192 " + fmtDate(p.targetDate) : ""}</div>
+                <div className="lk-penter">Enter &rsaquo;</div>
+              </div>); })}
+            {filtered.length === 0 && <div className="lk-pempty" style={{ border: 0 }}>No projects match.</div>}
           </div>
         </>}
       </div>

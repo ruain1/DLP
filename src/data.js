@@ -63,16 +63,17 @@ export async function loadProjects(session) {
     supabase.from("profiles").select("name, platform_role").eq("id", me).maybeSingle(),
     supabase.from("projects").select("*").order("name"),
     supabase.from("project_members").select("project_id, role").eq("user_id", me),
-    supabase.from("activities").select("project_id, status, start_date, duration"),
-    supabase.from("audit_log").select("ts, user_name, action, entity, detail").order("ts", { ascending: false }).limit(8),
+    supabase.from("activities").select("id, project_id, status, start_date, duration"),
+    supabase.from("audit_log").select("ts, user_name, action, entity, entity_id, detail").order("ts", { ascending: false }).limit(80),
   ]);
   const isSuper = prof.data?.platform_role === "super";
   const userName = prof.data?.name || (session?.user?.email || "");
   const roleByProj = {};
   (memRes.data || []).forEach((m) => { roleByProj[m.project_id] = m.role; });
   const todayMs = new Date().setHours(0, 0, 0, 0);
-  const stat = {};
+  const stat = {}; const actToProj = {};
   (statRes.data || []).forEach((a) => {
+    actToProj[a.id] = a.project_id;
     const s = stat[a.project_id] || (stat[a.project_id] = { total: 0, complete: 0, overdue: 0, inProgress: 0 });
     s.total++;
     if (a.status === "complete") { s.complete++; return; }
@@ -83,10 +84,22 @@ export async function loadProjects(session) {
     id: p.id, code: p.code, name: p.name, client: p.client || "", location: p.location || "",
     accent: p.accent || "#1E63D6", logoUrl: p.logo_url || "", logoDark: p.logo_url_dark || "",
     tagline: p.tagline || "", appName: p.app_name || "DLP",
+    startDate: p.start_date || null, targetDate: p.target_date || null,
     role: isSuper ? "admin" : (roleByProj[p.id] || "member"),
     stats: stat[p.id] || { total: 0, complete: 0, overdue: 0, inProgress: 0 },
   }));
-  const activity = (auditRes.data || []).map((e) => ({ user: e.user_name || "Someone", action: e.action || "", entity: e.entity || "", detail: e.detail || "", ts: e.ts }));
+  const codeByProj = {}; list.forEach((p) => { codeByProj[p.id] = p.code; });
+  // Feed: only real activity events, summarised, latest-per-activity, tagged by project.
+  // Config / backend changes (entity is a table name) are deliberately excluded.
+  const verb = { "Create activity": "added", "Edit activity": "updated", "Delete activity": "removed" };
+  const seen = new Set(); const activity = [];
+  for (const e of (auditRes.data || [])) {
+    if (e.entity !== "activity") continue;            // drop config / backend rows
+    if (seen.has(e.entity_id)) continue;              // keep only the latest touch per activity
+    seen.add(e.entity_id);
+    activity.push({ user: e.user_name || "Someone", verb: verb[e.action] || "updated", name: (e.detail || "").trim().slice(0, 52), code: codeByProj[actToProj[e.entity_id]] || "", ts: e.ts });
+    if (activity.length >= 6) break;
+  }
   return { isSuper, userName, list, activity };
 }
 
