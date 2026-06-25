@@ -647,9 +647,14 @@ const PORTAL_CSS = `
 .qp{min-height:100vh;background:var(--backdrop);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .qp h2{font-family:var(--display);margin:0}
 .qp .mono{font-variant-numeric:tabular-nums}
-.qp .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;height:58px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
+.qp .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;height:74px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
 .qp .brandmark{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:-.01em;font-family:var(--display)}
-.qp .brandmark .glyphimg{height:26px;width:auto;display:block}
+.qp .brandmark .glyphimg{height:52px;width:auto;display:block}
+.qp .pvbar{display:flex;align-items:center;gap:14px;padding:10px 22px;background:var(--backdrop);border-bottom:1px solid var(--line)}
+.qp .pvt{display:flex;gap:4px;background:var(--chip);border:1px solid var(--line);padding:3px;border-radius:10px}
+.qp .pvt button{font-family:var(--body);font-size:13px;font-weight:600;border:0;background:transparent;color:var(--muted);padding:8px 15px;border-radius:7px;cursor:pointer}
+.qp .pvt button:hover{color:var(--ink)}
+.qp .pvt button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
 .qp .switcher{position:relative;margin-left:6px}
 .qp .switcher>button{display:flex;align-items:center;gap:9px;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
@@ -797,6 +802,15 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
         <button className="tbtn" onClick={toggleTheme} title="Theme">{theme === "dark" ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" /></svg> : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19" /></svg>}</button>
         <div className="user"><div className="av">{initials(userName)}</div><div><div className="nm">{userName}</div><div className="rl">{isSuper ? "Platform admin" : "Member"}</div></div>{isSuper && <span className="pill-plat">Super</span>}</div>
         <button className="btn ghost sm" onClick={onSignOut}>Sign out</button>
+      </div>
+
+      <div className="pvbar">
+        <div className="pvt">
+          <button className={scene === "home" ? "on" : ""} onClick={() => setScene("home")}>Home</button>
+          <button className={scene === "projects" ? "on" : ""} onClick={() => setScene("projects")}>Projects</button>
+          {isSuper && <button className={scene === "newproj" ? "on" : ""} onClick={openNew}>New project</button>}
+          <button onClick={() => { const p = projects[0]; if (p) onEnter(p.id); }}>Inside a project</button>
+        </div>
       </div>
 
       <div className="wrap">
