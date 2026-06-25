@@ -1260,7 +1260,7 @@ export default function App({ session }) {
   }, []);
   useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
   useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
-  useEffect(() => { if (!S) return; const me = S.users.find((u) => u.id === S.currentUserId); if (page === "admin" && !(me && me.role === "admin")) setPage("board"); }, [S, page]);
+  useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
   const cu = S && (() => {
