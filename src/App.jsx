@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -170,7 +170,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);font-size:12.5px}
 .lk-li .g{flex:1;min-width:0}.lk-li .g .s{font-size:10.5px;color:var(--muted)}
 .lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
-.lk-urow{display:grid;grid-template-columns:minmax(150px,1fr) 96px minmax(130px,1.2fr) 132px auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--card);font-size:12.5px}
+.lk-urow{display:grid;grid-template-columns:minmax(140px,1fr) 104px minmax(118px,1.1fr) 52px 116px auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--card);font-size:12.5px}
+.lk-platbadge{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-uacts{display:flex;align-items:center;gap:5px;justify-content:flex-end}
 .lk-mrow{display:grid;grid-template-columns:minmax(150px,1fr) minmax(110px,150px) 120px 30px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:var(--card);font-size:12.5px;margin-bottom:7px}
@@ -2231,6 +2233,10 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [memQ, setMemQ] = useState("");
   const [memRole, setMemRole] = useState("member");
   const [memMsg, setMemMsg] = useState("");
+  const [mcount, setMcount] = useState({});
+  useEffect(() => { let live = true; loadMembershipCounts().then((m) => { if (live) setMcount(m); }).catch(() => {}); return () => { live = false; }; }, [S.projectId, members]);
+  const meSuper = (S.users.find((u) => u.id === S.currentUserId) || {}).platformRole === "super" || !!S.isSuper;
+  const setPlat = async (id, role, name) => { setUserMsg("Updating platform role…"); try { await setPlatformRole(id, role); setUserMsg((name || "User") + (role === "super" ? " is now a Super" : " is now a User") + ". Refresh to see it reflected everywhere."); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   useEffect(() => { let live = true; if (S.projectId) loadProjectMembers(S.projectId).then((r) => { if (live) setMembers(r); }).catch((e) => { if (live) setMemMsg("Load failed: " + (e.message || e)); }); return () => { live = false; }; }, [S.projectId]);
   const reloadMems = () => loadProjectMembers(S.projectId).then(setMembers).catch((e) => setMemMsg("Load failed: " + (e.message || e)));
   const addMem = async (userId, name) => { setMemMsg("Adding " + (name || "") + "…"); try { await addMember(S.projectId, userId, memRole, S.currentUserId); setMemMsg((name || "User") + " added as " + memRole); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
@@ -2317,7 +2323,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   };
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
-    ["User management", [["users", "Users"], ["members", "Members"], ["requests", "Access requests"]]],
+    ["User management", [["users", "Address book"], ["members", "Members"], ["requests", "Access requests"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
     ["About", [["changelog", "Changelog"]]],
@@ -2368,30 +2374,35 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             <div className="lk-add"><input className="lk-in" placeholder="Add building…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
           </>}
           {tab === "users" && <div className="lk-userwrap"><div className="lk-usermain">
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Everyone on the platform. Add a person once here; putting them on projects (under <button onClick={() => setTab("members")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Members</button>) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
             <div className="lk-ufilter">
               <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or email…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
               <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-              <div className="lk-f" style={{ minWidth: 100 }}><label>Role</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">All roles</option><option value="member">Members</option><option value="admin">Admins</option></select></div>
+              <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
             </div>
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
               const q = uq.trim().toLowerCase();
               const filtered = S.users.filter((u) => {
-                if (uRole !== "all" && u.role !== uRole) return false;
+                const pr = u.platformRole || "user";
+                if (uRole !== "all" && pr !== uRole) return false;
                 if (uCo === "none") { if (u.companyId) return false; } else if (uCo !== "all" && u.companyId !== uCo) return false;
                 if (uInvite !== "all") { const accepted = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (uInvite === "accepted" && !accepted) return false; if (uInvite === "pending" && accepted) return false; }
                 if (q && !(`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q))) return false;
                 return true;
               });
               const groups = {};
-              filtered.forEach((u) => { const key = u.role === "admin" ? "\u0000Admins" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
-              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; return <div key={u.id} className="lk-urow">
+              filtered.forEach((u) => { const key = u.platformRole === "super" ? "\u0000Platform team" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
+              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; const pr = u.platformRole || "user"; const n = mcount[u.id] || 0; return <div key={u.id} className="lk-urow">
                 <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
                   style={{ width: "100%", minWidth: 0, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
                   onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
-                <select className="lk-select" style={{ width: "100%", padding: "5px 7px", fontSize: 11.5 }} value={u.role} onChange={(e) => userOp({ op: "update", id: u.id, role: e.target.value, company_id: e.target.value === "admin" ? null : u.companyId }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="member">Member</option><option value="admin">Admin</option></select>
-                <select className="lk-select" style={{ width: "100%", minWidth: 0, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} disabled={u.role === "admin"} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                {meSuper
+                  ? <select className="lk-select" style={{ width: "100%", padding: "5px 7px", fontSize: 11.5 }} value={pr} title="Platform role" onChange={(e) => setPlat(u.id, e.target.value, u.name)}><option value="user">User</option><option value="super">Super</option></select>
+                  : <span className="lk-platbadge" data-super={pr === "super" ? "1" : "0"} title="Platform role (only a super can change this)">{pr === "super" ? "Super" : "User"}</span>}
+                <select className="lk-select" style={{ width: "100%", minWidth: 0, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                <span title={"Member of " + n + " project" + (n === 1 ? "" : "s")} style={{ justifySelf: "center", fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: 12.5, color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
                 <span style={{ justifySelf: "start" }}>{seen
                   ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none", whiteSpace: "nowrap" }} title={"Last seen " + new Date(seen).toLocaleString("en-GB")}>accepted &middot; {relTime(seen)}</span>
                   : <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }} title="Invite not yet accepted (no sign-in recorded)">pending</span>}</span>
@@ -2399,25 +2410,25 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   <button title="View this user's audit trail" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); }} style={{ fontSize: 13, lineHeight: 1 }}>{"\uD83D\uDCDC"}</button>
                   <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
                   <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
-                  {u.id !== S.currentUserId ? <button title="Remove user" onClick={() => askDel('Remove ' + (u.name || "this user") + ' from the project?', () => delUser(u.id, u.name))}><Icon n="trash" s={14} /></button> : <span style={{ width: 20 }} />}
+                  {u.id !== S.currentUserId ? <button title="Delete from the address book" onClick={() => askDel("Delete " + (u.name || "this person") + " from the address book? This removes their account and every project access.", () => delUser(u.id, u.name))}><Icon n="trash" s={14} /></button> : <span style={{ width: 20 }} />}
                 </div>
               </div>; };
-              if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No users match these filters.</div>;
-              return Object.keys(groups).sort().map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
+              if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one matches these filters.</div>;
+              const order = (k) => k === "\u0000Platform team" ? "\u0000" : (k === "\uffffNo company" ? "\uffff" : k.toLowerCase());
+              return Object.keys(groups).sort((a, b) => order(a).localeCompare(order(b))).map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
                 <button className="lk-ughead" style={{ borderBottom: open ? "1px solid var(--line)" : 0 }} onClick={() => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))}>
                   <span className="chev" style={{ transform: open ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
-                  {k === "\u0000Admins" ? "Admins" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span>
+                  {k === "\u0000Platform team" ? "Platform team" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span>
                 </button>
                 {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>}
               </div>; });
             })()}
-            <div className="lk-f"><label>Add User (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
+            <div className="lk-f"><label>Add A Person To The Address Book (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
             <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
             <div className="lk-row">
-              <select className="lk-select" value={nu.role} onChange={(e) => setNu({ ...nu, role: e.target.value })}><option value="member">Member</option><option value="admin">Admin</option></select>
-              <select className="lk-select" value={nu.companyId} disabled={nu.role === "admin"} onChange={(e) => setNu({ ...nu, companyId: e.target.value })}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              <select className="lk-select" value={nu.companyId} onChange={(e) => setNu({ ...nu, companyId: e.target.value, role: "member" })}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
             </div>
-            <button className="lk-btn primary" onClick={addUser}><Icon n="plus" s={15} />Create user</button>
+            <button className="lk-btn primary" onClick={addUser}><Icon n="plus" s={15} />Add person</button>
             {newCred && <div style={{ marginTop: 8, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
               <div style={{ fontWeight: 700, marginBottom: 5 }}>{newCred.title}. Share with the person:</div>
               <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{newCred.who}</span></div>

@@ -46,7 +46,7 @@ export async function loadAll(session, projectId, projectName) {
     systems: (systems.data || []).map((s) => s.name),
     levels: levelsObj,
     settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7 },
-    users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, mustReset: !!p.must_reset })),
+    users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, platformRole: p.platform_role || "user", mustReset: !!p.must_reset })),
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
     brand: brandFrom(branding.data, projectName),
@@ -438,5 +438,21 @@ export async function setMemberRole(projectId, userId, role) {
 }
 export async function removeMember(projectId, userId) {
   const { error } = await supabase.from("project_members").delete().eq("project_id", projectId).eq("user_id", userId);
+  if (error) throw error;
+}
+
+// ---- Address book helpers ----
+// How many projects each visible person is a member of (supers see all; a
+// project admin sees only the projects they administer).
+export async function loadMembershipCounts() {
+  const { data, error } = await supabase.from("project_members").select("user_id");
+  if (error) throw error;
+  const m = {}; (data || []).forEach((r) => { m[r.user_id] = (m[r.user_id] || 0) + 1; });
+  return m;
+}
+// Grant or revoke platform super. Goes through a SECURITY DEFINER function that
+// checks the caller is a super and keeps at least one super alive.
+export async function setPlatformRole(userId, role) {
+  const { error } = await supabase.rpc("set_platform_role", { target: userId, new_role: role });
   if (error) throw error;
 }
