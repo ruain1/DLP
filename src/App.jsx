@@ -655,6 +655,19 @@ const PORTAL_CSS = `
 .qp .pvt button{font-family:var(--body);font-size:13px;font-weight:600;border:0;background:transparent;color:var(--muted);padding:8px 15px;border-radius:7px;cursor:pointer}
 .qp .pvt button:hover{color:var(--ink)}
 .qp .pvt button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.qp .ip-top{display:flex;align-items:center;gap:14px;color:#fff;border-radius:14px;padding:20px 24px;margin-bottom:16px}
+.qp .ip-top .lg{width:54px;height:54px;border-radius:12px;background:#ffffff22;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;letter-spacing:.5px;flex:none}
+.qp .ip-top h2{font-family:var(--display);font-size:23px;font-weight:600;line-height:1.1}
+.qp .ip-top .m{font-size:13.5px;opacity:.9;margin-top:5px}
+.qp .ip-top .ipleave{color:#fff;border-color:#ffffff55;background:#ffffff1a}
+.qp .ip-top .ipleave:hover{background:#ffffff2e}
+.qp .ip-board{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.qp .ip-toolbar{display:flex;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.qp .seg{display:flex;background:var(--chip);border:1px solid var(--line);border-radius:9px;padding:3px}
+.qp .seg span{font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:6px;color:var(--muted)}
+.qp .seg span.on{background:var(--paper);color:var(--ink)}
+.qp .ip-body{padding:38px 22px;text-align:center}
+.qp .ip-note{font-size:13px;color:var(--muted);max-width:600px;margin:0 auto 18px;line-height:1.55}
 .qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
 .qp .switcher{position:relative;margin-left:6px}
 .qp .switcher>button{display:flex;align-items:center;gap:9px;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
@@ -772,6 +785,8 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const ringEl = (pct, accent) => { const r = 22, c = 2 * Math.PI * r, off = c * (1 - pct / 100); return (<div className="ring"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r={r} fill="none" stroke="var(--ring-track)" strokeWidth="5" /><circle cx="26" cy="26" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} /></svg><div className="lbl">{pct}<small>%</small></div></div>); };
   const ql = q.trim().toLowerCase();
   const filtered = ql ? projects.filter((p) => (p.name + " " + p.code + " " + p.location + " " + p.client).toLowerCase().includes(ql)) : projects;
+  const lastId = (() => { try { return localStorage.getItem("fin04_lastproj"); } catch { return null; } })();
+  const ip = projects.find((p) => p.id === lastId) || projects[0];
   const openNew = () => { setNf({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" }); setErr(""); setScene("newproj"); };
   const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Project name and code are required."); return; } setBusy(true); setErr(""); try { await onNew(nf); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
   const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
@@ -809,7 +824,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           <button className={scene === "home" ? "on" : ""} onClick={() => setScene("home")}>Home</button>
           <button className={scene === "projects" ? "on" : ""} onClick={() => setScene("projects")}>Projects</button>
           {isSuper && <button className={scene === "newproj" ? "on" : ""} onClick={openNew}>New project</button>}
-          <button onClick={() => { const p = projects[0]; if (p) onEnter(p.id); }}>Inside a project</button>
+          <button className={scene === "inside" ? "on" : ""} onClick={() => setScene("inside")}>Inside a project</button>
         </div>
       </div>
 
@@ -882,6 +897,27 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}><button className="btn" disabled={busy} onClick={submit}>{busy ? "Creating\u2026" : "Create project"}</button><button className="btn ghost" disabled={busy} onClick={() => setScene("projects")}>Cancel</button></div>
           </div>
         </div>
+
+        <div className={"scene" + (scene === "inside" ? " on" : "")}>
+          {ip ? <>
+            <div className="ip-top" style={{ background: "linear-gradient(135deg, " + (ip.accent || "#2F6BFF") + ", " + (ip.accent || "#2F6BFF") + "99)" }}>
+              <div className="lg">{(ip.code || "").slice(0, 3).toUpperCase()}</div>
+              <div style={{ flex: 1 }}><h2>{ip.name}</h2><div className="m">{ip.location ? ip.location + " \u00B7 " : ""}you are {ip.role === "admin" ? "Admin" : "Member"} on this project</div></div>
+              <button className="btn ghost sm ipleave" onClick={() => setScene("home")}>Leave project</button>
+            </div>
+            <div className="ip-board">
+              <div className="ip-toolbar">
+                <div className="seg"><span className="on">Swimlane</span><span>Gantt</span></div>
+                <div className="seg"><span className="on">Day</span><span>Week</span></div>
+                <div className="seg"><span className="on">Company</span><span>Level</span><span>Zone</span></div>
+              </div>
+              <div className="ip-body">
+                <div className="ip-note">Open the full planning board to work in {ip.name}: swimlane and Gantt views, activity cards, constraints, KPIs and admin, all scoped to this project.</div>
+                <button className="btn" onClick={() => onEnter(ip.id)}>Open planning board</button>
+              </div>
+            </div>
+          </> : <div className="empty">You are not a member of any project yet.</div>}
+        </div>
       </div>
     </div>
   );
@@ -923,7 +959,7 @@ export default function App({ session }) {
     const list = projList || projectsRef.current;
     const proj = list.find((x) => x.id === projectId);
     setSelProj(projectId);
-    try { history.replaceState(null, "", "?p=" + projectId); } catch (e) {}
+    try { history.replaceState(null, "", "?p=" + projectId); localStorage.setItem("fin04_lastproj", projectId); } catch (e) {}
     try {
       const data = await loadAll(session, projectId, proj?.name);
       const p = prefs();

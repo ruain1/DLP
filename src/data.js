@@ -91,12 +91,18 @@ export async function loadProjects(session) {
   const codeByProj = {}; list.forEach((p) => { codeByProj[p.id] = p.code; });
   // Feed: only real activity events, summarised, latest-per-activity, tagged by project.
   // Config / backend changes (entity is a table name) are deliberately excluded.
-  const verb = { "Create activity": "added", "Edit activity": "updated", "Delete activity": "removed" };
+  const verb = {
+    "Added activity": "added", "Edited activity": "updated", "Removed activity": "removed",
+    "Completed activity": "completed", "Committed activity": "committed", "Started activity": "started",
+    "Rescheduled activity": "rescheduled", "Cleared a constraint on": "cleared a constraint on",
+    "Create activity": "added", "Edit activity": "updated", "Delete activity": "removed",
+  };
   const seen = new Set(); const activity = [];
   for (const e of (auditRes.data || [])) {
     if (e.entity !== "activity") continue;            // drop config / backend rows
-    if (seen.has(e.entity_id)) continue;              // keep only the latest touch per activity
-    seen.add(e.entity_id);
+    const key = e.entity_id + "|" + e.action;          // keep distinct event types per activity
+    if (seen.has(key)) continue;
+    seen.add(key);
     activity.push({ user: e.user_name || "Someone", verb: verb[e.action] || "updated", name: (e.detail || "").trim().slice(0, 52), code: codeByProj[actToProj[e.entity_id]] || "", ts: e.ts });
     if (activity.length >= 6) break;
   }
