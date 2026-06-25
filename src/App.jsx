@@ -2261,6 +2261,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [mfCo, setMfCo] = useState("all");
   const [mfRole, setMfRole] = useState("all");
   const [mfStatus, setMfStatus] = useState("all");
+  const [pmManageId, setPmManageId] = useState(null);
   const [mcount, setMcount] = useState({});
   useEffect(() => { let live = true; loadMembershipCounts().then((m) => { if (live) setMcount(m); }).catch(() => {}); return () => { live = false; }; }, [S.projectId, members]);
   const meSuper = (S.users.find((u) => u.id === S.currentUserId) || {}).platformRole === "super" || !!S.isSuper;
@@ -2497,6 +2498,27 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               </div>
             </div>;
           })()}
+          {pmManageId && (() => {
+            const m = (members || []).find((x) => x.user_id === pmManageId); const u = S.users.find((x) => x.id === pmManageId); if (!m || !u) return null;
+            const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+            const seen = !!(ustat[u.id] && ustat[u.id].lastSignIn); const np = mcount[u.id] || 0; const isSelf = u.id === S.currentUserId;
+            const adminCount = (members || []).filter((x) => x.role === "admin").length;
+            return <div className="lk-modal-bg" onClick={() => setPmManageId(null)}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+                <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className="lk-uava" style={{ background: avBg(u.id), width: 30, height: 30, fontSize: 11 }}>{avInit(u.name)}</span>{u.name || "Manage member"}{isSelf ? <span className="lk-you">you</span> : null}</h3><button className="lk-btn icon" onClick={() => setPmManageId(null)}><Icon n="x" /></button></div>
+                <div className="bd">
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 11.5, color: "var(--muted)", marginBottom: 12 }}><span className="lk-cochip">{cn(u.companyId) || "No company"}</span><span className={"lk-stat " + (seen ? "act" : "pend")}>{seen ? "Active" : "Invite pending"}</span><span>&middot;</span><span>On {np} project{np === 1 ? "" : "s"}</span></div>
+                  <div className="lk-f"><label>Role On This Project</label><select className="lk-select" value={m.role} onChange={(e) => changeRole(u.id, e.target.value, u.name, adminCount, m.role)}><option value="member">Member</option><option value="admin">Admin</option></select>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>An <b>Admin</b> can manage this project's setup, team and activities; a <b>Member</b> works within it. At least one admin must remain.</div></div>
+                  <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11, display: "flex", flexDirection: "column", gap: 7 }}>
+                    <button className="lk-btn" onClick={() => { setPmManageId(null); setManageId(u.id); }}><Icon n="person" s={14} />Edit name, company or platform role</button>
+                    {!isSelf && <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setPmManageId(null); askDel("Remove " + (u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(u.id, u.name)); }}><Icon n="trash" s={14} />Remove from this project</button>}
+                  </div>
+                </div>
+                <div className="rep-foot"><button className="lk-btn primary" onClick={() => setPmManageId(null)}>Done</button></div>
+              </div>
+            </div>;
+          })()}
           {tab === "members" && <div className="lk-userwrap"><div className="lk-usermain">
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
@@ -2530,17 +2552,15 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   {!all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one on the team yet. Add people from Global Contacts below.</div>
                     : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
                     : <>
-                      <div className="lk-mhead"><span /><span>Member</span><span>Company</span><span>Status</span><span className="ctr">Proj</span><span>Role on project</span><span /></div>
-                      {rows.map((r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-mrow">
-                        <span className="lk-mav" style={{ background: avBg(r.user_id) }}>{avInit(r.u.name)}</span>
-                        <div className="lk-mname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
+                      <div className="lk-uhead"><span /><span>Member</span><span>Company</span><span>Role</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+                      {rows.map((r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-urow">
+                        <span className="lk-uava" style={{ background: avBg(r.user_id) }}>{avInit(r.u.name)}</span>
+                        <div className="lk-uname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
                         <span className="lk-cochip" title={cn(r.u.companyId) || "No company"}>{cn(r.u.companyId) || "No company"}</span>
-                        <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Has signed in" : "Onboarding link not yet used"}>{seen ? (sup ? "Active \u00b7 super" : "Active") : "Invite pending"}</span>
+                        <span className="lk-platbadge" data-super={r.role === "admin" ? "1" : "0"} title="Role on this project">{r.role === "admin" ? "Admin" : "Member"}</span>
                         <span className="lk-mpc" title={"On " + np + " project" + (np === 1 ? "" : "s") + " across the platform"} style={{ color: np ? "var(--ink)" : "var(--muted)" }}>{np}</span>
-                        <select className="lk-select" style={{ padding: "5px 7px", fontSize: 11.5 }} value={r.role} onChange={(e) => changeRole(r.user_id, e.target.value, r.u.name, adminCount, r.role)}><option value="member">Member</option><option value="admin">Admin</option></select>
-                        {r.user_id !== S.currentUserId
-                          ? <button title="Remove from this project" onClick={() => askDel("Remove " + (r.u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(r.user_id, r.u.name))}><Icon n="trash" s={14} /></button>
-                          : <span style={{ width: 20 }} title="You can't remove yourself" />}
+                        <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Has signed in" : "Onboarding link not yet used"}>{seen ? (sup ? "Active \u00b7 super" : "Active") : "Invite pending"}</span>
+                        <button className="lk-mbtn" onClick={() => setPmManageId(r.user_id)}>Manage</button>
                       </div>; })}
                       {orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} {orphan === 1 ? "person" : "people"} not shown (no profile in Global Contacts yet).</div> : null}
                     </>}
