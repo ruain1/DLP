@@ -2151,7 +2151,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       companyId: (m.type === "exact" || m.type === "fuzzy") ? m.company.id : "",
       createNew: false, touched: false,
       newName: req.organisation || (m.domain ? titleCaseStr(domainLabel(m.domain)) : ""),
-      remember: true,
+      remember: true, grantProject: true, projRole: "member",
     });
   };
   const setApproveEmail = (email) => setApprove((a) => {
@@ -2182,10 +2182,13 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       }
       const res = await userOp({ op: "invite", email, name: (a.name || email).trim(), role: "member", company_id: companyId, redirect: window.location.origin });
       await decideAccessRequest(a.req.id, { status: "approved", decided_by: cu.id, decided_by_name: cu.name, decided_at: new Date().toISOString() });
+      let granted = false, grantErr = "";
+      if (a.grantProject && res && res.id) { try { await addMember(S.projectId, res.id, a.projRole || "member", cu.id); granted = true; } catch (ge) { grantErr = ge.message || String(ge); } }
       setReqs((rs) => rs.map((r) => r.id === a.req.id ? { ...r, status: "approved", decidedByName: cu.name, decidedAt: new Date().toISOString() } : r));
       setApprove(null); setReqBusy(false);
-      setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, title: "Approved \u00b7 " + (companyName || "member") });
-      setUserMsg("");
+      const projName = S.brand?.projectName || "this project";
+      setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, title: "Approved \u00b7 " + (granted ? ((a.projRole === "admin" ? "Admin" : "Member") + " on " + projName) : (a.grantProject ? "account made, grant failed" : (companyName || "address book only"))) });
+      setUserMsg(grantErr ? ("Account created, but the project grant failed: " + grantErr + ". Add them under Members.") : "");
     } catch (e) { setReqBusy(false); setUserMsg("Approve failed: " + (e.message || e)); }
   };
   const doReject = async () => {
@@ -2502,7 +2505,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <h3 style={{ margin: 0, fontSize: 16 }}>Access requests</h3>
               {pendReqs.length > 0 && <span className="lk-reqbadge">{pendReqs.length}</span>}
             </div>
-            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 16 }}>Approve to invite the person as a Member and assign a company. Anyone can submit this form, so verify identity before approving.</div>
+            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 16 }}>Approving creates the person's account and, by default, adds them to this project straight away, with no separate invite for them to accept. Anyone can submit this form, so verify identity before approving.</div>
             {newCred && newCred.title && newCred.title.startsWith("Approved") && <div style={{ marginBottom: 14, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
               <div style={{ fontWeight: 700, marginBottom: 5 }}>{newCred.title}. Share with the person:</div>
               <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{newCred.who}</span></div>
@@ -2672,7 +2675,11 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Stated organisation: <b style={{ color: "var(--ink-2)" }}>{approve.req.organisation || "none given"}</b></div>
               </div>
               {showRemember && <label className="lk-remember"><input type="checkbox" checked={approve.remember} onChange={(e) => setApprove((a) => ({ ...a, remember: e.target.checked }))} /><span>Remember {d} for {approve.createNew ? "this company" : (selCo ? selCo.name : "this company")}</span></label>}
-              <div className="lk-f"><label>Role</label><div className="lk-locked"><span className="lkv">Member</span><span className="lkn">Promote to Admin later in Users</span></div></div>
+              <div className="lk-f"><label>Project Access</label>
+                <label className="lk-remember"><input type="checkbox" checked={approve.grantProject} onChange={(e) => setApprove((a) => ({ ...a, grantProject: e.target.checked }))} /><span>Add to <b>{S.brand?.projectName || "this project"}</b> on approval</span></label>
+                {approve.grantProject && <div className="lk-row" style={{ marginTop: 8, alignItems: "center" }}><span style={{ fontSize: 11.5, color: "var(--muted)" }}>as</span><select className="lk-select" style={{ maxWidth: 160 }} value={approve.projRole} onChange={(e) => setApprove((a) => ({ ...a, projRole: e.target.value }))}><option value="member">Member</option><option value="admin">Admin</option></select></div>}
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{approve.grantProject ? "They can open this project immediately, with no separate invite to accept." : "Creates their account only; add them to projects later under Members."}</div>
+              </div>
               {userMsg && <div style={{ fontSize: 11.5, color: "var(--red)" }}>{userMsg}</div>}
             </div>
             <div className="rep-foot"><button className="lk-btn" disabled={reqBusy} onClick={() => setApprove(null)}>Cancel</button><button className="lk-btn primary" disabled={reqBusy} onClick={doApprove}>{reqBusy ? "Working…" : "Approve And Invite"}</button></div>
