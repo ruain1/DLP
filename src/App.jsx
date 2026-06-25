@@ -174,7 +174,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);font-size:12.5px}
 .lk-li .g{flex:1;min-width:0}.lk-li .g .s{font-size:10.5px;color:var(--muted)}
 .lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
-.lk-urow{display:grid;grid-template-columns:minmax(140px,1fr) 104px minmax(118px,1.1fr) 52px 116px auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--card);font-size:12.5px}
+.lk-urow{display:grid;grid-template-columns:34px minmax(140px,1fr) 122px 84px 48px 118px 90px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);font-size:12.5px}
+.lk-uhead{display:grid;grid-template-columns:34px minmax(140px,1fr) 122px 84px 48px 118px 90px;align-items:center;gap:10px;padding:2px 13px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.lk-uhead .ctr{text-align:center}
+.lk-uava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff;flex:none}
+.lk-uname{min-width:0;display:flex;align-items:center;gap:7px}
+.lk-uname b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-you{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;flex:none}
+.lk-mbtn{justify-self:end;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer}
+.lk-mbtn:hover{background:var(--hover)}
 .lk-platbadge{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
 .lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
@@ -2059,6 +2067,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [uCo, setUCo] = useState("all");
   const [uRole, setURole] = useState("all");
   const [uInvite, setUInvite] = useState("all");
+  const [manageId, setManageId] = useState(null);
   const [openGroups, setOpenGroups] = useState({});
   const [subInput, setSubInput] = useState({});
   const [t3Input, setT3Input] = useState({});
@@ -2413,34 +2422,25 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               });
               const groups = {};
               filtered.forEach((u) => { const key = u.platformRole === "super" ? "\u0000Platform team" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
-              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; const pr = u.platformRole || "user"; const n = mcount[u.id] || 0; return <div key={u.id} className="lk-urow">
-                <input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} title={u.id === S.currentUserId ? "Your display name" : "Display name"} placeholder="Name"
-                  style={{ width: "100%", minWidth: 0, padding: "5px 8px", fontSize: 12, border: u.id === S.currentUserId ? "1px solid var(--accent)" : undefined }}
-                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} />
-                {meSuper
-                  ? <select className="lk-select" style={{ width: "100%", padding: "5px 7px", fontSize: 11.5 }} value={pr} title="Platform role" onChange={(e) => setPlat(u.id, e.target.value, u.name)}><option value="user">User</option><option value="super">Super</option></select>
-                  : <span className="lk-platbadge" data-super={pr === "super" ? "1" : "0"} title="Platform role (only a super can change this)">{pr === "super" ? "Super" : "User"}</span>}
-                <select className="lk-select" style={{ width: "100%", minWidth: 0, padding: "5px 7px", fontSize: 11.5 }} value={u.companyId || ""} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">--</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                <span title={"Member of " + n + " project" + (n === 1 ? "" : "s")} style={{ justifySelf: "center", fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: 12.5, color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
-                <span style={{ justifySelf: "start" }}>{seen
-                  ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none", whiteSpace: "nowrap" }} title={"Last seen " + new Date(seen).toLocaleString("en-GB")}>accepted &middot; {relTime(seen)}</span>
-                  : <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }} title="Invite not yet accepted (no sign-in recorded)">pending</span>}</span>
-                <div className="lk-uacts">
-                  <button title="View this user's audit trail" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); }} style={{ fontSize: 13, lineHeight: 1 }}>{"\uD83D\uDCDC"}</button>
-                  <button title="Get a fresh set-password link" onClick={() => sendLink(u.id, u.name)} style={{ fontSize: 13, lineHeight: 1 }}>🔗</button>
-                  <button title="Reset password" onClick={() => resetPw(u.id, u.name)} style={{ fontSize: 14, lineHeight: 1 }}>↻</button>
-                  {u.id !== S.currentUserId ? <button title="Delete from the address book" onClick={() => askDel("Delete " + (u.name || "this person") + " from the address book? This removes their account and every project access.", () => delUser(u.id, u.name))}><Icon n="trash" s={14} /></button> : <span style={{ width: 20 }} />}
-                </div>
+              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; const pr = u.platformRole || "user"; const n = mcount[u.id] || 0; const co = cn(u.companyId); return <div key={u.id} className="lk-urow">
+                <span className="lk-uava" style={{ background: avBg(u.id) }}>{avInit(u.name)}</span>
+                <div className="lk-uname"><b>{u.name || "(unnamed)"}</b>{u.id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
+                <span className="lk-cochip" title={co || "No company"}>{co || "No company"}</span>
+                <span className="lk-platbadge" data-super={pr === "super" ? "1" : "0"} title="Platform role">{pr === "super" ? "Super" : "User"}</span>
+                <span className="lk-mpc" title={"On " + n + " project" + (n === 1 ? "" : "s")} style={{ color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
+                <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Last seen " + new Date(seen).toLocaleString("en-GB") : "Onboarding link not yet used"}>{seen ? "Active" : "Invite pending"}</span>
+                <button className="lk-mbtn" onClick={() => setManageId(u.id)}>Manage</button>
               </div>; };
               if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one matches these filters.</div>;
               const order = (k) => k === "\u0000Platform team" ? "\u0000" : (k === "\uffffNo company" ? "\uffff" : k.toLowerCase());
-              return Object.keys(groups).sort((a, b) => order(a).localeCompare(order(b))).map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
+              return <><div className="lk-uhead"><span /><span>Person</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+              {Object.keys(groups).sort((a, b) => order(a).localeCompare(order(b))).map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
                 <button className="lk-ughead" style={{ borderBottom: open ? "1px solid var(--line)" : 0 }} onClick={() => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))}>
                   <span className="chev" style={{ transform: open ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
                   {k === "\u0000Platform team" ? "Platform team" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span>
                 </button>
                 {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>}
-              </div>; });
+              </div>; })}</>;
             })()}
             <div className="lk-f"><label>Add A Person To The Address Book (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
             <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
@@ -2472,6 +2472,31 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             </div>
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
           </div>}
+          {manageId && (() => {
+            const u = S.users.find((x) => x.id === manageId); if (!u) return null;
+            const pr = u.platformRole || "user"; const seen = !!(ustat[u.id] && ustat[u.id].lastSignIn); const np = mcount[u.id] || 0; const isSelf = u.id === S.currentUserId;
+            return <div className="lk-modal-bg" onClick={() => setManageId(null)}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+                <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className="lk-uava" style={{ background: avBg(u.id), width: 30, height: 30, fontSize: 11 }}>{avInit(u.name)}</span>{u.name || "Manage person"}{isSelf ? <span className="lk-you">you</span> : null}</h3><button className="lk-btn icon" onClick={() => setManageId(null)}><Icon n="x" /></button></div>
+                <div className="bd">
+                  <div className="lk-f"><label>Display Name</label><input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} /></div>
+                  <div className="lk-f"><label>Platform Role</label>{meSuper
+                    ? <select className="lk-select" value={pr} onChange={(e) => setPlat(u.id, e.target.value, u.name)}><option value="user">User</option><option value="super">Super</option></select>
+                    : <div className="lk-locked"><span className="lkv">{pr === "super" ? "Super" : "User"}</span><span className="lkn">Only a super can change this</span></div>}
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>A <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div></div>
+                  <div className="lk-f"><label>Company</label><select className="lk-select" value={u.companyId || ""} onChange={(e) => userOp({ op: "update", id: u.id, company_id: e.target.value }).catch((x) => setUserMsg("Failed: " + (x.message || x)))}><option value="">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 11.5, color: "var(--muted)", margin: "2px 0 2px" }}><span className={"lk-stat " + (seen ? "act" : "pend")}>{seen ? "Active" : "Invite pending"}</span><span>&middot;</span><span>On {np} project{np === 1 ? "" : "s"}</span></div>
+                  <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11, display: "flex", flexDirection: "column", gap: 7 }}>
+                    <button className="lk-btn" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); setManageId(null); }}><Icon n="list" s={14} />View audit trail</button>
+                    <button className="lk-btn" onClick={() => sendLink(u.id, u.name)}><Icon n="mail" s={14} />Resend set-password link</button>
+                    <button className="lk-btn" onClick={() => resetPw(u.id, u.name)}><Icon n="cog" s={14} />Reset password</button>
+                    {!isSelf && <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setManageId(null); askDel("Delete " + (u.name || "this person") + " from the address book? This removes their account and every project access.", () => delUser(u.id, u.name)); }}><Icon n="trash" s={14} />Remove from platform</button>}
+                  </div>
+                </div>
+                <div className="rep-foot"><button className="lk-btn primary" onClick={() => setManageId(null)}>Done</button></div>
+              </div>
+            </div>;
+          })()}
           {tab === "members" && <div className="lk-userwrap"><div className="lk-usermain">
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
