@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -661,13 +661,26 @@ const PORTAL_CSS = `
 .qp .ip-top .m{font-size:13.5px;opacity:.9;margin-top:5px}
 .qp .ip-top .ipleave{color:#fff;border-color:#ffffff55;background:#ffffff1a}
 .qp .ip-top .ipleave:hover{background:#ffffff2e}
+.qp .ip-top .ipboard{margin-left:auto;background:#ffffff;color:#10243f;border:0;font-weight:700}
+.qp .ip-top .ipboard:hover{background:#eef2f7}
 .qp .ip-board{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .qp .ip-toolbar{display:flex;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .qp .seg{display:flex;background:var(--chip);border:1px solid var(--line);border-radius:9px;padding:3px}
-.qp .seg span{font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:6px;color:var(--muted)}
+.qp .seg span{font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:6px;color:var(--muted);cursor:pointer;user-select:none}
 .qp .seg span.on{background:var(--paper);color:var(--ink)}
-.qp .ip-body{padding:38px 22px;text-align:center}
-.qp .ip-note{font-size:13px;color:var(--muted);max-width:600px;margin:0 auto 18px;line-height:1.55}
+.qp .ip-empty{padding:40px 22px;text-align:center;font-size:13px;color:var(--muted)}
+.qp .lane{display:flex;align-items:flex-start;gap:18px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.qp .lane:last-child{border-bottom:0}
+.qp .lh{width:160px;flex:none;padding-top:3px}
+.qp .lh b{font-size:14px;font-weight:600;color:var(--ink);display:block;line-height:1.2}
+.qp .lh .s{font-size:12px;color:var(--muted);margin-top:3px}
+.qp .tracks{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.qp .track{position:relative;height:30px;background:var(--chip);border-radius:8px}
+.qp .blk{position:absolute;top:4px;height:22px;border-radius:6px;display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;max-width:100%}
+.qp .ms{position:absolute;top:5px;display:flex;align-items:center;gap:7px;max-width:60%}
+.qp .ms .dia{width:13px;height:13px;transform:rotate(45deg);border-radius:2px;flex:none}
+.qp .ms .mslabel{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp .ip-foot{font-size:12.5px;color:var(--muted);margin-top:14px;text-align:center;line-height:1.5}
 .qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
 .qp .switcher{position:relative;margin-left:6px}
 .qp .switcher>button{display:flex;align-items:center;gap:9px;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
@@ -758,7 +771,7 @@ const PORTAL_CSS = `
 .qp .empty{color:var(--muted);text-align:center;padding:30px}
 @media (max-width:900px){.qp .tiles{grid-template-columns:repeat(2,1fr)}.qp .pgrid{grid-template-columns:1fr 1fr}.qp .frow2{grid-template-columns:1fr}}
 `;
-function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter, onNew, onSignOut }) {
+function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter, onNew, onSignOut, onLoadOverview }) {
   const [theme, setTheme] = useState(theme0 || "light");
   const [scene, setScene] = useState("home");
   const [swOpen, setSwOpen] = useState(false);
@@ -766,6 +779,8 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const [nf, setNf] = useState({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [ov, setOv] = useState(null);
+  const [ovGroup, setOvGroup] = useState("company");
   useEffect(() => {
     const v = portalVars(theme); document.body.style.background = v["--backdrop"];
     try { let l = document.querySelector("link[rel='icon']"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); } l.type = "image/png"; l.href = QMC_FAV; } catch (e) {}
@@ -787,6 +802,50 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const filtered = ql ? projects.filter((p) => (p.name + " " + p.code + " " + p.location + " " + p.client).toLowerCase().includes(ql)) : projects;
   const lastId = (() => { try { return localStorage.getItem("fin04_lastproj"); } catch { return null; } })();
   const ip = projects.find((p) => p.id === lastId) || projects[0];
+  useEffect(() => {
+    if (scene !== "inside" || !ip || !onLoadOverview) return;
+    let live = true; setOv(null);
+    onLoadOverview(ip.id).then((rows) => { if (live) setOv(rows || []); }).catch(() => { if (live) setOv([]); });
+    return () => { live = false; };
+  }, [scene, ip && ip.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const DAY = 86400000;
+  const addDays = (iso, n) => { const d = new Date(iso); d.setDate(d.getDate() + n); return d; };
+  const ovLanes = (() => {
+    const rows = ov || [];
+    const groups = new Map();
+    rows.forEach((a) => { const k = a[ovGroup] || "Unassigned"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
+    const lanes = Array.from(groups.entries()).map(([name, acts]) => ({ name, acts }));
+    lanes.sort((x, y) => y.acts.length - x.acts.length || x.name.localeCompare(y.name));
+    let minMs = Infinity, maxMs = -Infinity;
+    rows.forEach((a) => { if (!a.start) return; const s = new Date(a.start).getTime(); const e = addDays(a.start, a.dur).getTime(); if (s < minMs) minMs = s; if (e > maxMs) maxMs = e; });
+    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+    if (!isFinite(minMs)) { minMs = today0.getTime(); maxMs = minMs + 14 * DAY; }
+    const span = Math.max(DAY, maxMs - minMs);
+    return { lanes, minMs, span, today: today0.getTime() };
+  })();
+  const barFor = (a) => {
+    const start = a.start ? new Date(a.start).getTime() : ovLanes.minMs;
+    const end = a.start ? addDays(a.start, a.dur).getTime() : start + a.dur * DAY;
+    const left = Math.max(0, Math.min(98, (start - ovLanes.minMs) / ovLanes.span * 100));
+    let width = Math.max(5, (a.dur * DAY) / ovLanes.span * 100); if (left + width > 100) width = 100 - left;
+    const overdue = a.status !== "complete" && a.start && end < ovLanes.today;
+    let bg = "var(--chip)", fg = "var(--muted)", border = "1px solid var(--line)";
+    if (a.status === "complete") { bg = "#1FB6A6"; fg = "#06231f"; border = "0"; }
+    else if (overdue) { bg = "repeating-linear-gradient(135deg,#C0392B 0 7px,#8C2A22 7px 14px)"; fg = "#fff"; border = "0"; }
+    else if (a.status === "in_progress") { bg = "var(--accent)"; fg = "#fff"; border = "0"; }
+    else if (a.committed) { bg = "#E6A435"; fg = "#241803"; border = "0"; }
+    return { left, width, bg, fg, border };
+  };
+  const packRows = (acts) => {
+    const items = acts.map((a) => ({ a, b: barFor(a) })).sort((p, q) => p.b.left - q.b.left);
+    const rows = [];
+    for (const it of items) {
+      let placed = false;
+      for (const row of rows) { const last = row[row.length - 1]; if (it.b.left >= last.b.left + last.b.width + 1) { row.push(it); placed = true; break; } }
+      if (!placed) rows.push([it]);
+    }
+    return rows;
+  };
   const openNew = () => { setNf({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" }); setErr(""); setScene("newproj"); };
   const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Project name and code are required."); return; } setBusy(true); setErr(""); try { await onNew(nf); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
   const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
@@ -903,19 +962,39 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
             <div className="ip-top" style={{ background: "linear-gradient(135deg, " + (ip.accent || "#2F6BFF") + ", " + (ip.accent || "#2F6BFF") + "99)" }}>
               <div className="lg">{(ip.code || "").slice(0, 3).toUpperCase()}</div>
               <div style={{ flex: 1 }}><h2>{ip.name}</h2><div className="m">{ip.location ? ip.location + " \u00B7 " : ""}you are {ip.role === "admin" ? "Admin" : "Member"} on this project</div></div>
+              <button className="btn ipboard" onClick={() => onEnter(ip.id)}>Open planning board</button>
               <button className="btn ghost sm ipleave" onClick={() => setScene("home")}>Leave project</button>
             </div>
             <div className="ip-board">
               <div className="ip-toolbar">
                 <div className="seg"><span className="on">Swimlane</span><span>Gantt</span></div>
                 <div className="seg"><span className="on">Day</span><span>Week</span></div>
-                <div className="seg"><span className="on">Company</span><span>Level</span><span>Zone</span></div>
+                <div className="seg">
+                  <span className={ovGroup === "company" ? "on" : ""} onClick={() => setOvGroup("company")}>Company</span>
+                  <span className={ovGroup === "level" ? "on" : ""} onClick={() => setOvGroup("level")}>Level</span>
+                  <span className={ovGroup === "zone" ? "on" : ""} onClick={() => setOvGroup("zone")}>Zone</span>
+                </div>
               </div>
-              <div className="ip-body">
-                <div className="ip-note">Open the full planning board to work in {ip.name}: swimlane and Gantt views, activity cards, constraints, KPIs and admin, all scoped to this project.</div>
-                <button className="btn" onClick={() => onEnter(ip.id)}>Open planning board</button>
-              </div>
+              {ov === null
+                ? <div className="ip-empty">Loading overview\u2026</div>
+                : ovLanes.lanes.length === 0
+                  ? <div className="ip-empty">No activities in this project yet.</div>
+                  : ovLanes.lanes.map((ln) => (
+                    <div className="lane" key={ln.name}>
+                      <div className="lh"><b>{ln.name}</b><div className="s">{ln.acts.length} {ln.acts.length === 1 ? "activity" : "activities"}</div></div>
+                      <div className="tracks">
+                        {packRows(ln.acts).map((row, ri) => (
+                          <div className="track" key={ri}>
+                            {row.map(({ a, b }) => a.milestone
+                              ? <div className="ms" key={a.id} style={{ left: b.left + "%" }} title={a.label}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /><span className="mslabel">{a.label}</span></div>
+                              : <div className="blk" key={a.id} style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }} title={a.label}>{a.label}</div>)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
             </div>
+            <div className="ip-foot">Live snapshot of {ip.name}, scoped to this project. Open the planning board to edit, drag, manage constraints and switch views.</div>
           </> : <div className="empty">You are not a member of any project yet.</div>}
         </div>
       </div>
@@ -1075,7 +1154,7 @@ export default function App({ session }) {
   }, [S, anchor, DAYS]);
 
   if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
-  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onNew={createProjectAndEnter} onSignOut={() => signOut()} />;
+  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid)} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
   const LV = S.levels || DEFAULT_LEVELS;

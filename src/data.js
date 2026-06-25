@@ -109,6 +109,30 @@ export async function loadProjects(session) {
   return { isSuper, userName, list, activity };
 }
 
+// Read-only overview for the "Inside a project" page: real activities for one
+// project, plus name maps so they can be grouped by company, level or zone.
+export async function loadProjectOverview(session, projectId) {
+  const [actRes, coRes, lvlRes] = await Promise.all([
+    supabase.from("activities").select("id,descr,code,company_id,area,level,start_date,duration,status,committed,is_milestone").eq("project_id", projectId),
+    supabase.from("companies").select("id,name"),
+    supabase.from("levels").select("key,name").eq("project_id", projectId),
+  ]);
+  const coName = {}; (coRes.data || []).forEach((c) => { coName[c.id] = c.name; });
+  const lvlName = {}; (lvlRes.data || []).forEach((l) => { lvlName[l.key] = l.name; });
+  return (actRes.data || []).map((a) => ({
+    id: a.id,
+    label: ((a.code || "").trim() || (a.descr || "").trim() || "Activity"),
+    company: coName[a.company_id] || "Unassigned",
+    level: lvlName[a.level] || a.level || "No level",
+    zone: (a.area || "").trim() || "No zone",
+    start: a.start_date || null,
+    dur: Math.max(1, a.duration || 1),
+    status: a.status || "planned",
+    committed: !!a.committed,
+    milestone: !!a.is_milestone,
+  }));
+}
+
 // Super: create a new project and make the creator its admin.
 export async function createProject(fields, session) {
   const id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("p" + Date.now());
