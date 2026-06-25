@@ -103,7 +103,7 @@ export async function loadProjects(session) {
     const key = e.entity_id + "|" + e.action;          // keep distinct event types per activity
     if (seen.has(key)) continue;
     seen.add(key);
-    activity.push({ user: e.user_name || "Someone", verb: verb[e.action] || "updated", name: (e.detail || "").trim().slice(0, 52), code: codeByProj[actToProj[e.entity_id]] || "", ts: e.ts });
+    activity.push({ user: e.user_name || "Someone", verb: verb[e.action] || "updated", name: (e.detail || "").trim().slice(0, 52), code: codeByProj[actToProj[e.entity_id]] || "", ts: e.ts, projId: actToProj[e.entity_id] || null, actId: e.entity_id });
     if (activity.length >= 6) break;
   }
   return { isSuper, userName, list, activity };

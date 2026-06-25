@@ -680,7 +680,8 @@ const PORTAL_CSS = `
 .qp .lh b{font-size:13px;font-weight:600;color:var(--ink);display:block;line-height:1.2}
 .qp .lh .s{font-size:11px;color:var(--muted);margin-top:2px}
 .qp .tracks{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
-.qp .track{position:relative;height:24px;background:var(--chip);border-radius:6px}
+.qp .track{position:relative;height:24px;background:var(--chip);border-radius:6px;overflow:hidden}
+.qp .track .gl{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.55;pointer-events:none}
 .qp .blk{position:absolute;top:3px;height:18px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;max-width:100%;cursor:pointer}
 .qp .blk:hover{box-shadow:0 0 0 2px var(--accent) inset}
 .qp .ms{position:absolute;top:3px;display:flex;align-items:center;gap:6px;max-width:70%;cursor:pointer}
@@ -760,13 +761,15 @@ const PORTAL_CSS = `
 .qp .newcard{border:1.5px dashed var(--line);background:transparent;display:flex;align-items:center;justify-content:center;min-height:200px;cursor:pointer;border-radius:16px;color:var(--muted);font-weight:600;font-size:13px;gap:8px}
 .qp .newcard:hover{border-color:var(--signal);color:var(--signal)}
 .qp .feed{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 4px}
-.qp .frow{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line-2)}
+.qp .frow{display:grid;grid-template-columns:28px minmax(0,1fr) 70px 78px 50px;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line-2)}
 .qp .frow:last-child{border-bottom:0}
 .qp .frow .fav{width:28px;height:28px;border-radius:50%;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-2);flex:none;text-transform:uppercase}
-.qp .frow .ft{font-size:12.5px;flex:1}
+.qp .frow .ft{font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qp .frow .ft b{font-weight:600}
-.qp .frow .ptag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--chip);color:var(--ink-2)}
-.qp .frow .fw{font-size:11px;color:var(--muted);white-space:nowrap}
+.qp .frow .ptag{justify-self:start;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--chip);color:var(--ink-2);white-space:nowrap}
+.qp .frow .fw{justify-self:start;font-size:11px;color:var(--muted);white-space:nowrap}
+.qp .frow .fview{justify-self:end;font-size:11.5px;font-weight:600;color:var(--accent);background:transparent;border:0;padding:4px 6px;border-radius:6px;cursor:pointer;min-height:22px}
+.qp .frow button.fview:hover{background:var(--chip)}
 .qp .ptable{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .qp .ptable .hd,.qp .ptable .row{display:grid;grid-template-columns:2.4fr 1.3fr 1fr 1.1fr 0.8fr 1.2fr auto;gap:12px;align-items:center;padding:13px 18px}
 .qp .ptable .hd{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--chip)}
@@ -873,19 +876,27 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     }
     return rows;
   };
+  const isoWeek = (date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) + 3);
+    const ft = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    ft.setUTCDate(ft.getUTCDate() - ((ft.getUTCDay() + 6) % 7) + 3);
+    return 1 + Math.round((d - ft) / (7 * 86400000));
+  };
   const ovTicks = (() => {
     const minMs = ovLanes.minMs, maxMs = ovLanes.minMs + ovLanes.span, sp = Math.max(1, maxMs - minMs);
     const out = []; let g = 0;
-    if (ovGran === "week") {
-      let d = new Date(minMs); d = new Date(d.getFullYear(), d.getMonth(), 1);
-      while (d.getTime() <= maxMs && g++ < 60) { const pos = (d.getTime() - minMs) / sp * 100; if (pos >= -2 && pos <= 102) out.push({ pos: Math.max(0, Math.min(100, pos)), label: d.toLocaleDateString(undefined, { month: "short" }) }); d = new Date(d.getFullYear(), d.getMonth() + 1, 1); }
-    } else {
-      let d = new Date(minMs); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-      while (d.getTime() <= maxMs && g++ < 90) { const pos = (d.getTime() - minMs) / sp * 100; if (pos >= -2 && pos <= 102) out.push({ pos: Math.max(0, Math.min(100, pos)), label: d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) }); d = new Date(d); d.setDate(d.getDate() + 7); }
+    let d = new Date(minMs); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    while (d.getTime() <= maxMs && g++ < 130) {
+      const pos = (d.getTime() - minMs) / sp * 100;
+      if (pos >= -2 && pos <= 102) out.push({ pos: Math.max(0, Math.min(100, pos)), label: ovGran === "week" ? ("Wk " + isoWeek(d)) : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) });
+      d = new Date(d); d.setDate(d.getDate() + 7);
     }
-    if (out.length > 13) { const step = Math.ceil(out.length / 13); return out.filter((_, i) => i % step === 0); }
+    const cap = ovGran === "week" ? 18 : 13;
+    if (out.length > cap) { const step = Math.ceil(out.length / cap); return out.filter((_, i) => i % step === 0); }
     return out;
   })();
+  const gridEls = () => ovTicks.map((t, i) => <i key={"gl" + i} className="gl" style={{ left: t.pos + "%" }} />);
   const ovFlat = (ov || []).slice().sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999") || a.label.localeCompare(b.label));
   const statusLabel = (a) => { if (a.status === "complete") return "Complete"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "Overdue"; if (a.status === "in_progress") return "In progress"; if (a.committed) return "Committed"; return "Planned"; };
   const statusDot = (a) => { if (a.status === "complete") return "#1FB6A6"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "#C0392B"; if (a.status === "in_progress") return "var(--accent)"; if (a.committed) return "#E6A435"; return "var(--muted)"; };
@@ -949,7 +960,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           {activity && activity.length > 0 && <>
             <div className="sech"><h2>Recent activity</h2></div>
             <div className="feed">
-              {activity.map((e, i) => <div key={i} className="frow"><div className="fav">{initials(e.user)}</div><div className="ft"><b>{e.user}</b> {e.verb} {e.name ? <b>{e.name}</b> : "an activity"}</div>{e.code && <span className="ptag">{e.code}</span>}<span className="fw">{fmtAgo(e.ts)}</span></div>)}
+              {activity.map((e, i) => <div key={i} className="frow"><div className="fav">{initials(e.user)}</div><div className="ft"><b>{e.user}</b> {e.verb} {e.name ? <b>{e.name}</b> : "an activity"}</div><span className="ptag">{e.code || ""}</span><span className="fw">{fmtAgo(e.ts)}</span>{e.projId ? <button className="fview" onClick={() => onEnter(e.projId, e.actId)}>View</button> : <span className="fview" />}</div>)}
             </div>
           </>}
         </div>
@@ -1037,6 +1048,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                           <div className="tracks">
                             {packRows(ln.acts).map((row, ri) => (
                               <div className="track" key={ri}>
+                                {gridEls()}
                                 {row.map(({ a, b }) => a.milestone
                                   ? <div className="ms" key={a.id} style={{ left: b.left + "%" }} title={a.label} onClick={() => setOvSel(a)}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /><span className="mslabel">{a.label}</span></div>
                                   : <div className="blk" key={a.id} style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }} title={a.label} onClick={() => setOvSel(a)}>{a.label}</div>)}
@@ -1049,6 +1061,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                         <div className="grow" key={a.id} onClick={() => setOvSel(a)}>
                           <div className="glh" title={a.label}>{a.label}</div>
                           <div className="track">
+                            {gridEls()}
                             {a.milestone
                               ? <div className="ms" style={{ left: b.left + "%" }}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /></div>
                               : <div className="blk" style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }}>{a.label}</div>}
@@ -1106,6 +1119,7 @@ export default function App({ session }) {
   const [projects, setProjects] = useState([]);
   const [isSuper, setIsSuper] = useState(false);
   const [selProj, setSelProj] = useState(null);   // selected project id; null = portal
+  const [pendingFocus, setPendingFocus] = useState(null);   // activity id to open once the board loads
   const [booting, setBooting] = useState(true);
   const [swOpen, setSwOpen] = useState(false);
   const [userName, setUserName] = useState("");
@@ -1117,10 +1131,11 @@ export default function App({ session }) {
 
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
 
-  const enterProject = async (projectId, projList) => {
+  const enterProject = async (projectId, projList, focusActId) => {
     const list = projList || projectsRef.current;
     const proj = list.find((x) => x.id === projectId);
     setSelProj(projectId);
+    if (focusActId) setPendingFocus(focusActId);
     try { history.replaceState(null, "", "?p=" + projectId); localStorage.setItem("fin04_lastproj", projectId); } catch (e) {}
     try {
       const data = await loadAll(session, projectId, proj?.name);
@@ -1153,6 +1168,7 @@ export default function App({ session }) {
   useEffect(() => { const ch = subscribeAll(() => { if (selProjRef.current) enterProject(selProjRef.current); }); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { heartbeat(); const t = setInterval(heartbeat, 60000); const onVis = () => { if (document.visibilityState === "visible") heartbeat(); }; document.addEventListener("visibilitychange", onVis); return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); }; }, []);
   useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
+  useEffect(() => { if (!pendingFocus || !S) return; const a = (S.activities || []).find((x) => x.id === pendingFocus); if (a) setEditing(a); setPendingFocus(null); }, [S, pendingFocus]);
   useEffect(() => {
     const open = (e) => { const t = e.target; if (t && t.tagName === "INPUT" && t.type === "date" && !t.disabled && !t.readOnly && typeof t.showPicker === "function") { try { t.showPicker(); } catch (err) {} } };
     document.addEventListener("click", open);
@@ -1237,7 +1253,7 @@ export default function App({ session }) {
   }, [S, anchor, DAYS]);
 
   if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
-  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid, (projects.find((p) => p.id === pid) || {}).name)} />;
+  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id, focus) => enterProject(id, undefined, focus)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid, (projects.find((p) => p.id === pid) || {}).name)} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
   const LV = S.levels || DEFAULT_LEVELS;
