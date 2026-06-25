@@ -614,9 +614,13 @@ export default function App({ session }) {
       const as = a.actualStart ? parseD(a.actualStart) : null;
       const af = a.actualFinish ? parseD(a.actualFinish) : null;
       let delayDays = 0;
-      if (a.status === "complete" && af) delayDays = Math.round((af - pf) / DAYMS);
-      else if (as) delayDays = Math.round((as - ps) / DAYMS);
-      else if (a.status !== "complete" && todayMid() > pf.getTime()) delayDays = Math.round((todayMid() - pf.getTime()) / DAYMS);
+      if (a.status === "complete" && af) {
+        delayDays = Math.round((af - pf) / DAYMS);
+      } else if (a.status !== "complete") {
+        const lateStart = as ? Math.round((as - ps) / DAYMS) : 0;
+        const overdue = todayMid() > pf.getTime() ? Math.round((todayMid() - pf.getTime()) / DAYMS) : 0;
+        delayDays = Math.max(0, lateStart, overdue);
+      }
       return { ...a, startOff, endOff, span: a.duration - 1, delayDays, delayed: delayDays > 0, open: openCount(a) };
     });
     // ---- non-destructive forward pass: project dates down the predecessor chain ----
