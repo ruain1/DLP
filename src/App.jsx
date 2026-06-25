@@ -318,15 +318,27 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-userwrap{display:flex;gap:18px;align-items:flex-start}
 .lk-usermain{flex:1;min-width:0}
 .lk-userside{width:300px;flex-shrink:0;position:sticky;top:74px}
-.lk-online{border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
-.lk-online-h{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;color:var(--ink)}
-.lk-online-now{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:#0E9F6E;background:rgba(16,185,129,.12);padding:3px 9px 3px 7px;border-radius:20px;text-transform:none;letter-spacing:0}
-.lk-online-list{max-height:440px;overflow:auto}
-.lk-online-row{display:flex;align-items:center;gap:9px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:12.5px}
-.lk-online-row:last-child{border-bottom:0}
-.lk-online-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--ink)}
-.lk-online-time{font-size:11px;color:var(--muted);white-space:nowrap}
-.lk-online-empty{padding:16px 14px;font-size:12px;color:var(--muted)}
+.lk-online{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}
+.lk-online-h{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px;color:var(--ink)}
+.lk-online-now{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#54d6c6;background:rgba(31,182,166,.13);padding:3px 9px;border-radius:999px;text-transform:none;letter-spacing:0}
+.lk-online-now i{width:7px;height:7px;border-radius:50%;background:#2fd6c2;box-shadow:0 0 0 0 rgba(47,214,194,.5);animation:lkpulse 2s infinite}
+.lk-online-empty{padding:16px 15px;font-size:12px;color:var(--muted)}
+.lk-on-sub{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700;padding:11px 15px 5px}
+.lk-on-body{padding:0 8px 7px}
+.lk-on-body.scroll{max-height:430px;overflow:auto}
+.lk-on-hr{border:0;border-top:1px solid var(--line);margin:6px 12px 0}
+.lk-on-row{display:flex;align-items:center;gap:11px;padding:7px;border-radius:9px}
+.lk-on-row:hover{background:var(--hover)}
+.lk-on-avwrap{position:relative;flex:none}
+.lk-on-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff}
+.lk-on-dot{position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;border:2.5px solid var(--card)}
+.lk-on-dot.on{background:#2fd6c2}
+.lk-on-dot.rec{background:#E6A435}
+.lk-on-dot.off{background:#5B6675}
+.lk-on-nm{min-width:0;display:flex;flex-direction:column}
+.lk-on-nm b{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-on-nm s{text-decoration:none;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-on-nm s.on{color:#54d6c6;font-weight:600}
 .lk-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
 .lk-dot.off{background:#F59E0B}
 .lk-dot.on{background:#10B981;animation:lkpulse 2s infinite}
@@ -3433,25 +3445,32 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
 function LatestOnline({ users, ustat, pres }) {
   const now = Date.now();
   const ONLINE_MS = 150000; // online if a heartbeat landed in the last 2.5 min
+  const RECENT_MS = 4 * 3600000; // amber dot if last seen within 4h, grey beyond
   const rows = users.map((u) => {
     const seen = ustat[u.id] && ustat[u.id].lastSignIn;
     if (!seen) return null; // invite not yet accepted -> no status, not listed
     const p = pres[u.id] ? new Date(pres[u.id]).getTime() : 0;
     const last = Math.max(p, new Date(seen).getTime());
-    return { id: u.id, name: u.name || "Unknown", last, online: p > 0 && (now - p) < ONLINE_MS };
+    const online = p > 0 && (now - p) < ONLINE_MS;
+    return { id: u.id, name: u.name || "Unknown", last, online, tier: online ? "on" : ((now - last) < RECENT_MS ? "rec" : "off") };
   }).filter(Boolean).sort((a, b) => b.last - a.last);
-  const onlineCount = rows.filter((r) => r.online).length;
-  const fmt = (t) => new Date(t).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const onlineRows = rows.filter((r) => r.online);
+  const earlierRows = rows.filter((r) => !r.online);
+  const sameDay = (d) => new Date().toDateString() === d.toDateString();
+  const fmtTime = (t) => { const d = new Date(t); return d.toLocaleString("en-GB", sameDay(d) ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); };
+  const row = (r) => <div key={r.id} className="lk-on-row">
+    <span className="lk-on-avwrap"><span className="lk-on-av" style={{ background: avBg(r.id) }}>{avInit(r.name)}</span><span className={"lk-on-dot " + r.tier} /></span>
+    <span className="lk-on-nm"><b title={r.name}>{r.name}</b><s className={r.online ? "on" : ""} title={"Last online " + new Date(r.last).toLocaleString("en-GB")}>{r.online ? "Online now" : "Last seen " + fmtTime(r.last)}</s></span>
+  </div>;
   return (
     <div className="lk-online">
-      <div className="lk-online-h"><span>Latest Online</span>{onlineCount > 0 && <span className="lk-online-now"><span className="lk-dot on" />{onlineCount} online now</span>}</div>
+      <div className="lk-online-h"><span>Latest Online</span>{onlineRows.length > 0 && <span className="lk-online-now"><i />{onlineRows.length} online</span>}</div>
       {rows.length === 0
         ? <div className="lk-online-empty">No one has accepted their invite yet.</div>
-        : <div className="lk-online-list">{rows.map((r) => <div key={r.id} className="lk-online-row">
-            <span className={"lk-dot " + (r.online ? "on" : "off")} />
-            <span className="lk-online-name" title={r.name}>{r.name}</span>
-            <span className="lk-online-time" title={"Last online " + new Date(r.last).toLocaleString("en-GB")}>{r.online ? "online now" : fmt(r.last)}</span>
-          </div>)}</div>}
+        : <>
+          {onlineRows.length > 0 && <><div className="lk-on-sub">Online now</div><div className="lk-on-body">{onlineRows.map(row)}</div></>}
+          {earlierRows.length > 0 && <>{onlineRows.length > 0 && <hr className="lk-on-hr" />}<div className="lk-on-sub">Earlier</div><div className="lk-on-body scroll">{earlierRows.map(row)}</div></>}
+        </>}
     </div>);
 }
 
