@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
+import { loadAll, loadProjects, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -397,6 +397,54 @@ body.dark .lk-match.fuzzy{background:rgba(224,163,58,.18);color:#EAC178}
 .lk-remember input{width:16px;height:16px;accent-color:var(--accent);flex:none}
 .lk-locked{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}
 .lk-locked .lkv{font-weight:600;font-size:13px}.lk-locked .lkn{font-size:11px;color:var(--muted)}
+/* ---- project switcher ---- */
+.lk-switch{position:relative;margin-left:4px}
+.lk-switch-back{position:fixed;inset:0;z-index:40}
+.lk-switchbtn{display:flex;align-items:center;gap:7px;background:var(--chipbg);border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer}
+.lk-switchdot{width:8px;height:8px;border-radius:50%;flex:none}
+.lk-switchmenu{position:absolute;top:40px;left:0;z-index:41;width:270px;background:var(--card);border:1px solid var(--line);border-radius:11px;box-shadow:0 16px 44px rgba(8,14,22,.32);padding:6px}
+.lk-switchitem{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:0;border-radius:7px;padding:9px 10px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer}
+.lk-switchitem:hover{background:var(--hover)}
+.lk-switchitem.on{background:var(--chipbg)}
+.lk-switchitem.all{color:var(--accent)}
+.lk-switchsub{font-weight:400;color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-switchsep{height:1px;background:var(--line);margin:5px 4px}
+/* ---- project portal ---- */
+.lk-portal{min-height:100vh;background:var(--paper);color:var(--ink)}
+.lk-pbar{display:flex;align-items:center;gap:12px;height:58px;padding:0 24px;background:var(--card);border-bottom:1px solid var(--line)}
+.lk-pbrand{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:800;letter-spacing:-.01em}
+.lk-pglyph{width:26px;height:26px;border-radius:7px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700}
+.lk-psub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.lk-pwrap{max-width:1180px;margin:0 auto;padding:30px 24px 60px}
+.lk-phello{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.lk-psubhello{color:var(--muted);font-size:13px;margin-top:4px}
+.lk-ptiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0 8px}
+.lk-ptile{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px 17px}
+.lk-ptile .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.lk-ptile .v{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-top:6px;line-height:1}
+.lk-pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px}
+.lk-pcard{background:var(--card);border:1px solid var(--line);border-radius:15px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s,border-color .15s}
+.lk-pcard:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(8,14,22,.18);border-color:var(--accent)}
+.lk-pcardhead{height:6px}
+.lk-pcardbody{padding:15px 16px;display:flex;flex-direction:column;gap:10px;flex:1}
+.lk-pcode{font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--muted)}
+.lk-pname{font-size:16px;font-weight:700;letter-spacing:-.01em;line-height:1.2;margin-top:2px}
+.lk-ploc{font-size:12px;color:var(--muted)}
+.lk-pmid{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+.lk-pring{position:relative;width:48px;height:48px;flex:none}
+.lk-pringlbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700}
+.lk-pringlbl small{font-size:8px;color:var(--muted);margin-left:1px}
+.lk-pkv{display:flex;gap:16px;flex:1;justify-content:center}
+.lk-pkv div{font-size:10.5px;color:var(--muted);text-align:center}
+.lk-pkv b{display:block;font-size:16px;font-weight:700;color:var(--ink)}
+.lk-pkv b.warn{color:#D9534F}
+.lk-prole{font-size:10px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;background:var(--chipbg);border:1px solid var(--line);color:var(--muted)}
+.lk-prole.admin{background:var(--chipbg);color:var(--accent);border-color:transparent}
+.lk-pcardfoot{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.lk-penter{font-weight:700;color:var(--accent)}
+.lk-pempty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px;border:1px dashed var(--line);border-radius:14px}
+@media(max-width:880px){.lk-ptiles{grid-template-columns:1fr 1fr}.lk-pgrid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.lk-pgrid,.lk-ptiles{grid-template-columns:1fr}}
 `;
 
 const I = {
@@ -544,6 +592,54 @@ function defaults() {
   };
 }
 
+function Portal({ projects, isSuper, userName, theme, onEnter, onSignOut }) {
+  useEffect(() => { const t = THEMES[theme] || THEMES.light; document.body.style.background = t.paper; }, [theme]);
+  const tot = projects.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete }), { total: 0, overdue: 0, complete: 0 });
+  const ring = (pct, accent) => {
+    const r = 20, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
+    return (<div className="lk-pring"><svg width="48" height="48"><circle cx="24" cy="24" r={r} fill="none" stroke="var(--line)" strokeWidth="5" /><circle cx="24" cy="24" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 24 24)" /></svg><div className="lk-pringlbl">{pct}<small>%</small></div></div>);
+  };
+  return (
+    <div className="lk lk-portal" style={cssVars(theme)}><style>{css}</style>
+      <div className="lk-pbar">
+        <div className="lk-pbrand"><span className="lk-pglyph">D</span>DLP<span className="lk-psub">Platform</span></div>
+        <div className="lk-spacer" />
+        <span style={{ fontSize: 13, color: "var(--muted)" }}>{userName}</span>
+        {isSuper && <span className="lk-pill admin">Super</span>}
+        <button className="lk-btn" onClick={onSignOut}>Sign out</button>
+      </div>
+      <div className="lk-pwrap">
+        <div className="lk-phello">Your projects</div>
+        <div className="lk-psubhello">{isSuper ? "You can see every project on the platform." : "You see only the projects you have been granted access to."}</div>
+        <div className="lk-ptiles">
+          <div className="lk-ptile"><div className="k">Projects</div><div className="v">{projects.length}</div></div>
+          <div className="lk-ptile"><div className="k">Activities</div><div className="v">{tot.total}</div></div>
+          <div className="lk-ptile"><div className="k">Overdue</div><div className="v" style={{ color: "#D9534F" }}>{tot.overdue}</div></div>
+        </div>
+        <div className="lk-pgrid">
+          {projects.map((p) => {
+            const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0;
+            return (<div key={p.id} className="lk-pcard" onClick={() => onEnter(p.id)}>
+              <div className="lk-pcardhead" style={{ background: p.accent }} />
+              <div className="lk-pcardbody">
+                <div><div className="lk-pcode">{p.code}</div><div className="lk-pname">{p.name}</div></div>
+                {p.location && <div className="lk-ploc">{p.location}</div>}
+                <div className="lk-pmid">
+                  {ring(pct, p.accent)}
+                  <div className="lk-pkv"><div><b>{p.stats.total}</b>activities</div><div><b className={p.stats.overdue ? "warn" : ""}>{p.stats.overdue}</b>overdue</div></div>
+                  <span className={"lk-prole" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span>
+                </div>
+              </div>
+              <div className="lk-pcardfoot"><span>{p.client || "\u00A0"}</span><span className="lk-penter">Enter &rsaquo;</span></div>
+            </div>);
+          })}
+          {projects.length === 0 && <div className="lk-pempty">You are not a member of any project yet. An administrator can add you to one.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App({ session }) {
   const [S, setS] = useState(null);
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
@@ -561,16 +657,47 @@ export default function App({ session }) {
   const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
+  // ---- multi-project ----
+  const [projects, setProjects] = useState([]);
+  const [isSuper, setIsSuper] = useState(false);
+  const [selProj, setSelProj] = useState(null);   // selected project id; null = portal
+  const [booting, setBooting] = useState(true);
+  const [swOpen, setSwOpen] = useState(false);
+  const selProjRef = useRef(null);
+  const projectsRef = useRef([]);
+  useEffect(() => { selProjRef.current = selProj; }, [selProj]);
+  useEffect(() => { projectsRef.current = projects; }, [projects]);
+
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
-  const refresh = async () => {
+
+  const enterProject = async (projectId, projList) => {
+    const list = projList || projectsRef.current;
+    const proj = list.find((x) => x.id === projectId);
+    setSelProj(projectId);
+    try { history.replaceState(null, "", "?p=" + projectId); } catch (e) {}
     try {
-      const data = await loadAll(session);
+      const data = await loadAll(session, projectId);
       const p = prefs();
-      setS({ ...data, currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company" });
+      setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company" });
     } catch (e) { console.error("Load failed:", e); }
   };
-  useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const ch = subscribeAll(refresh); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const goPortal = () => { setSelProj(null); setS(null); setSwOpen(false); try { history.replaceState(null, "", location.pathname); } catch (e) {} boot(); };
+
+  const boot = async () => {
+    try {
+      const { isSuper: sup, list } = await loadProjects(session);
+      setIsSuper(sup); setProjects(list); projectsRef.current = list;
+      const urlP = (() => { try { return new URLSearchParams(location.search).get("p"); } catch { return null; } })();
+      let target = null;
+      if (urlP && list.find((x) => x.id === urlP)) target = urlP;
+      else if (!sup && list.length === 1) target = list[0].id;
+      if (target) await enterProject(target, list);
+      else setSelProj(null);
+    } catch (e) { console.error("Boot failed:", e); }
+    setBooting(false);
+  };
+  useEffect(() => { boot(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const ch = subscribeAll(() => { if (selProjRef.current) enterProject(selProjRef.current); }); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { heartbeat(); const t = setInterval(heartbeat, 60000); const onVis = () => { if (document.visibilityState === "visible") heartbeat(); }; document.addEventListener("visibilitychange", onVis); return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); }; }, []);
   useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
   useEffect(() => {
@@ -583,14 +710,17 @@ export default function App({ session }) {
   useEffect(() => { if (!S) return; const me = S.users.find((u) => u.id === S.currentUserId); if (page === "admin" && !(me && me.role === "admin")) setPage("board"); }, [S, page]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
-  const cu = S && (S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null });
+  const cu = S && (() => {
+    const base = S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null };
+    return { ...base, role: (isSuper || S.projectRole === "admin") ? "admin" : "member" };
+  })();
   // Audit is written entirely by database triggers (see schema.sql), so the
   // optional { action, detail } some callers pass as a second argument is
   // intentionally ignored and kept only as inline documentation of intent.
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
     if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy })); } catch (e) {} }
-    syncCollections(prev, n, session);
+    syncCollections(prev, n, session, prev.projectId);
     return n;
   });
 
@@ -653,6 +783,8 @@ export default function App({ session }) {
     return base;
   }, [S, anchor, DAYS]);
 
+  if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
+  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={session.user.email} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onSignOut={() => signOut()} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
   const LV = S.levels || DEFAULT_LEVELS;
@@ -918,6 +1050,23 @@ export default function App({ session }) {
         {brandLogo && <img className="lk-brandlogo" src={brandLogo} alt="" style={{ height: 28, maxWidth: 130, objectFit: "contain" }} />}
         {brandLogo && <span className="lk-branddiv" />}
         <div className="lk-brandid"><span className="lk-projname">{S.brand?.projectName || "FIN04"}</span><span className="lk-appname">{S.brand?.appName || "DLP"}</span></div>
+        {(isSuper || projects.length > 1) && <div className="lk-switch">
+          {swOpen && <div className="lk-switch-back" onClick={() => setSwOpen(false)} />}
+          <button className="lk-switchbtn" onClick={() => setSwOpen((o) => !o)}>
+            <span className="lk-switchdot" style={{ background: (projects.find((p) => p.id === selProj) || {}).accent || "var(--signal)" }} />
+            <span>{(projects.find((p) => p.id === selProj) || {}).code || "Project"}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+          {swOpen && <div className="lk-switchmenu">
+            <button className="lk-switchitem all" onClick={() => { setSwOpen(false); goPortal(); }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>All projects
+            </button>
+            <div className="lk-switchsep" />
+            {projects.map((p) => <button key={p.id} className={"lk-switchitem" + (p.id === selProj ? " on" : "")} onClick={() => { setSwOpen(false); if (p.id !== selProj) enterProject(p.id); }}>
+              <span className="lk-switchdot" style={{ background: p.accent }} /><span>{p.code}</span><span className="lk-switchsub">{p.name}</span>
+            </button>)}
+          </div>}
+        </div>}
         <div className="lk-spacer" />
         <div className="lk-who">
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
@@ -1781,7 +1930,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <input className="lk-in" value={S.brand?.tagline || ""} placeholder="Collaborative Digital Planning" onChange={(e) => update((p) => ({ ...p, brand: { ...p.brand, tagline: e.target.value } }))} /></div>
             <button className="lk-btn primary" onClick={async () => {
               setBrandMsg("Saving…");
-              try { await updateBranding({ project_name: S.brand.projectName, app_name: S.brand.appName, tagline: S.brand.tagline }); setBrandMsg("Text saved"); }
+              try { await updateBranding({ project_name: S.brand.projectName, app_name: S.brand.appName, tagline: S.brand.tagline }, S.projectId); setBrandMsg("Text saved"); }
               catch (e) { setBrandMsg("Failed: " + (e.message || e)); }
             }}><Icon n="check" s={15} />Save text</button>
             <div className="lk-f" style={{ marginTop: 14 }}><label>Customer Logo</label>
@@ -1794,11 +1943,11 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   <input className="lk-in" style={{ marginTop: 6 }} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={async (e) => {
                     const f = e.target.files && e.target.files[0]; if (!f) return;
                     setBrandMsg("Uploading " + lbl + " logo…");
-                    try { const u = await uploadLogo(f, dark); update((p) => ({ ...p, brand: { ...p.brand, [dark ? "logoDark" : "logoUrl"]: u } })); setBrandMsg(lbl + " logo updated"); }
+                    try { const u = await uploadLogo(f, dark, S.projectId); update((p) => ({ ...p, brand: { ...p.brand, [dark ? "logoDark" : "logoUrl"]: u } })); setBrandMsg(lbl + " logo updated"); }
                     catch (x) { setBrandMsg("Failed: " + (x.message || x)); }
                     e.target.value = "";
                   }} />
-                  {url && <button className="lk-btn" style={{ marginTop: 6, fontSize: 11 }} onClick={async () => { try { await updateBranding({ [dark ? "logo_url_dark" : "logo_url"]: null }); update((p) => ({ ...p, brand: { ...p.brand, [dark ? "logoDark" : "logoUrl"]: null } })); setBrandMsg(lbl + " logo removed"); } catch (x) { setBrandMsg("Failed: " + (x.message || x)); } }}>Remove</button>}
+                  {url && <button className="lk-btn" style={{ marginTop: 6, fontSize: 11 }} onClick={async () => { try { await updateBranding({ [dark ? "logo_url_dark" : "logo_url"]: null }, S.projectId); update((p) => ({ ...p, brand: { ...p.brand, [dark ? "logoDark" : "logoUrl"]: null } })); setBrandMsg(lbl + " logo removed"); } catch (x) { setBrandMsg("Failed: " + (x.message || x)); } }}>Remove</button>}
                 </div>)}
               </div>
               <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>PNG, JPG, SVG or WebP, wide transparent PNG looks best. Set one for each theme; if you set only one, it is used in both modes.</div>

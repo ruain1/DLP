@@ -24,19 +24,19 @@ const toActivity = (a, session, isNew) => {
 };
 
 // ---- load everything into the client state shape ----
-export async function loadAll(session) {
+export async function loadAll(session, projectId) {
   const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
-    supabase.from("areas").select("*").order("name"),
-    supabase.from("systems").select("*").order("name"),
-    supabase.from("levels").select("*").order("sort"),
-    supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("areas").select("*").eq("project_id", projectId).order("name"),
+    supabase.from("systems").select("*").eq("project_id", projectId).order("name"),
+    supabase.from("levels").select("*").eq("project_id", projectId).order("sort"),
+    supabase.from("settings").select("*").eq("project_id", projectId).maybeSingle(),
     supabase.from("profiles").select("*").order("name"),
-    supabase.from("activities").select("*"),
+    supabase.from("activities").select("*").eq("project_id", projectId),
     supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500),
-    supabase.from("branding").select("*").eq("id", 1).maybeSingle(),
-    supabase.from("sub_areas").select("*").order("name"),
-    supabase.from("tier3_areas").select("*").order("name"),
+    supabase.from("branding").select("*").eq("project_id", projectId).maybeSingle(),
+    supabase.from("sub_areas").select("*").eq("project_id", projectId).order("name"),
+    supabase.from("tier3_areas").select("*").eq("project_id", projectId).order("name"),
   ]);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
@@ -55,6 +55,37 @@ export async function loadAll(session) {
   };
 }
 
+// The projects this user can see (RLS returns only their memberships; supers see all),
+// with the user's role per project and a light activity-stat summary for the portal.
+export async function loadProjects(session) {
+  const me = session?.user?.id;
+  const [prof, projRes, memRes, statRes] = await Promise.all([
+    supabase.from("profiles").select("platform_role").eq("id", me).maybeSingle(),
+    supabase.from("projects").select("*").order("name"),
+    supabase.from("project_members").select("project_id, role").eq("user_id", me),
+    supabase.from("activities").select("project_id, status, start_date, duration"),
+  ]);
+  const isSuper = prof.data?.platform_role === "super";
+  const roleByProj = {};
+  (memRes.data || []).forEach((m) => { roleByProj[m.project_id] = m.role; });
+  const todayMs = new Date().setHours(0, 0, 0, 0);
+  const stat = {};
+  (statRes.data || []).forEach((a) => {
+    const s = stat[a.project_id] || (stat[a.project_id] = { total: 0, complete: 0, overdue: 0 });
+    s.total++;
+    if (a.status === "complete") { s.complete++; return; }
+    if (a.start_date) { const pf = new Date(a.start_date); pf.setDate(pf.getDate() + (a.duration || 1) - 1); if (pf.getTime() < todayMs) s.overdue++; }
+  });
+  const list = (projRes.data || []).map((p) => ({
+    id: p.id, code: p.code, name: p.name, client: p.client || "", location: p.location || "",
+    accent: p.accent || "#1E63D6", logoUrl: p.logo_url || "", logoDark: p.logo_url_dark || "",
+    tagline: p.tagline || "", appName: p.app_name || "DLP",
+    role: isSuper ? "admin" : (roleByProj[p.id] || "member"),
+    stats: stat[p.id] || { total: 0, complete: 0, overdue: 0 },
+  }));
+  return { isSuper, list };
+}
+
 const brandFrom = (d) => ({
   projectName: d?.project_name ?? "FIN04",
   appName: d?.app_name ?? "DLP",
@@ -70,19 +101,19 @@ export function applyBrandToTab(brand) {
 }
 
 // ---- diff one state object against the next and push only the changes ----
-export async function syncCollections(prev, next, session) {
+export async function syncCollections(prev, next, session, projectId) {
   const ops = [];
   // activities (keyed by id)
   if (next.activities !== prev.activities) {
     const pm = Object.fromEntries(prev.activities.map((a) => [a.id, a]));
     const nm = Object.fromEntries(next.activities.map((a) => [a.id, a]));
     const ups = [];
-    next.activities.forEach((a) => { if (!pm[a.id] || JSON.stringify(pm[a.id]) !== JSON.stringify(a)) ups.push(toActivity(a, session, !pm[a.id])); });
+    next.activities.forEach((a) => { if (!pm[a.id] || JSON.stringify(pm[a.id]) !== JSON.stringify(a)) ups.push({ ...toActivity(a, session, !pm[a.id]), project_id: projectId }); });
     const del = prev.activities.filter((a) => !nm[a.id]).map((a) => a.id);
     if (ups.length) ops.push(supabase.from("activities").upsert(ups));
     if (del.length) ops.push(supabase.from("activities").delete().in("id", del));
   }
-  // companies (keyed by id)
+  // companies (keyed by id) - global shared directory, not project-scoped
   if (next.companies !== prev.companies) {
     const nm = Object.fromEntries(next.companies.map((c) => [c.id, c]));
     const pm = Object.fromEntries(prev.companies.map((c) => [c.id, c]));
@@ -91,47 +122,47 @@ export async function syncCollections(prev, next, session) {
     if (ups.length) ops.push(supabase.from("companies").upsert(ups));
     if (del.length) ops.push(supabase.from("companies").delete().in("id", del));
   }
-  // areas / systems (string arrays keyed by name)
+  // areas / systems (string arrays keyed by name, per project)
   for (const key of ["areas", "systems"]) {
     if (next[key] !== prev[key]) {
-      const add = next[key].filter((x) => !prev[key].includes(x)).map((name) => ({ name }));
+      const add = next[key].filter((x) => !prev[key].includes(x)).map((name) => ({ name, project_id: projectId }));
       const rem = prev[key].filter((x) => !next[key].includes(x));
       if (add.length) ops.push(supabase.from(key).upsert(add));
-      if (rem.length) ops.push(supabase.from(key).delete().in("name", rem));
+      if (rem.length) ops.push(supabase.from(key).delete().eq("project_id", projectId).in("name", rem));
     }
   }
-  // levels (object keyed by L1..)
+  // levels (object keyed by L1.., per project)
   if (next.levels !== prev.levels) {
     const ups = Object.entries(next.levels)
       .filter(([k, v]) => !prev.levels[k] || prev.levels[k].name !== v.name || prev.levels[k].color !== v.color)
-      .map(([k, v], i) => ({ key: k, name: v.name, color: v.color, sort: v.sort ?? i }));
+      .map(([k, v], i) => ({ key: k, name: v.name, color: v.color, sort: v.sort ?? i, project_id: projectId }));
     if (ups.length) ops.push(supabase.from("levels").upsert(ups));
     const rem = Object.keys(prev.levels).filter((k) => !next.levels[k]);
-    if (rem.length) ops.push(supabase.from("levels").delete().in("key", rem));
+    if (rem.length) ops.push(supabase.from("levels").delete().eq("project_id", projectId).in("key", rem));
   }
-  // sub-areas (keyed by area+name)
+  // sub-areas (keyed by area+name, per project)
   if (next.subAreas !== prev.subAreas) {
     const k = (s) => s.area + "\u0001" + s.name;
     const pset = new Set((prev.subAreas || []).map(k));
     const nset = new Set((next.subAreas || []).map(k));
-    const add = (next.subAreas || []).filter((s) => !pset.has(k(s))).map((s) => ({ area: s.area, name: s.name }));
+    const add = (next.subAreas || []).filter((s) => !pset.has(k(s))).map((s) => ({ area: s.area, name: s.name, project_id: projectId }));
     const rem = (prev.subAreas || []).filter((s) => !nset.has(k(s)));
     if (add.length) ops.push(supabase.from("sub_areas").upsert(add));
-    rem.forEach((s) => ops.push(supabase.from("sub_areas").delete().match({ area: s.area, name: s.name })));
+    rem.forEach((s) => ops.push(supabase.from("sub_areas").delete().match({ area: s.area, name: s.name, project_id: projectId })));
   }
-  // tier 3 areas (keyed by area+sub+name)
+  // tier 3 areas (keyed by area+sub+name, per project)
   if (next.tier3s !== prev.tier3s) {
     const k = (t) => t.area + "\u0001" + t.subArea + "\u0001" + t.name;
     const pset = new Set((prev.tier3s || []).map(k));
     const nset = new Set((next.tier3s || []).map(k));
-    const add = (next.tier3s || []).filter((t) => !pset.has(k(t))).map((t) => ({ area: t.area, sub_area: t.subArea, name: t.name }));
+    const add = (next.tier3s || []).filter((t) => !pset.has(k(t))).map((t) => ({ area: t.area, sub_area: t.subArea, name: t.name, project_id: projectId }));
     const rem = (prev.tier3s || []).filter((t) => !nset.has(k(t)));
     if (add.length) ops.push(supabase.from("tier3_areas").upsert(add));
-    rem.forEach((t) => ops.push(supabase.from("tier3_areas").delete().match({ area: t.area, sub_area: t.subArea, name: t.name })));
+    rem.forEach((t) => ops.push(supabase.from("tier3_areas").delete().match({ area: t.area, sub_area: t.subArea, name: t.name, project_id: projectId })));
   }
-  // settings (singleton)
+  // settings (one row per project)
   if (next.settings !== prev.settings) {
-    ops.push(supabase.from("settings").upsert({ id: 1, weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays }));
+    ops.push(supabase.from("settings").update({ weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays }).eq("project_id", projectId));
   }
   const results = await Promise.all(ops);
   const err = results.find((r) => r && r.error);
@@ -245,21 +276,23 @@ export async function fetchBranding() {
   return brandFrom(data);
 }
 
-// Admin: save name / tagline. patch keys are db column names.
-export async function updateBranding(patch) {
-  const { error } = await supabase.from("branding").upsert({ id: 1, ...patch });
+const FIN04_PROJECT = "f1040000-0000-4000-a000-000000000001";
+
+// Admin: save name / tagline for a project. patch keys are db column names.
+export async function updateBranding(patch, projectId) {
+  const { error } = await supabase.from("branding").update(patch).eq("project_id", projectId || FIN04_PROJECT);
   if (error) throw error;
 }
 
 // Admin: upload a customer logo file, return its public URL, and store it (light or dark slot).
-export async function uploadLogo(file, dark = false) {
+export async function uploadLogo(file, dark = false, projectId) {
   const ext = (file.name.split(".").pop() || "png").toLowerCase();
   const path = `logo-${dark ? "dark-" : ""}${Date.now()}.${ext}`;
   const up = await supabase.storage.from("branding").upload(path, file, { upsert: true, cacheControl: "3600" });
   if (up.error) throw up.error;
   const { data } = supabase.storage.from("branding").getPublicUrl(path);
   const url = data.publicUrl;
-  await updateBranding({ [dark ? "logo_url_dark" : "logo_url"]: url });
+  await updateBranding({ [dark ? "logo_url_dark" : "logo_url"]: url }, projectId);
   return url;
 }
 
