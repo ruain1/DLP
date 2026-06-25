@@ -681,6 +681,7 @@ const PORTAL_CSS = `
 .qp .ms .dia{width:13px;height:13px;transform:rotate(45deg);border-radius:2px;flex:none}
 .qp .ms .mslabel{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qp .ip-foot{font-size:12.5px;color:var(--muted);margin-top:14px;text-align:center;line-height:1.5}
+.qp .qp-foot{text-align:center;font-size:11.5px;color:var(--muted);padding:26px 22px 34px;border-top:1px solid var(--line);margin-top:34px}
 .qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
 .qp .switcher{position:relative;margin-left:6px}
 .qp .switcher>button{display:flex;align-items:center;gap:9px;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
@@ -998,6 +999,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           </> : <div className="empty">You are not a member of any project yet.</div>}
         </div>
       </div>
+      <div className="qp-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
     </div>
   );
 }
@@ -1154,7 +1156,7 @@ export default function App({ session }) {
   }, [S, anchor, DAYS]);
 
   if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
-  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid)} />;
+  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid, (projects.find((p) => p.id === pid) || {}).name)} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
   const LV = S.levels || DEFAULT_LEVELS;
