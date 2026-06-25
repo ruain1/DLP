@@ -847,13 +847,15 @@ export default function App({ session }) {
   };
 
   const Forecast = ({ a, row }) => {
-    if (a.isMilestone || a.status === "complete" || a.totalShift <= 0) return null;
-    const ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
+    if (a.isMilestone || a.status === "complete") return null;
+    const late = a.delayed;
+    if (!late && a.totalShift <= 0) return null;   // amber forecast still needs a shift; a late tail draws whenever overdue
+    let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
+    if (late && todayUnit > ee) ee = todayUnit;   // overdue: stretch the late tail out to today so the graphic matches the day count
     const ps = sU(a);
     if (ee < 0 || ps >= cols || ee <= eU(a)) return null;
     const s = Math.max(0, ps), e = Math.min(cols - 1, ee);
     if (e < s) return null;
-    const late = a.delayed;
     const dark = S.theme === "dark";
     const col = late ? (dark ? "#FCA89E" : "#C0392B") : (dark ? "#F0C552" : "#E0A106");
     const hatch = late
