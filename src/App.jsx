@@ -20,6 +20,10 @@ const THEMES = {
   dark: { ink: "#E6EAF0", paper: "#10151C", card: "#1A222D", line: "#2A3543", muted: "#8A97A6", accent: "#6B9BF2", weekend: "#161D26", todcell: "#18222F", todhead: "#1B2737", todedge: "#476AA0", hover: "#202B38", chipbg: "#22324A" },
 };
 
+const AV_BG = ["#2C4A7A", "#3A6B5C", "#7A5230", "#5A4A7A", "#445C77", "#6B4A4A", "#3C6B45", "#7A6030"];
+const avBg = (seed) => { const s = String(seed || "?"); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return AV_BG[h % AV_BG.length]; };
+const avInit = (n) => (n || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
 const css = `
 .lk{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--paper);
   min-height:100vh;width:100%;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
@@ -175,12 +179,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-uacts{display:flex;align-items:center;gap:5px;justify-content:flex-end}
-.lk-mrow{display:grid;grid-template-columns:minmax(150px,1fr) minmax(110px,150px) 120px 30px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:var(--card);font-size:12.5px;margin-bottom:7px}
-.lk-mrow .lk-mname{min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden}
+.lk-mrow{display:grid;grid-template-columns:30px minmax(120px,1fr) minmax(86px,128px) 104px 50px 116px 30px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 11px;background:var(--card);font-size:12.5px;margin-bottom:7px}
+.lk-mhead{display:grid;grid-template-columns:30px minmax(120px,1fr) minmax(86px,128px) 104px 50px 116px 30px;align-items:center;gap:10px;padding:2px 11px 6px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.lk-mhead .ctr{text-align:center}
+.lk-mav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:#fff;flex:none}
+.lk-mrow .lk-mname{min-width:0;display:flex;align-items:center;gap:7px;overflow:hidden}
 .lk-mrow .lk-mname b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lk-mrow .lk-you{font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;flex:none}
+.lk-cochip{justify-self:start;max-width:100%;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-stat{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.3px;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.lk-stat.act{background:rgba(31,182,166,.15);color:#54d6c6}
+.lk-stat.pend{background:rgba(230,164,53,.15);color:#e6b766}
+.lk-mpc{justify-self:center;font-variant-numeric:tabular-nums;font-weight:700}
 .lk-mrow button{background:transparent;border:0;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px;justify-self:end}
-.lk-mrow button:hover{background:var(--hover);color:var(--ink)}
+.lk-mrow button:hover{background:var(--hover);color:var(--red)}
 .lk-acc{display:flex;align-items:center;gap:7px;width:100%;background:transparent;border:0;cursor:pointer;color:var(--ink);font-weight:600;font-size:12.5px;padding:6px 0}
 .lk-acc .car{font-size:11px;color:var(--muted);width:12px}
 .lk-audhist{border:1px solid var(--line);border-radius:8px;background:var(--card);max-height:230px;overflow:auto;margin-top:2px}
@@ -2236,6 +2248,10 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [memQ, setMemQ] = useState("");
   const [memRole, setMemRole] = useState("member");
   const [memMsg, setMemMsg] = useState("");
+  const [mfQ, setMfQ] = useState("");
+  const [mfCo, setMfCo] = useState("all");
+  const [mfRole, setMfRole] = useState("all");
+  const [mfStatus, setMfStatus] = useState("all");
   const [mcount, setMcount] = useState({});
   useEffect(() => { let live = true; loadMembershipCounts().then((m) => { if (live) setMcount(m); }).catch(() => {}); return () => { live = false; }; }, [S.projectId, members]);
   const meSuper = (S.users.find((u) => u.id === S.currentUserId) || {}).platformRole === "super" || !!S.isSuper;
@@ -2457,27 +2473,54 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
           </div>}
           {tab === "members" && <div className="lk-userwrap"><div className="lk-usermain">
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>Members of this project</div>
-              <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{members ? members.length + " member" + (members.length === 1 ? "" : "s") : ""}</div>
-            </div>
-            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Adding someone here grants access to this project immediately, with no invite to accept. Removing them revokes only this project; they keep their account and any other projects.</div>
-            {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : (() => {
+            {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
               const byId = {}; S.users.forEach((u) => { byId[u.id] = u; });
-              const rows = members.map((m) => ({ ...m, u: byId[m.user_id] })).filter((r) => r.u);
+              const all = (members || []).map((m) => ({ ...m, u: byId[m.user_id] })).filter((r) => r.u);
+              const adminCount = all.filter((r) => r.role === "admin").length;
+              const orphan = (members || []).length - all.length;
+              const seenOf = (id) => !!(ustat[id] && ustat[id].lastSignIn);
+              const q = mfQ.trim().toLowerCase();
+              const rows = all.filter((r) => {
+                if (mfRole !== "all" && r.role !== mfRole) return false;
+                if (mfCo === "none") { if (r.u.companyId) return false; } else if (mfCo !== "all" && r.u.companyId !== mfCo) return false;
+                if (mfStatus !== "all") { const a = seenOf(r.user_id); if (mfStatus === "active" && !a) return false; if (mfStatus === "pending" && a) return false; }
+                if (q && !(`${r.u.name || ""} ${cn(r.u.companyId)}`.toLowerCase().includes(q))) return false;
+                return true;
+              });
               rows.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1) || (a.u.name || "").localeCompare(b.u.name || ""));
-              const adminCount = rows.filter((r) => r.role === "admin").length;
-              const orphan = members.length - rows.length;
-              if (!rows.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members yet. Add people from the address book below.</div>;
-              return <><div className="lk-list" style={{ padding: "2px 0" }}>{rows.map((r) => <div key={r.user_id} className="lk-mrow">
-                <div className="lk-mname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
-                <span className="lk-chip" style={{ background: "var(--chipbg)", color: "var(--muted)", textTransform: "none", whiteSpace: "nowrap" }}>{cn(r.u.companyId) || "No company"}</span>
-                <select className="lk-select" style={{ padding: "5px 7px", fontSize: 11.5 }} value={r.role} onChange={(e) => changeRole(r.user_id, e.target.value, r.u.name, adminCount, r.role)}><option value="member">Member</option><option value="admin">Admin</option></select>
-                {r.user_id !== S.currentUserId
-                  ? <button title="Remove from this project" onClick={() => askDel("Remove " + (r.u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(r.user_id, r.u.name))}><Icon n="trash" s={14} /></button>
-                  : <span style={{ width: 20 }} title="You can't remove yourself" />}
-              </div>)}</div>{orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} member{orphan === 1 ? "" : "s"} not shown (no profile in the address book yet).</div> : null}</>;
+              return <>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Members of this project</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{members ? all.length + " member" + (all.length === 1 ? "" : "s") + " \u00b7 " + adminCount + " admin" + (adminCount === 1 ? "" : "s") : ""}</div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Adding someone here grants access to this project immediately, with no invite to accept. Removing them revokes only this project; they keep their account and any other projects.</div>
+                {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : <>
+                  <div className="lk-ufilter">
+                    <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or company…" value={mfQ} onChange={(e) => setMfQ(e.target.value)} /></div>
+                    <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><select className="lk-select" value={mfCo} onChange={(e) => setMfCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                    <div className="lk-f" style={{ minWidth: 110 }}><label>Role</label><select className="lk-select" value={mfRole} onChange={(e) => setMfRole(e.target.value)}><option value="all">All roles</option><option value="admin">Admins</option><option value="member">Members</option></select></div>
+                    <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><select className="lk-select" value={mfStatus} onChange={(e) => setMfStatus(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="pending">Invite pending</option></select></div>
+                  </div>
+                  {!all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members yet. Add people from the address book below.</div>
+                    : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
+                    : <>
+                      <div className="lk-mhead"><span /><span>Member</span><span>Company</span><span>Status</span><span className="ctr">Proj</span><span>Role on project</span><span /></div>
+                      {rows.map((r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-mrow">
+                        <span className="lk-mav" style={{ background: avBg(r.user_id) }}>{avInit(r.u.name)}</span>
+                        <div className="lk-mname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
+                        <span className="lk-cochip" title={cn(r.u.companyId) || "No company"}>{cn(r.u.companyId) || "No company"}</span>
+                        <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Has signed in" : "Onboarding link not yet used"}>{seen ? (sup ? "Active \u00b7 super" : "Active") : "Invite pending"}</span>
+                        <span className="lk-mpc" title={"On " + np + " project" + (np === 1 ? "" : "s") + " across the platform"} style={{ color: np ? "var(--ink)" : "var(--muted)" }}>{np}</span>
+                        <select className="lk-select" style={{ padding: "5px 7px", fontSize: 11.5 }} value={r.role} onChange={(e) => changeRole(r.user_id, e.target.value, r.u.name, adminCount, r.role)}><option value="member">Member</option><option value="admin">Admin</option></select>
+                        {r.user_id !== S.currentUserId
+                          ? <button title="Remove from this project" onClick={() => askDel("Remove " + (r.u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(r.user_id, r.u.name))}><Icon n="trash" s={14} /></button>
+                          : <span style={{ width: 20 }} title="You can't remove yourself" />}
+                      </div>; })}
+                      {orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} member{orphan === 1 ? "" : "s"} not shown (no profile in the address book yet).</div> : null}
+                    </>}
+                </>}
+              </>;
             })()}
             {memMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>{memMsg}</div>}
             <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
@@ -2489,13 +2532,16 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 const q = memQ.trim().toLowerCase();
                 const cands = S.users.filter((u) => !have.has(u.id) && (!q || (`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q)))).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
                 if (!cands.length) return <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{q ? "No one in the address book matches." : "Everyone in the address book is already a member."}</div>;
-                return <div className="lk-list" style={{ maxHeight: 260, overflow: "auto" }}>{cands.slice(0, 60).map((u) => <div key={u.id} className="lk-li" style={{ gap: 8 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name || "(unnamed)"}</span>
-                  <span className="lk-chip" style={{ background: "var(--chipbg)", color: "var(--muted)", textTransform: "none", whiteSpace: "nowrap" }}>{cn(u.companyId) || "—"}</span>
+                return <div className="lk-list" style={{ maxHeight: 280, overflow: "auto" }}>{cands.slice(0, 60).map((u) => { const np = mcount[u.id] || 0; return <div key={u.id} className="lk-li" style={{ gap: 9, alignItems: "center" }}>
+                  <span className="lk-mav" style={{ background: avBg(u.id), width: 26, height: 26, fontSize: 10 }}>{avInit(u.name)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name || "(unnamed)"}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(cn(u.companyId) || "No company") + " \u00b7 on " + np + " project" + (np === 1 ? "" : "s")}</div>
+                  </div>
                   <button className="lk-btn" onClick={() => addMem(u.id, u.name)}><Icon n="plus" s={13} />Add</button>
-                </div>)}{cands.length > 60 && <div style={{ fontSize: 11, color: "var(--muted)", padding: "6px 2px" }}>Showing first 60. Refine the search to narrow.</div>}</div>;
+                </div>; })}{cands.length > 60 && <div style={{ fontSize: 11, color: "var(--muted)", padding: "6px 2px" }}>Showing first 60. Refine the search to narrow.</div>}</div>;
               })()}
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Someone not listed? Add them under <button onClick={() => setTab("users")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Users</button> first; that sends the one-time onboarding link. After that they appear here with no further invite.</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Someone not listed? Add them under <button onClick={() => setTab("users")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Address book</button> first; that sends the one-time onboarding link. After that they appear here with no further invite.</div>
             </div>
             </div>
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
