@@ -24,7 +24,7 @@ const toActivity = (a, session, isNew) => {
 };
 
 // ---- load everything into the client state shape ----
-export async function loadAll(session, projectId) {
+export async function loadAll(session, projectId, projectName) {
   const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").eq("project_id", projectId).order("name"),
@@ -49,7 +49,7 @@ export async function loadAll(session, projectId) {
     users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, mustReset: !!p.must_reset })),
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
-    brand: brandFrom(branding.data),
+    brand: brandFrom(branding.data, projectName),
     subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
     tier3s: (tier3s.data || []).map((t) => ({ area: t.area, subArea: t.sub_area, name: t.name })),
   };
@@ -59,21 +59,24 @@ export async function loadAll(session, projectId) {
 // with the user's role per project and a light activity-stat summary for the portal.
 export async function loadProjects(session) {
   const me = session?.user?.id;
-  const [prof, projRes, memRes, statRes] = await Promise.all([
-    supabase.from("profiles").select("platform_role").eq("id", me).maybeSingle(),
+  const [prof, projRes, memRes, statRes, auditRes] = await Promise.all([
+    supabase.from("profiles").select("name, platform_role").eq("id", me).maybeSingle(),
     supabase.from("projects").select("*").order("name"),
     supabase.from("project_members").select("project_id, role").eq("user_id", me),
     supabase.from("activities").select("project_id, status, start_date, duration"),
+    supabase.from("audit_log").select("ts, user_name, action, entity, detail").order("ts", { ascending: false }).limit(8),
   ]);
   const isSuper = prof.data?.platform_role === "super";
+  const userName = prof.data?.name || (session?.user?.email || "");
   const roleByProj = {};
   (memRes.data || []).forEach((m) => { roleByProj[m.project_id] = m.role; });
   const todayMs = new Date().setHours(0, 0, 0, 0);
   const stat = {};
   (statRes.data || []).forEach((a) => {
-    const s = stat[a.project_id] || (stat[a.project_id] = { total: 0, complete: 0, overdue: 0 });
+    const s = stat[a.project_id] || (stat[a.project_id] = { total: 0, complete: 0, overdue: 0, inProgress: 0 });
     s.total++;
     if (a.status === "complete") { s.complete++; return; }
+    if (a.status === "in_progress") s.inProgress++;
     if (a.start_date) { const pf = new Date(a.start_date); pf.setDate(pf.getDate() + (a.duration || 1) - 1); if (pf.getTime() < todayMs) s.overdue++; }
   });
   const list = (projRes.data || []).map((p) => ({
@@ -81,13 +84,28 @@ export async function loadProjects(session) {
     accent: p.accent || "#1E63D6", logoUrl: p.logo_url || "", logoDark: p.logo_url_dark || "",
     tagline: p.tagline || "", appName: p.app_name || "DLP",
     role: isSuper ? "admin" : (roleByProj[p.id] || "member"),
-    stats: stat[p.id] || { total: 0, complete: 0, overdue: 0 },
+    stats: stat[p.id] || { total: 0, complete: 0, overdue: 0, inProgress: 0 },
   }));
-  return { isSuper, list };
+  const activity = (auditRes.data || []).map((e) => ({ user: e.user_name || "Someone", action: e.action || "", entity: e.entity || "", detail: e.detail || "", ts: e.ts }));
+  return { isSuper, userName, list, activity };
 }
 
-const brandFrom = (d) => ({
-  projectName: d?.project_name ?? "FIN04",
+// Super: create a new project and make the creator its admin.
+export async function createProject(fields, session) {
+  const id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("p" + Date.now());
+  const { error } = await supabase.from("projects").insert({
+    id, code: fields.code, name: fields.name, client: fields.client || null,
+    location: fields.location || null, accent: fields.accent || "#1E63D6",
+    status: "active", created_by: session?.user?.id || null,
+  });
+  if (error) throw error;
+  const { error: mErr } = await supabase.from("project_members").insert({ project_id: id, user_id: session.user.id, role: "admin", added_by: session.user.id });
+  if (mErr) throw mErr;
+  return id;
+}
+
+const brandFrom = (d, projectName) => ({
+  projectName: d?.project_name ?? projectName ?? "FIN04",
   appName: d?.app_name ?? "DLP",
   tagline: d?.tagline ?? "Collaborative Digital Planning",
   logoUrl: d?.logo_url ?? null,

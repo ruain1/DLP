@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
+import { loadAll, loadProjects, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain } from "./data";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -445,6 +445,29 @@ body.dark .lk-match.fuzzy{background:rgba(224,163,58,.18);color:#EAC178}
 .lk-pempty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px;border:1px dashed var(--line);border-radius:14px}
 @media(max-width:880px){.lk-ptiles{grid-template-columns:1fr 1fr}.lk-pgrid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.lk-pgrid,.lk-ptiles{grid-template-columns:1fr}}
+.lk-psection{font-size:14px;font-weight:700;margin:28px 0 13px}
+.lk-pnewcard{border:1.5px dashed var(--line);background:transparent;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:8px;min-height:190px;cursor:pointer;color:var(--muted);font-weight:600;font-size:13px}
+.lk-pnewcard:hover{border-color:var(--accent);color:var(--accent)}
+.lk-feed{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.lk-frow{display:flex;align-items:center;gap:12px;padding:11px 15px;border-bottom:1px solid var(--line)}
+.lk-frow:last-child{border-bottom:0}
+.lk-fav{width:28px;height:28px;border-radius:50%;background:var(--chipbg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink);flex:none;text-transform:uppercase}
+.lk-ft{font-size:12.5px;flex:1;color:var(--ink)}
+.lk-fdet{color:var(--muted)}
+.lk-fw{font-size:11px;color:var(--muted);white-space:nowrap}
+.lk-pmodback{position:fixed;inset:0;z-index:60;background:rgba(8,12,18,.55);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px}
+.lk-pmod{width:480px;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:22px 22px 18px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.lk-pmodh{font-size:18px;font-weight:700}
+.lk-pmodsub{font-size:12.5px;color:var(--muted);margin:4px 0 16px}
+.lk-pml{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;margin:12px 0 5px}
+.lk-pmi{width:100%;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13.5px;color:var(--ink)}
+.lk-pmrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.lk-pmsw{display:flex;gap:8px}
+.lk-pmswatch{width:28px;height:28px;border-radius:8px;cursor:pointer;border:2px solid transparent}
+.lk-pmswatch.on{border-color:var(--ink)}
+.lk-pmerr{color:#D9534F;font-size:12px;margin-top:12px}
+.lk-pmact{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+.lk-pmod .lk-btn.primary{background:var(--accent);color:#fff;border-color:transparent}
 `;
 
 const I = {
@@ -592,13 +615,29 @@ function defaults() {
   };
 }
 
-function Portal({ projects, isSuper, userName, theme, onEnter, onSignOut }) {
+function Portal({ projects, isSuper, userName, activity, theme, onEnter, onNew, onSignOut }) {
   useEffect(() => { const t = THEMES[theme] || THEMES.light; document.body.style.background = t.paper; }, [theme]);
-  const tot = projects.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete }), { total: 0, overdue: 0, complete: 0 });
+  const [showNew, setShowNew] = useState(false);
+  const [nf, setNf] = useState({ name: "", code: "", client: "", location: "", accent: "#1E63D6" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const first = (userName || "").trim().split(/\s+/)[0] || "there";
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  const dstr = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const tot = projects.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete, inProgress: a.inProgress + (p.stats.inProgress || 0) }), { total: 0, overdue: 0, complete: 0, inProgress: 0 });
+  const pcomplete = tot.total ? Math.round(tot.complete / tot.total * 100) : 0;
   const ring = (pct, accent) => {
     const r = 20, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
     return (<div className="lk-pring"><svg width="48" height="48"><circle cx="24" cy="24" r={r} fill="none" stroke="var(--line)" strokeWidth="5" /><circle cx="24" cy="24" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 24 24)" /></svg><div className="lk-pringlbl">{pct}<small>%</small></div></div>);
   };
+  const submit = async () => {
+    if (!nf.name.trim() || !nf.code.trim()) { setErr("Name and code are required."); return; }
+    setBusy(true); setErr("");
+    try { await onNew({ name: nf.name.trim(), code: nf.code.trim(), client: nf.client.trim(), location: nf.location.trim(), accent: nf.accent }); }
+    catch (e) { setErr(e.message || String(e)); setBusy(false); }
+  };
+  const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
   return (
     <div className="lk lk-portal" style={cssVars(theme)}><style>{css}</style>
       <div className="lk-pbar">
@@ -609,13 +648,15 @@ function Portal({ projects, isSuper, userName, theme, onEnter, onSignOut }) {
         <button className="lk-btn" onClick={onSignOut}>Sign out</button>
       </div>
       <div className="lk-pwrap">
-        <div className="lk-phello">Your projects</div>
-        <div className="lk-psubhello">{isSuper ? "You can see every project on the platform." : "You see only the projects you have been granted access to."}</div>
+        <div className="lk-phello">{greet}, {first}</div>
+        <div className="lk-psubhello">{dstr} &middot; {isSuper ? "you can see every project" : ("you are on " + projects.length + " project" + (projects.length === 1 ? "" : "s"))}</div>
         <div className="lk-ptiles">
-          <div className="lk-ptile"><div className="k">Projects</div><div className="v">{projects.length}</div></div>
-          <div className="lk-ptile"><div className="k">Activities</div><div className="v">{tot.total}</div></div>
+          <div className="lk-ptile"><div className="k">Active projects</div><div className="v">{projects.length}</div></div>
+          <div className="lk-ptile"><div className="k">In progress</div><div className="v" style={{ color: "var(--accent)" }}>{tot.inProgress}</div></div>
+          <div className="lk-ptile"><div className="k">Complete</div><div className="v">{pcomplete}%</div></div>
           <div className="lk-ptile"><div className="k">Overdue</div><div className="v" style={{ color: "#D9534F" }}>{tot.overdue}</div></div>
         </div>
+        <div className="lk-psection">Your projects</div>
         <div className="lk-pgrid">
           {projects.map((p) => {
             const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0;
@@ -633,9 +674,40 @@ function Portal({ projects, isSuper, userName, theme, onEnter, onSignOut }) {
               <div className="lk-pcardfoot"><span>{p.client || "\u00A0"}</span><span className="lk-penter">Enter &rsaquo;</span></div>
             </div>);
           })}
-          {projects.length === 0 && <div className="lk-pempty">You are not a member of any project yet. An administrator can add you to one.</div>}
+          {isSuper && <div className="lk-pnewcard" onClick={() => { setNf({ name: "", code: "", client: "", location: "", accent: "#1E63D6" }); setErr(""); setShowNew(true); }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>New project
+          </div>}
+          {projects.length === 0 && !isSuper && <div className="lk-pempty">You are not a member of any project yet. An administrator can add you to one.</div>}
         </div>
+        {activity && activity.length > 0 && <>
+          <div className="lk-psection">Recent activity</div>
+          <div className="lk-feed">
+            {activity.map((e, i) => <div key={i} className="lk-frow">
+              <div className="lk-fav">{(e.user || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("")}</div>
+              <div className="lk-ft"><b>{e.user}</b> {e.action}{e.detail ? <span className="lk-fdet"> {e.detail}</span> : null}</div>
+              <div className="lk-fw">{e.ts ? new Date(e.ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : ""}</div>
+            </div>)}
+          </div>
+        </>}
       </div>
+      {showNew && <div className="lk-pmodback" onClick={() => !busy && setShowNew(false)}>
+        <div className="lk-pmod" onClick={(e) => e.stopPropagation()}>
+          <div className="lk-pmodh">New project</div>
+          <div className="lk-pmodsub">Creates an isolated project. Nobody else sees it until you add them.</div>
+          <label className="lk-pml">Project name</label>
+          <input className="lk-pmi" value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} placeholder="atnorth Mantsala Data Centre" />
+          <div className="lk-pmrow">
+            <div><label className="lk-pml">Code</label><input className="lk-pmi" value={nf.code} onChange={(e) => setNf({ ...nf, code: e.target.value })} placeholder="FIN05" /></div>
+            <div><label className="lk-pml">Client</label><input className="lk-pmi" value={nf.client} onChange={(e) => setNf({ ...nf, client: e.target.value })} placeholder="atnorth" /></div>
+          </div>
+          <label className="lk-pml">Location</label>
+          <input className="lk-pmi" value={nf.location} onChange={(e) => setNf({ ...nf, location: e.target.value })} placeholder="Mantsala, Finland" />
+          <label className="lk-pml">Accent</label>
+          <div className="lk-pmsw">{SW.map((c) => <span key={c} className={"lk-pmswatch" + (nf.accent === c ? " on" : "")} style={{ background: c }} onClick={() => setNf({ ...nf, accent: c })} />)}</div>
+          {err && <div className="lk-pmerr">{err}</div>}
+          <div className="lk-pmact"><button className="lk-btn" disabled={busy} onClick={() => setShowNew(false)}>Cancel</button><button className="lk-btn primary" disabled={busy} onClick={submit}>{busy ? "Creating\u2026" : "Create project"}</button></div>
+        </div>
+      </div>}
     </div>
   );
 }
@@ -663,6 +735,8 @@ export default function App({ session }) {
   const [selProj, setSelProj] = useState(null);   // selected project id; null = portal
   const [booting, setBooting] = useState(true);
   const [swOpen, setSwOpen] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [activity, setActivity] = useState([]);
   const selProjRef = useRef(null);
   const projectsRef = useRef([]);
   useEffect(() => { selProjRef.current = selProj; }, [selProj]);
@@ -676,7 +750,7 @@ export default function App({ session }) {
     setSelProj(projectId);
     try { history.replaceState(null, "", "?p=" + projectId); } catch (e) {}
     try {
-      const data = await loadAll(session, projectId);
+      const data = await loadAll(session, projectId, proj?.name);
       const p = prefs();
       setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company" });
     } catch (e) { console.error("Load failed:", e); }
@@ -685,8 +759,8 @@ export default function App({ session }) {
 
   const boot = async () => {
     try {
-      const { isSuper: sup, list } = await loadProjects(session);
-      setIsSuper(sup); setProjects(list); projectsRef.current = list;
+      const { isSuper: sup, userName: nm, list, activity: act } = await loadProjects(session);
+      setIsSuper(sup); setProjects(list); projectsRef.current = list; setUserName(nm || ""); setActivity(act || []);
       const urlP = (() => { try { return new URLSearchParams(location.search).get("p"); } catch { return null; } })();
       let target = null;
       if (urlP && list.find((x) => x.id === urlP)) target = urlP;
@@ -695,6 +769,12 @@ export default function App({ session }) {
       else setSelProj(null);
     } catch (e) { console.error("Boot failed:", e); }
     setBooting(false);
+  };
+  const createProjectAndEnter = async (fields) => {
+    const id = await createProject(fields, session);
+    const { list } = await loadProjects(session);
+    setProjects(list); projectsRef.current = list;
+    await enterProject(id, list);
   };
   useEffect(() => { boot(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const ch = subscribeAll(() => { if (selProjRef.current) enterProject(selProjRef.current); }); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -784,7 +864,7 @@ export default function App({ session }) {
   }, [S, anchor, DAYS]);
 
   if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
-  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={session.user.email} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onSignOut={() => signOut()} />;
+  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id) => enterProject(id)} onNew={createProjectAndEnter} onSignOut={() => signOut()} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
   const LV = S.levels || DEFAULT_LEVELS;
