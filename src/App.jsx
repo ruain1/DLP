@@ -187,10 +187,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-uacts{display:flex;align-items:center;gap:5px;justify-content:flex-end}
-.lk-mrow{display:grid;grid-template-columns:30px minmax(120px,1fr) minmax(86px,128px) 104px 50px 116px 30px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 11px;background:var(--card);font-size:12.5px;margin-bottom:7px}
-.lk-mhead{display:grid;grid-template-columns:30px minmax(120px,1fr) minmax(86px,128px) 104px 50px 116px 30px;align-items:center;gap:10px;padding:2px 11px 6px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.lk-mrow{display:grid;grid-template-columns:34px minmax(140px,1fr) minmax(86px,128px) 104px 50px 116px 30px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);font-size:12.5px;margin-bottom:7px}
+.lk-mhead{display:grid;grid-template-columns:34px minmax(140px,1fr) minmax(86px,128px) 104px 50px 116px 30px;align-items:center;gap:10px;padding:2px 13px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
 .lk-mhead .ctr{text-align:center}
-.lk-mav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:#fff;flex:none}
+.lk-mav{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff;flex:none}
 .lk-mrow .lk-mname{min-width:0;display:flex;align-items:center;gap:7px;overflow:hidden}
 .lk-mrow .lk-mname b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lk-mrow .lk-you{font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;flex:none}
@@ -2208,8 +2208,8 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       setReqs((rs) => rs.map((r) => r.id === a.req.id ? { ...r, status: "approved", decidedByName: cu.name, decidedAt: new Date().toISOString() } : r));
       setApprove(null); setReqBusy(false);
       const projName = S.brand?.projectName || "this project";
-      setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, title: "Approved \u00b7 " + (granted ? ((a.projRole === "admin" ? "Admin" : "Member") + " on " + projName) : (a.grantProject ? "account made, grant failed" : (companyName || "address book only"))) });
-      setUserMsg(grantErr ? ("Account created, but the project grant failed: " + grantErr + ". Add them under Members.") : "");
+      setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, title: "Approved \u00b7 " + (granted ? ((a.projRole === "admin" ? "Admin" : "Member") + " on " + projName) : (a.grantProject ? "account made, grant failed" : (companyName || "global contacts only"))) });
+      setUserMsg(grantErr ? ("Account created, but the project grant failed: " + grantErr + ". Add them under Project Team.") : "");
     } catch (e) { setReqBusy(false); setUserMsg("Approve failed: " + (e.message || e)); }
   };
   const doReject = async () => {
@@ -2351,7 +2351,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   };
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
-    ["User management", [["users", "Address book"], ["members", "Members"], ["requests", "Access requests"]]],
+    ["User management", [["users", "Global Contacts"], ["members", "Project Team"], ["requests", "Access requests"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
     ["About", [["changelog", "Changelog"]]],
@@ -2402,7 +2402,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             <div className="lk-add"><input className="lk-in" placeholder="Add building…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
           </>}
           {tab === "users" && <div className="lk-userwrap"><div className="lk-usermain">
-            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Everyone on the platform. Add a person once here; putting them on projects (under <button onClick={() => setTab("members")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Members</button>) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Everyone on the platform. Add a person once here; putting them on projects (under <button onClick={() => setTab("members")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Project Team</button>) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
             <div className="lk-ufilter">
               <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or email…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
               <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -2442,7 +2442,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>}
               </div>; })}</>;
             })()}
-            <div className="lk-f"><label>Add A Person To The Address Book (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
+            <div className="lk-f"><label>Add A Person To Global Contacts (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
             <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
             <div className="lk-row">
               <select className="lk-select" value={nu.companyId} onChange={(e) => setNu({ ...nu, companyId: e.target.value, role: "member" })}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -2490,7 +2490,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                     <button className="lk-btn" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); setManageId(null); }}><Icon n="list" s={14} />View audit trail</button>
                     <button className="lk-btn" onClick={() => sendLink(u.id, u.name)}><Icon n="mail" s={14} />Resend set-password link</button>
                     <button className="lk-btn" onClick={() => resetPw(u.id, u.name)}><Icon n="cog" s={14} />Reset password</button>
-                    {!isSelf && <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setManageId(null); askDel("Delete " + (u.name || "this person") + " from the address book? This removes their account and every project access.", () => delUser(u.id, u.name)); }}><Icon n="trash" s={14} />Remove from platform</button>}
+                    {!isSelf && <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setManageId(null); askDel("Delete " + (u.name || "this person") + " from Global Contacts? This removes their account and every project access.", () => delUser(u.id, u.name)); }}><Icon n="trash" s={14} />Remove from platform</button>}
                   </div>
                 </div>
                 <div className="rep-foot"><button className="lk-btn primary" onClick={() => setManageId(null)}>Done</button></div>
@@ -2516,7 +2516,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               rows.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1) || (a.u.name || "").localeCompare(b.u.name || ""));
               return <>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>Members of this project</div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Project team</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{members ? all.length + " member" + (all.length === 1 ? "" : "s") + " \u00b7 " + adminCount + " admin" + (adminCount === 1 ? "" : "s") : ""}</div>
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Adding someone here grants access to this project immediately, with no invite to accept. Removing them revokes only this project; they keep their account and any other projects.</div>
@@ -2527,7 +2527,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Role</label><select className="lk-select" value={mfRole} onChange={(e) => setMfRole(e.target.value)}><option value="all">All roles</option><option value="admin">Admins</option><option value="member">Members</option></select></div>
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><select className="lk-select" value={mfStatus} onChange={(e) => setMfStatus(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="pending">Invite pending</option></select></div>
                   </div>
-                  {!all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members yet. Add people from the address book below.</div>
+                  {!all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one on the team yet. Add people from Global Contacts below.</div>
                     : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
                     : <>
                       <div className="lk-mhead"><span /><span>Member</span><span>Company</span><span>Status</span><span className="ctr">Proj</span><span>Role on project</span><span /></div>
@@ -2542,21 +2542,21 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                           ? <button title="Remove from this project" onClick={() => askDel("Remove " + (r.u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(r.user_id, r.u.name))}><Icon n="trash" s={14} /></button>
                           : <span style={{ width: 20 }} title="You can't remove yourself" />}
                       </div>; })}
-                      {orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} member{orphan === 1 ? "" : "s"} not shown (no profile in the address book yet).</div> : null}
+                      {orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} {orphan === 1 ? "person" : "people"} not shown (no profile in Global Contacts yet).</div> : null}
                     </>}
                 </>}
               </>;
             })()}
             {memMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>{memMsg}</div>}
             <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-              <div className="lk-f"><label>Add Members From The Address Book</label><input className="lk-in" placeholder="Search people by name or company…" value={memQ} onChange={(e) => setMemQ(e.target.value)} /></div>
+              <div className="lk-f"><label>Add People From Global Contacts</label><input className="lk-in" placeholder="Search people by name or company…" value={memQ} onChange={(e) => setMemQ(e.target.value)} /></div>
               <div className="lk-row" style={{ alignItems: "center", marginBottom: 8 }}><span style={{ fontSize: 11.5, color: "var(--muted)" }}>Add as</span><select className="lk-select" style={{ maxWidth: 140 }} value={memRole} onChange={(e) => setMemRole(e.target.value)}><option value="member">Member</option><option value="admin">Admin</option></select></div>
               {(() => {
                 const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
                 const have = new Set((members || []).map((m) => m.user_id));
                 const q = memQ.trim().toLowerCase();
                 const cands = S.users.filter((u) => !have.has(u.id) && (!q || (`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q)))).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-                if (!cands.length) return <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{q ? "No one in the address book matches." : "Everyone in the address book is already a member."}</div>;
+                if (!cands.length) return <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{q ? "No one in Global Contacts matches." : "Everyone in Global Contacts is already on this project."}</div>;
                 return <div className="lk-list" style={{ maxHeight: 280, overflow: "auto" }}>{cands.slice(0, 60).map((u) => { const np = mcount[u.id] || 0; return <div key={u.id} className="lk-li" style={{ gap: 9, alignItems: "center" }}>
                   <span className="lk-mav" style={{ background: avBg(u.id), width: 26, height: 26, fontSize: 10 }}>{avInit(u.name)}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -2566,7 +2566,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   <button className="lk-btn" onClick={() => addMem(u.id, u.name)}><Icon n="plus" s={13} />Add</button>
                 </div>; })}{cands.length > 60 && <div style={{ fontSize: 11, color: "var(--muted)", padding: "6px 2px" }}>Showing first 60. Refine the search to narrow.</div>}</div>;
               })()}
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Someone not listed? Add them under <button onClick={() => setTab("users")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Address book</button> first; that sends the one-time onboarding link. After that they appear here with no further invite.</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Someone not listed? Add them under <button onClick={() => setTab("users")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Global Contacts</button> first; that sends the one-time onboarding link. After that they appear here with no further invite.</div>
             </div>
             </div>
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
