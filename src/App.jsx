@@ -705,6 +705,20 @@ const PORTAL_CSS = `
 .qp .ovsel-b .r b{color:var(--ink);font-weight:600;display:flex;align-items:center;gap:7px}
 .qp .ovsel-b .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .qp .ovsel-f{padding:12px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
+.qp .tile{cursor:pointer;transition:border-color .12s,transform .12s}
+.qp .tile:hover{border-color:var(--accent);transform:translateY(-1px)}
+.qp .ovsel.wide{width:460px}
+.qp .ovsel-sub{font-size:12px;color:var(--muted);margin-top:3px;font-weight:500}
+.qp .drillb{max-height:60vh;overflow-y:auto;padding:10px 12px}
+.qp .drow{display:flex;align-items:center;gap:12px;justify-content:space-between;border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:9px 11px;margin-bottom:7px;cursor:pointer}
+.qp .drow:last-child{margin-bottom:0}
+.qp .drow:hover{background:var(--chip)}
+.qp .drow-m{min-width:0;display:flex;flex-direction:column;gap:2px;flex:1}
+.qp .drow-m b{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp .drow-m span{font-size:11px;color:var(--muted)}
+.qp .drow-bar{height:5px;border-radius:3px;background:var(--chip);overflow:hidden;margin-top:5px;width:140px}
+.qp .drow-bar i{display:block;height:100%;background:#1FB6A6;border-radius:3px}
+.qp .drow-chip{flex:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;border:1px solid;background:transparent;white-space:nowrap}
 .qp .qp-foot{text-align:center;font-size:11.5px;color:var(--muted);padding:26px 22px 34px;border-top:1px solid var(--line);margin-top:34px}
 .qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
 .qp .switcher{position:relative;margin-left:6px}
@@ -811,6 +825,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const [ovView, setOvView] = useState("swimlane");
   const [ovGran, setOvGran] = useState("day");
   const [ovSel, setOvSel] = useState(null);
+  const [tileSel, setTileSel] = useState(null);
   useEffect(() => {
     const v = portalVars(theme); document.body.style.background = v["--backdrop"];
     try { let l = document.querySelector("link[rel='icon']"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); } l.type = "image/png"; l.href = QMC_FAV; } catch (e) {}
@@ -825,6 +840,14 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const tot = projects.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete, inProgress: a.inProgress + (p.stats.inProgress || 0) }), { total: 0, overdue: 0, complete: 0, inProgress: 0 });
   const pcomplete = tot.total ? Math.round(tot.complete / tot.total * 100) : 0;
   const clients = new Set(projects.map((p) => p.client).filter(Boolean)).size;
+  const tileData = (() => {
+    if (!tileSel) return null;
+    if (tileSel === "active") return { title: "Active projects", sub: projects.length + " project" + (projects.length === 1 ? "" : "s") + (clients ? " across " + clients + " client" + (clients === 1 ? "" : "s") : ""), rows: projects.map((p) => ({ id: p.id, name: p.name, sub: (p.code || "") + (p.client ? " \u00B7 " + p.client : ""), chip: p.stats.total + " act", color: "var(--muted)" })) };
+    if (tileSel === "progress") return { title: "Activities in progress", sub: tot.inProgress + " in progress portfolio-wide", rows: projects.filter((p) => (p.stats.inProgress || 0) > 0).sort((a, b) => (b.stats.inProgress || 0) - (a.stats.inProgress || 0)).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: (p.stats.inProgress || 0) + " in progress", color: "var(--accent)" })) };
+    if (tileSel === "complete") return { title: "Complete", sub: pcomplete + "% \u00B7 " + tot.complete + " of " + tot.total + " activities complete", rows: projects.map((p) => { const pc = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return { id: p.id, name: p.name, sub: p.stats.complete + " of " + p.stats.total + " complete", chip: pc + "%", color: "#1FB6A6", bar: pc }; }) };
+    if (tileSel === "overdue") return { title: "Overdue", sub: tot.overdue + " activit" + (tot.overdue === 1 ? "y" : "ies") + " need attention", rows: projects.filter((p) => p.stats.overdue > 0).sort((a, b) => b.stats.overdue - a.stats.overdue).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: p.stats.overdue + " overdue", color: "#C0392B" })) };
+    return null;
+  })();
   const fmtAgo = (ts) => { if (!ts) return ""; const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const d = Math.floor(h / 24); if (d === 1) return "yesterday"; if (d < 7) return d + " days ago"; return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
   const ringEl = (pct, accent) => { const r = 22, c = 2 * Math.PI * r, off = c * (1 - pct / 100); return (<div className="ring"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r={r} fill="none" stroke="var(--ring-track)" strokeWidth="5" /><circle cx="26" cy="26" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} /></svg><div className="lbl">{pct}<small>%</small></div></div>); };
@@ -946,10 +969,10 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           <div className="hello">{greet}, {first}</div>
           <div className="subhello">{dstr} &middot; {isSuper ? "you can see every project" : ("you are on " + projects.length + " project" + (projects.length === 1 ? "" : "s"))}</div>
           <div className="tiles" style={{ marginTop: 20 }}>
-            <div className="tile"><div className="k">Active projects</div><div className="v mono">{projects.length}</div><div className="d">{clients ? "across " + clients + " client" + (clients === 1 ? "" : "s") : "\u00A0"}</div></div>
-            <div className="tile"><div className="k">Activities in progress</div><div className="v mono" style={{ color: "var(--signal)" }}>{tot.inProgress}</div><div className="d">portfolio-wide</div></div>
-            <div className="tile"><div className="k">Complete</div><div className="v mono" style={{ color: "var(--green)" }}>{pcomplete}%</div><div className="d">of all activities</div></div>
-            <div className="tile"><div className="k">Overdue</div><div className="v mono" style={{ color: "var(--red)" }}>{tot.overdue}</div><div className="d">need attention</div></div>
+            <div className="tile" onClick={() => setTileSel("active")}><div className="k">Active projects</div><div className="v mono">{projects.length}</div><div className="d">{clients ? "across " + clients + " client" + (clients === 1 ? "" : "s") : "\u00A0"}</div></div>
+            <div className="tile" onClick={() => setTileSel("progress")}><div className="k">Activities in progress</div><div className="v mono" style={{ color: "var(--signal)" }}>{tot.inProgress}</div><div className="d">portfolio-wide</div></div>
+            <div className="tile" onClick={() => setTileSel("complete")}><div className="k">Complete</div><div className="v mono" style={{ color: "var(--green)" }}>{pcomplete}%</div><div className="d">of all activities</div></div>
+            <div className="tile" onClick={() => setTileSel("overdue")}><div className="k">Overdue</div><div className="v mono" style={{ color: "var(--red)" }}>{tot.overdue}</div><div className="d">need attention</div></div>
           </div>
           <div className="sech"><h2>Your projects</h2><span className="lk" onClick={() => setScene("projects")}>View all</span></div>
           <div className="pgrid">
@@ -1093,6 +1116,23 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           </> : <div className="empty">You are not a member of any project yet.</div>}
         </div>
       </div>
+      {tileData && (
+        <div className="ovsel-back" onClick={() => setTileSel(null)}>
+          <div className="ovsel wide" onClick={(e) => e.stopPropagation()}>
+            <div className="ovsel-h"><div style={{ flex: 1, minWidth: 0 }}><b>{tileData.title}</b><div className="ovsel-sub">{tileData.sub}</div></div><button onClick={() => setTileSel(null)} aria-label="Close">{"\u00D7"}</button></div>
+            <div className="drillb">
+              {tileData.rows.length === 0
+                ? <div className="ip-empty" style={{ padding: "18px" }}>Nothing to show here.</div>
+                : tileData.rows.map((r) => (
+                  <div className="drow" key={r.id} onClick={() => { setTileSel(null); onEnter(r.id); }}>
+                    <div className="drow-m"><b>{r.name}</b><span>{r.sub}</span>{r.bar != null && <div className="drow-bar"><i style={{ width: r.bar + "%" }} /></div>}</div>
+                    <span className="drow-chip" style={{ color: r.color, borderColor: r.color }}>{r.chip}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="qp-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
     </div>
   );
