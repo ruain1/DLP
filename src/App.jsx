@@ -375,6 +375,29 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 @keyframes lkpulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}70%{box-shadow:0 0 0 6px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
 @media (max-width:900px){.lk-userwrap{flex-direction:column}.lk-userside{width:100%;position:static}}
 .lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+.lk-helppage{height:calc(100vh - 54px);display:flex;flex-direction:column;overflow:hidden;background:var(--paper)}
+.lk-helphero{flex:0 0 auto;margin:14px 18px 4px;border-radius:16px;padding:15px 22px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(135deg,#1E1B4B 0%,#312E81 58%,#4338CA 100%);position:relative;overflow:hidden;box-shadow:0 14px 34px -20px rgba(49,46,129,.7)}
+.lk-helphero::after{content:"";position:absolute;inset:0;background:radial-gradient(150px 150px at 92% -30%,rgba(255,255,255,.16),transparent 70%),repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 56px);pointer-events:none}
+.lk-helphero .hh{position:relative;z-index:1}
+.lk-helphero .eyebrow{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#C7C9F2;margin-bottom:5px}
+.lk-helphero h1{font-size:21px;font-weight:700;margin:0;line-height:1.15}
+.lk-helphero h1 b{color:#A5B4FC;font-weight:700}
+.lk-helphero .lede{color:#CBD0E6;font-size:12px;margin-top:6px;max-width:64ch}
+.lk-helphero .proj{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-align:right}
+.lk-helphero .proj img{height:30px;max-width:160px;object-fit:contain}
+.lk-helphero .proj .pl{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;color:#C7C9F2}
+.lk-helpmain{flex:1;min-height:0;display:flex;gap:22px;padding:10px 18px 0;align-items:stretch}
+.lk-helpnav{flex:0 0 200px;display:flex;flex-direction:column;gap:14px;overflow:auto;padding-bottom:16px}
+.lk-helpnav .grp{display:flex;flex-direction:column;gap:2px}
+.lk-helpnav .grphd{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:0 8px 3px}
+.lk-helpnav button{text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:7px;padding:7px 10px;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px}
+.lk-helpnav button:hover{background:var(--hover)}
+.lk-helpnav button.sel{background:var(--ink);color:var(--paper)}
+.lk-helpnav .tag{margin-left:auto;font-size:8px;letter-spacing:.04em;font-family:ui-monospace,monospace;color:var(--accent);opacity:.7}
+.lk-helpnav button.sel .tag{color:var(--paper);opacity:.6}
+.lk-helppane{flex:1;min-width:0;border:1px solid var(--line);border-top-left-radius:14px;border-top-right-radius:14px;overflow:hidden;background:var(--paper)}
+.lk-helppane iframe{width:100%;height:100%;border:0;display:block;background:var(--paper)}
+@media(max-width:820px){.lk-helpmain{flex-direction:column}.lk-helpnav{flex:none;width:100%;flex-direction:row;flex-wrap:wrap;overflow:visible}.lk-helppane{min-height:60vh}}
 .lk-ugroup{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .lk-ughead{display:flex;align-items:center;gap:8px;width:100%;font-weight:700;font-size:12.5px;padding:9px 12px;background:var(--card);border:0;color:var(--ink);cursor:pointer;text-align:left;font-family:inherit}
 .lk-ughead .cnt{font-weight:500;color:var(--muted);font-size:11px}
@@ -1833,7 +1856,7 @@ export default function App({ session }) {
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} isAdmin={isAdmin} by={cu.name} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
-      {page === "help" && <HelpPage dark={S.theme === "dark"} />}
+      {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
       </div>
@@ -3591,10 +3614,54 @@ function LatestOnline({ users, ustat, pres }) {
     </div>);
 }
 
-function HelpPage({ dark }) {
+function HelpPage({ dark, admin, brandLogo, proj }) {
+  const ADMIN_ONLY = new Set(["weekly", "r_admin"]);
+  const HOWTO_SIM = new Set(["board", "views", "analytics"]);
+  const NAV = [
+    ["Quick Reference", [
+      ["r_overview", "Sign in & scope"], ["r_navigate", "Find your way around"], ["r_board", "The Planning Board"],
+      ["r_card", "The activity card"], ["r_table", "The Activity Table"], ["r_schedpage", "The Schedule page"],
+      ["r_reading", "Reading the schedule"], ["r_constraints", "Constraints & make-ready"], ["r_commit", "Committing & PPC"],
+      ["r_witness", "Witness invites"], ["r_analytics", "Analytics & reports"], ["r_admin", "Admin & settings"],
+      ["r_cxstages", "Cx stages & colours"], ["r_markers", "Markers & chips"], ["r_codes", "Location codes"]]],
+    ["How To", [
+      ["board", "Add via Planning Board"], ["table", "Add via Activity Table"], ["import", "Bulk import (Excel/CSV)"],
+      ["views", "Switch & read views"], ["reschedule", "Reschedule & links"], ["constraints", "Constraints & make-ready"],
+      ["witness", "Witness invites"], ["ytt", "YTT daily focus"], ["analytics", "Dashboard & popouts"], ["weekly", "Weekly Report"]]],
+  ];
+  const [hp, setHp] = useState("r_overview");
+  const frameRef = useRef(null);
+  const srcRef = useRef("help.html?embed=1" + (dark ? "&theme=dark" : "") + "&page=r_overview");
+  const post = (msg) => { try { const w = frameRef.current && frameRef.current.contentWindow; if (w) w.postMessage(msg, "*"); } catch (e) { } };
+  useEffect(() => { post({ src: "dlp-help", type: "help-nav", page: hp }); }, [hp]);
+  useEffect(() => { post({ src: "dlp-help", type: "help-theme", dark: !!dark }); }, [dark]);
+  const onLoad = () => { post({ src: "dlp-help", type: "help-theme", dark: !!dark }); post({ src: "dlp-help", type: "help-nav", page: hp }); };
+  const sub = proj && (proj.client || proj.location) ? [proj.client, proj.location].filter(Boolean).join(", ") : "";
   return (
-    <div className="lk-help" style={{ background: dark ? "#10151C" : undefined }}>
-      <iframe title="DLP Board Quick Reference" src={dark ? "help.html?theme=dark" : "help.html"} style={{ background: dark ? "#10151C" : "#fff" }} />
+    <div className="lk-helppage">
+      <div className="lk-helphero">
+        <div className="hh">
+          <div className="eyebrow">Digital Last Planner System &middot; Commissioning</div>
+          <h1>Help &amp; <b>Quick Reference</b></h1>
+          <div className="lede">Everything in one place: a Quick Reference to every part of the app, plus step-through How To tutorials.</div>
+        </div>
+        <div className="proj">
+          {brandLogo ? <img src={brandLogo} alt="" /> : null}
+          <span className="pl">{(proj && proj.code) || ""}{sub ? " \u00B7 " + sub : ""}</span>
+        </div>
+      </div>
+      <div className="lk-helpmain">
+        <nav className="lk-helpnav">
+          {NAV.map(([g, items]) => {
+            const vis = items.filter(([k]) => admin || !ADMIN_ONLY.has(k));
+            if (!vis.length) return null;
+            return <div key={g} className="grp"><div className="grphd">{g}</div>{vis.map(([k, l]) => <button key={k} className={hp === k ? "sel" : ""} onClick={() => setHp(k)}>{l}{ADMIN_ONLY.has(k) ? <span className="tag">Admin</span> : (HOWTO_SIM.has(k) ? <span className="tag">Try</span> : null)}</button>)}</div>;
+          })}
+        </nav>
+        <div className="lk-helppane">
+          <iframe ref={frameRef} title="DLP Help" src={srcRef.current} onLoad={onLoad} />
+        </div>
+      </div>
     </div>
   );
 }
