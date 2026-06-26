@@ -141,10 +141,16 @@
   @media(max-width:860px){ .shell{ flex-direction:column; } .subnav{ position:static; flex:none; width:100%; flex-direction:row; flex-wrap:wrap; } .step,.refgrid{ grid-template-columns:1fr; } .kpis{ grid-template-columns:repeat(2,1fr); } }
   .atnlogo{ width:188px; max-width:44vw; height:auto; display:block; margin-bottom:8px; }
   .hfoot{ text-align:center; color:var(--faint); font-size:11.5px; margin-top:26px; font-family:var(--mono); letter-spacing:.02em; }
+  /* embedded in the app: hide hero, internal nav and footer; the app supplies those natively */
+  body.embed{ padding:0; }
+  body.embed .chrome, body.embed .mast, body.embed .subnav, body.embed .hfoot{ display:none !important; }
+  body.embed .wrap{ max-width:none; }
+  body.embed .shell{ gap:0; }
+  body.embed .subbody{ border:0; border-radius:0; box-shadow:none; min-height:100vh; padding:18px 22px 44px; }
 </style>
 </head>
 <body>
-<script>try{var sp=new URLSearchParams(location.search);if(sp.get('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<script>try{var sp=new URLSearchParams(location.search);if(sp.get('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');if(sp.get('embed')==='1')document.body.classList.add('embed');}catch(e){}</script>
 <div class="wrap">
 
   <div class="chrome">
@@ -396,7 +402,12 @@ function simAna(){ const mb=document.getElementById('mb');
   mb.innerHTML=`<div class="coach"><span class="s">Try</span><div>Click a <b>KPI tile</b> to open its drill popout, then a row to jump to that activity on the board.</div></div><div class="ill"><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:11px">${ring(75,'var(--amber)')}${realKpis()}</div><div class="popout" id="po"><div class="ph"><span id="poT"></span><span style="color:var(--mut);cursor:pointer" id="poX">✕</span></div><div class="pr"><span class="dot" style="background:var(--ready)"></span> Energise UPS A · CTS Nordics <span class="go">open ›</span></div><div class="pr"><span class="chip wit">WIT</span> Busbar batch 3 · Mecwide <span class="go">open ›</span></div><div class="pr">Modbus comms test · Gapit Nordics <span class="go">open ›</span></div></div></div>`;
   mb.querySelectorAll('.kpi').forEach(k=>k.onclick=()=>{ mb.querySelector('#poT').textContent=k.dataset.k; mb.querySelector('#po').classList.add('show'); }); mb.querySelector('#poX').onclick=()=>mb.querySelector('#po').classList.remove('show');
 }
+try{const pp=new URLSearchParams(location.search).get('page'); if(pp&&(REF[pp]||TUT[pp])){ cur=pp; mode='walk'; step=0; }}catch(e){}
 renderNav(); renderBody();
+window.addEventListener('message',function(ev){ var d=ev.data; if(!d||d.src!=='dlp-help') return;
+  if(d.type==='help-theme'){ if(d.dark) document.documentElement.setAttribute('data-theme','dark'); else document.documentElement.removeAttribute('data-theme'); return; }
+  if(d.type==='help-nav' && d.page && (REF[d.page]||TUT[d.page])){ cur=d.page; mode='walk'; step=0; renderNav(); renderBody(); try{(document.scrollingElement||document.documentElement).scrollTop=0;}catch(e){} }
+});
 </script>
 </body>
 </html>
