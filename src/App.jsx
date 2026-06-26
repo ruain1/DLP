@@ -3572,7 +3572,7 @@ function SchedulePage({ S, coName, onOpen }) {
       </div>
       {view === "gantt" && source === "p6" && hasBaseline && <BaselineGantt baseline={bl} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
       {view === "gantt" && source === "compare" && hasBaseline && <CompareGantt baseline={bl} live={S.activities} mappings={bl.mappings} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
-      {view === "gantt" && source === "live" && <div className="lk-sch-scroll" style={{ background: P.bg }}>
+      {view === "gantt" && (source === "live" || !hasBaseline) && <div className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
         <>
         <svg className="lk-sch-axis" width={W} height={headH} viewBox={`0 0 ${W} ${headH}`} xmlns="http://www.w3.org/2000/svg" style={{ position: "sticky", top: 0, zIndex: 3, display: "block", marginBottom: -headH, background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
