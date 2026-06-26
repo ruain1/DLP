@@ -2231,6 +2231,11 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     setBlBusy(false);
   };
   const blMiles = (acts) => (acts || []).filter((a) => a.ms).slice().sort((x, y) => (x.end < y.end ? -1 : 1));
+  const [mapDraft, setMapDraft] = useState({});
+  const [mapAll, setMapAll] = useState(false);
+  const [mapQ, setMapQ] = useState("");
+  const [mapSaved, setMapSaved] = useState(false);
+  useEffect(() => { setMapDraft((bl && bl.mappings) || {}); }, [bl]);
   const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
   const [impMsg, setImpMsg] = useState("");
@@ -2877,6 +2882,43 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   <button className="lk-btn" style={{ color: "var(--red)" }} disabled={blBusy} onClick={removeBl}>Remove baseline</button>
                 </div>
               </div>); })()}
+            {bl && bl.meta && !blPrev && !blTab && (() => {
+              const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+              const liveActs = (S.activities || []).slice().sort((a, b) => (a.desc || "").localeCompare(b.desc || ""));
+              const allItems = bl.activities || [];
+              const baseItems = (mapAll ? allItems : allItems.filter((a) => a.ms)).filter((a) => { if (!mapQ) return true; const q = mapQ.toLowerCase(); return (a.name || "").toLowerCase().indexOf(q) !== -1 || String(a.code || "").toLowerCase().indexOf(q) !== -1; });
+              const shown = mapAll ? baseItems.slice(0, 60) : baseItems;
+              const suggest = (item) => { const n = norm(item.name); if (!n) return ""; let hit = liveActs.find((l) => norm(l.desc) === n); if (!hit) hit = liveActs.find((l) => { const ln = norm(l.desc); return ln && (ln.indexOf(n) !== -1 || n.indexOf(ln) !== -1); }); return hit ? hit.id : ""; };
+              const mappedCount = Object.keys(mapDraft).filter((k) => mapDraft[k]).length;
+              return (
+              <div style={{ border: "1px solid var(--line)", borderRadius: 10, background: "var(--card)", padding: 14, marginTop: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>Activity mapping</span>
+                  <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{mappedCount} mapped</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12, maxWidth: "74ch" }}>Map P6 baseline activities to their live counterparts so Compare can show per-row variance. Milestones matter most; unmapped baseline items still appear on the Schedule aligned by date.</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+                  <input className="lk-in" placeholder="Search baseline activities\u2026" value={mapQ} onChange={(e) => setMapQ(e.target.value)} style={{ maxWidth: 260 }} />
+                  <button className={"lk-btn" + (mapAll ? " on" : "")} onClick={() => setMapAll((v) => !v)}>{mapAll ? "All activities" : "Milestones only"}</button>
+                  <div style={{ flex: 1 }} />
+                  {mapSaved && <span style={{ fontSize: 11.5, color: "#0E9384" }}>Saved</span>}
+                  <button className="lk-btn primary" disabled={blBusy} onClick={async () => { setBlBusy(true); setBlErr(""); try { await saveBaselineMappings(S.projectId, mapDraft); setBl({ ...bl, mappings: { ...mapDraft } }); setMapSaved(true); setTimeout(() => setMapSaved(false), 2500); } catch (e) { setBlErr(e && e.message ? e.message : "Mapping save failed."); } setBlBusy(false); }}>Save mapping</button>
+                </div>
+                <div style={{ maxHeight: 360, overflow: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
+                  {shown.length === 0 ? <div style={{ padding: 14, fontSize: 12.5, color: "var(--muted)" }}>No baseline activities match.</div> : shown.map((item) => { const sug = suggest(item); const val = mapDraft[item.pid] || ""; return (
+                    <div key={item.pid} style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 10, alignItems: "center", padding: "7px 10px", borderBottom: "1px solid var(--line)" }}>
+                      <div style={{ minWidth: 0 }}><div style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ms && <span style={{ display: "inline-block", width: 8, height: 8, background: "var(--muted)", transform: "rotate(45deg)", marginRight: 6, verticalAlign: "middle" }} />}{item.name}</div><div className="mono" style={{ fontSize: 10.5, color: "var(--muted)" }}>{item.code} \u00b7 {item.end || item.start}</div></div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <select className="lk-select" value={val} onChange={(e) => setMapDraft((m) => ({ ...m, [item.pid]: e.target.value }))} style={{ flex: 1, minWidth: 0 }}>
+                          <option value="">{"\u2014 unmapped \u2014"}</option>
+                          {liveActs.map((l) => <option key={l.id} value={l.id}>{(l.code != null ? "#" + l.code + " " : "") + (l.desc || "Untitled")}</option>)}
+                        </select>
+                        {!val && sug && <button className="lk-btn" title="Use suggested match" style={{ whiteSpace: "nowrap", fontSize: 11 }} onClick={() => setMapDraft((m) => ({ ...m, [item.pid]: sug }))}>Suggest</button>}
+                      </div>
+                    </div>); })}
+                </div>
+                {mapAll && baseItems.length > shown.length && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Showing first {shown.length} of {baseItems.length}. Refine the search to see more.</div>}
+              </div>); })()}
             {!bl && !blPrev && !blTab && <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: 22, textAlign: "center", background: "var(--card)" }}>
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>No P6 baseline stored for this project yet.</div>
               <label className="lk-btn primary"><input type="file" accept=".xer,.xml,.csv,.xlsx" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />{blBusy ? "Reading\u2026" : "Upload .xer / .xml / .csv / .xlsx"}</label>
@@ -3341,6 +3383,80 @@ function BaselineGantt({ baseline, LV, dark, zoom, compact, P }) {
   );
 }
 
+function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P }) {
+  const [collapsed, setCollapsed] = useState({});
+  const svgRef = useRef(null);
+  const colorOf = (a) => ((LV[a.level] || {}).color || "#64748B");
+  const baseById = {}; ((baseline && baseline.activities) || []).forEach((b) => { baseById[b.pid] = b; });
+  const liveToBase = {}; const mp = mappings || {}; Object.keys(mp).forEach((bpid) => { if (mp[bpid]) liveToBase[mp[bpid]] = bpid; });
+  const liveItems = (live || []).filter((a) => a.start).map((a) => { const s = parseD(a.start); const e = addDays(s, Math.max(1, a.duration || 1) - 1); const bp = liveToBase[a.id] ? baseById[liveToBase[a.id]] : null; return { id: a.id, code: a.code != null ? "#" + a.code : "", name: a.desc || "Untitled", s, e, ms: !!a.isMilestone, col: colorOf(a), grp: a.level + " " + ((LV[a.level] || {}).name || ""), base: bp ? { s: parseD(bp.start), e: parseD(bp.end || bp.start), ms: !!bp.ms } : null }; });
+  const baseMiles = ((baseline && baseline.activities) || []).filter((b) => b.ms && b.start).map((b) => ({ id: b.pid, code: b.code, name: b.name || "Milestone", s: parseD(b.start), e: parseD(b.end || b.start) }));
+
+  const ppd = zoom === "day" ? 30 : zoom === "week" ? 9.6 : 4.4;
+  const rowH = compact ? 22 : 30, headH = 46, leftW = 300;
+  const ds = [];
+  liveItems.forEach((i) => { ds.push(i.s.getTime(), i.e.getTime()); if (i.base) ds.push(i.base.s.getTime(), i.base.e.getTime()); });
+  baseMiles.forEach((i) => ds.push(i.s.getTime(), i.e.getTime()));
+  let t0, t1;
+  if (ds.length) { t0 = mondayOf(new Date(Math.min(...ds))); t1 = new Date(Math.max(...ds)); } else { t0 = mondayOf(new Date()); t1 = addDays(t0, 28); }
+  t1 = addDays(mondayOf(addDays(t1, 7)), 6);
+  const dayOff = (d) => Math.round((d.getTime() - t0.getTime()) / DAYMS);
+  const N = Math.max(7, dayOff(t1) + 1);
+  const tlW = N * ppd, W = leftW + tlW;
+  const xOf = (off) => leftW + off * ppd;
+
+  const groups = {}; liveItems.forEach((it) => { (groups[it.grp] = groups[it.grp] || []).push(it); });
+  const rows = [];
+  Object.keys(groups).sort().forEach((k) => { rows.push({ t: "grp", k, n: groups[k].length }); if (!collapsed[k]) groups[k].slice().sort((a, b) => a.s - b.s).forEach((it) => rows.push({ t: "live", it })); });
+  if (baseMiles.length) { const bk = "P6 baseline milestones"; rows.push({ t: "grp", k: bk, n: baseMiles.length }); if (!collapsed[bk]) baseMiles.slice().sort((a, b) => a.s - b.s).forEach((it) => rows.push({ t: "bm", it })); }
+  const H = headH + rows.length * rowH + 8;
+
+  const months = []; { let d = new Date(t0.getFullYear(), t0.getMonth(), 1); while (d <= t1) { const next = new Date(d.getFullYear(), d.getMonth() + 1, 1); const xs = xOf(Math.max(0, dayOff(d < t0 ? t0 : d))); const xe = xOf(dayOff(next > t1 ? t1 : next)); months.push({ label: d.toLocaleString("en-GB", { month: "short", year: "2-digit" }), xs, xe }); d = next; } }
+  const ticks = []; { for (let i = 0; i <= N; i++) { const d = addDays(t0, i); const isMon = d.getDay() === 1; const first = d.getDate() === 1; if (zoom === "day") { ticks.push({ x: xOf(i), label: String(d.getDate()), strong: isMon }); } else if (zoom === "week") { if (isMon) ticks.push({ x: xOf(i), label: String(d.getDate()), strong: false }); } else { if (first) ticks.push({ x: xOf(i), label: "", strong: true }); } } }
+  const todayX = leftW + dayOff(new Date(todayMid())) * ppd;
+  const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || P.ink} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
+  const BASE = dark ? "#8A97A6" : "#94A3B8";
+  const LATE = dark ? "#F87171" : "#C0392B", EARLY = dark ? "#34D399" : "#0E9384";
+
+  const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
+  const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `FIN04-compare-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
+
+  const mappedN = liveItems.filter((i) => i.base).length;
+  const slipped = liveItems.filter((i) => i.base && (dayOff(i.e) - dayOff(i.base.e)) > 1).length;
+
+  return (
+    <div className="lk-sch-scroll" style={{ background: P.bg }}>
+      {liveItems.length === 0 ? <div className="lk-empty">No live activities with dates to compare.</div> : <>
+      <div style={{ display: "flex", gap: 14, padding: "8px 12px", alignItems: "center", borderBottom: "1px solid " + P.line, background: P.bg, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: P.mut }}><b style={{ color: P.ink }}>{mappedN}</b> mapped \u00b7 <b style={{ color: LATE }}>{slipped}</b> slipped vs baseline</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: P.mut }}><span style={{ display: "inline-block", width: 18, height: 6, borderRadius: 2, background: "#94A3B8", opacity: .6 }} /> P6 baseline</span>
+        {mappedN === 0 && <span style={{ fontSize: 11.5, color: P.mut }}>No mappings yet \u2014 map activities in Admin \u2192 P6 Baseline for per-row variance. Milestones below align by date.</span>}
+        <div style={{ flex: 1 }} />
+        <button className="lk-btn" onClick={() => exportImg("png")}><Icon n="download" s={13} />PNG</button>
+      </div>
+      <svg className="lk-sch-axis" width={W} height={headH} viewBox={`0 0 ${W} ${headH}`} xmlns="http://www.w3.org/2000/svg" style={{ position: "sticky", top: 0, zIndex: 3, display: "block", marginBottom: -headH, background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
+        <rect x={0} y={0} width={W} height={headH} fill={P.bg} />
+        {months.map((m, i) => <g key={"hm" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
+        {ticks.map((t, i) => <g key={"ht" + i}><line x1={t.x} y1={22} x2={t.x} y2={headH} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
+        <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+        <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
+        {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={headH} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
+      </svg>
+      <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif", position: "relative", zIndex: 1 }}>
+        <rect x={0} y={0} width={W} height={H} fill={P.bg} />
+        {months.map((m, i) => <rect key={"m" + i} x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />)}
+        {ticks.map((t, i) => <line key={"t" + i} x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />)}
+        <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+        <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
+        {todayX >= leftW && todayX <= W && <line x1={todayX} y1={headH} x2={todayX} y2={H} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />}
+        {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { const open = !collapsed[r.k]; return <g key={"g" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}><rect x={0} y={y} width={W} height={rowH} fill={P.header} /><text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>{text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}</g>; } const it = r.it; const nm = it.name; return <g key={"lx" + r.t + it.id}>{i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}<line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" />{text(10, y + rowH / 2, r.t === "live" ? it.code : "", { size: 9.5, fill: P.mut })}<text x={42} y={y + rowH / 2} fontSize="11.5" fill={r.t === "bm" ? P.mut : P.ink} dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text></g>; })}
+        {rows.map((r, i) => { const y = headH + i * rowH, yc = y + rowH / 2; if (r.t === "bm") { const it = r.it; const x = xOf(dayOff(it.s)); return <polygon key={"bm" + it.id} points={`${x},${yc - 6} ${x + 6},${yc} ${x},${yc + 6} ${x - 6},${yc}`} fill={dark ? P.bg : "#FFFFFF"} stroke={BASE} strokeWidth="1.6" />; } if (r.t !== "live") return null; const it = r.it; const barH = rowH - 14, barY = y + (rowH - barH) / 2; const lxs = xOf(dayOff(it.s)), lxe = xOf(dayOff(it.e) + 1); const vNodes = []; if (it.base) { const bxs = xOf(dayOff(it.base.s)), bxe = xOf(dayOff(it.base.e) + 1); const dd = dayOff(it.e) - dayOff(it.base.e); const vcol = dd > 1 ? LATE : dd < -1 ? EARLY : P.mut; if (it.base.ms || it.ms) { vNodes.push(<polygon key="bd" points={`${bxs},${yc - 5} ${bxs + 5},${yc} ${bxs},${yc + 5} ${bxs - 5},${yc}`} fill="none" stroke={BASE} strokeWidth="1.4" />); } else { vNodes.push(<rect key="bb" x={bxs} y={yc + 3} width={Math.max(bxe - bxs, 3)} height={4} rx={2} fill={BASE} opacity={0.7} />); } const chipX = Math.max(lxe, bxe) + 6; vNodes.push(text(chipX, yc, dd === 0 ? "on plan" : (dd > 0 ? "+" : "") + dd + "d", { size: 9.5, fill: dd === 0 ? P.mut : vcol, weight: 700 })); } const liveNode = it.ms ? <polygon points={`${lxs},${yc - 6} ${lxs + 6},${yc} ${lxs},${yc + 6} ${lxs - 6},${yc}`} fill={it.col} /> : <g><rect x={lxs} y={barY} width={Math.max(lxe - lxs, 4)} height={barH} rx={3} fill={it.col} opacity={0.32} /><rect x={lxs} y={barY} width={Math.max(lxe - lxs, 4)} height={barH} rx={3} fill="none" stroke={it.col} strokeWidth="1.1" /></g>; return <g key={"lb" + it.id}>{vNodes}{liveNode}</g>; })}
+      </svg>
+      </>}
+    </div>
+  );
+}
+
 function SchedulePage({ S, coName, onOpen }) {
   const [zoom, setZoom] = useState("week");
   const [groupBy, setGroupBy] = useState("level");
@@ -3433,12 +3549,12 @@ function SchedulePage({ S, coName, onOpen }) {
     <div className="lk-sch" style={cssVars(S.theme)}><style>{css}</style>
       <div className="lk-sch-bar">
         <div className="grp"><label>View</label><div className="seg">{[["gantt", "Gantt"], ["calendar", "Calendar"], ["workload", "Workload"]].map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}</div></div>
-        {view === "gantt" && hasBaseline && <div className="grp"><label>Schedule</label><div className="seg">{[["live", "Live"], ["p6", "P6 Baseline"]].map(([k, l]) => <button key={k} className={source === k ? "on" : ""} onClick={() => setSource(k)}>{l}</button>)}</div></div>}
-        {view === "gantt" && source === "p6" && hasBaseline && <>
+        {view === "gantt" && hasBaseline && <div className="grp"><label>Schedule</label><div className="seg">{[["live", "Live"], ["p6", "P6 Baseline"], ["compare", "Compare"]].map(([k, l]) => <button key={k} className={source === k ? "on" : ""} onClick={() => setSource(k)}>{l}</button>)}</div></div>}
+        {view === "gantt" && source !== "live" && hasBaseline && <>
         <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
         <button className={"lk-btn" + (compact ? " on" : "")} onClick={() => setCompact((v) => !v)}>Compact</button>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11.5, color: "var(--muted)", alignSelf: "center" }}>Read-only P6 baseline</span>
+        <span style={{ fontSize: 11.5, color: "var(--muted)", alignSelf: "center" }}>{source === "compare" ? "Live vs P6 baseline" : "Read-only P6 baseline"}</span>
         </>}
         {view === "gantt" && source === "live" && <>
         <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
@@ -3455,6 +3571,7 @@ function SchedulePage({ S, coName, onOpen }) {
         </>}
       </div>
       {view === "gantt" && source === "p6" && hasBaseline && <BaselineGantt baseline={bl} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
+      {view === "gantt" && source === "compare" && hasBaseline && <CompareGantt baseline={bl} live={S.activities} mappings={bl.mappings} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
       {view === "gantt" && source === "live" && <div className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
         <>
