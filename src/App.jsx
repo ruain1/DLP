@@ -1600,6 +1600,30 @@ export default function App({ session }) {
     return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", border: "1px solid var(--line)", borderLeft: 0, borderRadius: "0 12px 12px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 8px", zIndex: 0, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap", textShadow: dark ? "0 1px 2px rgba(0,0,0,.6)" : "none" }}>{badge}</span></div>;
   };
 
+  const MilestoneTrail = ({ a, row }) => {
+    if (!a.isMilestone || a.status === "complete") return null;
+    const late = a.delayed;
+    if (!late && a.totalShift <= 0) return null;
+    let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
+    if (late && todayUnit > ee) ee = todayUnit;   // overdue: stretch the late trail to today
+    const ps = sU(a);
+    if (ee < 0 || ps >= cols || ee <= ps) return null;
+    const s = Math.max(0, ps), e = Math.min(cols - 1, ee);
+    if (e <= s) return null;
+    const dark = S.theme === "dark";
+    const col = late ? (dark ? "#FCA89E" : "#C0392B") : (dark ? "#F0C552" : "#E0A106");
+    const hatch = `repeating-linear-gradient(90deg,${col} 0 5px,transparent 5px 9px)`;
+    const badge = late ? `${a.delayDays || a.totalShift}d late` : `forecast +${a.totalShift}d`;
+    const N = e - s + 1;
+    const half = `${(50 / N).toFixed(4)}%`;   // centre of one column within this N-column span
+    return <div style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none", transform: a._stepMax ? `translateY(${(a._step - a._stepMax / 2) * 14}px)` : undefined }}
+      title={late ? `Overdue: milestone is ${a.delayDays || a.totalShift} day${(a.delayDays || a.totalShift) === 1 ? "" : "s"} late` : `Forecast: projected ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`}>
+      <div style={{ position: "absolute", top: -1.5, left: `calc(${half} + 8px)`, right: `calc(${half} + 9px)`, height: 3, background: hatch }} />
+      <span style={{ position: "absolute", top: -5, right: `calc(${half} - 6px)`, width: 11, height: 11, background: "transparent", border: `2px solid ${col}`, transform: "rotate(45deg)", borderRadius: 2 }} />
+      <span style={{ position: "absolute", top: -16, right: `calc(${half} + 12px)`, fontSize: 9, fontWeight: 700, color: col, whiteSpace: "nowrap", textShadow: dark ? "0 1px 2px rgba(0,0,0,.6)" : "none" }}>{badge}</span>
+    </div>;
+  };
+
   const RescheduleTrail = ({ a, row }) => {
     const rs = a.reschedules || []; if (!rs.length) return null;
     const origOff = Math.round((parseD(rs[0].from) - anchor) / DAYMS);
@@ -1752,6 +1776,7 @@ export default function App({ session }) {
                 <Underlay lane={lane} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: (rows.length ? rows : [0]).map((_, r) => { const mx = la.reduce((m, a) => (a._row === r && a._stepMax > m ? a._stepMax : m), 0); return `minmax(${48 + mx * 14}px,auto)`; }).join(" ") }}>
                   {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}
+                  {la.map((a) => <MilestoneTrail key={"mt" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
                   {la.map((a) => <ActualBar key={"ab" + a.id} a={a} row={a._row} />)}
@@ -1770,6 +1795,7 @@ export default function App({ session }) {
                 <Underlay lane={null} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: "minmax(48px,auto)" }}>
                   <Forecast a={a} row={0} />
+                  <MilestoneTrail a={a} row={0} />
                   <RescheduleTrail a={a} row={0} />
                   <Ticket a={a} row={0} />
                   <ActualBar a={a} row={0} />
