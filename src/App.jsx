@@ -432,9 +432,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-sch-bar .seg button{border:0;background:transparent;color:var(--muted);padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer}
 .lk-sch-bar .seg button.on{background:var(--ink);color:var(--paper)}
 .lk-sch-scroll{flex:1;overflow:auto;background:#fff}
-.lk-tblscroll{flex:1;min-height:0;overflow:auto;padding:8px 16px 64px}
+.lk-tblscroll{flex:1;min-height:0;overflow:auto;padding:0 16px 64px}
 .lk-grid{border-collapse:collapse;width:100%;font-size:11.5px;min-width:1040px}
-.lk-grid th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:8px 7px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--paper);z-index:1}
+.lk-grid th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:8px 7px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--paper);z-index:6}
 .lk-grid td{padding:4px 7px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink)}
 .lk-grid tr.ed{background:var(--hover)}
 .lk-grid td button{background:transparent;border:0;cursor:pointer;color:var(--muted);display:inline-flex;padding:3px;border-radius:6px}
