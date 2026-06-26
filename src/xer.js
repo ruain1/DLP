@@ -157,3 +157,94 @@ export function parseBaselineText(filename, text) {
   if (ext === "xml") return parseMSPDI(text);
   throw new Error("Unsupported text format: " + ext);
 }
+
+// ---- Tabular import (CSV / XLSX) ----
+// CSV/XLSX have no fixed schema, so the app drives a column-mapping step and then
+// calls tabularToBaseline() to produce the same baseline shape as XER/MSPDI.
+
+export function parseCSV(text) {
+  const s = String(text == null ? "" : text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const rows = []; let row = []; let cur = ""; let inQ = false; let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (inQ) {
+      if (c === '"') { if (s[i + 1] === '"') { cur += '"'; i += 2; continue; } inQ = false; i++; continue; }
+      cur += c; i++; continue;
+    }
+    if (c === '"') { inQ = true; i++; continue; }
+    if (c === ",") { row.push(cur); cur = ""; i++; continue; }
+    if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; i++; continue; }
+    cur += c; i++;
+  }
+  if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+  const clean = rows.filter((r) => r.some((x) => String(x).trim() !== ""));
+  const headers = clean.length ? clean[0].map((h) => String(h).trim()) : [];
+  return { headers: headers, rows: clean.slice(1) };
+}
+
+const _ALIAS = {
+  name: ["activity name", "name", "description", "task name", "activity", "title"],
+  start: ["baseline start", "start", "start date", "planned start", "target start", "early start"],
+  finish: ["baseline finish", "finish", "end", "finish date", "planned finish", "target finish", "early finish", "end date"],
+  code: ["activity id", "id", "task id", "activity code", "code", "uid"],
+  wbs: ["wbs", "wbs path", "wbs name", "phase", "group", "stage", "area"],
+};
+export function autodetectMapping(headers) {
+  const low = (headers || []).map((h) => String(h).toLowerCase().trim());
+  const pick = (key) => { const al = _ALIAS[key]; for (let i = 0; i < low.length; i++) if (al.indexOf(low[i]) !== -1) return i; return -1; };
+  return { name: pick("name"), start: pick("start"), finish: pick("finish"), code: pick("code"), wbs: pick("wbs") };
+}
+export function autodetectMsCol(headers) {
+  const low = (headers || []).map((h) => String(h).toLowerCase().trim());
+  const cands = ["type", "activity type", "task type", "milestone", "activity_type"];
+  for (let i = 0; i < low.length; i++) if (cands.indexOf(low[i]) !== -1) return i;
+  return -1;
+}
+
+export function parseTabDate(v, fmt) {
+  if (v == null || v === "") return "";
+  if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v)) return v.toISOString().slice(0, 10);
+  const s = String(v).trim();
+  if (fmt === "iso" || /^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const p = s.split(/[\/\-.]/).map((x) => x.trim());
+  if (p.length < 3) return s;
+  let dd, mm, yy;
+  if (fmt === "mdy") { mm = p[0]; dd = p[1]; yy = p[2]; }
+  else { dd = p[0]; mm = p[1]; yy = p[2]; } // auto + dmy => day-first (P6 / UK default)
+  if (yy.length === 2) yy = (parseInt(yy, 10) > 50 ? "19" : "20") + yy;
+  if (!/^\d+$/.test(dd) || !/^\d+$/.test(mm) || !/^\d{4}$/.test(yy)) return s;
+  return yy + "-" + String(mm).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
+}
+
+export function tabularToBaseline(tab, map, opts, filename) {
+  const rows = (tab && tab.rows) || [];
+  const get = (r, k) => (map && map[k] != null && map[k] >= 0 ? r[map[k]] : "");
+  const fmt = (opts && opts.dateFmt) || "auto";
+  const msRule = (opts && opts.msRule) || "zero";
+  const msCol = opts && opts.msCol != null ? opts.msCol : -1;
+  const msVal = (opts && opts.msVal != null ? String(opts.msVal) : "milestone").toLowerCase().trim();
+  const wbs = {};
+  const activities = [];
+  rows.forEach((r, idx) => {
+    const name = String(get(r, "name") || "").trim();
+    if (!name) return;
+    const start = parseTabDate(get(r, "start"), fmt);
+    const finish = parseTabDate(get(r, "finish"), fmt);
+    let ms;
+    if (msRule === "col" && msCol >= 0) ms = String(r[msCol] || "").trim().toLowerCase() === msVal;
+    else ms = !finish || finish === start;
+    const wbsName = String(get(r, "wbs") || "").trim();
+    let wbsId = "";
+    if (wbsName) { wbsId = "W:" + wbsName; if (!wbs[wbsId]) wbs[wbsId] = { name: wbsName, parent: "" }; }
+    const end = ms ? (finish || start) : (finish || start);
+    activities.push({ pid: "R" + idx, code: String(get(r, "code") || "").trim(), name: name, wbs: wbsId, ms: ms, start: start, end: end, status: "", tf: null, crit: false });
+  });
+  const withDates = activities.filter((a) => a.start && a.end);
+  const spanStart = withDates.length ? withDates.map((a) => a.start).sort()[0] : "";
+  const spanEnd = withDates.length ? withDates.map((a) => a.end).sort().slice(-1)[0] : "";
+  const meta = {
+    project: "", dataDate: "", planStart: spanStart, planEnd: spanEnd, spanStart: spanStart, spanEnd: spanEnd,
+    counts: { activities: activities.length, milestones: activities.filter((a) => a.ms).length, wbs: Object.keys(wbs).length, relationships: 0 },
+  };
+  return { meta: meta, wbs: wbs, activities: activities, source_filename: filename };
+}

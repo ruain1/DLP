@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
-import { parseXER, parseMSPDI, decodeXer, wbsPath } from "./xer";
+import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -2136,6 +2136,34 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
     </div>);
 }
 
+async function readXlsxSheet(file) {
+  const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
+  const ws = wb.worksheets[0];
+  if (!ws) throw new Error("The workbook has no sheets.");
+  const ncols = ws.columnCount || 0;
+  const norm = (v) => {
+    if (v == null) return "";
+    if (Object.prototype.toString.call(v) === "[object Date]") return v;
+    if (typeof v === "object") {
+      if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join("");
+      if (v.text != null) return v.text;
+      if (v.result != null) return v.result;
+      if (v.hyperlink != null) return v.text || v.hyperlink;
+      return String(v);
+    }
+    return v;
+  };
+  const rows = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const arr = [];
+    for (let c = 1; c <= ncols; c++) arr.push(norm(row.getCell(c).value));
+    rows.push(arr);
+  });
+  const headers = (rows[0] || []).map((h) => String(h).trim());
+  return { headers: headers, rows: rows.slice(1) };
+}
+
 function AdminPanel({ S, cu, update, exportActivities }) {
   const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
@@ -2152,21 +2180,28 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [pres, setPres] = useState({});
   useEffect(() => { let on = true; const go = () => loadPresence().then((p) => { if (on) setPres(p); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, []);
   const [bl, setBl] = useState(null);          // saved baseline row (or null)
-  const [blPrev, setBlPrev] = useState(null);  // parsed-but-unsaved preview
+  const [blPrev, setBlPrev] = useState(null);  // parsed-but-unsaved preview (xer/xml)
+  const [blTab, setBlTab] = useState(null);    // tabular import context { filename, headers, rows }
+  const [blMap, setBlMap] = useState(null);    // column mapping + options
   const [blBusy, setBlBusy] = useState(false);
   const [blErr, setBlErr] = useState("");
   const [blMsg, setBlMsg] = useState("");
   useEffect(() => { if (!S.projectId) return; let on = true; loadBaseline(S.projectId).then((r) => { if (on) setBl(r); }).catch(() => {}); return () => { on = false; }; }, [S.projectId]);
+  const openMapping = (filename, tab) => {
+    if (!tab.headers || !tab.headers.length) { setBlErr("No columns found in the first sheet."); return; }
+    const msCol = autodetectMsCol(tab.headers);
+    setBlTab({ filename: filename, headers: tab.headers, rows: tab.rows });
+    setBlMap({ ...autodetectMapping(tab.headers), msRule: msCol >= 0 ? "col" : "zero", msCol: msCol, msVal: "Milestone", dateFmt: "auto" });
+  };
   const onXerFile = async (file) => {
-    if (!file) return; setBlErr(""); setBlMsg(""); setBlPrev(null); setBlBusy(true);
+    if (!file) return; setBlErr(""); setBlMsg(""); setBlPrev(null); setBlTab(null); setBlMap(null); setBlBusy(true);
     try {
       const ext = (file.name || "").toLowerCase().split(".").pop();
-      let parsed;
-      if (ext === "xer") parsed = parseXER(decodeXer(await file.arrayBuffer()));
-      else if (ext === "xml") parsed = parseMSPDI(await file.text());
-      else throw new Error("Use a P6 .xer or a Microsoft Project .xml (Save As \u2192 XML) export. CSV and XLSX import is coming next.");
-      parsed.source_filename = file.name;
-      setBlPrev(parsed);
+      if (ext === "xer") { const p = parseXER(decodeXer(await file.arrayBuffer())); p.source_filename = file.name; setBlPrev(p); }
+      else if (ext === "xml") { const p = parseMSPDI(await file.text()); p.source_filename = file.name; setBlPrev(p); }
+      else if (ext === "csv") { openMapping(file.name, parseCSV(await file.text())); }
+      else if (ext === "xlsx") { openMapping(file.name, await readXlsxSheet(file)); }
+      else throw new Error("Use a P6 .xer, a Microsoft Project .xml, or a .csv / .xlsx spreadsheet.");
     } catch (e) { setBlErr(e && e.message ? e.message : "Could not read this file."); }
     setBlBusy(false);
   };
@@ -2178,9 +2213,20 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     } catch (e) { setBlErr(e && e.message ? e.message : "Save failed. Check you ran the baselines.sql migration and that you are a project admin."); }
     setBlBusy(false);
   };
+  const saveBlTab = async () => {
+    if (!blTab || !blMap || !S.projectId) return;
+    if (blMap.name < 0 || blMap.start < 0) { setBlErr("Map the required fields (Activity name and Start)."); return; }
+    setBlBusy(true); setBlErr("");
+    try {
+      const b = tabularToBaseline(blTab, blMap, blMap, blTab.filename);
+      const saved = await saveBaseline(S.projectId, { meta: b.meta, activities: b.activities, wbs: b.wbs, source_filename: blTab.filename });
+      setBl(saved); setBlTab(null); setBlMap(null); setBlMsg("Baseline saved. It is now available on the Schedule.");
+    } catch (e) { setBlErr(e && e.message ? e.message : "Save failed. Check the baselines.sql migration is run and that you are a project admin."); }
+    setBlBusy(false);
+  };
   const removeBl = async () => {
     if (!S.projectId) return; setBlBusy(true); setBlErr("");
-    try { await clearBaseline(S.projectId); setBl(null); setBlPrev(null); setBlMsg("Baseline removed."); }
+    try { await clearBaseline(S.projectId); setBl(null); setBlPrev(null); setBlTab(null); setBlMap(null); setBlMsg("Baseline removed."); }
     catch (e) { setBlErr(e && e.message ? e.message : "Remove failed."); }
     setBlBusy(false);
   };
@@ -2797,11 +2843,11 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           {tab === "baseline" && <>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>P6 Baseline</div>
             <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, maxWidth: "74ch", lineHeight: 1.55 }}>
-              Upload a Primavera P6 export (.xer) or a Microsoft Project export (.xml, via Save As \u2192 XML) to store a read-only baseline for this project. DLP reads the activities, milestones and dates and keeps them for comparison against the live programme on the Schedule. Re-uploading replaces the stored baseline.
+              Upload a programme baseline for this project: Primavera P6 (.xer), Microsoft Project (.xml, via Save As \u2192 XML), or a spreadsheet (.csv / .xlsx). DLP reads the activities, milestones and dates and keeps them read-only for comparison against the live programme on the Schedule. Spreadsheets get a quick column-mapping step. Re-uploading replaces the stored baseline.
             </div>
             {blErr && <div style={{ marginBottom: 10, fontSize: 12.5, color: "var(--red)", background: "rgba(192,57,43,.08)", border: "1px solid rgba(192,57,43,.3)", borderRadius: 8, padding: "8px 11px" }}>{blErr}</div>}
             {blMsg && <div style={{ marginBottom: 10, fontSize: 12.5, color: "#0E9384", background: "rgba(14,147,132,.08)", border: "1px solid rgba(14,147,132,.3)", borderRadius: 8, padding: "8px 11px" }}>{blMsg}</div>}
-            {bl && bl.meta && !blPrev && (() => { const m = bl.meta || {}; const c = m.counts || {}; return (
+            {bl && bl.meta && !blPrev && !blTab && (() => { const m = bl.meta || {}; const c = m.counts || {}; return (
               <div style={{ border: "1px solid var(--line)", borderRadius: 10, background: "var(--card)", padding: 14, marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
                   <span className="mono" style={{ fontSize: 10, letterSpacing: ".04em", color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 5, padding: "2px 7px" }}>P6 BASELINE</span>
@@ -2827,13 +2873,13 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   </div>
                 </div>}
                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                  <label className="lk-btn"><input type="file" accept=".xer,.xml" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />Replace baseline</label>
+                  <label className="lk-btn"><input type="file" accept=".xer,.xml,.csv,.xlsx" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />Replace baseline</label>
                   <button className="lk-btn" style={{ color: "var(--red)" }} disabled={blBusy} onClick={removeBl}>Remove baseline</button>
                 </div>
               </div>); })()}
-            {!bl && !blPrev && <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: 22, textAlign: "center", background: "var(--card)" }}>
+            {!bl && !blPrev && !blTab && <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: 22, textAlign: "center", background: "var(--card)" }}>
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>No P6 baseline stored for this project yet.</div>
-              <label className="lk-btn primary"><input type="file" accept=".xer,.xml" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />{blBusy ? "Reading\u2026" : "Upload .xer or .xml"}</label>
+              <label className="lk-btn primary"><input type="file" accept=".xer,.xml,.csv,.xlsx" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />{blBusy ? "Reading\u2026" : "Upload .xer / .xml / .csv / .xlsx"}</label>
             </div>}
             {blPrev && (() => { const m = blPrev.meta || {}; const c = m.counts || {}; return (
               <div style={{ border: "1px solid var(--accent)", borderRadius: 10, background: "var(--card)", padding: 14 }}>
@@ -2861,6 +2907,62 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                   <button className="lk-btn primary" disabled={blBusy} onClick={saveBl}>{blBusy ? "Saving\u2026" : "Save baseline"}</button>
                   <button className="lk-btn" disabled={blBusy} onClick={() => { setBlPrev(null); setBlErr(""); }}>Discard</button>
+                </div>
+              </div>); })()}
+            {blTab && blMap && (() => {
+              const headers = blTab.headers;
+              const auto = autodetectMapping(headers);
+              const setM = (patch) => setBlMap((mm) => ({ ...mm, ...patch }));
+              const opts = (cur, req) => [<option key="n" value={-1}>{req ? "\u2014 select \u2014" : "\u2014 none \u2014"}</option>, ...headers.map((h, i) => <option key={i} value={i}>{h || ("Column " + (i + 1))}</option>)];
+              const FIELDS = [["name", "Activity name", true, "The activity description."], ["start", "Start", true, "Planned / baseline start."], ["finish", "Finish", false, "Defaults to Start for milestones."], ["code", "Activity ID", false, "Optional reference."], ["wbs", "WBS / Phase", false, "Used for grouping."]];
+              const prev = tabularToBaseline(blTab, blMap, blMap, blTab.filename);
+              const ready = blMap.name >= 0 && blMap.start >= 0;
+              const seg = (on) => ({ border: "1px solid var(--line)", background: on ? "var(--accent)" : "transparent", color: on ? "#fff" : "var(--muted)", fontWeight: 600, fontSize: 11.5, padding: "6px 11px", borderRadius: 7, cursor: "pointer" });
+              const selS = (hl) => ({ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", background: "var(--card)", border: "1px solid " + (hl ? "var(--accent)" : "var(--line)"), borderRadius: 8, padding: "7px 10px", maxWidth: 320, width: "100%" });
+              const mini = { fontSize: 11.5, fontWeight: 600, color: "var(--ink)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 7, padding: "5px 8px" };
+              const thS = { textAlign: "left", fontSize: 9, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--muted)", fontWeight: 700, padding: "6px 8px", borderBottom: "1px solid var(--line)", whiteSpace: "nowrap" };
+              const tdS = { padding: "6px 8px", borderBottom: "1px solid var(--line)", whiteSpace: "nowrap" };
+              return (
+              <div style={{ border: "1px solid var(--accent)", borderRadius: 10, background: "var(--card)", padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>Map columns</span>
+                  <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>{blTab.filename} \u00b7 {headers.length} cols \u00b7 {blTab.rows.length} rows</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Confirm or change which column maps to each field. Required fields must be set; auto-detected columns are outlined in violet.</div>
+                {FIELDS.map(([k, label, req, hint]) => { const hl = auto[k] === blMap[k] && blMap[k] >= 0; return (
+                  <div key={k} style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 14, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+                    <div><div style={{ fontWeight: 600 }}>{label} {req ? <span style={{ fontSize: 9, fontWeight: 700, color: "var(--red)" }}>REQUIRED</span> : <span style={{ fontSize: 9, fontWeight: 700, color: "var(--muted)" }}>OPTIONAL</span>}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{hint}</div></div>
+                    <div style={{ display: "flex", alignItems: "center" }}><select value={blMap[k]} onChange={(e) => setM({ [k]: parseInt(e.target.value, 10) })} style={selS(hl)}>{opts(blMap[k], req)}</select>{hl && <span className="mono" style={{ fontSize: 9, color: "var(--accent)", marginLeft: 8 }}>auto</span>}</div>
+                  </div>); })}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>Milestone rule</span>
+                  <button style={seg(blMap.msRule === "col")} onClick={() => setM({ msRule: "col" })}>From a column</button>
+                  <button style={seg(blMap.msRule === "zero")} onClick={() => setM({ msRule: "zero" })}>Zero-duration</button>
+                  {blMap.msRule === "col" && <span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>when <select value={blMap.msCol} onChange={(e) => setM({ msCol: parseInt(e.target.value, 10) })} style={mini}>{opts(blMap.msCol, false)}</select> = <input value={blMap.msVal} onChange={(e) => setM({ msVal: e.target.value })} style={{ ...mini, width: 110 }} /></span>}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>Date format</span>
+                  {[["auto", "Auto"], ["iso", "ISO"], ["dmy", "DD/MM/YYYY"], ["mdy", "MM/DD/YYYY"]].map(([d, t]) => <button key={d} style={seg(blMap.dateFmt === d)} onClick={() => setM({ dateFmt: d })}>{t}</button>)}
+                </div>
+                <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                  <div className="grphd" style={{ marginBottom: 6 }}>Preview</div>
+                  <div style={{ overflow: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+                      <thead><tr>{["Activity", "ID", "WBS", "Start", "Finish"].map((h) => <th key={h} style={thS}>{h}</th>)}</tr></thead>
+                      <tbody>{prev.activities.slice(0, 6).map((a) => <tr key={a.pid}>
+                        <td style={tdS}>{a.ms && <span style={{ display: "inline-block", width: 8, height: 8, background: "var(--red)", transform: "rotate(45deg)", borderRadius: 1, marginRight: 6, verticalAlign: "middle" }} />}{a.name}</td>
+                        <td style={tdS} className="mono">{a.code || "\u2014"}</td>
+                        <td style={tdS} className="mono">{(a.wbs ? (prev.wbs[a.wbs] || {}).name : "") || "\u2014"}</td>
+                        <td style={tdS} className="mono">{a.start || "?"}</td>
+                        <td style={tdS} className="mono">{a.end || "\u2014"}</td>
+                      </tr>)}</tbody>
+                    </table>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{ready ? <>Ready: <b style={{ color: "var(--ink)" }}>{prev.meta.counts.activities}</b> activities, <b style={{ color: "var(--ink)" }}>{prev.meta.counts.milestones}</b> milestones detected.</> : <span style={{ color: "#E0A106" }}>Map Activity name and Start to continue.</span>}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button className="lk-btn primary" disabled={!ready || blBusy} onClick={saveBlTab}>{blBusy ? "Saving\u2026" : "Save baseline"}</button>
+                  <button className="lk-btn" disabled={blBusy} onClick={() => { setBlTab(null); setBlMap(null); setBlErr(""); }}>Discard</button>
                 </div>
               </div>); })()}
           </>}
