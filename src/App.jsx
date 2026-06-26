@@ -23,6 +23,7 @@ const THEMES = {
 const AV_BG = ["#2C4A7A", "#3A6B5C", "#7A5230", "#5A4A7A", "#445C77", "#6B4A4A", "#3C6B45", "#7A6030"];
 const avBg = (seed) => { const s = String(seed || "?"); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return AV_BG[h % AV_BG.length]; };
 const avInit = (n) => (n || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+const MS_STEP = 22;   // vertical gap between stacked milestones (was 14, caused spillage)
 
 const css = `
 .lk{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--paper);
@@ -122,6 +123,14 @@ const css = `
 .lk-ms{position:relative;pointer-events:auto;display:flex;align-items:center;justify-content:center;cursor:grab;overflow:visible;align-self:center;z-index:2}
 .lk-ms .dia{width:12px;height:12px;transform:rotate(45deg);flex:none;border:1px solid rgba(0,0,0,.2)}
 .lk-ms .mslbl{position:absolute;top:50%;left:calc(50% + 11px);transform:translateY(-50%);font-size:10.5px;font-weight:600;white-space:nowrap;pointer-events:none}
+.lk-ms.slip{display:block;overflow:visible}
+.lk-ms .dia.ghost{background:transparent;border:1.5px dashed #6B7888}
+.lk-ms .ms-conn{height:0;border-top:2px dashed var(--muted);transform:translateY(-1px);pointer-events:none}
+.lk-ms .ms-head{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.lk-ms .ms-head .mslbl2{font-size:10.5px;font-weight:600}
+.lk-ms .ms-chip{font-size:8.5px;font-weight:700;padding:1px 6px;border-radius:999px;line-height:1.5;letter-spacing:.2px}
+.lk-ms .ms-chip.late{background:rgba(192,57,58,.2);color:#FCA89E}
+.lk-ms .ms-chip.fore{background:rgba(224,161,6,.2);color:#F0C552}
 .lk-grow{display:grid}
 .lk-grow .gl{position:sticky;left:0;z-index:3;background:var(--paper);border-right:1px solid var(--line);border-bottom:1px solid var(--line);
   padding:7px 11px;display:flex;align-items:center;gap:8px;font-size:11.5px}
@@ -1539,10 +1548,32 @@ export default function App({ session }) {
     const editable = canEdit(a);
     const movable = isAdmin || (editable && !a.committed);
     if (a.isMilestone) {
-      return <div className="lk-ms" style={{ gridColumn: `${s + 1} / ${s + 2}`, gridRow: row + 1, transform: a._stepMax ? `translateY(${(a._step - a._stepMax / 2) * 14}px)` : undefined }}
+      const late = a.delayed;
+      const hasSlip = a.status !== "complete" && (late || a.totalShift > 0);
+      let fe = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
+      if (late && todayUnit > fe) fe = todayUnit;   // overdue: project out to today
+      const planned = sU(a);
+      const step = a._stepMax ? `translateY(${(a._step - a._stepMax / 2) * MS_STEP}px)` : undefined;
+      const accent = late ? "#C0392B" : (S.theme === "dark" ? "#F0C552" : "#E0A106");
+      const chip = late ? `${a.delayDays || a.totalShift}d late` : `forecast +${a.totalShift}d`;
+      const showSlip = hasSlip && fe > planned && fe >= 0 && planned < cols;
+      if (showSlip) {
+        const gs = Math.max(0, planned), ge = Math.min(cols - 1, fe);
+        const N = ge - gs + 1; const h = (50 / N).toFixed(4);
+        return <div className="lk-ms slip" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, transform: step, position: "relative" }}>
+          <span className="dia ghost" style={{ position: "absolute", left: `${h}%`, top: "50%", transform: "translate(-50%,-50%) rotate(45deg)" }} title={`Planned ${a.start}`} />
+          <span className="ms-conn" style={{ position: "absolute", top: "50%", left: `calc(${h}% + 8px)`, right: `calc(${h}% + 8px)`, borderTopColor: accent }} />
+          <div className="ms-head" style={{ position: "absolute", left: `calc(${(100 - h).toFixed(4)}% - 6px)`, top: "50%", transform: "translateY(-50%)", cursor: movable ? "grab" : "pointer" }} draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
+            <span className="dia" style={late ? { background: "#C0392B" } : { background: "transparent", border: `1.5px solid ${accent}` }} title={a.desc} />
+            <span className="mslbl2">{a.desc || "Milestone"}</span>
+            <span className={"ms-chip " + (late ? "late" : "fore")}>{chip}</span>
+          </div>
+        </div>;
+      }
+      return <div className="lk-ms" style={{ gridColumn: `${s + 1} / ${s + 2}`, gridRow: row + 1, transform: step }}
         draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
-        <span className="dia" style={{ background: a.delayed ? "#C0392B" : lv.color }} title={a.desc} />
-        <span className="mslbl">{a.desc || "Milestone"}{a.delayed ? ` +${a.delayDays}d` : (a.knockOn > 0 ? ` (forecast +${a.knockOn}d)` : "")}</span>
+        <span className="dia" style={{ background: late ? "#C0392B" : lv.color }} title={a.desc} />
+        <span className="mslbl">{a.desc || "Milestone"}{hasSlip ? (late ? ` +${a.delayDays || a.totalShift}d` : ` (forecast +${a.totalShift}d)`) : ""}</span>
       </div>;
     }
     const constrained = a.open > 0 && a.status !== "complete";
@@ -1598,30 +1629,6 @@ export default function App({ session }) {
       : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
     const badge = late ? `${a.delayDays || a.totalShift}d late` : `+${a.totalShift}d`;
     return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", border: "1px solid var(--line)", borderLeft: 0, borderRadius: "0 12px 12px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 8px", zIndex: 0, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap", textShadow: dark ? "0 1px 2px rgba(0,0,0,.6)" : "none" }}>{badge}</span></div>;
-  };
-
-  const MilestoneTrail = ({ a, row }) => {
-    if (!a.isMilestone || a.status === "complete") return null;
-    const late = a.delayed;
-    if (!late && a.totalShift <= 0) return null;
-    let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
-    if (late && todayUnit > ee) ee = todayUnit;   // overdue: stretch the late trail to today
-    const ps = sU(a);
-    if (ee < 0 || ps >= cols || ee <= ps) return null;
-    const s = Math.max(0, ps), e = Math.min(cols - 1, ee);
-    if (e <= s) return null;
-    const dark = S.theme === "dark";
-    const col = late ? (dark ? "#FCA89E" : "#C0392B") : (dark ? "#F0C552" : "#E0A106");
-    const hatch = `repeating-linear-gradient(90deg,${col} 0 5px,transparent 5px 9px)`;
-    const badge = late ? `${a.delayDays || a.totalShift}d late` : `forecast +${a.totalShift}d`;
-    const N = e - s + 1;
-    const half = `${(50 / N).toFixed(4)}%`;   // centre of one column within this N-column span
-    return <div style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none", transform: a._stepMax ? `translateY(${(a._step - a._stepMax / 2) * 14}px)` : undefined }}
-      title={late ? `Overdue: milestone is ${a.delayDays || a.totalShift} day${(a.delayDays || a.totalShift) === 1 ? "" : "s"} late` : `Forecast: projected ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`}>
-      <div style={{ position: "absolute", top: -1.5, left: `calc(${half} + 8px)`, right: `calc(${half} + 9px)`, height: 3, background: hatch }} />
-      <span style={{ position: "absolute", top: -5, right: `calc(${half} - 6px)`, width: 11, height: 11, background: "transparent", border: `2px solid ${col}`, transform: "rotate(45deg)", borderRadius: 2 }} />
-      <span style={{ position: "absolute", top: -16, right: `calc(${half} + 12px)`, fontSize: 9, fontWeight: 700, color: col, whiteSpace: "nowrap", textShadow: dark ? "0 1px 2px rgba(0,0,0,.6)" : "none" }}>{badge}</span>
-    </div>;
   };
 
   const RescheduleTrail = ({ a, row }) => {
@@ -1774,10 +1781,8 @@ export default function App({ session }) {
                 <div style={{ minWidth: 0 }}>{laneLogo && <img className="lk-lanelogo" src={laneLogo} alt={lane} style={{ cursor: co ? "pointer" : "default" }} title={co ? "Company role & scope" : undefined} onClick={() => co && setCompanyInfo(co)} />}<div className="lanenm">{S.laneBy === "level" ? `${lane} · ${lvOf(LV, lane).name}` : lane}</div><div className="cnt mono">{la.length} act</div></div></div>
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={lane} />
-                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: (rows.length ? rows : [0]).map((_, r) => { const mx = la.reduce((m, a) => (a._row === r && a._stepMax > m ? a._stepMax : m), 0); return `minmax(${48 + mx * 14}px,auto)`; }).join(" ") }}>
-                  {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}
-                  {la.map((a) => <MilestoneTrail key={"mt" + a.id} a={a} row={a._row} />)}
-                  {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
+                <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: (rows.length ? rows : [0]).map((_, r) => { const mx = la.reduce((m, a) => (a._row === r && a._stepMax > m ? a._stepMax : m), 0); return `minmax(${48 + mx * MS_STEP}px,auto)`; }).join(" ") }}>
+                  {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}                  {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
                   {la.map((a) => <ActualBar key={"ab" + a.id} a={a} row={a._row} />)}
                 </div>
@@ -1794,9 +1799,7 @@ export default function App({ session }) {
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={null} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: "minmax(48px,auto)" }}>
-                  <Forecast a={a} row={0} />
-                  <MilestoneTrail a={a} row={0} />
-                  <RescheduleTrail a={a} row={0} />
+                  <Forecast a={a} row={0} />                  <RescheduleTrail a={a} row={0} />
                   <Ticket a={a} row={0} />
                   <ActualBar a={a} row={0} />
                 </div>
