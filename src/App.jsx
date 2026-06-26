@@ -3149,7 +3149,16 @@ function SchedulePage({ S, coName, onOpen }) {
       </div>
       {view === "gantt" && <div className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
-        <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
+        <>
+        <svg className="lk-sch-axis" width={W} height={headH} viewBox={`0 0 ${W} ${headH}`} xmlns="http://www.w3.org/2000/svg" style={{ position: "sticky", top: 0, zIndex: 3, display: "block", marginBottom: -headH, background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
+          <rect x={0} y={0} width={W} height={headH} fill={P.bg} />
+          {months.map((m, i) => <g key={"hm" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
+          {ticks.map((t, i) => <g key={"ht" + i}><line x1={t.x} y1={22} x2={t.x} y2={headH} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
+          <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+          <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
+          {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={headH} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
+        </svg>
+        <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif", position: "relative", zIndex: 1 }}>
           <rect x={0} y={0} width={W} height={H} fill={P.bg} />
           {/* month band */}
           {months.map((m, i) => <g key={"m" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
@@ -3230,7 +3239,8 @@ function SchedulePage({ S, coName, onOpen }) {
               {showResp && coName(a.companyId) && text(respX, yc, coName(a.companyId), { size: 10, fill: P.mut })}
             </g>;
           })}
-        </svg>}
+        </svg>
+        </>}
       </div>}
       {view === "calendar" && <CalendarView S={S} coName={coName} onDrill={openDrill} LV={LV} P={P} dark={dark} />}
       {view === "workload" && <WorkloadView S={S} coName={coName} onDrill={openDrill} P={P} dark={dark} />}
