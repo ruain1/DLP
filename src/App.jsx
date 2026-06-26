@@ -74,6 +74,7 @@ const css = `
 .lk-metric.clickable{cursor:pointer;transition:background .12s}
 .lk-metric.clickable:hover{background:var(--hover)}
 .lk-board{flex:1;overflow:auto;position:relative}
+.lk-boardpage{height:calc(100vh - 54px);display:flex;flex-direction:column;overflow:hidden}
 .lk-head{display:grid;position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
 .lk-wk{border-right:1px solid var(--line);padding:6px 9px 3px;font-size:10.5px;font-weight:700;letter-spacing:.04em;border-bottom:1px solid var(--line)}
 .lk-wk .wc{color:var(--muted);font-weight:500;margin-left:5px}
@@ -1716,7 +1717,7 @@ export default function App({ session }) {
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
       </div>
-      {page === "board" && <>
+      {page === "board" && <div className="lk-boardpage">
       <div className="lk-toolbar">
         <div className="lk-nav">
           <button className="lk-btn icon" onClick={() => setAnchor(addDays(anchor, -7))}><Icon n="cl" /></button>
@@ -1826,7 +1827,7 @@ export default function App({ session }) {
         <span className="it"><span style={{ height: 11, width: 18, borderRadius: "0 4px 4px 0", border: "1px solid #C0392B", borderLeft: 0, background: "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 5px,rgba(192,57,58,.07) 5px 10px)" }} />delayed</span>
         <span className="it"><span style={{ height: 11, width: 18, borderRadius: "0 4px 4px 0", border: "1px solid #E0A106", borderLeft: 0, background: "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 5px,rgba(224,161,6,.06) 5px 10px)" }} />forecast (knock-on)</span>
       </div>
-      </>}
+      </div>}
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
