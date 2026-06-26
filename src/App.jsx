@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
+import { parseXER, decodeXer, wbsPath } from "./xer";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -2136,7 +2137,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
 }
 
 function AdminPanel({ S, cu, update, exportActivities }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "users", "members", "requests", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
@@ -2150,6 +2151,37 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   useEffect(() => { fetchUserStatus().then(setUstat).catch(() => {}); }, []);
   const [pres, setPres] = useState({});
   useEffect(() => { let on = true; const go = () => loadPresence().then((p) => { if (on) setPres(p); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, []);
+  const [bl, setBl] = useState(null);          // saved baseline row (or null)
+  const [blPrev, setBlPrev] = useState(null);  // parsed-but-unsaved preview
+  const [blBusy, setBlBusy] = useState(false);
+  const [blErr, setBlErr] = useState("");
+  const [blMsg, setBlMsg] = useState("");
+  useEffect(() => { if (!S.projectId) return; let on = true; loadBaseline(S.projectId).then((r) => { if (on) setBl(r); }).catch(() => {}); return () => { on = false; }; }, [S.projectId]);
+  const onXerFile = async (file) => {
+    if (!file) return; setBlErr(""); setBlMsg(""); setBlPrev(null); setBlBusy(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const parsed = parseXER(decodeXer(buf));
+      parsed.source_filename = file.name;
+      setBlPrev(parsed);
+    } catch (e) { setBlErr(e && e.message ? e.message : "Could not read this file."); }
+    setBlBusy(false);
+  };
+  const saveBl = async () => {
+    if (!blPrev || !S.projectId) return; setBlBusy(true); setBlErr("");
+    try {
+      const saved = await saveBaseline(S.projectId, { meta: blPrev.meta, activities: blPrev.activities, wbs: blPrev.wbs, source_filename: blPrev.source_filename });
+      setBl(saved); setBlPrev(null); setBlMsg("Baseline saved. It is now available on the Schedule.");
+    } catch (e) { setBlErr(e && e.message ? e.message : "Save failed. Check you ran the baselines.sql migration and that you are a project admin."); }
+    setBlBusy(false);
+  };
+  const removeBl = async () => {
+    if (!S.projectId) return; setBlBusy(true); setBlErr("");
+    try { await clearBaseline(S.projectId); setBl(null); setBlPrev(null); setBlMsg("Baseline removed."); }
+    catch (e) { setBlErr(e && e.message ? e.message : "Remove failed."); }
+    setBlBusy(false);
+  };
+  const blMiles = (acts) => (acts || []).filter((a) => a.ms).slice().sort((x, y) => (x.end < y.end ? -1 : 1));
   const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
   const [impMsg, setImpMsg] = useState("");
@@ -2444,7 +2476,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     e.target.value = "";
   };
   const navGroups = [
-    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"]]],
+    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"], ["baseline", "P6 Baseline"]]],
     ["User management", [["users", "Global Contacts"], ["members", "Project Team"], ["requests", "Access requests"]]],
     ["Audit log", [["audit", "Audit"]]],
     ["Advanced", [["data", "Import / Export"]]],
@@ -2758,6 +2790,76 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               {decidedReqs.map((r) => <div key={r.id} className="lk-rdecided"><div style={{ minWidth: 0 }}><div style={{ fontWeight: 600 }}>{r.name || r.email}</div><div style={{ fontSize: 11.5, color: "var(--muted)" }}>{r.email}{r.decidedByName ? " \u00b7 " + (r.status === "approved" ? "approved" : "rejected") + " by " + r.decidedByName : ""}{r.decisionNote ? " \u00b7 " + r.decisionNote : ""}</div></div><span className={"lk-rstat " + (r.status === "approved" ? "app" : "rej")}>{r.status === "approved" ? "Approved" : "Rejected"}</span></div>)}
             </>}
             {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>{userMsg}</div>}
+          </>}
+          {tab === "baseline" && <>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>P6 Baseline</div>
+            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, maxWidth: "74ch", lineHeight: 1.55 }}>
+              Upload a Primavera P6 export (.xer) to store a read-only baseline for this project. DLP reads the activities, milestones and dates and keeps them for comparison against the live programme on the Schedule. Re-uploading replaces the stored baseline.
+            </div>
+            {blErr && <div style={{ marginBottom: 10, fontSize: 12.5, color: "var(--red)", background: "rgba(192,57,43,.08)", border: "1px solid rgba(192,57,43,.3)", borderRadius: 8, padding: "8px 11px" }}>{blErr}</div>}
+            {blMsg && <div style={{ marginBottom: 10, fontSize: 12.5, color: "#0E9384", background: "rgba(14,147,132,.08)", border: "1px solid rgba(14,147,132,.3)", borderRadius: 8, padding: "8px 11px" }}>{blMsg}</div>}
+            {bl && bl.meta && !blPrev && (() => { const m = bl.meta || {}; const c = m.counts || {}; return (
+              <div style={{ border: "1px solid var(--line)", borderRadius: 10, background: "var(--card)", padding: 14, marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                  <span className="mono" style={{ fontSize: 10, letterSpacing: ".04em", color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 5, padding: "2px 7px" }}>P6 BASELINE</span>
+                  <span style={{ fontWeight: 600 }}>{bl.source_filename || "baseline.xer"}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{bl.imported_at ? "imported " + fmtDate(bl.imported_at) : ""}</span>
+                </div>
+                <div style={{ display: "flex", gap: 22, flexWrap: "wrap", fontSize: 12.5 }}>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>Project</div><b>{m.project || "\u2014"}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>Data date</div><b>{m.dataDate || "\u2014"}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>Plan span</div><b>{(m.planStart || m.spanStart || "\u2014") + "  \u2192  " + (m.planEnd || m.spanEnd || "\u2014")}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>Activities</div><b>{c.activities != null ? c.activities : "\u2014"}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>Milestones</div><b>{c.milestones != null ? c.milestones : "\u2014"}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>WBS nodes</div><b>{c.wbs != null ? c.wbs : "\u2014"}</b></div>
+                </div>
+                {blMiles(bl.activities).length > 0 && <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                  <div className="grphd" style={{ marginBottom: 6 }}>Milestones ({blMiles(bl.activities).length})</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 220, overflow: "auto" }}>
+                    {blMiles(bl.activities).map((a) => <div key={a.pid} style={{ display: "flex", gap: 10, fontSize: 11.5, alignItems: "baseline" }}>
+                      <span className="mono" style={{ color: "var(--muted)", minWidth: 84 }}>{a.end}</span>
+                      <span className="mono" style={{ color: "var(--muted)", minWidth: 64 }}>{a.code}</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                    </div>)}
+                  </div>
+                </div>}
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <label className="lk-btn"><input type="file" accept=".xer" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />Replace .xer</label>
+                  <button className="lk-btn" style={{ color: "var(--red)" }} disabled={blBusy} onClick={removeBl}>Remove baseline</button>
+                </div>
+              </div>); })()}
+            {!bl && !blPrev && <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: 22, textAlign: "center", background: "var(--card)" }}>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>No P6 baseline stored for this project yet.</div>
+              <label className="lk-btn primary"><input type="file" accept=".xer" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />{blBusy ? "Reading\u2026" : "Upload P6 .xer"}</label>
+            </div>}
+            {blPrev && (() => { const m = blPrev.meta || {}; const c = m.counts || {}; return (
+              <div style={{ border: "1px solid var(--accent)", borderRadius: 10, background: "var(--card)", padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>Preview</span>
+                  <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{blPrev.source_filename}</span>
+                </div>
+                <div style={{ display: "flex", gap: 22, flexWrap: "wrap", fontSize: 12.5, marginBottom: 10 }}>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase" }}>Project</div><b>{m.project || "\u2014"}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase" }}>Data date</div><b>{m.dataDate || "\u2014"}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase" }}>Plan span</div><b>{(m.planStart || m.spanStart || "\u2014") + "  \u2192  " + (m.planEnd || m.spanEnd || "\u2014")}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase" }}>Activities</div><b>{c.activities != null ? c.activities : "\u2014"}</b></div>
+                  <div><div style={{ color: "var(--muted)", fontSize: 10.5, textTransform: "uppercase" }}>Milestones</div><b>{c.milestones != null ? c.milestones : "\u2014"}</b></div>
+                </div>
+                {blMiles(blPrev.activities).length > 0 && <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                  <div className="grphd" style={{ marginBottom: 6 }}>Milestones found ({blMiles(blPrev.activities).length})</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 200, overflow: "auto" }}>
+                    {blMiles(blPrev.activities).map((a) => <div key={a.pid} style={{ display: "flex", gap: 10, fontSize: 11.5, alignItems: "baseline" }}>
+                      <span className="mono" style={{ color: "var(--muted)", minWidth: 84 }}>{a.end}</span>
+                      <span className="mono" style={{ color: "var(--muted)", minWidth: 64 }}>{a.code}</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                    </div>)}
+                  </div>
+                </div>}
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button className="lk-btn primary" disabled={blBusy} onClick={saveBl}>{blBusy ? "Saving\u2026" : "Save baseline"}</button>
+                  <button className="lk-btn" disabled={blBusy} onClick={() => { setBlPrev(null); setBlErr(""); }}>Discard</button>
+                </div>
+              </div>); })()}
           </>}
           {tab === "branding" && <>
             <div className="lk-f"><label>Project Name</label>

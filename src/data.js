@@ -456,3 +456,31 @@ export async function setPlatformRole(userId, role) {
   const { error } = await supabase.rpc("set_platform_role", { target: userId, new_role: role });
   if (error) throw error;
 }
+
+// ---- P6 baseline (one row per project) ----
+export async function loadBaseline(projectId) {
+  const { data, error } = await supabase.from("baselines").select("*").eq("project_id", projectId).maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+export async function saveBaseline(projectId, payload) {
+  const row = {
+    project_id: projectId,
+    meta: payload.meta || {},
+    activities: payload.activities || [],
+    wbs: payload.wbs || {},
+    source_filename: payload.source_filename || null,
+    imported_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from("baselines").upsert(row, { onConflict: "project_id" }).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+export async function saveBaselineMappings(projectId, mappings) {
+  const { error } = await supabase.from("baselines").update({ mappings: mappings || {} }).eq("project_id", projectId);
+  if (error) throw error;
+}
+export async function clearBaseline(projectId) {
+  const { error } = await supabase.from("baselines").delete().eq("project_id", projectId);
+  if (error) throw error;
+}
