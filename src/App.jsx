@@ -49,6 +49,8 @@ const css = `
 .lk-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
 .lk-seg button{border:0;background:transparent;padding:7px 11px;font-size:12px;cursor:pointer;color:var(--muted);font-weight:600}
 .lk-seg button.sel{background:var(--ink);color:var(--paper)}
+.lk-wsel{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:12px;font-weight:600;font-family:inherit;padding:7px 9px;cursor:pointer}
+.lk-wsel:hover{background:var(--hover)}
 .lk-spacer{flex:1}
 .lk-sel{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:inherit;cursor:pointer}
 .lk-who{display:flex;align-items:center;gap:7px;font-size:12px}
@@ -1729,6 +1731,9 @@ export default function App({ session }) {
           {[["day", "Day"], ["week", "Week"]].map(([k, l]) => (
             <button key={k} className={grain === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, grain: k }))}>{l}</button>))}
         </div>
+        {isAdmin && <select className="lk-wsel" value={S.settings.weeks} title="Lookahead window length (project setting; also in Admin -> Lookahead)" onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, weeks: Number(e.target.value) } }), { action: "Change setting", detail: `Lookahead ${e.target.value} weeks` })}>
+          {[2, 4, 6, 8, 12].map((w) => <option key={w} value={w}>{w}-week</option>)}
+        </select>}
         {S.view === "swimlane" && <div className="lk-seg">
           {[["company", "Company"], ...(S.areas.length > 1 ? [["area", "Building"]] : []), ["subarea", "Level"], ["tier3", "Zone"], ["level", "Cx Stage"]].map(([k, l]) => (
             <button key={k} className={S.laneBy === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, laneBy: k }))}>{l}</button>))}
@@ -2765,7 +2770,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           </>}
           {tab === "settings" && <>
             <div className="lk-f"><label>Lookahead Length</label>
-              <div className="lk-status">{[2, 4, 6].map((w) => <button key={w} className={S.settings.weeks === w ? "sel" : ""} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, weeks: w } }), { action: "Change setting", detail: `Lookahead ${w} weeks` })}>{w} weeks</button>)}</div></div>
+              <div className="lk-status">{[2, 4, 6, 8, 12].map((w) => <button key={w} className={S.settings.weeks === w ? "sel" : ""} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, weeks: w } }), { action: "Change setting", detail: `Lookahead ${w} weeks` })}>{w} weeks</button>)}</div></div>
             <div className="lk-f"><label>Make-Ready Window (Days)</label>
               <input className="lk-in mono" type="number" min="1" value={S.settings.makeReadyDays} onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, makeReadyDays: Math.max(1, +e.target.value || 1) } }))} /></div>
           </>}
