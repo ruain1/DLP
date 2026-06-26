@@ -3275,6 +3275,72 @@ function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
     </div>);
 }
 
+function BaselineGantt({ baseline, LV, dark, zoom, compact, P }) {
+  const [collapsed, setCollapsed] = useState({});
+  const svgRef = useRef(null);
+  const wbs = (baseline && baseline.wbs) || {};
+  const groupName = (a) => { const p = wbsPath(wbs, a.wbs); return p.length > 1 ? p[1] : (p[0] || "Ungrouped"); };
+  const items = ((baseline && baseline.activities) || []).filter((a) => a.start).map((a) => ({ id: a.pid, code: a.code, name: a.name || "Untitled", s: parseD(a.start), e: parseD(a.end || a.start), ms: !!a.ms, crit: !!a.crit, grp: groupName(a) }));
+
+  const ppd = zoom === "day" ? 30 : zoom === "week" ? 9.6 : 4.4;
+  const rowH = compact ? 22 : 30, headH = 46, leftW = 300;
+  let t0, t1;
+  if (items.length) { t0 = mondayOf(new Date(Math.min(...items.map((i) => i.s.getTime())))); t1 = new Date(Math.max(...items.map((i) => i.e.getTime()))); }
+  else { t0 = mondayOf(new Date()); t1 = addDays(t0, 28); }
+  t1 = addDays(mondayOf(addDays(t1, 7)), 6);
+  const dayOff = (d) => Math.round((d.getTime() - t0.getTime()) / DAYMS);
+  const N = Math.max(7, dayOff(t1) + 1);
+  const tlW = N * ppd, W = leftW + tlW;
+  const xOf = (off) => leftW + off * ppd;
+
+  const groups = {}; items.forEach((it) => { (groups[it.grp] = groups[it.grp] || []).push(it); });
+  const rows = [];
+  Object.keys(groups).sort().forEach((k) => { rows.push({ t: "grp", k, n: groups[k].length }); if (!collapsed[k]) groups[k].slice().sort((a, b) => a.s - b.s).forEach((it) => rows.push({ t: "task", it })); });
+  const H = headH + rows.length * rowH + 8;
+
+  const months = []; { let d = new Date(t0.getFullYear(), t0.getMonth(), 1); while (d <= t1) { const next = new Date(d.getFullYear(), d.getMonth() + 1, 1); const xs = xOf(Math.max(0, dayOff(d < t0 ? t0 : d))); const xe = xOf(dayOff(next > t1 ? t1 : next)); months.push({ label: d.toLocaleString("en-GB", { month: "short", year: "2-digit" }), xs, xe }); d = next; } }
+  const ticks = []; { for (let i = 0; i <= N; i++) { const d = addDays(t0, i); const isMon = d.getDay() === 1; const first = d.getDate() === 1; if (zoom === "day") { ticks.push({ x: xOf(i), label: String(d.getDate()), strong: isMon }); } else if (zoom === "week") { if (isMon) ticks.push({ x: xOf(i), label: String(d.getDate()), strong: false }); } else { if (first) ticks.push({ x: xOf(i), label: "", strong: true }); } } }
+  const todayX = leftW + dayOff(new Date(todayMid())) * ppd;
+  const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || P.ink} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
+  const BASE = dark ? "#8A97A6" : "#94A3B8";
+  const CRIT = dark ? "#E06C6C" : "#C0392B";
+
+  const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
+  const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `FIN04-P6-baseline-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
+
+  const meta = (baseline && baseline.meta) || {};
+  return (
+    <div className="lk-sch-scroll" style={{ background: P.bg }}>
+      {items.length === 0 ? <div className="lk-empty">The stored baseline has no dated activities.</div> : <>
+      <div style={{ display: "flex", gap: 10, padding: "8px 12px", alignItems: "center", borderBottom: "1px solid " + P.line, background: P.bg }}>
+        <span style={{ fontFamily: "ui-monospace,monospace", fontSize: 11, color: P.mut }}>{(meta.project || "P6 baseline")}{baseline.source_filename ? " \u00b7 " + baseline.source_filename : ""} \u00b7 {items.length} activities \u00b7 {items.filter((i) => i.ms).length} milestones{meta.dataDate ? " \u00b7 data date " + meta.dataDate : ""}</span>
+        <div style={{ flex: 1 }} />
+        <button className="lk-btn" onClick={() => exportImg("png")}><Icon n="download" s={13} />PNG</button>
+        <button className="lk-btn" onClick={() => exportImg("jpg")}><Icon n="download" s={13} />JPG</button>
+      </div>
+      <svg className="lk-sch-axis" width={W} height={headH} viewBox={`0 0 ${W} ${headH}`} xmlns="http://www.w3.org/2000/svg" style={{ position: "sticky", top: 0, zIndex: 3, display: "block", marginBottom: -headH, background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
+        <rect x={0} y={0} width={W} height={headH} fill={P.bg} />
+        {months.map((m, i) => <g key={"hm" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
+        {ticks.map((t, i) => <g key={"ht" + i}><line x1={t.x} y1={22} x2={t.x} y2={headH} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
+        <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+        <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
+        {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={headH} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
+      </svg>
+      <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif", position: "relative", zIndex: 1 }}>
+        <rect x={0} y={0} width={W} height={H} fill={P.bg} />
+        {months.map((m, i) => <g key={"m" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
+        {ticks.map((t, i) => <g key={"t" + i}><line x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
+        <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+        <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
+        {todayX >= leftW && todayX <= W && <line x1={todayX} y1={headH} x2={todayX} y2={H} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />}
+        {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { const open = !collapsed[r.k]; return <g key={"g" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}><rect x={0} y={y} width={W} height={rowH} fill={P.header} /><text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>{text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}</g>; } const it = r.it; const nm = it.name; return <g key={"tb" + it.id}>{i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}<line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" />{text(10, y + rowH / 2, it.code || "", { size: 9.5, fill: P.mut })}<text x={42} y={y + rowH / 2} fontSize="11.5" fill={P.ink} dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text></g>; })}
+        {rows.map((r, i) => { if (r.t !== "task") return null; const it = r.it; const y = headH + i * rowH, yc = y + rowH / 2; const xs = xOf(dayOff(it.s)); const xe = xOf(dayOff(it.e) + 1); const barH = rowH - 12, barY = y + (rowH - barH) / 2; const col = it.crit ? CRIT : BASE; if (it.ms) { return <polygon key={"ms" + it.id} points={`${xs},${yc - 6} ${xs + 6},${yc} ${xs},${yc + 6} ${xs - 6},${yc}`} fill={dark ? P.bg : "#FFFFFF"} stroke={col} strokeWidth="1.7" />; } return <g key={"bar" + it.id}><rect x={xs} y={barY} width={Math.max(xe - xs, 4)} height={barH} rx={3} fill={col} opacity={0.22} /><rect x={xs} y={barY} width={Math.max(xe - xs, 4)} height={barH} rx={3} fill="none" stroke={col} strokeWidth="1.1" /></g>; })}
+      </svg>
+      </>}
+    </div>
+  );
+}
+
 function SchedulePage({ S, coName, onOpen }) {
   const [zoom, setZoom] = useState("week");
   const [groupBy, setGroupBy] = useState("level");
@@ -3287,6 +3353,10 @@ function SchedulePage({ S, coName, onOpen }) {
   const [drill, setDrill] = useState(null);
   const openDrill = (title, items) => setDrill({ title, items: items || [] });
   const svgRef = useRef(null);
+  const [bl, setBl] = useState(null);
+  const [source, setSource] = useState("live");
+  useEffect(() => { if (!S.projectId) return; let on = true; loadBaseline(S.projectId).then((r) => { if (on) setBl(r); }).catch(() => {}); return () => { on = false; }; }, [S.projectId]);
+  const hasBaseline = !!(bl && bl.activities && bl.activities.length);
   const LV = S.levels || {};
   const dark = S.theme === "dark";
   const P = dark
@@ -3363,7 +3433,14 @@ function SchedulePage({ S, coName, onOpen }) {
     <div className="lk-sch" style={cssVars(S.theme)}><style>{css}</style>
       <div className="lk-sch-bar">
         <div className="grp"><label>View</label><div className="seg">{[["gantt", "Gantt"], ["calendar", "Calendar"], ["workload", "Workload"]].map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}</div></div>
-        {view === "gantt" && <>
+        {view === "gantt" && hasBaseline && <div className="grp"><label>Schedule</label><div className="seg">{[["live", "Live"], ["p6", "P6 Baseline"]].map(([k, l]) => <button key={k} className={source === k ? "on" : ""} onClick={() => setSource(k)}>{l}</button>)}</div></div>}
+        {view === "gantt" && source === "p6" && hasBaseline && <>
+        <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
+        <button className={"lk-btn" + (compact ? " on" : "")} onClick={() => setCompact((v) => !v)}>Compact</button>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11.5, color: "var(--muted)", alignSelf: "center" }}>Read-only P6 baseline</span>
+        </>}
+        {view === "gantt" && source === "live" && <>
         <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
         <div className="grp"><label>Group By</label><select className="lk-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="none">None</option><option value="company">Company</option><option value="area">Building</option><option value="level">Cx Stage</option><option value="system">System</option></select></div>
         <div className="grp"><label>Colour By</label><select className="lk-select" value={colorBy} onChange={(e) => setColorBy(e.target.value)}><option value="level">Cx Stage</option><option value="company">Company</option><option value="status">Status</option></select></div>
@@ -3377,7 +3454,8 @@ function SchedulePage({ S, coName, onOpen }) {
         <button className="lk-btn" onClick={exportXlsx}><Icon n="download" s={13} />Excel</button>
         </>}
       </div>
-      {view === "gantt" && <div className="lk-sch-scroll" style={{ background: P.bg }}>
+      {view === "gantt" && source === "p6" && hasBaseline && <BaselineGantt baseline={bl} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
+      {view === "gantt" && source === "live" && <div className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
         <>
         <svg className="lk-sch-axis" width={W} height={headH} viewBox={`0 0 ${W} ${headH}`} xmlns="http://www.w3.org/2000/svg" style={{ position: "sticky", top: 0, zIndex: 3, display: "block", marginBottom: -headH, background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
