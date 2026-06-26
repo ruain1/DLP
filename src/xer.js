@@ -86,3 +86,74 @@ export function wbsPath(wbs, id, maxDepth) {
   while (cur && wbs[cur] && !seen[cur] && d < cap) { seen[cur] = 1; out.push(wbs[cur].name); cur = wbs[cur].parent; d++; }
   return out.reverse();
 }
+
+// ---- Microsoft Project XML (MSPDI, the .xml "Save As" from MS Project) ----
+function _xmlUnescape(s) {
+  return String(s == null ? "" : s)
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'").replace(/&#39;/g, "'").replace(/&#x2F;/gi, "/")
+    .replace(/&amp;/g, "&");
+}
+function _tag(block, name) {
+  const m = block.match(new RegExp("<" + name + "(?:\\s[^>]*)?>([\\s\\S]*?)</" + name + ">"));
+  return m ? _xmlUnescape(m[1]).trim() : "";
+}
+const _xday = (s) => (s ? String(s).split("T")[0] : "");
+
+export function parseMSPDI(text) {
+  if (!text || text.indexOf("<Project") === -1) throw new Error("Not a Microsoft Project XML file (no <Project> root).");
+  const head = text.slice(0, text.indexOf("<Tasks") === -1 ? text.length : text.indexOf("<Tasks"));
+  const tasksBlock = (() => { const m = text.match(/<Tasks>([\s\S]*?)<\/Tasks>/); return m ? m[1] : ""; })();
+  if (!tasksBlock) throw new Error("No <Tasks> found in this Microsoft Project XML.");
+
+  const rawTasks = tasksBlock.match(/<Task>[\s\S]*?<\/Task>/g) || [];
+  const tasks = rawTasks.map((b) => ({
+    uid: _tag(b, "UID"),
+    name: _tag(b, "Name"),
+    isMile: _tag(b, "Milestone") === "1",
+    summary: _tag(b, "Summary") === "1",
+    start: _xday(_tag(b, "Start")),
+    finish: _xday(_tag(b, "Finish")),
+    outline: _tag(b, "OutlineNumber"),
+    wbsCode: _tag(b, "WBS"),
+    code: _tag(b, "WBS") || _tag(b, "OutlineNumber") || _tag(b, "ID"),
+    crit: _tag(b, "Critical") === "1",
+  })).filter((t) => t.name || t.uid);
+
+  // WBS map from summary tasks, keyed by outline number; parent = outline minus last segment
+  const wbs = {};
+  tasks.forEach((t) => {
+    if (t.summary && t.outline) {
+      const parts = t.outline.split(".");
+      wbs["O" + t.outline] = { name: t.name, parent: parts.length > 1 ? "O" + parts.slice(0, -1).join(".") : "" };
+    }
+  });
+  const parentKey = (outline) => { if (!outline) return ""; const parts = outline.split("."); return parts.length > 1 ? "O" + parts.slice(0, -1).join(".") : ""; };
+
+  const activities = tasks.filter((t) => !t.summary).map((t) => {
+    const end = t.isMile ? (t.finish || t.start) : (t.finish || t.start);
+    return { pid: t.uid, code: t.code || "", name: t.name || "", wbs: parentKey(t.outline), ms: t.isMile, start: t.start, end: end, status: "", tf: null, crit: !!t.crit };
+  });
+
+  const withDates = activities.filter((a) => a.start && a.end);
+  const spanStart = withDates.length ? withDates.map((a) => a.start).sort()[0] : "";
+  const spanEnd = withDates.length ? withDates.map((a) => a.end).sort().slice(-1)[0] : "";
+  const meta = {
+    project: _tag(head, "Title") || _tag(head, "Name") || "",
+    dataDate: _xday(_tag(head, "StatusDate")) || _xday(_tag(head, "CurrentDate")) || "",
+    planStart: _xday(_tag(head, "StartDate")) || spanStart,
+    planEnd: _xday(_tag(head, "FinishDate")) || spanEnd,
+    spanStart: spanStart,
+    spanEnd: spanEnd,
+    counts: { activities: activities.length, milestones: activities.filter((a) => a.ms).length, wbs: Object.keys(wbs).length, relationships: (tasksBlock.match(/<PredecessorLink>/g) || []).length },
+  };
+  return { meta, wbs, activities };
+}
+
+// Dispatch on filename extension. xlsx/csv are handled in the app (need a column-mapping step).
+export function parseBaselineText(filename, text) {
+  const ext = (filename || "").toLowerCase().split(".").pop();
+  if (ext === "xer") return parseXER(text);
+  if (ext === "xml") return parseMSPDI(text);
+  throw new Error("Unsupported text format: " + ext);
+}

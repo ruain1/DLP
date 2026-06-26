@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
-import { parseXER, decodeXer, wbsPath } from "./xer";
+import { parseXER, parseMSPDI, decodeXer, wbsPath } from "./xer";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -2160,8 +2160,11 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const onXerFile = async (file) => {
     if (!file) return; setBlErr(""); setBlMsg(""); setBlPrev(null); setBlBusy(true);
     try {
-      const buf = await file.arrayBuffer();
-      const parsed = parseXER(decodeXer(buf));
+      const ext = (file.name || "").toLowerCase().split(".").pop();
+      let parsed;
+      if (ext === "xer") parsed = parseXER(decodeXer(await file.arrayBuffer()));
+      else if (ext === "xml") parsed = parseMSPDI(await file.text());
+      else throw new Error("Use a P6 .xer or a Microsoft Project .xml (Save As \u2192 XML) export. CSV and XLSX import is coming next.");
       parsed.source_filename = file.name;
       setBlPrev(parsed);
     } catch (e) { setBlErr(e && e.message ? e.message : "Could not read this file."); }
@@ -2794,7 +2797,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           {tab === "baseline" && <>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>P6 Baseline</div>
             <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, maxWidth: "74ch", lineHeight: 1.55 }}>
-              Upload a Primavera P6 export (.xer) to store a read-only baseline for this project. DLP reads the activities, milestones and dates and keeps them for comparison against the live programme on the Schedule. Re-uploading replaces the stored baseline.
+              Upload a Primavera P6 export (.xer) or a Microsoft Project export (.xml, via Save As \u2192 XML) to store a read-only baseline for this project. DLP reads the activities, milestones and dates and keeps them for comparison against the live programme on the Schedule. Re-uploading replaces the stored baseline.
             </div>
             {blErr && <div style={{ marginBottom: 10, fontSize: 12.5, color: "var(--red)", background: "rgba(192,57,43,.08)", border: "1px solid rgba(192,57,43,.3)", borderRadius: 8, padding: "8px 11px" }}>{blErr}</div>}
             {blMsg && <div style={{ marginBottom: 10, fontSize: 12.5, color: "#0E9384", background: "rgba(14,147,132,.08)", border: "1px solid rgba(14,147,132,.3)", borderRadius: 8, padding: "8px 11px" }}>{blMsg}</div>}
@@ -2824,13 +2827,13 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                   </div>
                 </div>}
                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                  <label className="lk-btn"><input type="file" accept=".xer" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />Replace .xer</label>
+                  <label className="lk-btn"><input type="file" accept=".xer,.xml" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />Replace baseline</label>
                   <button className="lk-btn" style={{ color: "var(--red)" }} disabled={blBusy} onClick={removeBl}>Remove baseline</button>
                 </div>
               </div>); })()}
             {!bl && !blPrev && <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: 22, textAlign: "center", background: "var(--card)" }}>
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>No P6 baseline stored for this project yet.</div>
-              <label className="lk-btn primary"><input type="file" accept=".xer" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />{blBusy ? "Reading\u2026" : "Upload P6 .xer"}</label>
+              <label className="lk-btn primary"><input type="file" accept=".xer,.xml" style={{ display: "none" }} onChange={(e) => { onXerFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />{blBusy ? "Reading\u2026" : "Upload .xer or .xml"}</label>
             </div>}
             {blPrev && (() => { const m = blPrev.meta || {}; const c = m.counts || {}; return (
               <div style={{ border: "1px solid var(--accent)", borderRadius: 10, background: "var(--card)", padding: 14 }}>
