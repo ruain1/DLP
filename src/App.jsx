@@ -1549,9 +1549,13 @@ export default function App({ session }) {
     const movable = isAdmin || (editable && !a.committed);
     if (a.isMilestone) {
       const late = a.delayed;
-      const hasSlip = a.status !== "complete" && (late || a.totalShift > 0);
-      let fe = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
-      if (late && todayUnit > fe) fe = todayUnit;   // overdue: project out to today
+      const complete = a.status === "complete";
+      const hasSlip = late || (!complete && a.totalShift > 0);
+      let feDay;
+      if (complete) feDay = a.actualFinish ? Math.round((parseD(a.actualFinish) - anchor) / DAYMS) : a.endOff;   // completed: anchor the evidence to the real finish
+      else feDay = a.projEndOff;
+      let fe = grain === "day" ? feDay : Math.floor(feDay / 7);
+      if (!complete && late && todayUnit > fe) fe = todayUnit;   // overdue: project out to today
       const planned = sU(a);
       const step = a._stepMax ? `translateY(${(a._step - a._stepMax / 2) * MS_STEP}px)` : undefined;
       const accent = late ? "#C0392B" : (S.theme === "dark" ? "#F0C552" : "#E0A106");
@@ -1562,11 +1566,11 @@ export default function App({ session }) {
         const N = ge - gs + 1; const h = (50 / N).toFixed(4);
         return <div className="lk-ms slip" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, transform: step, position: "relative" }}>
           <span className="dia ghost" style={{ position: "absolute", left: `${h}%`, top: "50%", transform: "translate(-50%,-50%) rotate(45deg)" }} title={`Planned ${a.start}`} />
-          <span className="ms-conn" style={{ position: "absolute", top: "50%", left: `calc(${h}% + 8px)`, right: `calc(${h}% + 8px)`, borderTopColor: accent }} />
+          <span className="ms-conn" style={{ position: "absolute", top: "50%", left: `calc(${h}% + 8px)`, right: `calc(${h}% + 8px)`, borderTopColor: accent, borderTopStyle: complete ? "solid" : "dashed" }} />
           <div className="ms-head" style={{ position: "absolute", left: `calc(${(100 - h).toFixed(4)}% - 6px)`, top: "50%", transform: "translateY(-50%)", cursor: movable ? "grab" : "pointer" }} draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
             <span className="dia" style={late ? { background: "#C0392B" } : { background: "transparent", border: `1.5px solid ${accent}` }} title={a.desc} />
             <span className="mslbl2">{a.desc || "Milestone"}</span>
-            <span className={"ms-chip " + (late ? "late" : "fore")}>{chip}</span>
+            <span className={"ms-chip " + (late ? "late" : "fore")} title={complete ? "Delivered late (recorded)" : (late ? "Overdue" : "Forecast slip")}>{chip}</span>
           </div>
         </div>;
       }
@@ -3197,7 +3201,20 @@ function SchedulePage({ S, coName, onOpen }) {
             const respX = respBase + ((showDeps && hasOut.has(a.id) && !delay) ? 16 : 6);
             return <g key={"tf" + a.id} style={{ cursor: "pointer" }} onClick={() => openDrill(a.desc || "Activity", [a])}>
               {a.isMilestone
-                ? <polygon points={`${g.x},${yc - 6} ${g.x + 6},${yc} ${g.x},${yc + 6} ${g.x - 6},${yc}`} fill={col} />
+                ? (delay
+                    ? (() => {
+                        const complete = a.status === "complete";
+                        const todayOff = dayOff(new Date(todayMid()));
+                        const isLate = complete || todayOff > g.pE;
+                        const accent = isLate ? "#C0392B" : "#D97706";
+                        const ex = xOf(projE);
+                        return <g>
+                          <line x1={g.x} y1={yc} x2={ex} y2={yc} stroke={accent} strokeWidth="1.4" strokeDasharray={complete ? undefined : "4 3"} />
+                          <polygon points={`${g.x},${yc - 5} ${g.x + 5},${yc} ${g.x},${yc + 5} ${g.x - 5},${yc}`} fill="none" stroke="#7C8896" strokeWidth="1.2" strokeDasharray="2 2" />
+                          <polygon points={`${ex},${yc - 6} ${ex + 6},${yc} ${ex},${yc + 6} ${ex - 6},${yc}`} fill={complete ? accent : "none"} stroke={accent} strokeWidth={complete ? 0 : 1.4} />
+                        </g>;
+                      })()
+                    : <polygon points={`${g.x},${yc - 6} ${g.x + 6},${yc} ${g.x},${yc + 6} ${g.x - 6},${yc}`} fill={col} />)
                 : <g>
                     <rect x={g.x} y={barY} width={g.w} height={barH} rx={3} fill={col} opacity={0.30} />
                     <rect x={g.x} y={barY} width={g.w * p / 100} height={barH} rx={3} fill={col} />
