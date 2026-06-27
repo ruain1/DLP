@@ -1803,7 +1803,8 @@ export default function App({ session }) {
         {S.view === "swimlane" && lanesList.map((lane) => {
           const la = visible.filter((a) => a.inWin && laneOf(a) === lane).sort((a, b) => a.startOff - b.startOff);
           if (S.laneBy !== "level" && la.length === 0) return null;
-          const rows = []; la.forEach((a) => { const su = sU(a), eu = eU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; a._step = 0; a._stepMax = 0; });
+          const effEndU = (a) => { let e = eU(a); if (a.status === "complete") return e; if (a.delayed || a.totalShift > 0) { let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7); if (a.delayed && todayUnit > ee) ee = todayUnit; if (ee > e) e = ee; } return e; };
+          const rows = []; la.forEach((a) => { const su = sU(a), eu = effEndU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; a._step = 0; a._stepMax = 0; });
           const msByRow = {}; la.forEach((a) => { if (a.isMilestone) (msByRow[a._row] = msByRow[a._row] || []).push(a); });
           Object.keys(msByRow).forEach((k) => { const ms = msByRow[k].sort((x, y) => sU(x) - sU(y)); let prev = -99, lvl = 0, mx = 0; ms.forEach((a) => { const su = sU(a); lvl = (su - prev <= 3) ? (lvl + 1) % 4 : 0; a._step = lvl; if (lvl > mx) mx = lvl; prev = su; }); ms.forEach((a) => { a._stepMax = mx; }); });
           const sw = S.laneBy === "level" ? lvOf(LV, lane).color : "var(--muted)";
