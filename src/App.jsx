@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
+import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -1984,6 +1985,8 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
   const [cOwnerType, setCOwnerType] = useState("");
   const [cOwnerId, setCOwnerId] = useState(null);
   const [cDue, setCDue] = useState("");
+  const [assetQ, setAssetQ] = useState("");
+  const [assetOpen, setAssetOpen] = useState(false);
   const setC = (id, k, v) => set("constraints", a.constraints.map((x) => x.id === id ? { ...x, [k]: v } : x));
   const locked = a.status === "complete" && !isAdmin;
   const set = (k, v) => { if (!canEdit || locked) return; setA((p) => ({ ...p, [k]: v })); };
@@ -1992,6 +1995,22 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
   const doReschedule = () => { if (!isAdmin || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
   const dis = !canEdit || locked;
+  const assetTags = parseAssetField(a.asset);
+  const assetDerived = deriveFromAssets(assetTags);
+  const hasKnownAsset = assetTags.some((t) => ASSET_BY_TAG[t]);
+  const applyAssets = (tags) => {
+    if (!canEdit || locked) return;
+    const known = tags.some((t) => ASSET_BY_TAG[t]);
+    const d = deriveFromAssets(tags);
+    setA((p) => ({ ...p, asset: joinAssetField(tags), area: known ? d.area : p.area, subArea: known ? d.subArea : p.subArea, tier3: known ? d.tier3 : p.tier3, system: known ? d.system : p.system }));
+  };
+  const toggleAsset = (tag) => { const has = assetTags.includes(tag); applyAssets(has ? assetTags.filter((t) => t !== tag) : [...assetTags, tag]); };
+  const lockB = hasKnownAsset && !!assetDerived.area;
+  const lockL = hasKnownAsset && !!assetDerived.subArea;
+  const lockZ = hasKnownAsset && !!assetDerived.tier3;
+  const lockS = hasKnownAsset && !!assetDerived.system;
+  const assetMatches = (() => { const q = assetQ.trim().toLowerCase(); if (!assetOpen) return []; let list = ASSETS; if (q) list = ASSETS.filter((x) => x.tag.toLowerCase().includes(q) || x.name.toLowerCase().includes(q) || x.type.toLowerCase().includes(q)); return list.slice(0, 50); })();
+  const roBox = (v) => (<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--ink)" }}><span>{v || "--"}</span><span style={{ fontSize: 9.5, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>from asset</span></div>);
   const cancelAdd = () => { setAddKind(null); setAddText(""); };
   const confirmAdd = (kind, ctx) => { const v = onAdd && onAdd(kind, addText, ctx); if (!v) { cancelAdd(); return; } if (kind === "company") set("companyId", v); else if (kind === "subArea") { set("subArea", v); set("tier3", ""); } else if (kind === "tier3") set("tier3", v); else if (kind === "system") set("system", v); cancelAdd(); };
   const renderAdd = (kind, placeholder, ctx) => addKind !== kind ? null : (
@@ -2038,26 +2057,40 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
               </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}
               {renderAdd("company", "New company name", {})}</div>
             <div className="lk-f"><label>Building</label>
-              <select className="lk-select" value={a.area} disabled={dis || !isAdmin} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
+              {lockB ? roBox(a.area) : <><select className="lk-select" value={a.area} disabled={dis || !isAdmin} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
                 <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select>
-              {!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Building is fixed for the project.</span>}</div>
+              {!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Building is fixed for the project.</span>}</>}</div>
           </div>
           <div className="lk-f"><label>Level</label>
-            <select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("subArea"); } else { set("subArea", e.target.value); set("tier3", ""); } }}>
+            {lockL ? roBox(a.subArea) : <><select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("subArea"); } else { set("subArea", e.target.value); set("tier3", ""); } }}>
               <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}{isAdmin && !dis && a.area && ADD_OPT}</select>
             {!isAdmin && a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No levels defined for {a.area}.</span>}
-            {renderAdd("subArea", "New level name", { area: a.area })}</div>
+            {renderAdd("subArea", "New level name", { area: a.area })}</>}</div>
           <div className="lk-f"><label>Zone / Room</label>
-            <select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("tier3"); } else set("tier3", e.target.value); }}>
+            {lockZ ? roBox(a.tier3) : <><select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("tier3"); } else set("tier3", e.target.value); }}>
               <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}{isAdmin && !dis && a.subArea && ADD_OPT}</select>
             {!isAdmin && a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}.</span>}
-            {renderAdd("tier3", "New zone / room name", { area: a.area, subArea: a.subArea })}</div>
+            {renderAdd("tier3", "New zone / room name", { area: a.area, subArea: a.subArea })}</>}</div>
           <div className="lk-f"><label>System</label>
-            <select className="lk-select" value={a.system} disabled={dis} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
+            {lockS ? roBox(a.system) : <><select className="lk-select" value={a.system} disabled={dis} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
-            {renderAdd("system", "New system name", {})}</div>
+            {renderAdd("system", "New system name", {})}</>}</div>
           <div className="lk-f"><label>Asset (Optional)</label>
-            <input className="lk-in" value={a.asset || ""} disabled={dis} placeholder="e.g. EPOD108.DB001.U003" onChange={(e) => set("asset", e.target.value)} /></div>
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 8px", minHeight: 40, opacity: dis ? 0.6 : 1 }} onClick={() => { if (!dis) { const el = document.getElementById("assetInp"); if (el) el.focus(); } }}>
+                {assetTags.map((t) => { const known = ASSET_BY_TAG[t]; const lbl = t.split(".").slice(3).join(".") || t; return <span key={t} title={known ? known.name : "Not in register"} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(99,102,241,0.16)", border: "1px solid rgba(99,102,241,0.4)", color: "#c9ccff", borderRadius: 7, padding: "3px 6px 3px 8px", fontSize: 11.5, fontFamily: "ui-monospace,Menlo,Consolas,monospace", opacity: known ? 1 : 0.75 }}>{lbl}{!dis && <span style={{ cursor: "pointer", color: "#9aa0e6", fontWeight: 700, padding: "0 2px" }} onClick={(e) => { e.stopPropagation(); toggleAsset(t); }}>×</span>}</span>; })}
+                {!dis && <input id="assetInp" autoComplete="off" value={assetQ} placeholder={assetTags.length ? "Add another..." : "Search tag or equipment, e.g. UPS, CRAH, GY01..."} onFocus={() => setAssetOpen(true)} onBlur={() => setTimeout(() => setAssetOpen(false), 150)} onChange={(e) => { setAssetQ(e.target.value); setAssetOpen(true); }} style={{ flex: 1, minWidth: 130, background: "transparent", border: 0, outline: "none", color: "inherit", fontSize: 13, padding: "3px 2px" }} />}
+              </div>
+              {assetOpen && assetMatches.length > 0 && <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 5px)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 18px 50px rgba(0,0,0,.5)", maxHeight: 260, overflow: "auto", zIndex: 40, padding: 5 }}>
+                {assetMatches.map((x) => { const on = assetTags.includes(x.tag); return <div key={x.tag} onMouseDown={(e) => { e.preventDefault(); toggleAsset(x.tag); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 9px", borderRadius: 8, cursor: "pointer", background: on ? "rgba(99,102,241,0.12)" : "transparent" }}>
+                  <span style={{ width: 15, height: 15, borderRadius: 4, flex: "0 0 auto", border: "1.5px solid var(--line)", background: on ? "var(--accent)" : "transparent", color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{on ? "\u2713" : ""}</span>
+                  <span style={{ minWidth: 0 }}><span style={{ fontFamily: "ui-monospace,Menlo,Consolas,monospace", fontSize: 12 }}>{x.tag}</span><span style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>{x.name}</span></span>
+                  <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 6, padding: "2px 6px", whiteSpace: "nowrap" }}>{x.type} &middot; {x.me}</span>
+                </div>; })}
+              </div>}
+              {assetOpen && assetQ.trim() && assetMatches.length === 0 && <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 5px)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", color: "var(--muted)", fontSize: 12, zIndex: 40 }}>No assets match "{assetQ}"</div>}
+            </div>
+            {hasKnownAsset && <span style={{ fontSize: 10.5, color: "var(--muted)", display: "block", marginTop: 5 }}>Location and System are set from the asset. Remove the asset to edit them by hand.</span>}</div>
           <div className="lk-f"><label>Cx Stage</label>
             <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => set("level", k)}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
           </>}
