@@ -200,6 +200,14 @@ const realCard=(committed,opts={})=>`<div class="card">
   ${opts.wit?`<div class="frow"><label>Witness date &amp; time</label><div class="fin">27 Jun 10:00</div></div>`:''}
   <div class="tog">Milestone <span class="sub">(a point in time, shown as a diamond)</span><span class="sw2"></span></div>
   <div style="display:flex;gap:7px;justify-content:flex-end;margin-top:2px"><span class="tbtn" style="color:var(--late)">Delete</span><span class="tbtn">Cancel</span><span class="tbtn prime">Save</span></div></div>`;
+const editorTabs=(active='Details')=>`<div class="card"><div style="display:flex;gap:3px;margin-bottom:11px">${['Details','Schedule','Readiness','Delay'].map(t=>`<span class="tbtn ${t===active?'on':''}" style="flex:1;text-align:center">${t}${t==='Delay'?'<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--late);margin-left:4px;vertical-align:middle"></span>':''}</span>`).join('')}</div>
+  <div class="frow"><label>What is the activity · #84</label><div class="fin">Terminate LV cables</div></div>
+  <div class="cap" style="margin-top:8px">The editor opens in tabs. <b>Details</b> is identity and location; <b>Schedule</b> is dates and status; <b>Readiness</b> is constraints and witness; <b>Delay</b> is admin-only.</div></div>`;
+const delayBox=(excused=false)=>`<div class="card">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><b style="font-size:13px">Delay</b>${excused?'<span class="chip" style="background:rgba(14,147,132,.18);color:#0E9384">Excused</span>':'<span class="chip" style="background:rgba(192,57,58,.18);color:var(--late)">5 days late</span>'}</div>
+  ${excused?`<div class="cap" style="margin:0">No longer shows as late on the board. Reason: <b>Client agreed revised date</b>.</div><div style="display:flex;justify-content:flex-end;margin-top:11px"><span class="tbtn">Remove excuse</span></div>`:`<div style="border-left:2px solid var(--late);padding-left:9px;font-size:11.5px;color:var(--mut);margin-bottom:11px">Overdue: planned finish was Fri 27 Jun and the activity is not complete.</div>
+  <div class="frow"><label>Reason</label><div class="fin" style="color:var(--mut)">Client agreed revised date ▾</div></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:11px"><span class="tbtn prime">Excuse the delay</span></div>`}</div>`;
 const realBoard=(o={})=>`<div class="board">
   <div class="lane"><span class="nm">CTS Nordics</span><div class="track"><span class="bar" style="left:5%;width:30%;background:var(--l3)"><span class="dot" style="background:${o.dim?'var(--constrained)':'var(--ready)'}"></span>SAT prep</span>${o.showNew?'<span class="bar" style="left:40%;width:30%;background:var(--l3);outline:2px solid var(--surface)"><span class="chip will">will</span>Terminate LV</span>':''}</div></div>
   <div class="lane"><span class="nm">Mecwide</span><div class="track"><span class="bar" style="left:14%;width:24%;background:var(--l1);${o.dim?'opacity:.35':''}"><span class="dot" style="background:var(--constrained)"></span>FAT</span>${o.wit?'<span class="bar" style="left:42%;width:22%;background:var(--l4)"><span class="chip wit">WIT</span>Busbar</span>':'<span class="dia" style="left:66%;background:var(--l4)"></span>'}</div></div>
@@ -257,7 +265,7 @@ const REF={
     <p>A metrics strip reads, for the current window: <b>In lookahead</b>, <b>Ready to run</b>, <b>Need make-ready</b>, <b>Committed</b> this week, <b>Delayed</b>, and <b>At risk</b> (predecessor knock-on). Activities are cards in lanes, coloured by Cx stage, with a readiness dot; drag to reschedule.</p>` },
   r_card:{ title:"The activity card", ill:`<div class="sample"><div class="d">Terminate LV cables</div><div class="m">FIN04.01.L0.GY01 / EPMS / L3 SAT</div><div class="pb"><i></i></div><div style="display:flex;gap:5px"><span class="chip will">will</span><span class="chip wit">WIT</span></div></div>`, body:`
     <p>Every card carries its <b>location code, system, Cx stage</b> and a progress bar, plus status chips. The code reads <b>Site.Building.Level.Zone</b>, so <span class="mono">FIN04.01.L0.GY01</span> is building 01, level L0, zone GY01.</p>
-    <p>Required fields when you add one: <b>Description, Building, Level, Zone / Room, System</b> and <b>Cx Stage</b>. <b>Asset</b> (for example <span class="mono">EPOD108.DB001.U003</span>) sits under System and is optional. The card also holds the three toggles, dates, status and, for admins, the audit history.</p>` },
+    <p>Required fields when you add one: <b>Description, Building, Level, Zone / Room, System</b> and <b>Cx Stage</b>. <b>Asset</b> (for example <span class="mono">EPOD108.DB001.U003</span>) sits under System and is optional. Opening a card shows a tabbed editor: <b>Details</b> (identity, location, Cx stage, milestone, notes), <b>Schedule</b> (dates, predecessors, status, actuals, and the admin-only reschedule), <b>Readiness</b> (constraints, committed, witness), and for admins a <b>Delay</b> tab. Audit history sits at the foot for admins.</p>` },
   r_table:{ title:"The Activity Table", ill:realTable(), body:`
     <p>The Activity Table is a dense, sortable list of every activity, with columns <b># / Activity / Company / Location / Cx Stage / Start / Constraint / Owner / Need-by</b>.</p>
     <p>Filter by Company, Cx Stage and Status, and open any row to edit it on the same card the board uses. Best when you want to scan or check data rather than work visually.</p>` },
@@ -268,6 +276,9 @@ const REF={
     <p><b>Cx Stage colours:</b> bars are coloured by commissioning stage, so a bar's colour tells you the phase at a glance.</p>
     <p><b>Ready and constrained:</b> a dot on each bar shows readiness. Teal means every constraint is cleared and the work can run; amber means open constraints remain.</p>
     <p>A grey slip tail means <b>late</b>; an amber tail is a <b>forecast knock-on</b> from a predecessor; a diamond is a <b>milestone</b>.</p>` },
+  r_delay:{ title:"Delays &amp; excusing", ill:delayBox(false), body:`
+    <p>An activity reads as <b>late</b> when it starts after its planned start or runs past its planned finish, and as a <b>forecast knock-on</b> when a predecessor pushes it. The board shows this as a slip tail and a <span class="pill" style="color:var(--late);border-color:var(--late)">+D</span> tag, and steps neighbouring activities apart so a tail never overlaps the next one.</p>
+    <p><b>Admins</b> get a <b>Delay</b> tab on the activity editor. It explains why the activity is flagged, then offers two responses. To move the plan to a new date, use <b>Reschedule</b> on the Schedule tab, which keeps the original on the trail. To accept the dates but clear the flag, <b>Excuse the delay</b>: pick a reason, and it stops showing as late while the dates stay put. An excused activity carries an <b>Excused</b> note you can remove later, and the change is recorded.</p>` },
   r_constraints:{ title:"Constraints &amp; make-ready", ill:realCard(false,{constraint:true}), body:`
     <p>A constraint is anything that stops work starting: access, prerequisites, materials, permits. Add constraints on the card with an <b>Owner</b> and a <b>Need-by</b> date.</p>
     <p>While any constraint is open the readiness dot is <b>amber</b>; clear them all and it turns <b>teal</b>, ready to run. The <b>Make-ready</b> toggle fades ready work and spotlights what is still constrained inside the window, so the planning meeting drives blockers out. Assignees can clear their own constraints.</p>` },
@@ -291,8 +302,9 @@ const REF={
       <span class="key"><span class="chip wit">WIT</span> witness required</span>
       <span class="key"><span class="dot" style="background:var(--ready)"></span> ready</span>
       <span class="key"><span class="dot" style="background:var(--constrained)"></span> constrained</span>
-      <span class="key"><span class="pill" style="color:var(--late);border-color:var(--late)">+D</span> delayed by D days</span></div>
-    <p><b>will</b> marks a committed promise that counts toward PPC. <b>WIT</b> means a client or third-party witness inspection is attached. The readiness dot is teal when clear and amber when constraints remain. A <b>+D</b> tag on a bar is how many days late it is running.</p>` },
+      <span class="key"><span class="pill" style="color:var(--late);border-color:var(--late)">+D</span> delayed by D days</span>
+      <span class="key"><span class="pill" style="color:#0E9384;border-color:#0E9384">excused</span> delay cleared by an admin</span></div>
+    <p><b>will</b> marks a committed promise that counts toward PPC. <b>WIT</b> means a client or third-party witness inspection is attached. The readiness dot is teal when clear and amber when constraints remain. A <b>+D</b> tag on a bar is how many days late it is running; an admin can <b>excuse</b> a delay, which removes the tag while leaving the dates unchanged.</p>` },
   r_codes:{ title:"Location codes", ill:codeSample(), body:`
     <p>Locations read <b>Site.Building.Level.Zone</b>. So <span class="mono">FIN04.01.L0.GY01</span> is project FIN04, building 01, level L0, zone GY01.</p>
     <p>The optional <b>Asset</b> tag (for example <span class="mono">EPOD108.DB001.U003</span>) names the specific equipment under a System. Consistent codes make filtering and reporting reliable.</p>` },
@@ -302,15 +314,15 @@ const REF={
 const TUT={
   board:{ title:"Add via Planning Board", tag:"EVERYONE", mins:"2 min", sim:"add", steps:[
     {h:"Open the activity card", t:"On the <b>Planning Board</b>, click <b>+ Activity</b> in the top toolbar to open a blank card.", ill:realToolbar('add')},
-    {h:"Describe the work", t:"Fill <b>What is the activity</b>, pick the <b>Company</b>, set the <b>Cx stage</b> and the location.", ill:realCard(false)},
-    {h:"Set the dates", t:"Choose a <b>Planned start</b> and a <b>Duration</b>. Switch on <b>Milestone</b> for a single point in time, shown as a diamond.", ill:realCard(false)},
-    {h:"Commit it, if due this week", t:"If the finish falls in the current week, turn on <b>Committed for this week (a reliable promise)</b> to make it a <span class='chip will'>will</span>.", ill:realCard(true)},
+    {h:"Describe the work", t:"You land on the <b>Details</b> tab. Fill <b>What is the activity</b>, pick the <b>Company</b>, set the <b>Cx stage</b> and the location, and switch on <b>Milestone</b> for a single point in time, shown as a diamond.", ill:editorTabs('Details')},
+    {h:"Set the dates", t:"Open the <b>Schedule</b> tab for the <b>Planned start</b> and <b>Duration</b>. If you started from a board cell or lane, the start is already set to that day.", ill:realCard(false)},
+    {h:"Commit it, if due this week", t:"On the <b>Readiness</b> tab, if the finish falls in the current week, turn on <b>Committed for this week (a reliable promise)</b> to make it a <span class='chip will'>will</span>.", ill:realCard(true)},
     {h:"Save and see it land", t:"Press <b>Save</b>. The activity appears in its lane, coloured by Cx stage, with a readiness dot.", ill:realBoard({showNew:true})},
   ]},
   table:{ title:"Add via Activity Table", tag:"EVERYONE", mins:"1 min", sim:null, steps:[
     {h:"Open the Activity Table", t:"Choose <b>Activity Table</b> in the sidebar for a dense list with columns # / Activity / Company / Location / Cx Stage / Start / Constraint / Owner / Need-by.", ill:realTable()},
     {h:"Add a row", t:"Use <b>+ Add activity</b> and fill the inline fields. Same data as the board card, table layout.", ill:realTable()},
-    {h:"Commit and constrain", t:"Open the row to toggle <b>Committed for this week</b> and add constraints, exactly as on the board.", ill:realCard(true,{constraint:true})},
+    {h:"Commit and constrain", t:"Open the row to reach the tabbed editor; on the <b>Readiness</b> tab toggle <b>Committed for this week</b> and add constraints, exactly as on the board.", ill:realCard(true,{constraint:true})},
   ]},
   import:{ title:"Bulk import (Excel/CSV)", tag:"EVERYONE", mins:"3 min", sim:null, steps:[
     {h:"Open Import", t:"On the board toolbar, click <b>Import</b>. Best for seeding a programme from a master schedule.", ill:realToolbar('import')},
@@ -324,7 +336,12 @@ const TUT={
   ]},
   reschedule:{ title:"Reschedule and links", tag:"EDIT RIGHTS", mins:"2 min", sim:null, steps:[
     {h:"Drag to move", t:"Drag a bar to a new date. In <b>Week</b> zoom it snaps to the week; in <b>Day</b> zoom drag either <b>end</b> to change start or finish.", ill:realBoard()},
-    {h:"Dependencies ripple", t:"Moving a linked predecessor pushes its successors and draws an <b>amber forecast</b> trail. The <b>At risk</b> metric counts predecessor knock-on.", ill:`<div class="ill"><div class="board"><div class="lane"><span class="nm">A · FAT</span><div class="track"><span class="bar" style="left:6%;width:26%;background:var(--l1)">FAT</span></div></div><div class="lane"><span class="nm">B · SAT</span><div class="track"><span class="bar" style="left:40%;width:26%;background:var(--l3)">SAT</span><span class="bar" style="left:66%;width:14%;background:var(--amber);opacity:.6">+2d</span></div></div></div></div>`},
+  ]},
+  excuse:{ title:"Excuse a delay", tag:"ADMIN", mins:"1 min", sim:null, steps:[
+    {h:"Open the late activity", t:"Click the activity to open the editor. A red dot on the <b>Delay</b> tab flags that it is running late.", ill:editorTabs('Delay')},
+    {h:"Read why it is flagged", t:"The <b>Delay</b> tab explains the cause: a late start, an overdue finish, or a push from a predecessor.", ill:delayBox(false)},
+    {h:"Reschedule or excuse", t:"To move the plan, use <b>Reschedule</b> on the Schedule tab, which keeps the original on the trail. To keep the dates but clear the flag, pick a <b>Reason</b> and press <b>Excuse the delay</b>.", ill:delayBox(false)},
+    {h:"Save", t:"Press <b>Save</b>. An excused activity stops showing as late on the board and carries an <b>Excused</b> note you can remove later.", ill:delayBox(true)},
   ]},
   constraints:{ title:"Constraints &amp; make-ready", tag:"EVERYONE", mins:"2 min", sim:null, steps:[
     {h:"Add a constraint", t:"On the card, type into <b>Add a constraint</b>, assign an <b>Owner</b> (type @ to assign a person or company) and a <b>Need-by</b> date. Constrained work shows an amber dot.", ill:realCard(false,{constraint:true})},
@@ -352,11 +369,11 @@ const TUT={
 };
 
 const NAV=[
-  ["Quick Reference",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"],["r_reading","Reading the schedule","◷"],["r_constraints","Constraints & make-ready","⚑"],["r_commit","Committing & PPC","✓"],["r_witness","Witness invites","◎"],["r_analytics","Analytics & reports","◔"],["r_admin","Admin & settings","⚙"],["r_cxstages","Cx stages & colours","◆"],["r_markers","Markers & chips","▣"],["r_codes","Location codes","#"]]],
-  ["How To",[["board","Add via Planning Board","+"],["table","Add via Activity Table","▤"],["import","Bulk import (Excel/CSV)","⇪"],["views","Switch & read views","▫"],["reschedule","Reschedule & links","↔"],["constraints","Constraints & make-ready","⚑"],["witness","Witness invites","◎"],["ytt","YTT daily focus","☼"],["analytics","Dashboard & popouts","◔"],["weekly","Weekly Report","▣"]]],
+  ["Quick Reference",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"],["r_reading","Reading the schedule","◷"],["r_delay","Delays & excusing","⏱"],["r_constraints","Constraints & make-ready","⚑"],["r_commit","Committing & PPC","✓"],["r_witness","Witness invites","◎"],["r_analytics","Analytics & reports","◔"],["r_admin","Admin & settings","⚙"],["r_cxstages","Cx stages & colours","◆"],["r_markers","Markers & chips","▣"],["r_codes","Location codes","#"]]],
+  ["How To",[["board","Add via Planning Board","+"],["table","Add via Activity Table","▤"],["import","Bulk import (Excel/CSV)","⇪"],["views","Switch & read views","▫"],["reschedule","Reschedule & links","↔"],["excuse","Excuse a delay","⏱"],["constraints","Constraints & make-ready","⚑"],["witness","Witness invites","◎"],["ytt","YTT daily focus","☼"],["analytics","Dashboard & popouts","◔"],["weekly","Weekly Report","▣"]]],
 ];
 const isTut=(k)=>!!TUT[k];
-const ADMIN_ONLY=new Set(['weekly','r_admin']);   // Weekly Report and the Admin section are admin-only
+const ADMIN_ONLY=new Set(['weekly','r_admin','r_delay','excuse']);   // Weekly Report, Admin, and the admin-only delay pages
 
 let cur='r_overview', mode='walk', step=0, role='admin';
 const subnav=document.getElementById('subnav'), subbody=document.getElementById('subbody');
