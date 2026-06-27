@@ -1575,9 +1575,9 @@ export default function App({ session }) {
     const editable = canEdit(a);
     const movable = isAdmin || (editable && !a.committed);
     if (a.isMilestone) {
-      const late = a.delayed;
+      const late = a.delayed && !a.excuse;
       const complete = a.status === "complete";
-      const hasSlip = late || (!complete && a.totalShift > 0);
+      const hasSlip = !a.excuse && (late || (!complete && a.totalShift > 0));
       let feDay;
       if (complete) feDay = a.actualFinish ? Math.round((parseD(a.actualFinish) - anchor) / DAYMS) : a.endOff;   // completed: anchor the evidence to the real finish
       else feDay = a.projEndOff;
@@ -1610,8 +1610,8 @@ export default function App({ session }) {
     const constrained = a.open > 0 && a.status !== "complete";
     const spot = makeReady && constrained && a.startOff < mk;
     const dim = makeReady && !spot;
-    const hasTail = a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
-    const tailLate = a.delayed;
+    const hasTail = !a.excuse && a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
+    const tailLate = a.delayed && !a.excuse;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "")}
         style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
@@ -1622,7 +1622,7 @@ export default function App({ session }) {
           {a.committed && <span className="lk-chip commit">will</span>}
           {a.witnessInvite && <span className="lk-chip wit" title="Witness invite">WIT</span>}
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
-          {a.delayed && <span className="lk-chip late">+{a.delayDays}d</span>}
+          {a.delayed && !a.excuse && <span className="lk-chip late">+{a.delayDays}d</span>}
           {a.knockOn > 0 && a.status !== "complete" && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
@@ -1645,6 +1645,7 @@ export default function App({ session }) {
 
   const Forecast = ({ a, row }) => {
     if (a.isMilestone || a.status === "complete") return null;
+    if (a.excuse) return null;
     const late = a.delayed;
     if (!late && a.totalShift <= 0) return null;   // amber forecast still needs a shift; a late tail draws whenever overdue
     let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
@@ -1803,7 +1804,7 @@ export default function App({ session }) {
         {S.view === "swimlane" && lanesList.map((lane) => {
           const la = visible.filter((a) => a.inWin && laneOf(a) === lane).sort((a, b) => a.startOff - b.startOff);
           if (S.laneBy !== "level" && la.length === 0) return null;
-          const effEndU = (a) => { let e = eU(a); if (a.status === "complete") return e; if (a.delayed || a.totalShift > 0) { let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7); if (a.delayed && todayUnit > ee) ee = todayUnit; if (ee > e) e = ee; } return e; };
+          const effEndU = (a) => { let e = eU(a); if (a.status === "complete") return e; if (!a.excuse && (a.delayed || a.totalShift > 0)) { let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7); if (a.delayed && todayUnit > ee) ee = todayUnit; if (ee > e) e = ee; } return e; };
           const rows = []; la.forEach((a) => { const su = sU(a), eu = effEndU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; a._step = 0; a._stepMax = 0; });
           const msByRow = {}; la.forEach((a) => { if (a.isMilestone) (msByRow[a._row] = msByRow[a._row] || []).push(a); });
           Object.keys(msByRow).forEach((k) => { const ms = msByRow[k].sort((x, y) => sU(x) - sU(y)); let prev = -99, lvl = 0, mx = 0; ms.forEach((a) => { const su = sU(a); lvl = (su - prev <= 3) ? (lvl + 1) % 4 : 0; a._step = lvl; if (lvl > mx) mx = lvl; prev = su; }); ms.forEach((a) => { a._stepMax = mx; }); });
@@ -1967,6 +1968,9 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
 
 function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete }) {
   const [a, setA] = useState(act);
+  const [tab, setTab] = useState("details");
+  const [exReason, setExReason] = useState("");
+  const [exNote, setExNote] = useState("");
   const [rsDate, setRsDate] = useState("");
   const [rsReason, setRsReason] = useState("");
   const [addKind, setAddKind] = useState(null);
@@ -2018,6 +2022,13 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
         <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
           {!canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
+          <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
+            {[["details", "Details"], ["schedule", "Schedule"], ["ready", "Readiness"]].concat(isAdmin && !isNew ? [["delay", "Delay"]] : []).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k)} style={{ flex: 1, fontFamily: "inherit", fontSize: 12, fontWeight: 650, padding: "8px 6px", borderRadius: "8px 8px 0 0", cursor: "pointer", borderWidth: 1, borderStyle: "solid", borderColor: tab === k ? "var(--line)" : "transparent", borderBottom: 0, background: tab === k ? "var(--card)" : "transparent", color: tab === k ? "var(--ink)" : "var(--muted)" }}>
+                {l}{k === "delay" && !a.excuse && (a.delayed || a.totalShift > 0) ? <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#F87171", marginLeft: 5, verticalAlign: "middle" }} /> : null}
+              </button>))}
+          </div>
+          {tab === "details" && <>
           <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={dis} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
           <div className="lk-row">
             <div className="lk-f"><label>Company (Performing)</label>
@@ -2048,6 +2059,8 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
             <input className="lk-in" value={a.asset || ""} disabled={dis} placeholder="e.g. EPOD108.DB001.U003" onChange={(e) => set("asset", e.target.value)} /></div>
           <div className="lk-f"><label>Cx Stage</label>
             <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => set("level", k)}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
+          </>}
+          {tab === "schedule" && <>
           <div className="lk-row">
             <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={dis} onChange={(e) => set("start", e.target.value)} /></div>
             <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={dis} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div>
@@ -2070,6 +2083,8 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
             {(a.predecessors || []).length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>None. Not waiting on another activity.</div>}
             {!dis && predOptions.length > 0 && <div className="lk-add"><select className="lk-select" value="" onChange={(e) => { if (e.target.value) set("predecessors", [...(a.predecessors || []), e.target.value]); }}><option value="">Add a predecessor…</option>{predOptions.map((x) => <option key={x.id} value={x.id}>#{x.code ?? "?"} - {x.desc || "Untitled"}</option>)}</select></div>}
           </div>
+          </>}
+          {tab === "ready" && <>
           <div className="lk-f"><label>Constraints To Clear (Make-Ready)</label>
             {a.constraints.map((c) => <div key={c.id} className="lk-cstr2">
               <input type="checkbox" checked={c.done} disabled={dis} onChange={() => setC(c.id, "done", !c.done)} />
@@ -2095,7 +2110,11 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
             <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={dis} onChange={(e) => set("witnessAt", e.target.value)} />
             {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}</div>}
+          </>}
+          {tab === "details" && <>
           <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => set("isMilestone", !a.isMilestone)}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond)</span></span><span className="lk-sw2" /></div>
+          </>}
+          {tab === "schedule" && <>
           {locked && canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit them. The reason for non-completion can still be recorded.</div>}
           <div className="lk-f"><label>Status</label><div className="lk-status">{[["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]].map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; })}>{l}</button>)}</div></div>
           <div className="lk-row">
@@ -2106,8 +2125,45 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
           {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
             <select className="lk-select" value={a.slipReason || ""} disabled={!canEdit} onChange={(e) => setReason(e.target.value)}>
               <option value="">-- record why it slipped --</option>{SLIP_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>; })()}
+          </>}
+          {tab === "details" && <>
           <div className="lk-f"><label>Notes / Comment</label>
             <textarea className="lk-in" value={a.notes || ""} disabled={dis} placeholder="Anything the team should know: access, sequencing, contacts, risks…" rows={3} style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }} onChange={(e) => set("notes", e.target.value)} /></div>
+          </>}
+          {tab === "delay" && isAdmin && !isNew && (() => {
+            const ps = parseD(a.start), pf = addDays(ps, Math.max(1, a.duration || 1) - 1);
+            const lateStart = a.actualStart ? Math.round((parseD(a.actualStart) - ps) / DAYMS) : 0;
+            const overdue = (a.status !== "complete" && pf.getTime() < todayMid()) ? Math.round((todayMid() - pf.getTime()) / DAYMS) : 0;
+            const knock = a.knockOn || 0;
+            const mag = a.delayDays != null ? a.delayDays : Math.max(0, lateStart, overdue);
+            const flagged = mag > 0 || overdue > 0 || lateStart > 0 || a.totalShift > 0;
+            const causes = [];
+            if (overdue > 0) causes.push("Overdue: planned finish was " + pf.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) + " and the activity is not complete.");
+            if (lateStart > 0) causes.push("Actual start was " + lateStart + " day" + (lateStart === 1 ? "" : "s") + " after the planned start.");
+            if (knock > 0) causes.push("Pushed " + knock + " day" + (knock === 1 ? "" : "s") + " by a predecessor.");
+            if (!causes.length && a.totalShift > 0) causes.push("Forecast to shift " + a.totalShift + " day" + (a.totalShift === 1 ? "" : "s") + " from a predecessor.");
+            const box = { border: "1px solid var(--line)", borderRadius: 11, background: "var(--card)", padding: 13 };
+            if (a.excuse) return <div style={box}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontWeight: 750, fontSize: 13.5 }}>Delay</span><span style={{ fontSize: 10, fontWeight: 800, borderRadius: 20, padding: "3px 9px", background: "rgba(14,147,132,.2)", color: "#34D399" }}>Excused</span></div>
+              <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>This delay is excused, so it no longer shows as late on the board. Reason: <b style={{ color: "var(--ink)" }}>{a.excuse.reason}</b>.{a.excuse.note ? " " + a.excuse.note : ""}</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>By {a.excuse.by || "\u2014"} on <span className="mono">{a.excuse.at}</span></div>
+              {canEdit && <button className="lk-btn" style={{ marginTop: 11 }} onClick={() => setA((p) => { const n = { ...p }; delete n.excuse; return n; })}>Remove excuse</button>}
+            </div>;
+            if (!flagged) return <div style={{ ...box, color: "var(--muted)", textAlign: "center", padding: 22, fontSize: 12.5 }}>No delay. This activity is on plan.</div>;
+            return <div style={box}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}><span style={{ fontWeight: 750, fontSize: 13.5 }}>Delay</span>{mag > 0 && <span style={{ fontSize: 10, fontWeight: 800, borderRadius: 20, padding: "3px 9px", background: "rgba(192,57,58,.22)", color: "#FCA89E" }}>{mag} day{mag === 1 ? "" : "s"} late</span>}</div>
+              {causes.map((c, i) => <div key={i} style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5, borderLeft: "2px solid #C0392B", padding: "2px 0 2px 9px", marginBottom: 8 }}>{c}</div>)}
+              <div style={{ fontSize: 12.5, fontWeight: 700, marginTop: 4, marginBottom: 4 }}>Excuse this delay</div>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 9 }}>Keep the planned dates but clear the late flag, with a recorded reason. To move the plan instead, use Reschedule on the Schedule tab.</div>
+              <div className="lk-f" style={{ marginBottom: 8 }}><label>Reason</label>
+                <select className="lk-select" value={exReason} disabled={!canEdit} onChange={(e) => setExReason(e.target.value)}>
+                  <option value="">-- choose a reason --</option>
+                  {["Client agreed revised date", "Access / permit outside our control", "Weather", "Data correction", "Other"].map((r) => <option key={r} value={r}>{r}</option>)}
+                </select></div>
+              <input className="lk-in" placeholder="Note (optional, shown in audit)" value={exNote} disabled={!canEdit} onChange={(e) => setExNote(e.target.value)} style={{ marginBottom: 10 }} />
+              <button className="lk-btn primary" disabled={!canEdit || !exReason} onClick={() => { setA((p) => ({ ...p, excuse: { reason: exReason, note: exNote.trim(), by: by || "", at: fmtISO(new Date()) } })); setExReason(""); setExNote(""); }}>Excuse the delay</button>
+            </div>;
+          })()}
           {isAdmin && !isNew && <div className="lk-f" style={{ marginTop: 2 }}>
             <button type="button" className="lk-acc" onClick={() => { const n = !auditOpen; setAuditOpen(n); if (n && !auditLoaded) { setAuditLoaded(true); fetchActivityAudit(a.id).then(setAuditRows).catch(() => {}); } }}>
               <span className="car">{auditOpen ? "\u25BE" : "\u25B8"}</span>Audit history{auditLoaded && auditRows.length ? " (" + auditRows.length + ")" : ""}<span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 11 }}>admin only</span>
