@@ -172,7 +172,7 @@
     <nav class="subnav" id="subnav"></nav>
     <div class="subbody" id="subbody"></div>
   </div>
-  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 4</footer>
+  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 5</footer>
 </div>
 
 <script>
@@ -248,7 +248,13 @@ const cxKey=()=>`<div class="ill"><div class="keys">
   <span class="key"><span class="sw" style="width:14px;height:14px;border-radius:4px;background:var(--l2)"></span><b style="color:var(--ink)">L2 MEP</b></span>
   <span class="key"><span class="sw" style="width:14px;height:14px;border-radius:4px;background:var(--l3)"></span><b style="color:var(--ink)">L3 SAT</b></span>
   <span class="key"><span class="sw" style="width:14px;height:14px;border-radius:4px;background:var(--l4)"></span><b style="color:var(--ink)">L4 FPT</b></span></div></div>`;
-const codeSample=()=>`<div class="ill"><div style="font-family:var(--mono);font-size:16px;color:var(--ink);letter-spacing:.02em;text-align:center">FIN04<span style="color:var(--faint)">.</span>01<span style="color:var(--faint)">.</span>L0<span style="color:var(--faint)">.</span>GY01</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;font-size:10px;color:var(--mut);text-align:center"><span>Site</span><span>Building</span><span>Level</span><span>Zone</span></div><div class="cap" style="margin-top:12px">Optional asset tag under System: <span class="mono">EPOD108.DB001.U003</span></div></div>`;
+const codeSample=()=>`<div class="ill"><div style="font-family:var(--mono);font-size:16px;color:var(--ink);letter-spacing:.02em;text-align:center">FIN04<span style="color:var(--faint)">.</span>01<span style="color:var(--faint)">.</span>L0<span style="color:var(--faint)">.</span>GY01</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;font-size:10px;color:var(--mut);text-align:center"><span>Site</span><span>Building</span><span>Level</span><span>Zone</span></div><div class="cap" style="margin-top:12px">Pick the optional <b>Asset</b> under System and these four fields fill from its tag automatically.</div></div>`;
+const assetPick=()=>`<div class="ill"><div class="frow"><label>Asset (optional)</label>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 8px">
+    <span class="mono" style="background:rgba(99,102,241,.16);border:1px solid rgba(99,102,241,.4);color:#8b91ff;border-radius:6px;padding:2px 7px;font-size:11px">EPOD101.DB001 &times;</span>
+    <span style="color:var(--faint);font-size:12px">Search tag or equipment&hellip;</span></div></div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px">${[['Building','01'],['Level','L0'],['Zone','GY01'],['System','LV DB']].map(([l,v])=>`<div><div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em">${l}</div><div class="mono" style="font-size:11px">${v} <span style="color:var(--faint);font-size:9px">from asset</span></div></div>`).join('')}</div>
+  <div class="cap" style="margin-top:10px">Pick an asset and Building, Level, Zone and System fill from its tag and lock. Clear the asset to edit them by hand.</div></div>`;
 
 /* ===== Quick Reference pages ===== */
 const REF={
@@ -265,7 +271,7 @@ const REF={
     <p>A metrics strip reads, for the current window: <b>In lookahead</b>, <b>Ready to run</b>, <b>Need make-ready</b>, <b>Committed</b> this week, <b>Delayed</b>, and <b>At risk</b> (predecessor knock-on). Activities are cards in lanes, coloured by Cx stage, with a readiness dot; drag to reschedule.</p>` },
   r_card:{ title:"The activity card", ill:`<div class="sample"><div class="d">Terminate LV cables</div><div class="m">FIN04.01.L0.GY01 / EPMS / L3 SAT</div><div class="pb"><i></i></div><div style="display:flex;gap:5px"><span class="chip will">will</span><span class="chip wit">WIT</span></div></div>`, body:`
     <p>Every card carries its <b>location code, system, Cx stage</b> and a progress bar, plus status chips. The code reads <b>Site.Building.Level.Zone</b>, so <span class="mono">FIN04.01.L0.GY01</span> is building 01, level L0, zone GY01.</p>
-    <p>Required fields when you add one: <b>Description, Building, Level, Zone / Room, System</b> and <b>Cx Stage</b>. <b>Asset</b> (for example <span class="mono">EPOD108.DB001.U003</span>) sits under System and is optional. Opening a card shows a tabbed editor: <b>Details</b> (identity, location, Cx stage, milestone, notes), <b>Schedule</b> (dates, predecessors, status, actuals, and the admin-only reschedule), <b>Readiness</b> (constraints, committed, witness), and for admins a <b>Delay</b> tab. Audit history sits at the foot for admins.</p>` },
+    <p>Required fields when you add one: <b>Description, Building, Level, Zone / Room, System</b> and <b>Cx Stage</b>. <b>Asset</b> sits under System and is optional: it is a searchable picker over the project equipment register, and choosing one or several fills Building, Level, Zone and System from the asset tag and locks them (clear the asset to edit those by hand). Opening a card shows a tabbed editor: <b>Details</b> (identity, location, Cx stage, milestone, notes), <b>Schedule</b> (dates, predecessors, status, actuals, and the admin-only reschedule), <b>Readiness</b> (constraints, committed, witness), and for admins a <b>Delay</b> tab. Audit history sits at the foot for admins.</p>` },
   r_table:{ title:"The Activity Table", ill:realTable(), body:`
     <p>The Activity Table is a dense, sortable list of every activity, with columns <b># / Activity / Company / Location / Cx Stage / Start / Constraint / Owner / Need-by</b>.</p>
     <p>Filter by Company, Cx Stage and Status, and open any row to edit it on the same card the board uses. Best when you want to scan or check data rather than work visually.</p>` },
@@ -307,14 +313,18 @@ const REF={
     <p><b>will</b> marks a committed promise that counts toward PPC. <b>WIT</b> means a client or third-party witness inspection is attached. The readiness dot is teal when clear and amber when constraints remain. A <b>+D</b> tag on a bar is how many days late it is running; an admin can <b>excuse</b> a delay, which removes the tag while leaving the dates unchanged.</p>` },
   r_codes:{ title:"Location codes", ill:codeSample(), body:`
     <p>Locations read <b>Site.Building.Level.Zone</b>. So <span class="mono">FIN04.01.L0.GY01</span> is project FIN04, building 01, level L0, zone GY01.</p>
-    <p>The optional <b>Asset</b> tag (for example <span class="mono">EPOD108.DB001.U003</span>) names the specific equipment under a System. Consistent codes make filtering and reporting reliable.</p>` },
+    <p>The optional <b>Asset</b> names a specific piece of equipment under a System, and its tag carries the full location: <span class="mono">FIN04.01.L0.GY01.EPOD101.DB001</span> is that LV switchboard in zone GY01. Consistent codes make filtering and reporting reliable.</p>` },
+  r_assets:{ title:"Assets & auto-fill", ill:assetPick(), body:`
+    <p>The <b>Asset</b> field on the Details tab is a searchable picker over the FIN04 equipment register. Type any part of a tag, equipment name or type (for example <span class="mono">UPS</span>, <span class="mono">CRAH</span> or <span class="mono">GY01</span>) and click to add it. You can add <b>one or several</b>, and it stays optional.</p>
+    <p>Choosing a known asset fills <b>Building, Level, Zone and System</b> from its tag and locks them, marked <span class="mono">from asset</span>. With several assets selected, a field fills only where they all agree: a shared zone fills Zone, while assets in different zones still fill the shared Building and Level and leave Zone open. System fills only when every selected asset is the same type. Remove the assets to edit those fields by hand.</p>
+    <p>Any older free-text asset that is not in the register is kept as a chip but does not change the location.</p>` },
 };
 
 /* ===== How-To tutorials ===== */
 const TUT={
   board:{ title:"Add via Planning Board", tag:"EVERYONE", mins:"2 min", sim:"add", steps:[
     {h:"Open the activity card", t:"On the <b>Planning Board</b>, click <b>+ Activity</b> in the top toolbar to open a blank card.", ill:realToolbar('add')},
-    {h:"Describe the work", t:"You land on the <b>Details</b> tab. Fill <b>What is the activity</b>, pick the <b>Company</b>, set the <b>Cx stage</b> and the location, and switch on <b>Milestone</b> for a single point in time, shown as a diamond.", ill:editorTabs('Details')},
+    {h:"Describe the work", t:"You land on the <b>Details</b> tab. Fill <b>What is the activity</b>, pick the <b>Company</b>, set the <b>Cx stage</b> and the location (or pick an <b>Asset</b> to fill the location and System for you), and switch on <b>Milestone</b> for a single point in time, shown as a diamond.", ill:editorTabs('Details')},
     {h:"Set the dates", t:"Open the <b>Schedule</b> tab for the <b>Planned start</b> and <b>Duration</b>. If you started from a board cell or lane, the start is already set to that day.", ill:realCard(false)},
     {h:"Commit it, if due this week", t:"On the <b>Readiness</b> tab, if the finish falls in the current week, turn on <b>Committed for this week (a reliable promise)</b> to make it a <span class='chip will'>will</span>.", ill:realCard(true)},
     {h:"Save and see it land", t:"Press <b>Save</b>. The activity appears in its lane, coloured by Cx stage, with a readiness dot.", ill:realBoard({showNew:true})},
@@ -369,7 +379,7 @@ const TUT={
 };
 
 const NAV=[
-  ["Quick Reference",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"],["r_reading","Reading the schedule","◷"],["r_delay","Delays & excusing","⏱"],["r_constraints","Constraints & make-ready","⚑"],["r_commit","Committing & PPC","✓"],["r_witness","Witness invites","◎"],["r_analytics","Analytics & reports","◔"],["r_admin","Admin & settings","⚙"],["r_cxstages","Cx stages & colours","◆"],["r_markers","Markers & chips","▣"],["r_codes","Location codes","#"]]],
+  ["Quick Reference",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"],["r_reading","Reading the schedule","◷"],["r_delay","Delays & excusing","⏱"],["r_constraints","Constraints & make-ready","⚑"],["r_commit","Committing & PPC","✓"],["r_witness","Witness invites","◎"],["r_analytics","Analytics & reports","◔"],["r_admin","Admin & settings","⚙"],["r_cxstages","Cx stages & colours","◆"],["r_markers","Markers & chips","▣"],["r_codes","Location codes","#"],["r_assets","Assets & auto-fill","⬡"]]],
   ["How To",[["board","Add via Planning Board","+"],["table","Add via Activity Table","▤"],["import","Bulk import (Excel/CSV)","⇪"],["views","Switch & read views","▫"],["reschedule","Reschedule & links","↔"],["excuse","Excuse a delay","⏱"],["constraints","Constraints & make-ready","⚑"],["witness","Witness invites","◎"],["ytt","YTT daily focus","☼"],["analytics","Dashboard & popouts","◔"],["weekly","Weekly Report","▣"]]],
 ];
 const isTut=(k)=>!!TUT[k];
