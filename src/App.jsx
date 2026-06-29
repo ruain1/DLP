@@ -1415,12 +1415,18 @@ export default function App({ session }) {
       stack[id] = false; memo[id] = pe; return pe;
     };
     base.forEach((a) => projEnd(a.id));
+    const todayOff = Math.round((todayMid() - anchor) / DAYMS);
     base.forEach((a) => {
       a.projStartOff = a._ps != null ? a._ps : a.startOff;
       a.projEndOff = a._pe != null ? a._pe : a.endOff;
       a.knockOn = Math.max(0, a.projStartOff - (a._base != null ? a._base : a.startOff));  // pushed by predecessors, beyond its own slip
       a.totalShift = Math.max(0, a.projStartOff - a.startOff);
-      a.inWin = a.endOff >= 0 && a.startOff < DAYS;
+      // Carry forward until actually complete. Original rule: the planned span overlaps the window.
+      // Added: while still open, also keep it if its live span overlaps the window, where "live" means
+      // the overdue tail stretched to today, or a start/finish that a slipped predecessor pushed in
+      // (knock-on). Complete activities keep the planned-span rule and drop off once they are behind us.
+      const liveEnd = Math.max(a.endOff, a.projEndOff, a.delayed ? todayOff : a.endOff);
+      a.inWin = (a.endOff >= 0 && a.startOff < DAYS) || (a.status !== "complete" && liveEnd >= 0 && a.projStartOff < DAYS);
       delete a._ps; delete a._pe; delete a._base;
     });
     return base;
@@ -1614,13 +1620,26 @@ export default function App({ session }) {
     const constrained = a.open > 0 && a.status !== "complete";
     const spot = makeReady && constrained && a.startOff < mk;
     const dim = makeReady && !spot;
-    const hasTail = !a.excuse && a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
+    // "Carried" = an open activity whose planned bar finished before this window starts, so its planned
+    // span sits off-screen to the left. Anchor a labelled, clickable overdue bar at the left edge and run
+    // it to the live end (today, or a predecessor-pushed projected finish). Forecast skips these to avoid
+    // drawing the slip tail twice. Not engaged mid-resize.
+    const carried = !rz && a.status !== "complete" && eU(a) < 0;
+    if (carried) {
+      let le = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
+      if (a.delayed && todayUnit > le) le = todayUnit;
+      s = 0; e = Math.min(cols - 1, Math.max(0, le));
+    }
+    const carriedHatch = a.delayed
+      ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
+      : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
+    const hasTail = !carried && !a.excuse && a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
     const tailLate = a.delayed && !a.excuse;
     return (
-      <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: lv.color, background: a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
-        draggable={movable && !rz} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={tipOf(a)}>
-        <div className="desc">{a.desc || "Untitled activity"}</div>
+      <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "")}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: carried ? "#C0392B" : lv.color, background: carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
+        draggable={movable && !rz} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
+        <div className="desc">{carried && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{a.desc || "Untitled activity"}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
           {a.committed && <span className="lk-chip commit">will</span>}
@@ -1650,6 +1669,7 @@ export default function App({ session }) {
   const Forecast = ({ a, row }) => {
     if (a.isMilestone || a.status === "complete") return null;
     if (a.excuse) return null;
+    if (eU(a) < 0) return null;   // carried: Ticket draws the whole overdue bar, so do not draw the tail twice
     const late = a.delayed;
     if (!late && a.totalShift <= 0) return null;   // amber forecast still needs a shift; a late tail draws whenever overdue
     let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
