@@ -2750,7 +2750,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-              <button className="lk-btn" onClick={exportUsers} title="Download every platform user as CSV, including email addresses"><Icon n="download" s={14} />Export Users (CSV)</button>
+              <button className="lk-btn primary" onClick={exportUsers} title="Download every platform user as CSV, including email addresses"><Icon n="download" s={15} />Export Users (CSV)</button>
             </div>
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
