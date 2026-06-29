@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
+import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
 import SetPassword from "./SetPassword.jsx";
 
 const KEY = "fin04_app_v3";
@@ -1532,7 +1533,7 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
-      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, witnessInvite: false, witnessAt: "", notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [] };
+      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessAt: "", witnessDurationMin: 60, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [] };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
@@ -1547,21 +1548,33 @@ export default function App({ session }) {
   const exportWitness = () => {
     const pad = (n) => String(n).padStart(2, "0");
     const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    const WIT_MINUTES = 60;
-    const wit = visible.filter((a) => a.witnessInvite && a.witnessAt).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
-    const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Start ISO", "End ISO", "Company", "Cx Stage", "System", "Activity ID"];
+    // All witnessable activities with a date, ignoring board filters, earliest first.
+    const wit = (S.activities || []).filter((a) => a.witnessInvite && a.witnessAt).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
+    const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Required Attendees", "Optional Attendees", "Discipline", "Sent", "Start ISO", "End ISO", "Company", "Cx Stage", "System", "Activity ID"];
     const rows = wit.map((a) => {
-      const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + WIT_MINUTES * 60000);
+      const mins = a.witnessDurationMin || 60;
+      const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + mins * 60000);
       const loc = locCode(a);
-      const subject = `Witness: ${a.desc || "Activity"}${loc ? " - " + loc : ""}`;
+      const title = a.desc || "Activity";
+      const subject = `FIN04 - INVITE FOR "${title}"`;
       const open = (a.constraints || []).filter((c) => !c.done).length;
-      const body = `${a.desc || ""}. Cx Stage ${a.level} on ${a.system || "system"}. Performing: ${coName(a.companyId)}. Planned start ${a.start}.${a.notes ? " Notes: " + a.notes : ""}${open ? ` (${open} open constraint${open === 1 ? "" : "s"})` : ""}`;
+      const disc = (a.discipline || []).join("; ");
+      const { to, cc } = witnessRecipients(a.discipline || []);
+      const body = `INVITE TO WITNESS "${title}"\nPlease forward to any stakeholder missed in the invite.\n\nDiscipline: ${disc || "-"}. Cx Stage ${a.level} on ${a.system || "system"}. Performing: ${coName(a.companyId)}. Location ${loc || "-"}. Planned start ${a.start}.${a.notes ? " Notes: " + a.notes : ""}${open ? ` (${open} open constraint${open === 1 ? "" : "s"})` : ""}`;
       const dmy = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
       const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      return [subject, dmy(sd), hm(sd), dmy(ed), hm(ed), "False", loc, body, localISO(sd), localISO(ed), coName(a.companyId), a.level, a.system || "", a.id];
+      const sent = a.witnessSentAt ? fmtWitnessAt(a.witnessSentAt) : "";
+      return [subject, dmy(sd), hm(sd), dmy(ed), hm(ed), "False", loc, body, to.join("; "), cc.join("; "), disc, sent, localISO(sd), localISO(ed), coName(a.companyId), a.level, a.system || "", a.id];
     });
     downloadFile(`FIN04-witness-invites-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export witness invites", detail: `${rows.length} activities` });
+  };
+  // Stamp activities as invite-sent from the macro's confirmation file (Activity IDs).
+  const markWitnessSent = (ids) => {
+    const want = new Set((ids || []).filter(Boolean));
+    if (!want.size) return;
+    const now = new Date().toISOString();
+    update((p) => ({ ...p, activities: p.activities.map((x) => (want.has(x.id) && !x.witnessSentAt ? { ...x, witnessSentAt: now } : x)) }), { action: "Mark witness invites sent", detail: `${want.size} activit${want.size === 1 ? "y" : "ies"}` });
   };
 
   const grain = S.grain || "day";
@@ -1881,7 +1894,7 @@ export default function App({ session }) {
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} isAdmin={isAdmin} by={cu.name} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
+      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} markWitnessSent={markWitnessSent} isAdmin={isAdmin} by={cu.name} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
@@ -2053,6 +2066,8 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
   if (!a.system) missing.push("system");
   if (!a.start) missing.push("planned start");
   if (a.witnessInvite && !a.witnessAt) missing.push("witness date & time");
+  if (a.witnessInvite && !(a.discipline || []).length) missing.push("discipline");
+  if (a.witnessInvite && !a.witnessDurationMin) missing.push("witness duration");
   const incomplete = missing.length > 0;
   // predecessor options: exclude self and anything downstream of this activity (prevents cycles)
   const descend = new Set();
@@ -2094,6 +2109,9 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
               <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}{isAdmin && !dis && a.subArea && ADD_OPT}</select>
             {!isAdmin && a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}.</span>}
             {renderAdd("tier3", "New zone / room name", { area: a.area, subArea: a.subArea })}</>}</div>
+          <div className="lk-f"><label>Discipline{a.witnessInvite && <span style={{ color: "#C0392B" }}> *</span>}</label>
+            <div className="lk-levels">{DISCIPLINES.map((d) => { const on = (a.discipline || []).includes(d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (dis) return; const cur = a.discipline || []; set("discipline", on ? cur.filter((x) => x !== d) : [...cur, d]); }}>{d}</div>; })}</div>
+            {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "#C0392B" }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
           <div className="lk-f"><label>System</label>
             {lockS ? roBox(a.system) : <><select className="lk-select" value={a.system} disabled={dis} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
@@ -2167,6 +2185,11 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
             <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={dis} onChange={(e) => set("witnessAt", e.target.value)} />
             {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}</div>}
+          {a.witnessInvite && <div className="lk-f"><label>Witness duration <span style={{ color: "#C0392B" }}>*</span></label>
+            <select className="lk-select" value={a.witnessDurationMin || 60} disabled={dis} onChange={(e) => set("witnessDurationMin", parseInt(e.target.value, 10))}>
+              <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option><option value={240}>Half day (4 h)</option><option value={480}>Full day (8 h)</option>
+            </select>
+            <span style={{ fontSize: 11, color: "var(--muted)" }}>Sets the invite end time (start + duration).</span></div>}
           </>}
           {tab === "details" && <>
           <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => set("isMilestone", !a.isMilestone)}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond)</span></span><span className="lk-sw2" /></div>
@@ -2546,14 +2569,6 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     setBulkBusy(false);
   };
   const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Set password link", "Role", "Company", "Status"], rows)); };
-  const exportUsers = () => {
-    const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
-    const rows = [...S.users]
-      .sort((a, b) => (cn(a.companyId) || "\uffff").localeCompare(cn(b.companyId) || "\uffff") || (a.name || "").localeCompare(b.name || ""))
-      .map((u) => { const st = ustat[u.id] || {}; const seen = st.lastSignIn; return [u.name || "", st.email || "", cn(u.companyId) || "No company", (u.platformRole === "super" ? "Super" : "User"), mcount[u.id] || 0, seen ? "Active" : "Invite pending", seen ? new Date(seen).toLocaleString("en-GB") : ""]; });
-    downloadFile(`FIN04-users-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Platform role", "Projects", "Status", "Last seen"], rows));
-    update((p) => p, { action: "Export users", detail: `${rows.length} users` });
-  };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const [members, setMembers] = useState(null);
   const [memQ, setMemQ] = useState("");
@@ -2748,9 +2763,6 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-              <button className="lk-btn primary" onClick={exportUsers} title="Download every platform user as CSV, including email addresses"><Icon n="download" s={15} />Export Users (CSV)</button>
             </div>
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
@@ -4487,7 +4499,7 @@ ${scheduleSection}
 </div></body></html>`;
 }
 
-function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen, isAdmin, by }) {
+function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitnessSent, onOpen, isAdmin, by }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
@@ -4603,6 +4615,8 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, onOpen, i
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>}
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
         <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
+        {isAdmin && <><button className="lk-btn" title="Import the sent-confirmations file the Outlook macro writes, to stamp these invites as sent" onClick={() => { const el = document.getElementById("witSentInp"); if (el) el.click(); }}><Icon n="check" s={14} />Mark sent (from Outlook)</button>
+        <input id="witSentInp" type="file" accept=".csv,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { const ids = String(rd.result || "").split(/\r?\n/).map((ln) => (ln.split(",")[0] || "").trim().replace(/^"|"$/g, "")).filter((c) => c && c.toLowerCase() !== "activity id"); markWitnessSent(ids); }; rd.readAsText(f); e.target.value = ""; }} /></>}
         {isAdmin && <button className="lk-btn primary" onClick={() => { setRepMode("week"); setRepFrom(fmtISO(defWeek.start)); setRepTo(fmtISO(defWeek.end)); setRepSummary(null); setRepSchedule(true); setRepOpen(true); }}><Icon n="chart" s={14} />Weekly Report</button>}
         <button className="lk-btn" onClick={exportMetrics}><Icon n="download" s={14} />Metrics (Excel)</button>
         <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>
