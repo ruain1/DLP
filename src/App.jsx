@@ -2546,6 +2546,14 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     setBulkBusy(false);
   };
   const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Set password link", "Role", "Company", "Status"], rows)); };
+  const exportUsers = () => {
+    const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+    const rows = [...S.users]
+      .sort((a, b) => (cn(a.companyId) || "\uffff").localeCompare(cn(b.companyId) || "\uffff") || (a.name || "").localeCompare(b.name || ""))
+      .map((u) => { const st = ustat[u.id] || {}; const seen = st.lastSignIn; return [u.name || "", st.email || "", cn(u.companyId) || "No company", (u.platformRole === "super" ? "Super" : "User"), mcount[u.id] || 0, seen ? "Active" : "Invite pending", seen ? new Date(seen).toLocaleString("en-GB") : ""]; });
+    downloadFile(`FIN04-users-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Platform role", "Projects", "Status", "Last seen"], rows));
+    update((p) => p, { action: "Export users", detail: `${rows.length} users` });
+  };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const [members, setMembers] = useState(null);
   const [memQ, setMemQ] = useState("");
@@ -2740,6 +2748,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <button className="lk-btn" onClick={exportUsers} title="Download every platform user as CSV, including email addresses"><Icon n="download" s={14} />Export Users (CSV)</button>
             </div>
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
