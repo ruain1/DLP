@@ -656,6 +656,7 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV68", date: "2026-06-29", items: ["Witness invite wording tidied: the subject and the opening line no longer wrap the activity name in quotes, the opening line reads as a normal sentence rather than capitals, each detail (Discipline, Cx Stage, Performing, Location, Planned start) sits on its own line, and the 'please forward' line now sits at the very bottom of the message"] },
   { rev: "REV67", date: "2026-06-29", items: ["New Witness Schedule button on the board (beside Make-ready and YTT): opens a popup listing the activities marked for witness in the selected period (this week, next 2 or 4 weeks, or all upcoming), each showing the date and time, the duration, the activity name and any open constraints", "Make-ready, YTT and Witness Schedule are now rounded pill buttons on the blue accent scheme, filling solid blue while their panel is open", "Dark mode: the calendar icon in the Witness date & time field (and any datetime field) is now light so it shows against the dark background", "The New / Edit Activity footer now warns in orange and lists exactly which required fields are still missing, rather than a quiet grey count", "When Witness invite is on and a discipline is chosen, the editor now lists the resolved invite recipients (Required and CC) so you can see who will be invited before saving"] },
   { rev: "REV66", date: "2026-06-29", items: ["New Discipline field on the activity Details tab (Mechanical, Electrical, BMS/EPMS, FLS; multi-select), required when Witness invite is on; it drives who the witness invite goes to", "New Witness duration field on Readiness; the witness invite end time is now start plus this duration rather than a fixed hour", "The witness export now carries the resolved Required and CC attendees, a discipline column and a Sent column, with the subject FIN04 - INVITE FOR \"activity\"", "Witness invites can be bulk-sent from classic Outlook with the supplied macro; a new admin Mark sent control stamps which invites have gone out so they are not sent twice"] },
   { rev: "REV64", date: "2026-06-22", items: ["Planning Board: the blue current-day line no longer touches the coloured left border of activity cards. It now sits a few pixels clear of the column edge so there is a clean gap between the today line and the card edge"] },
@@ -1579,11 +1580,15 @@ export default function App({ session }) {
       const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + mins * 60000);
       const loc = locCode(a);
       const title = a.desc || "Activity";
-      const subject = `FIN04 - INVITE FOR "${title}"`;
+      const subject = `FIN04 - INVITE FOR ${title}`;
       const open = (a.constraints || []).filter((c) => !c.done).length;
       const disc = (a.discipline || []).join("; ");
       const { to, cc } = witnessRecipients(a.discipline || []);
-      const body = `INVITE TO WITNESS "${title}"\nPlease forward to any stakeholder missed in the invite.\n\nDiscipline: ${disc || "-"}. Cx Stage ${a.level} on ${a.system || "system"}. Performing: ${coName(a.companyId)}. Location ${loc || "-"}. Planned start ${a.start}.${a.notes ? " Notes: " + a.notes : ""}${open ? ` (${open} open constraint${open === 1 ? "" : "s"})` : ""}`;
+      const bodyLines = [`Invite to witness ${title}`, "", `Discipline: ${disc || "-"}`, `Cx Stage: ${a.level}${a.system ? " on " + a.system : ""}`, `Performing: ${coName(a.companyId)}`, `Location: ${loc || "-"}`, `Planned start: ${a.start}`];
+      if (a.notes) bodyLines.push(`Notes: ${a.notes}`);
+      if (open) bodyLines.push(`Open constraints: ${open}`);
+      bodyLines.push("", "Please forward to any stakeholder missed in the invite.");
+      const body = bodyLines.join("\n");
       const dmy = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
       const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
       const sent = a.witnessSentAt ? fmtWitnessAt(a.witnessSentAt) : "";
