@@ -48,6 +48,11 @@ const css = `
 .lk-btn:hover{border-color:var(--muted)}.lk-btn.icon{padding:7px 8px}
 .lk-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .lk-btn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.lk-btn.pill{border-radius:999px;padding:8px 14px}
+.lk-btn.pill svg{color:var(--accent)}
+.lk-btn.pill:hover{border-color:var(--accent)}
+.lk-btn.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.lk-btn.pill.on svg{color:#fff}
 .lk-btn:disabled{opacity:.45;cursor:not-allowed}
 .lk-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
 .lk-seg button{border:0;background:transparent;padding:7px 11px;font-size:12px;cursor:pointer;color:var(--muted);font-weight:600}
@@ -157,8 +162,8 @@ const css = `
 .lk-in,.lk-select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--ink);font-family:inherit;width:100%}
 .lk-in:focus,.lk-select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .lk-in:disabled{opacity:.6}
-input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(var(--cal-invert,0));cursor:pointer;opacity:.8}
-input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
+input[type="date"]::-webkit-calendar-picker-indicator,input[type="datetime-local"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator,input[type="month"]::-webkit-calendar-picker-indicator{filter:invert(var(--cal-invert,0));cursor:pointer;opacity:.8}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .lk-row{display:flex;gap:10px}.lk-row>*{flex:1}
 .lk-levels{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 .lk-lvl{border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer;font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:7px;background:var(--card)}
@@ -328,6 +333,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .ytt-meta2{color:var(--muted)}
 .ytt-due{color:#C0392B}
 .ytt-ready{margin-top:7px;font-size:11px;font-weight:700;color:#0E9384}
+.wsch-period{display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-shrink:0}
+.wsch-period select{appearance:none;background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:6px 10px;font-size:12.5px;font-family:inherit}
+.wsch-list{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px;flex:1}
+.wsch-card{display:grid;grid-template-columns:118px 1fr;gap:13px;border:1px solid var(--line);border-left:3px solid #64748B;border-radius:10px;background:var(--card);padding:11px 13px}
+.wsch-when{display:flex;flex-direction:column;gap:3px}
+.wsch-day{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.wsch-time{font-size:18px;font-weight:800;line-height:1}
+.wsch-durpill{display:inline-block;margin-top:3px;background:var(--chipbg);border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:10.5px;color:var(--ink);width:max-content}
+.wsch-name{font-weight:700;font-size:13.5px;line-height:1.3;cursor:pointer}
+.wsch-name:hover{text-decoration:underline}
+.wsch-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--muted)}
+.wsch-conhdr{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#E0A106;font-weight:700;margin-top:9px}
+.wsch-con{display:flex;align-items:flex-start;gap:8px;font-size:12px;margin-top:5px;line-height:1.35}
+.wsch-con .cdot{width:7px;height:7px;border-radius:50%;background:#E0A106;margin-top:5px;flex:0 0 auto}
 @media (max-width:760px){.ytt-cols{grid-template-columns:1fr}.ytt-col{border-right:0;border-bottom:1px solid var(--line)}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
 .cal-dow{padding:6px 8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
@@ -637,6 +656,8 @@ const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
 const CHANGELOG = [
+  { rev: "REV67", date: "2026-06-29", items: ["New Witness Schedule button on the board (beside Make-ready and YTT): opens a popup listing the activities marked for witness in the selected period (this week, next 2 or 4 weeks, or all upcoming), each showing the date and time, the duration, the activity name and any open constraints", "Make-ready, YTT and Witness Schedule are now rounded pill buttons on the blue accent scheme, filling solid blue while their panel is open", "Dark mode: the calendar icon in the Witness date & time field (and any datetime field) is now light so it shows against the dark background", "The New / Edit Activity footer now warns in orange and lists exactly which required fields are still missing, rather than a quiet grey count", "When Witness invite is on and a discipline is chosen, the editor now lists the resolved invite recipients (Required and CC) so you can see who will be invited before saving"] },
+  { rev: "REV66", date: "2026-06-29", items: ["New Discipline field on the activity Details tab (Mechanical, Electrical, BMS/EPMS, FLS; multi-select), required when Witness invite is on; it drives who the witness invite goes to", "New Witness duration field on Readiness; the witness invite end time is now start plus this duration rather than a fixed hour", "The witness export now carries the resolved Required and CC attendees, a discipline column and a Sent column, with the subject FIN04 - INVITE FOR \"activity\"", "Witness invites can be bulk-sent from classic Outlook with the supplied macro; a new admin Mark sent control stamps which invites have gone out so they are not sent twice"] },
   { rev: "REV64", date: "2026-06-22", items: ["Planning Board: the blue current-day line no longer touches the coloured left border of activity cards. It now sits a few pixels clear of the column edge so there is a clean gap between the today line and the card edge"] },
   { rev: "REV63", date: "2026-06-22", items: ["The Assigned To You popup now uses the YTT card format: constraints are grouped under their activity, and each has a tick box so you can acknowledge (clear) it directly in the popup. Acknowledging removes it from your list and drops the badge count. You can clear a constraint assigned to you or your company even if the activity belongs to another company; admins can clear any"] },
   { rev: "REV62", date: "2026-06-22", items: ["Dark mode: the calendar icon inside date fields was a dark glyph on a dark field and almost invisible. It is now inverted to a light icon in dark mode (and left as-is in light mode), driven by the theme so it follows the light/dark toggle"] },
@@ -1278,6 +1299,8 @@ export default function App({ session }) {
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
+  const [witSched, setWitSched] = useState(false);
+  const [witPeriod, setWitPeriod] = useState("4w");
   const [resize, setResize] = useState(null);
   const [metricDrill, setMetricDrill] = useState(null);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1801,8 +1824,9 @@ export default function App({ session }) {
           {[["company", "Company"], ...(S.areas.length > 1 ? [["area", "Building"]] : []), ["subarea", "Level"], ["tier3", "Zone"], ["level", "Cx Stage"]].map(([k, l]) => (
             <button key={k} className={S.laneBy === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, laneBy: k }))}>{l}</button>))}
         </div>}
-        <button className={"lk-btn" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
-        <button className={"lk-btn" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
+        <button className={"lk-btn pill" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
+        <button className={"lk-btn pill" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
+        <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
         <div className="lk-spacer" />
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
@@ -1971,6 +1995,55 @@ export default function App({ session }) {
                           </div>; })}
                     </div>
                   </div>; })}
+              </div>
+            </div>
+          </div>);
+      })()}
+      {page === "board" && witSched && (() => {
+        const DAYW = { "1w": 7, "2w": 14, "4w": 28 };
+        const startToday = todayMid();
+        const periodEnd = witPeriod === "all" ? Infinity : startToday + ((DAYW[witPeriod] || 28) + 1) * DAYMS;
+        const durLabel = (m) => m === 240 ? "Half day" : m === 480 ? "Full day" : (m || 60) + " min";
+        const list = (S.activities || [])
+          .filter((a) => a.witnessInvite && a.witnessAt)
+          .map((a) => ({ a, t: new Date(a.witnessAt).getTime(), open: (a.constraints || []).filter((c) => !c.done) }))
+          .filter((x) => !isNaN(x.t) && x.t >= startToday && (periodEnd === Infinity || x.t < periodEnd))
+          .sort((x, y) => x.t - y.t);
+        const periodOpts = [["1w", "This week"], ["2w", "Next 2 weeks"], ["4w", "Next 4 weeks (lookahead)"], ["all", "All upcoming"]];
+        return (
+          <div className="lk-bg" onClick={() => setWitSched(false)}>
+            <div className="ytt" style={{ ...cssVars(S.theme), width: "min(720px,96vw)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="ytt-head">
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cal" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>Witness Schedule</h3><span className="ytt-sub">Activities marked for witness in the selected period, with open constraints.</span></div>
+                <button className="lk-btn icon" onClick={() => setWitSched(false)}><Icon n="x" /></button>
+              </div>
+              <div className="wsch-period">
+                Period
+                <select value={witPeriod} onChange={(e) => setWitPeriod(e.target.value)}>{periodOpts.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                <span style={{ marginLeft: "auto" }}>{list.length} witness point{list.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="wsch-list">
+                {list.length === 0 ? <div className="ytt-empty" style={{ textAlign: "center", padding: 18 }}>No witness activities in this period.</div> :
+                  list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt);
+                    return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color }}>
+                      <div className="wsch-when">
+                        <span className="wsch-day">{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span>
+                        <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
+                        <span className="wsch-durpill">{durLabel(a.witnessDurationMin)}</span>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="wsch-name" onClick={() => { setWitSched(false); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
+                        <div className="wsch-meta">
+                          <span className="lk-chip wit">WIT</span>
+                          {(a.discipline || []).map((dd) => <span key={dd} className="lk-chip" style={{ background: "var(--chipbg)" }}>{dd}</span>)}
+                          <span className="ytt-loc">{coName(a.companyId)} {"\u00b7"} {locCode(a)}</span>
+                        </div>
+                        {open.length > 0
+                          ? <><div className="wsch-conhdr">{open.length} open constraint{open.length === 1 ? "" : "s"}</div>
+                              {open.map((c) => <div key={c.id} className="wsch-con"><span className="cdot" /><span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span></div>)}</>
+                          : <div className="ytt-ready">No open constraints</div>}
+                      </div>
+                    </div>; })}
               </div>
             </div>
           </div>);
@@ -2190,6 +2263,16 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
               <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option><option value={240}>Half day (4 h)</option><option value={480}>Full day (8 h)</option>
             </select>
             <span style={{ fontSize: 11, color: "var(--muted)" }}>Sets the invite end time (start + duration).</span></div>}
+          {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = witnessRecipients(a.discipline); return (
+            <div className="lk-f"><label>Invite recipients <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(set by discipline)</span></label>
+              <div style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)", padding: "8px 10px", maxHeight: 170, overflow: "auto" }}>
+                <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 5 }}>Required ({rcp.to.length})</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{rcp.to.length ? rcp.to.map((e) => <span key={e} style={{ fontSize: 11, fontFamily: "ui-monospace,Menlo,Consolas,monospace", background: "rgba(99,102,241,0.14)", border: "1px solid rgba(99,102,241,0.35)", color: "var(--ink)", borderRadius: 999, padding: "2px 8px" }}>{e}</span>) : <span style={{ fontSize: 11.5, color: "var(--muted)" }}>None for this discipline.</span>}</div>
+                {rcp.cc.length > 0 && <><div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", margin: "8px 0 5px" }}>CC ({rcp.cc.length})</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{rcp.cc.map((e) => <span key={e} style={{ fontSize: 11, fontFamily: "ui-monospace,Menlo,Consolas,monospace", background: "var(--chipbg)", border: "1px solid var(--line)", color: "var(--muted)", borderRadius: 999, padding: "2px 8px" }}>{e}</span>)}</div></>}
+              </div>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>You are the organiser, added automatically, so you are not listed.</span></div>
+          ); })()}
           </>}
           {tab === "details" && <>
           <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => set("isMilestone", !a.isMilestone)}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond)</span></span><span className="lk-sw2" /></div>
@@ -2268,7 +2351,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
           {!isNew && (confirmDel
             ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete this activity?</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => onDelete(a)}>Yes, delete</button><button className="lk-btn" onClick={() => setConfirmDel(false)}>No</button></span>
             : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
-          <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11, color: "var(--muted)", alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
+          <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
           <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
         </div>}
       </div>
