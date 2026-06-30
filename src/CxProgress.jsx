@@ -19,14 +19,6 @@ const DEFAULT_CONFIG = {
   sla: { critical: 1, high: 2, medium: 7, low: 14 },
   rag: { amber: 5, red: 10 },
   baselineAgreed: false,
-  layout: {},
-};
-// 12-column grid spans (w) and optional fixed height in px (h, 0 = auto). Reproduces the approved view.
-const DEFAULT_LAYOUT = {
-  kpi: { w: 12, h: 0 }, scurve: { w: 7, h: 0 }, funnel: { w: 5, h: 0 },
-  bytype: { w: 4, h: 0 }, issues: { w: 4, h: 0 }, irl: { w: 4, h: 0 },
-  docs: { w: 7, h: 0 }, milestones: { w: 5, h: 0 },
-  risks: { w: 7, h: 0 }, attendance: { w: 5, h: 0 },
 };
 
 /* ---------- small helpers ---------- */
@@ -354,12 +346,7 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
   const [pop, setPop] = useState(null);            // {t,b,calc,src,dt}
   const [popTab, setPopTab] = useState(0);
   const [cfgOpen, setCfgOpen] = useState(false);
-  const [layout, setLayout] = useState(() => ({ ...DEFAULT_LAYOUT }));
-  const [editMode, setEditMode] = useState(false);
-  const [savedLayout, setSavedLayout] = useState(() => ({ ...DEFAULT_LAYOUT }));
   const fileRef = useRef(null);
-  const boardRef = useRef(null);
-  const dragRef = useRef(null);
 
   const loadWeeks = useCallback(async (selectWeek) => {
     setLoading(true); setErr("");
@@ -372,8 +359,6 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
       const list = wks || [];
       setWeeks(list);
       if (conf && conf.config) setCfg({ ...DEFAULT_CONFIG, ...conf.config, cards: { ...DEFAULT_CONFIG.cards, ...(conf.config.cards || {}) }, targets: { ...DEFAULT_CONFIG.targets, ...(conf.config.targets || {}) }, sla: { ...DEFAULT_CONFIG.sla, ...(conf.config.sla || {}) }, rag: { ...DEFAULT_CONFIG.rag, ...(conf.config.rag || {}) } });
-      const savedL = { ...DEFAULT_LAYOUT, ...((conf && conf.config && conf.config.layout) || {}) };
-      setLayout(savedL); setSavedLayout(savedL);
       const pick = selectWeek ? list.find((w) => w.week_ending === selectWeek) : list[0];
       setSnap(pick || null);
     } catch (e) { setErr(e.message || String(e)); }
@@ -410,50 +395,9 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
   const saveCfg = async (next) => { setCfg(next); try { await supabase.from("cx_config").upsert({ project_id: projectId, config: next, updated_at: new Date().toISOString(), updated_by: cu && cu.name }, { onConflict: "project_id" }); } catch (e) { setErr("Config save failed: " + (e.message || e)); } };
 
   const onDrill = (e) => {
-    if (editMode) return;
     const el = e.target.closest("[data-pop]"); if (!el) return;
     const built = buildDrill(el.dataset.pop, el.dataset, data); if (!built) return;
     setPop(built); setPopTab(0);
-  };
-
-  // resize (edit mode): width snaps to 12-col grid, height is free
-  const startResize = (e, key, mode) => {
-    e.preventDefault(); e.stopPropagation();
-    const cell = e.currentTarget.parentElement; const rect = cell.getBoundingClientRect();
-    const boardW = boardRef.current ? boardRef.current.clientWidth : rect.width * 2;
-    const stride = (boardW - 14 * 11) / 12 + 14;
-    const L = layout[key] || DEFAULT_LAYOUT[key] || { w: 6, h: 0 };
-    dragRef.current = { key, mode, startX: e.clientX, startY: e.clientY, startW: L.w, startH: rect.height, stride };
-    window.addEventListener("pointermove", onResizeMove);
-    window.addEventListener("pointerup", onResizeUp);
-  };
-  const onResizeMove = (e) => {
-    const d = dragRef.current; if (!d) return;
-    setLayout((prev) => {
-      const cur = { ...(prev[d.key] || DEFAULT_LAYOUT[d.key] || { w: 6, h: 0 }) };
-      if (d.mode === "w" || d.mode === "c") cur.w = Math.min(12, Math.max(3, d.startW + Math.round((e.clientX - d.startX) / d.stride)));
-      if (d.mode === "h" || d.mode === "c") cur.h = Math.max(150, Math.round(d.startH + (e.clientY - d.startY)));
-      return { ...prev, [d.key]: cur };
-    });
-  };
-  const onResizeUp = () => { dragRef.current = null; window.removeEventListener("pointermove", onResizeMove); window.removeEventListener("pointerup", onResizeUp); };
-  const enterEdit = () => { setSavedLayout(layout); setEditMode(true); };
-  const cancelEdit = () => { setLayout(savedLayout); setEditMode(false); };
-  const resetLayout = () => setLayout({ ...DEFAULT_LAYOUT });
-  const saveView = async () => { setSavedLayout(layout); setEditMode(false); await saveCfg({ ...cfg, layout }); };
-
-  const renderCard = (key) => {
-    if (key === "kpi") return <KPIs s={snap} />;
-    if (key === "scurve") return <Panel title="Programme S-curve  -  planned vs actual (L1-L3)" right={<Legend />}><div dangerouslySetInnerHTML={{ __html: svgScurve(snap.detail.scurve, cfg.baselineAgreed) }} /></Panel>;
-    if (key === "funnel") return <Funnel s={snap} />;
-    if (key === "bytype") return <ByType s={snap} />;
-    if (key === "issues") return <Issues s={snap} />;
-    if (key === "irl") return <IRL s={snap} />;
-    if (key === "docs") return <Docs s={snap} />;
-    if (key === "milestones") return <Milestones s={snap} />;
-    if (key === "risks") return <Risks s={snap} />;
-    if (key === "attendance") return <Attendance s={snap} />;
-    return null;
   };
 
   const show = (k) => cfg.cards[k] !== false;
@@ -474,9 +418,7 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
           {weeks.map((w) => <option key={w.week_ending} value={w.week_ending}>Week ending {fmtFull(w.week_ending)}</option>)}
         </select>
         <label className="cxp-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />{busy ? "Importing\u2026" : "Import workbook"}</label>
-        {!editMode && <button className="cxp-btn" onClick={(e) => { e.stopPropagation(); enterEdit(); }}>Edit layout</button>}
-        {!editMode && <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>}
-        {editMode && <><span className="cxp-editlbl">Drag the handles to resize</span><button className="cxp-btn" onClick={(e) => { e.stopPropagation(); resetLayout(); }}>Reset</button><button className="cxp-btn" onClick={(e) => { e.stopPropagation(); cancelEdit(); }}>Cancel</button><button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); saveView(); }}>Save view</button></>}
+        <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>
       </div>
 
       {err && <div className="cxp-err">{err}</div>}
@@ -490,23 +432,48 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
         </div>
       )}
 
-      {!loading && snap && (
-        <div className={"cxp-board" + (editMode ? " editing" : "")} ref={boardRef}>
-          {order.filter(show).map((key) => {
-            const L = layout[key] || DEFAULT_LAYOUT[key] || { w: 6, h: 0 };
-            return (
-              <div className={"cxp-cell" + (editMode ? " editing" : "")} key={key} style={{ gridColumn: "span " + L.w, ...(L.h ? { height: L.h } : {}) }}>
-                {renderCard(key)}
-                {editMode && key !== "kpi" && <>
-                  <span className="cxp-rz w" title="Drag to set width" onPointerDown={(e) => startResize(e, key, "w")} />
-                  <span className="cxp-rz h" title="Drag to set height" onPointerDown={(e) => startResize(e, key, "h")} />
-                  <span className="cxp-rz c" title="Drag to resize" onPointerDown={(e) => startResize(e, key, "c")} />
-                </>}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {!loading && snap && order.map((key) => {
+        if (!show(key)) return null;
+        if (key === "kpi") return <KPIs key="kpi" s={snap} />;
+        if (key === "scurve" || key === "funnel") {
+          if (key === "funnel") return null;
+          return (
+            <div className="cxp-grid" key="row1">
+              {show("scurve") && <Panel title="Programme S-curve  -  planned vs actual (L1-L3)" right={<Legend />}><div dangerouslySetInnerHTML={{ __html: svgScurve(snap.detail.scurve, cfg.baselineAgreed) }} /></Panel>}
+              {show("funnel") && <Funnel s={snap} />}
+            </div>
+          );
+        }
+        if (key === "bytype" || key === "issues" || key === "irl") {
+          if (key !== "bytype") return null;
+          return (
+            <div className="cxp-grid3" key="row2">
+              {show("bytype") && <ByType s={snap} />}
+              {show("issues") && <Issues s={snap} />}
+              {show("irl") && <IRL s={snap} />}
+            </div>
+          );
+        }
+        if (key === "docs" || key === "milestones") {
+          if (key !== "docs") return null;
+          return (
+            <div className="cxp-grid" key="row3">
+              {show("docs") && <Docs s={snap} />}
+              {show("milestones") && <Milestones s={snap} />}
+            </div>
+          );
+        }
+        if (key === "risks" || key === "attendance") {
+          if (key !== "risks") return null;
+          return (
+            <div className="cxp-grid" key="row4">
+              {show("risks") && <Risks s={snap} />}
+              {show("attendance") && <Attendance s={snap} />}
+            </div>
+          );
+        }
+        return null;
+      })}
 
       {!loading && snap && <div className="cxp-foot">Imported {snap.imported_at ? fmtFull(snap.imported_at) : ""}{snap.imported_by ? " by " + snap.imported_by : ""}. Click any tile, bar, point, cell or row for the detail and calculation.</div>}
 
@@ -666,19 +633,6 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-sub{font-size:11px;color:var(--muted);margin-top:8px}
 .cxp-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;margin-bottom:14px}
 .cxp-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
-.cxp-board{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:start;grid-auto-flow:row dense}
-.cxp-board .cxp-kpis{margin-bottom:0}
-.cxp-cell{position:relative;min-width:0;grid-column:span 6}
-.cxp-cell>.cxp-panel{height:100%}
-.cxp-board.editing .cxp-cell{outline:1px dashed var(--line2);outline-offset:3px;border-radius:16px}
-.cxp-board.editing [data-pop]{cursor:default}
-.cxp-editlbl{font-size:11.5px;color:var(--muted)}
-.cxp-rz{position:absolute;z-index:6;background:var(--accent);opacity:0;border-radius:4px;touch-action:none}
-.cxp-cell.editing .cxp-rz{opacity:.5}
-.cxp-cell.editing .cxp-rz:hover{opacity:1}
-.cxp-rz.w{top:36%;bottom:36%;right:-3px;width:6px;cursor:ew-resize}
-.cxp-rz.h{left:36%;right:36%;bottom:-3px;height:6px;cursor:ns-resize}
-.cxp-rz.c{right:-4px;bottom:-4px;width:14px;height:14px;cursor:nwse-resize}
 .cxp-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;min-width:0;box-shadow:var(--cxsh)}
 .cxp-phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .cxp-phead h3{margin:0;font-size:13.5px;font-weight:680}
@@ -778,5 +732,5 @@ table.cxp-pt td:first-child{font-family:ui-monospace,Menlo,Consolas,monospace;co
 .cxp-sw.on{background:var(--accent)} .cxp-sw.on::after{left:18px}
 .cxp-cnote{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
 .cxp-cf{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:9px}
-@media(max-width:1180px){.cxp-kpis{grid-template-columns:repeat(3,1fr)}.cxp-grid,.cxp-grid3{grid-template-columns:1fr}.cxp-board .cxp-cell{grid-column:1 / -1 !important;height:auto !important}}
+@media(max-width:1180px){.cxp-kpis{grid-template-columns:repeat(3,1fr)}.cxp-grid,.cxp-grid3{grid-template-columns:1fr}}
 `;
