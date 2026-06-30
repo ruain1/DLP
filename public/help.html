@@ -71,6 +71,11 @@
 
   .chip{ font-family:var(--mono); font-weight:500; font-size:9px; letter-spacing:.04em; padding:2px 6px; border-radius:5px; display:inline-block; }
   .chip.will{ background:var(--will-bg); color:var(--will-fg); } .chip.wit{ background:var(--wit-bg); color:var(--wit-fg); }
+  .chip.ms{ background:var(--brand); color:#fff; }
+  .poplist .ph{ font-family:var(--disp); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--brand); margin:14px 0 6px; }
+  .poplist ul{ list-style:none; margin:0; padding:0; }
+  .poplist li{ position:relative; padding-left:15px; margin-bottom:5px; font-size:12.5px; }
+  .poplist li::before{ content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:var(--line); border:1px solid var(--faint); }
   .pill{ font-family:var(--mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--brand-ink); border:1px solid var(--line); background:var(--brand-soft); padding:3px 8px; border-radius:999px; }
 
   .chead{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
@@ -172,7 +177,7 @@
     <nav class="subnav" id="subnav"></nav>
     <div class="subbody" id="subbody"></div>
   </div>
-  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 6</footer>
+  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 7</footer>
 </div>
 
 <script>
@@ -295,7 +300,50 @@ const REF={
     <p>Two focus toggles sit in the toolbar: <b>Make-ready</b> fades everything ready and spotlights constrained work; <b>YTT</b> narrows the board to Yesterday, Today, Tomorrow with open constraints.</p>` },
   r_board:{ title:"The Planning Board", ill:metricsStrip(), body:`
     <p>The Planning Board is the weekly working view. The toolbar steps the lookahead window with the arrows, switches Swimlane or Gantt, sets Day or Week zoom, groups lanes, and toggles Make-ready and YTT focus.</p>
-    <p>A metrics strip reads, for the current window: <b>In lookahead</b>, <b>Ready to run</b>, <b>Need make-ready</b>, <b>Committed</b> this week, <b>Delayed</b>, and <b>At risk</b> (predecessor knock-on). Activities are cards in lanes, coloured by Cx stage, with a readiness dot; drag to reschedule.</p>` },
+    <p>A metrics strip reads, for the current window: <b>In lookahead</b>, <b>Ready to run</b>, <b>Need make-ready</b>, <b>Committed</b> this week, <b>Delayed</b>, and <b>At risk</b> (predecessor knock-on). Activities are cards in lanes, coloured by Cx stage, with a readiness dot; drag to reschedule.</p>
+    <p style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--disp);font-weight:600;font-size:13.5px;">What to put on the board <span style="font-weight:400;color:var(--mut);font-size:12px;">(contractors)</span></p>
+    <p>You own your own lookahead. Populate every commissioning and testing activity in your scope, <b>asset by asset</b>, and push them out as far as you can see. <b>Four weeks is the bare minimum</b>, six weeks or more is better, and milestones should sit as far into the future as you can plan them, well beyond the window. For now, leave the installation works out (cable pulling, containment and duct install, and the like); the board is being used for the commissioning and testing chain.</p>
+    <div class="poplist">
+      <div class="ph">Receipt &amp; placement</div>
+      <ul>
+        <li>Delivery of asset <span class="chip ms">MILESTONE</span></li>
+        <li>Site arrival inspection</li>
+        <li>Set-in-place inspection</li>
+        <li>Red tag</li>
+      </ul>
+      <div class="ph">Static checks &amp; pre-energisation</div>
+      <ul>
+        <li>Torque verification</li>
+        <li>Pressure / leak / flushing test &rarr; Flushing complete <span class="chip ms">MILESTONE</span></li>
+        <li>Electrical dead test</li>
+        <li>Breaker settings input</li>
+        <li>Secondary injection testing</li>
+        <li>W2 inspection</li>
+      </ul>
+      <div class="ph">Energisation</div>
+      <ul>
+        <li>MV power on <span class="chip ms">MILESTONE</span></li>
+        <li>Energisation</li>
+        <li>Live cable tests</li>
+        <li>Power released to the PODs <span class="chip ms">MILESTONE</span></li>
+      </ul>
+      <div class="ph">Startup &amp; functional (L3)</div>
+      <ul>
+        <li>L3 startup</li>
+        <li>L3 SAT</li>
+        <li>L3 FoK tests <span class="chip ms">MILESTONE</span></li>
+        <li>IR scanning</li>
+        <li>TAB (testing, adjusting, balancing)</li>
+        <li>Load banks, on their own line item</li>
+      </ul>
+      <div class="ph">Integrated (L4)</div>
+      <ul>
+        <li>L4 FPT (functional performance test)</li>
+        <li>IST (integrated systems test)</li>
+      </ul>
+    </div>
+    <p style="color:var(--faint); font-size:12px;">Set the milestones (delivery, MV power on, power released to the PODs, flushing complete, L3 FoK) early and far out: they are the moments everyone else plans around, even while the detailed activities feeding them are still beyond the lookahead.</p>
+  ` },
   r_card:{ title:"The activity card", ill:`<div class="sample"><div class="d">Terminate LV cables</div><div class="m">FIN04.01.L0.GY01 / EPMS / L3 SAT</div><div class="pb"><i></i></div><div style="display:flex;gap:5px"><span class="chip will">will</span><span class="chip wit">WIT</span></div></div>`, body:`
     <p>Every card carries its <b>location code, system, Cx stage</b> and a progress bar, plus status chips. The code reads <b>Site.Building.Level.Zone</b>, so <span class="mono">FIN04.01.L0.GY01</span> is building 01, level L0, zone GY01.</p>
     <p>Required fields when you add one: <b>Description, Building, Level, Zone / Room, System</b> and <b>Cx Stage</b>. <b>Asset</b> sits under System and is optional: it is a searchable picker over the project equipment register, and choosing one or several fills Building, Level, Zone and System from the asset tag and locks them (clear the asset to edit those by hand). A <b>Discipline</b> field (Mechanical, Electrical, BMS/EPMS, FLS; multi-select) also sits on Details; it stays optional unless you turn on a witness invite, when it becomes required and decides who the invite reaches. Opening a card shows a tabbed editor: <b>Details</b> (identity, location, Cx stage, milestone, notes), <b>Schedule</b> (dates, predecessors, status, actuals, and the admin-only reschedule), <b>Readiness</b> (constraints, committed, witness), and for admins a <b>Delay</b> tab. Audit history sits at the foot for admins.</p>` },
