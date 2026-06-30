@@ -23,9 +23,18 @@ const toActivity = (a, session, isNew) => {
   return row;
 };
 
+// ---- invite requests (atnorth asks to be forwarded an activity invite) ----
+const fromInviteRequest = (r) => ({
+  id: r.id, activityId: r.activity_id, requesterId: r.requester_id,
+  requesterName: r.requester_name || "", requesterEmail: r.requester_email || "",
+  desc: r.activity_desc || "", code: (r.activity_code == null ? "" : String(r.activity_code)), location: r.location || "",
+  status: r.status || "pending", createdAt: r.created_at,
+  decidedByName: r.decided_by_name || "", decidedAt: r.decided_at || null,
+});
+
 // ---- load everything into the client state shape ----
 export async function loadAll(session, projectId, projectName) {
-  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s] = await Promise.all([
+  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("systems").select("*").eq("project_id", projectId).order("name"),
@@ -37,6 +46,7 @@ export async function loadAll(session, projectId, projectName) {
     supabase.from("branding").select("*").eq("project_id", projectId).maybeSingle(),
     supabase.from("sub_areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("tier3_areas").select("*").eq("project_id", projectId).order("name"),
+    supabase.from("invite_requests").select("*").eq("project_id", projectId),
   ]);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
@@ -52,6 +62,7 @@ export async function loadAll(session, projectId, projectName) {
     brand: brandFrom(branding.data, projectName),
     subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
     tier3s: (tier3s.data || []).map((t) => ({ area: t.area, subArea: t.sub_area, name: t.name })),
+    inviteRequests: (inviteReqs.data || []).map(fromInviteRequest),
   };
 }
 
@@ -314,6 +325,31 @@ export async function fetchAccessRequests() {
 
 export async function decideAccessRequest(id, patch) {
   const { error } = await supabase.from("access_requests").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+// ---- invite requests (atnorth viewer asks an admin to forward an activity invite) ----
+// Insert is gated by RLS to the project client's own company; status starts pending.
+export async function submitInviteRequest({ projectId, activity, requesterId, requesterName, requesterEmail, location }) {
+  const row = {
+    project_id: projectId,
+    activity_id: activity.id,
+    requester_id: requesterId,
+    requester_name: (requesterName || "").trim(),
+    requester_email: (requesterEmail || "").trim().toLowerCase(),
+    activity_desc: (activity.desc || "").slice(0, 200),
+    activity_code: (activity.code == null ? null : String(activity.code)),
+    location: location || "",
+    status: "pending",
+  };
+  const { data, error } = await supabase.from("invite_requests").insert(row).select("*").single();
+  if (error) throw error;
+  return fromInviteRequest(data);
+}
+
+// Admin marks a request forwarded (a pure tracking stamp; no invite is sent from here).
+export async function decideInviteRequest(id, patch) {
+  const { error } = await supabase.from("invite_requests").update(patch).eq("id", id);
   if (error) throw error;
 }
 

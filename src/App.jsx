@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -1477,6 +1477,36 @@ export default function App({ session }) {
   })();
   const notifCount = myConstraints.length;
   const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
+  // ---- Request Invite (atnorth client viewers) ----
+  // A non-admin whose company is the project client (atnorth) can ask an admin to
+  // forward an activity's invite to them. The admin sees it in the notifications bell.
+  const inviteReqs = S.inviteRequests || [];
+  const myCoName = (coName(cu.companyId) || "").trim().toLowerCase();
+  const projClient = (((projects || []).find((p) => p.id === selProj) || {}).client || "").trim().toLowerCase();
+  const isClientViewer = !isAdmin && !!cu.companyId && (myCoName === "atnorth" || (!!projClient && myCoName === projClient));
+  const myInviteFor = (actId) => inviteReqs.find((r) => r.activityId === actId && r.requesterId === cu.id) || null;
+  const pendingInvites = isAdmin ? inviteReqs.filter((r) => r.status === "pending") : [];
+  const notifTotal = notifCount + pendingInvites.length;
+  const requestInvite = async (a) => {
+    if (!a || !isClientViewer || myInviteFor(a.id)) return;
+    const optimistic = { id: "tmp_" + a.id, activityId: a.id, requesterId: cu.id, requesterName: cu.name, requesterEmail: session.user.email || "", desc: a.desc || "", code: (a.code == null ? "" : String(a.code)), location: locCode(a), status: "pending", createdAt: new Date().toISOString(), decidedByName: "", decidedAt: null };
+    setS((prev) => ({ ...prev, inviteRequests: [...(prev.inviteRequests || []), optimistic] }));
+    try {
+      const saved = await submitInviteRequest({ projectId: S.projectId, activity: a, requesterId: cu.id, requesterName: cu.name, requesterEmail: session.user.email || "", location: locCode(a) });
+      setS((prev) => ({ ...prev, inviteRequests: (prev.inviteRequests || []).map((r) => (r.id === optimistic.id ? saved : r)) }));
+    } catch (e) {
+      console.error("Invite request failed:", e);
+      setS((prev) => ({ ...prev, inviteRequests: (prev.inviteRequests || []).filter((r) => r.id !== optimistic.id) }));
+      alert("Could not send the request. Please try again.");
+    }
+  };
+  const markInviteForwarded = async (id) => {
+    if (!isAdmin) return;
+    const now = new Date().toISOString();
+    setS((prev) => ({ ...prev, inviteRequests: (prev.inviteRequests || []).map((r) => (r.id === id ? { ...r, status: "forwarded", decidedByName: cu.name, decidedAt: now } : r)) }));
+    try { await decideInviteRequest(id, { status: "forwarded", decided_by: cu.id, decided_by_name: cu.name, decided_at: now }); }
+    catch (e) { console.error("Mark forwarded failed:", e); }
+  };
   const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? { ...c, done: !c.done } : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
   const acknowledgeConstraint = (actId, cId) => {
     const a = S.activities.find((x) => x.id === actId); if (!a) return;
@@ -1803,7 +1833,7 @@ export default function App({ session }) {
         <div className="lk-spacer" />
         <div className="lk-who">
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
-          <button className="lk-btn icon lk-notifbtn" title={notifCount ? `${notifCount} constraint${notifCount === 1 ? "" : "s"} assigned to you or your company` : "No constraints assigned to you"} onClick={() => setNotifOpen(true)}><Icon n="mail" s={16} />{notifCount > 0 && <span className="lk-notifbadge">{notifCount > 99 ? "99+" : notifCount}</span>}</button>
+          <button className="lk-btn icon lk-notifbtn" title={notifTotal ? `${notifTotal} item${notifTotal === 1 ? "" : "s"} need your attention` : "Nothing needs your attention"} onClick={() => setNotifOpen(true)}><Icon n="mail" s={16} />{notifTotal > 0 && <span className="lk-notifbadge">{notifTotal > 99 ? "99+" : notifTotal}</span>}</button>
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
           {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
@@ -1933,7 +1963,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -1941,11 +1971,20 @@ export default function App({ session }) {
         return <div className="lk-modal-bg" onClick={() => setNotifOpen(false)}>
           <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
             <div className="ytt-head">
-              <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Assigned To You</h3><span className="ytt-sub">{notifCount} open constraint{notifCount === 1 ? "" : "s"}. Tick to acknowledge.</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Notifications</h3><span className="ytt-sub">{[notifCount ? `${notifCount} open constraint${notifCount === 1 ? "" : "s"}` : "", pendingInvites.length ? `${pendingInvites.length} invite request${pendingInvites.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" \u00b7 ") || "Nothing right now"}</span></div>
               <button className="lk-btn icon" onClick={() => setNotifOpen(false)}><Icon n="x" /></button>
             </div>
             <div className="ytt-list" style={{ maxHeight: "70vh", overflow: "auto" }}>
-              {byAct.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing is assigned to you or your company right now.</div>
+              {pendingInvites.map((r) => { const a = (S.activities || []).find((x) => x.id === r.activityId); return <div key={r.id} className="ytt-card" style={{ borderLeftColor: "var(--accent)" }}>
+                  <div className="ytt-card-desc" onClick={() => { if (a) { setNotifOpen(false); setPage("board"); setEditing({ ...a }); } }}>{"\u2709 "}{(a && a.desc) || r.desc || "Untitled"}</div>
+                  <div className="ytt-card-meta">
+                    <span className="dot" style={{ background: "var(--accent)" }} />
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{r.requesterName || "Someone"} requests this invite</span>
+                    <span className="ytt-loc">{r.requesterEmail || ""}{r.location ? <> {"\u00b7"} {r.location}</> : ""}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><button className="lk-btn primary" onClick={() => markInviteForwarded(r.id)}><Icon n="check" s={14} />Mark Forwarded</button></div>
+                </div>; })}
+              {byAct.length === 0 && pendingInvites.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing needs your attention right now.</div>
                 : byAct.map(({ a, cons }) => { const lv = lvOf(LV, a.level); return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
                     <div className="ytt-card-desc" onClick={() => { setNotifOpen(false); setPage("board"); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
                     <div className="ytt-card-meta">
@@ -2033,7 +2072,7 @@ export default function App({ session }) {
               <div className="wsch-list">
                 {list.length === 0 ? <div className="ytt-empty" style={{ textAlign: "center", padding: 18 }}>No witness activities in this period.</div> :
                   list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt);
-                    return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color }}>
+                    return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: isClientViewer ? "118px 1fr auto" : undefined }}>
                       <div className="wsch-when">
                         <span className="wsch-day">{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span>
                         <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
@@ -2051,6 +2090,9 @@ export default function App({ session }) {
                               {open.map((c) => <div key={c.id} className="wsch-con"><span className="cdot" /><span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span></div>)}</>
                           : <div className="ytt-ready">No open constraints</div>}
                       </div>
+                      {isClientViewer && (() => { const r = myInviteFor(a.id); return <div style={{ alignSelf: "center" }}>{r
+                        ? <button className="lk-btn" disabled title="Already requested">{r.status === "forwarded" ? "Invite Forwarded" : "Invite Requested"}</button>
+                        : <button className="lk-btn primary" onClick={() => requestInvite(a)}><Icon n="mail" s={14} />Request Invite</button>}</div>; })()}
                     </div>; })}
               </div>
             </div>
@@ -2084,7 +2126,7 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete }) {
+function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onClose, onDelete }) {
   const [a, setA] = useState(act);
   const [tab, setTab] = useState("details");
   const [exReason, setExReason] = useState("");
@@ -2361,6 +2403,13 @@ function Drawer({ act, S, canEdit, isAdmin, by, onAdd, onSave, onClose, onDelete
             : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
           <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
           <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
+        </div>}
+        {!canEdit && clientViewer && !isNew && <div className="lk-df">
+          <span style={{ fontSize: 11.5, color: "var(--muted)" }}>Want to attend? Request an invite and an admin will forward it to you.</span>
+          <div className="lk-spacer" />
+          {inviteForMe
+            ? <button className="lk-btn" disabled title="Already requested">{inviteForMe.status === "forwarded" ? "Invite Forwarded" : "Invite Requested"}</button>
+            : <button className="lk-btn primary" onClick={() => { onRequestInvite(a); }}><Icon n="mail" s={15} />Request Invite</button>}
         </div>}
       </div>
     </div>);
