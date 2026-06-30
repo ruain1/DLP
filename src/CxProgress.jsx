@@ -345,6 +345,7 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [info, setInfo] = useState("");
   const [pop, setPop] = useState(null);            // {t,b,calc,src,dt}
   const [popTab, setPopTab] = useState(0);
   const [cfgOpen, setCfgOpen] = useState(false);
@@ -372,7 +373,7 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
   const data = useMemo(() => snap ? { ...snap, config: cfg } : null, [snap, cfg]);
 
   const onImport = async (file) => {
-    if (!file) return; setBusy(true); setErr("");
+    if (!file) return; setBusy(true); setErr(""); setInfo("");
     try {
       const parsed = await parseWorkbook(file);
       const H = parsed.headline;
@@ -388,8 +389,11 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
       };
       const { error } = await supabase.from("cx_week").upsert(row, { onConflict: "project_id,week_ending" });
       if (error) throw error;
-      if (parsed.warnings.length) setErr("Imported with notes: " + parsed.warnings.join(" | "));
       await loadWeeks(parsed.week_ending);
+      const dv = (parsed.detail.docs && parsed.detail.docs.rows && parsed.detail.docs.rows.length) || 0;
+      const aw = (parsed.detail.attendance && parsed.detail.attendance.length) || 0;
+      const rk = (parsed.detail.risks && parsed.detail.risks.length) || 0;
+      setInfo("Imported week ending " + fmtFull(parsed.week_ending) + ": " + dv + " document vendors, " + aw + " attendance week(s), " + rk + " risk(s)." + (parsed.warnings.length ? " Notes: " + parsed.warnings.join(" | ") : ""));
     } catch (e) { setErr("Import failed: " + (e.message || String(e))); }
     setBusy(false);
   };
@@ -424,6 +428,7 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
       </div>
 
       {err && <div className="cxp-err">{err}</div>}
+      {info && <div className="cxp-ok">{info}</div>}
       {loading && <div className="cxp-empty">Loading\u2026</div>}
 
       {!loading && !snap && (
@@ -546,7 +551,10 @@ function IRL({ s }) {
     <div className="cxp-note">Opened to In progress to Completed (contractor) to Closed (CTS verified).</div></div>;
 }
 function Docs({ s }) {
-  const d = s.detail.docs || { cols: [], rows: [] };
+  const dd = s.detail.docs || { cols: [], rows: [] };
+  const all = dd.rows || [];
+  const cut = all.findIndex((r) => /^documentation health|^cx level$/i.test(String((r && r[0]) || "").trim()));
+  const d = { cols: dd.cols || [], rows: cut >= 0 ? all.slice(0, cut) : all };
   return <div className="cxp-panel"><div className="cxp-phead"><h3>Documentation register</h3><div className="cxp-meta">RAG by vendor and level</div></div>
     {d.rows.length === 0 ? <div className="cxp-note">No document register data.</div> :
       <table className="cxp-matrix"><tbody><tr><th style={{ textAlign: "left" }}>Vendor</th>{d.cols.map((c) => <th key={c}>{c}</th>)}</tr>
@@ -625,6 +633,7 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-btn:hover{border-color:var(--accent)}
 .cxp-btn.prime{background:var(--accent);border-color:var(--accent);color:#fff}
 .cxp-err{background:rgba(224,161,6,.12);border:1px solid var(--amber);color:var(--ink);border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:14px}
+.cxp-ok{background:rgba(24,182,155,.12);border:1px solid var(--green);color:var(--ink);border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:14px}
 .cxp-empty{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px;text-align:center;color:var(--ink)}
 .cxp-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:14px}
 .cxp-kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 15px;position:relative;overflow:hidden;cursor:pointer;box-shadow:var(--cxsh)}
