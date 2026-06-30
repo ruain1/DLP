@@ -30,6 +30,8 @@ const fmtFull = (s) => { if (!s) return ""; const d = new Date(s); if (isNaN(d))
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const ragLetter = (s) => { const t = String(s || "").trim().toLowerCase(); if (t.startsWith("g")) return "G"; if (t.startsWith("a") || t.startsWith("y")) return "A"; if (t.startsWith("r")) return "R"; return "X"; };
 const ragWord = { G: "Green", A: "Amber", R: "Red", X: "-" };
+// Keep only weeks actually recorded (a rate or at least one mark). Excludes future/blank weeks and any totals or legend rows, even on snapshots imported before this filter existed.
+const attRecorded = (att) => (att || []).filter((a) => a && /^(week|w|wk)\s*\d{1,2}$/i.test(String(a.wk).trim()) && (a.rate != null || (a.present && a.present.length) || (a.absent && a.absent.length)));
 
 /* ---------- exceljs cell reading ---------- */
 function cellVal(v) {
@@ -203,7 +205,7 @@ async function parseWorkbook(file) {
       const ci = cols.map((c) => { let i = head.findIndex((h) => h.includes(norm(c))); return i; });
       const cNote = head.findIndex((h) => h.includes("note")); const cContact = head.findIndex((h) => h.includes("contact"));
       for (let r = hr[0] + 1; r < m.length; r++) {
-        const row = m[r] || []; const v = row[hr[1]]; if (!v || typeof v !== "string") continue;
+        const row = m[r] || []; const v = row[hr[1]]; if (!v || typeof v !== "string") { if (rows.length) break; else continue; }
         rows.push([v, ci.map((i) => (i >= 0 ? ragLetter(row[i]) : "X")), String(row[cNote] || ""), String(row[cContact] || "")]);
       }
     }
@@ -302,7 +304,7 @@ function buildDrill(key, ds, data) {
   if (k === "sc") { const s = (D.scurve || [])[+ds.i]; if (!s) return null; const plan = s[1], act = s[2]; const av = act == null ? "no data yet" : act + "%"; const vr = act == null ? "-" : ((act - plan >= 0 ? "+" : "") + (act - plan).toFixed(1) + " pts");
     const base = (data.config && data.config.baselineAgreed); const rng = []; const all = D.scurve || []; const i = +ds.i; for (let j = Math.max(0, i - 2); j <= Math.min(all.length - 1, i + 2); j++) rng.push([fmtFull(all[j][0]), base ? all[j][1] + "%" : "pending", all[j][2] == null ? "-" : all[j][2] + "%"]);
     return { t: "Week ending " + fmtFull(s[0]), b: base ? "Planned is the agreed baseline; Actual is recorded L1-L3 tag attainment over the mapped assets." : "Actual is recorded L1-L3 tag attainment. Planned is dormant until the schedule baseline is agreed and instructed.", calc: base ? `Planned ${plan}%   |   Actual ${av}   |   Variance ${vr}` : `Actual ${av}   |   Baseline pending`, src: "Programme", dt: ptable(["Week", "Planned", "Actual"], rng) }; }
-  if (k.indexOf("att-") === 0) { const a = (D.attendance || [])[+k.replace("att-", "")]; if (!a) return null;
+  if (k.indexOf("att-") === 0) { const a = attRecorded(D.attendance)[+k.replace("att-", "")]; if (!a) return null;
     if (a.rate == null) return { t: a.wk + "  -  in progress", b: "Attendance for this week has not been marked yet.", calc: "Attended / Invited = pending", src: "Vendor Attendance", dt: pnote("No marks recorded for this week.") };
     const inv = a.present.length + a.absent.length;
     return { t: a.wk + "  -  " + a.rate + "%", b: `<b>Present:</b> ${esc(a.present.join(", ")) || "-"}.<br><b>Absent:</b> ${esc(a.absent.join(", ")) || "-"}.`, calc: a.present.length + " of " + inv + " invited = " + a.rate + "%", src: "Vendor Attendance", dt: ptable(["Vendor", "Attended"], a.present.map((p) => [esc(p), "Y"]).concat(a.absent.map((p) => [esc(p), "N"]))) }; }
@@ -568,7 +570,7 @@ function Risks({ s }) {
         ))}</tbody></table>}</div>;
 }
 function Attendance({ s }) {
-  const att = s.detail.attendance || []; const max = 100;
+  const att = attRecorded(s.detail.attendance); const max = 100;
   return <div className="cxp-panel"><div className="cxp-phead"><h3>Vendor meeting attendance</h3><div className="cxp-meta">weekly rate</div></div>
     {att.length === 0 ? <div className="cxp-note">No attendance data.</div> : <>
       <div className="cxp-spark">{att.map((a, i) => <i key={i} data-pop={"att-" + i} className={a.rate == null ? "open" : ""} style={{ height: Math.max(6, (a.rate || 0) / max * 100) + "%" }} />)}</div>
