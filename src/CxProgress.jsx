@@ -399,10 +399,10 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
   const show = (k) => cfg.cards[k] !== false;
   const order = (cfg.order && cfg.order.length ? cfg.order : CARD_KEYS).filter((k) => CARD_KEYS.includes(k));
 
-  if (!isAdmin) return <div className="cxp"><div className="cxp-empty">This page is available to administrators only.</div></div>;
+  if (!isAdmin) return <div className={"cxp" + (theme === "dark" ? " cxp-dark" : "")}><style>{CXP_CSS}</style><div className="cxp-empty">This page is available to administrators only.</div></div>;
 
   return (
-    <div className="cxp" onClick={onDrill}>
+    <div className={"cxp" + (theme === "dark" ? " cxp-dark" : "")} onClick={onDrill}>
       <style>{CXP_CSS}</style>
 
       <div className="cxp-top">
@@ -607,8 +607,9 @@ function Configure({ cfg, weeks, cur, onWeek, onSave, onClose }) {
 
 /* ---------- scoped styles (use the app's theme variables) ---------- */
 const CXP_CSS = `
-.cxp{padding:18px 20px 40px;color:var(--ink);font-family:var(--body)}
-.cxp-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.cxp{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#ffffff;--card:#ffffff;--surface:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--line2:#d6dde6;--chipbg:#f7f9fc;--hover:#eef3f9;--cxsh:0 1px 2px rgba(16,32,48,.06),0 10px 24px rgba(16,32,48,.07);max-width:1500px;margin:0 auto;padding:0 22px 44px;color:var(--ink);font-family:var(--body)}
+body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#141d29;--card:#141d29;--surface:#101822;--card2:#0f1722;--line:#22303f;--line2:#2c3a4b;--chipbg:#0f1722;--hover:#1b2735;--cxsh:0 1px 0 rgba(255,255,255,.02),0 8px 28px rgba(0,0,0,.35)}
+.cxp-top{position:sticky;top:54px;z-index:20;display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin:0 -22px 16px;padding:14px 22px 13px;background:var(--card);border-bottom:1px solid var(--line)}
 .cxp-title{font-size:20px;font-weight:750;letter-spacing:-.01em}
 .cxp-title small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:2px}
 .cxp-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
@@ -620,15 +621,15 @@ const CXP_CSS = `
 .cxp-err{background:rgba(224,161,6,.12);border:1px solid var(--amber);color:var(--ink);border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:14px}
 .cxp-empty{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px;text-align:center;color:var(--ink)}
 .cxp-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:14px}
-.cxp-kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;position:relative;overflow:hidden;cursor:pointer}
+.cxp-kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 15px;position:relative;overflow:hidden;cursor:pointer;box-shadow:var(--cxsh)}
 .cxp-kpi:hover{border-color:var(--accent)}
 .cxp-ab{position:absolute;left:0;top:0;bottom:0;width:3px}
 .cxp-lab{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-.cxp-val{font-size:28px;font-weight:760;letter-spacing:-.02em;margin-top:7px;line-height:1}
+.cxp-val{font-size:30px;font-weight:760;letter-spacing:-.02em;margin-top:7px;line-height:1}
 .cxp-sub{font-size:11px;color:var(--muted);margin-top:8px}
 .cxp-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;margin-bottom:14px}
 .cxp-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
-.cxp-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 16px;min-width:0}
+.cxp-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;min-width:0;box-shadow:var(--cxsh)}
 .cxp-phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .cxp-phead h3{margin:0;font-size:13.5px;font-weight:680}
 .cxp-meta{font-size:11px;color:var(--muted)}
