@@ -4811,10 +4811,11 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
     setPolishing(true); setPolishNote("");
     try {
       const { data, error } = await supabase.functions.invoke("super-function", { body: { draft } });
-      if (error || !data || data.error) setPolishNote("AI polish is not available (edge function or key not configured). Keeping the drafted summary.");
+      if (error) setPolishNote("AI polish unavailable: " + (error.message || "function not reachable") + ". Keeping the drafted summary.");
+      else if (!data || data.error) setPolishNote("AI polish unavailable: " + ((data && (data.detail || data.error)) || "not configured") + ". Keeping the drafted summary.");
       else if (data.text && rptNumbersOk(draft, data.text)) { setSummary(data.text); setPolishNote("Polished with AI. Every figure preserved and verified."); }
       else setPolishNote("AI output altered a figure, so it was rejected. Keeping the drafted summary.");
-    } catch (e) { setPolishNote("AI polish is not available. Keeping the drafted summary."); }
+    } catch (e) { setPolishNote("AI polish unavailable: " + String((e && e.message) || e) + ". Keeping the drafted summary."); }
     setPolishing(false);
   };
   const optRow = (on, lbl, onClick) => (<label key={lbl} className="rep-check" style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 2px", margin:0, cursor:"pointer" }}><input type="checkbox" checked={!!on} onChange={onClick} /><span style={{ fontSize:12.5 }}>{lbl}</span></label>);
