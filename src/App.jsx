@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -4783,6 +4783,12 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   const [busy, setBusy] = useState(false);
   const [polishing, setPolishing] = useState(false);
   const [polishNote, setPolishNote] = useState("");
+  const [recips, setRecips] = useState([]);
+  const [emails, setEmails] = useState({});
+  const [recipOpen, setRecipOpen] = useState(false);
+  const [recipMsg, setRecipMsg] = useState("");
+  const [exName, setExName] = useState("");
+  const [exEmail, setExEmail] = useState("");
   const start = mode === "week" ? defWeek.start : (from ? parseD(from) : defWeek.start);
   const end = mode === "week" ? defWeek.end : (to ? parseD(to) : defWeek.end);
   const rData = useMemo(() => open ? computeReport({ S, LV, coName, start, end }) : null, [open, S, LV, start.getTime(), end.getTime()]);
@@ -4802,6 +4808,13 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
       setCxSnap(wk && wk[0] ? wk[0] : null);
       setCxBaseline(!!(conf && conf.config && conf.config.baselineAgreed));
     } catch(e) { setCxSnap(null); }
+    try {
+      const [rr, us] = await Promise.all([ loadReportRecipients(projectId), fetchUserStatus() ]);
+      const em = {}; Object.keys(us || {}).forEach((id) => { if (us[id] && us[id].email) em[id] = us[id].email; });
+      setEmails(em);
+      const seed = [{ name: "Alexander L", email: "alexander.l@cs-nordics.com" }, { name: "Etienne B", email: "etienne.b@cs-international.com" }];
+      setRecips(rr && rr.length ? rr : seed);
+    } catch(e) {}
     setBusy(false);
   };
   const generate = () => {
@@ -4824,6 +4837,36 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
       else setPolishNote("AI output altered a figure, so it was rejected. Keeping the drafted summary.");
     } catch (e) { setPolishNote("AI polish unavailable: " + String((e && e.message) || e) + ". Keeping the drafted summary."); }
     setPolishing(false);
+  };
+  const toggleUser = (u) => {
+    const em = emails[u.id]; if (!em) return; const low = em.toLowerCase();
+    setRecips((prev) => prev.some((r) => (r.email || "").toLowerCase() === low) ? prev.filter((r) => (r.email || "").toLowerCase() !== low) : [...prev, { name: u.name || em, email: em }]);
+    setRecipMsg("");
+  };
+  const addExternal = () => {
+    const em = (exEmail || "").trim(); if (!em || !/.+@.+\..+/.test(em)) { setRecipMsg("Enter a valid email."); return; }
+    const low = em.toLowerCase();
+    setRecips((prev) => prev.some((r) => (r.email || "").toLowerCase() === low) ? prev : [...prev, { name: (exName || "").trim() || em, email: em }]);
+    setExName(""); setExEmail(""); setRecipMsg("");
+  };
+  const removeRecip = (email) => { const low = (email || "").toLowerCase(); setRecips((prev) => prev.filter((r) => (r.email || "").toLowerCase() !== low)); };
+  const saveRecips = async () => {
+    setRecipMsg("Saving\u2026");
+    try { const saved = await saveReportRecipients(projectId, recips); setRecips(saved); setRecipMsg("Saved."); }
+    catch(e) { setRecipMsg("Save failed: " + String((e && e.message) || e)); }
+  };
+  const copyAddresses = async () => {
+    const list = recips.map((r) => r.email).filter(Boolean).join("; ");
+    try { await navigator.clipboard.writeText(list); setRecipMsg("Addresses copied to clipboard."); }
+    catch(e) { setRecipMsg("Copy failed; select the addresses manually."); }
+  };
+  const emailReport = () => {
+    const to = recips.map((r) => r.email).filter(Boolean).join(";");
+    if (!to) return;
+    const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
+    const subject = "FIN04 Weekly DLP Report, " + lbl;
+    const body = "Please find attached the FIN04 Weekly DLP Report (" + lbl + ").\r\n\r\nGenerated by " + by + ".\r\n\r\nAttach the PDF saved from the report window before sending.";
+    window.location.href = "mailto:?to=" + encodeURIComponent(to) + "&subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
   };
   const optRow = (on, lbl, onClick) => (<label key={lbl} className="rep-check" style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 2px", margin:0, cursor:"pointer" }}><input type="checkbox" checked={!!on} onChange={onClick} /><span style={{ fontSize:12.5 }}>{lbl}</span></label>);
   return (<>
@@ -4856,8 +4899,52 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
           <div className="rep-fld" style={{ marginTop: 14 }}><label>Appearance</label>
             <div className="rep-seg"><button className={theme==="light"?"on":""} onClick={() => setTheme("light")}>Light</button><button className={theme==="dark"?"on":""} onClick={() => setTheme("dark")}>Dark</button></div>
           </div>
+          <div className="rep-fld" style={{ marginTop: 14 }}><label>Distribution List</label>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <span className="rep-mut" style={{ fontSize:12 }}>{recips.length} recipient{recips.length===1?"":"s"} saved</span>
+              <button type="button" className="lk-btn" style={{ padding:"4px 10px", fontSize:11.5 }} onClick={() => { setRecipMsg(""); setRecipOpen(true); }}>Manage recipients</button>
+            </div>
+            <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>Email report opens an Outlook draft addressed to this list; attach the PDF you save from the report window, then send.</div>
+          </div>
         </div>
-        <div className="rep-foot"><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button><button className="lk-btn primary" onClick={generate}><Icon n="chart" s={14} />Generate report</button></div>
+        <div className="rep-foot"><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button><button className="lk-btn" onClick={emailReport} disabled={!recips.length} title="Open an Outlook draft addressed to the distribution list">Email report</button><button className="lk-btn primary" onClick={generate}><Icon n="chart" s={14} />Generate report</button></div>
+      </div>
+    </div>}
+    {recipOpen && <div className="lk-modal-bg" onClick={() => setRecipOpen(false)}>
+      <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-dh"><h3>Report Recipients</h3><button className="lk-btn icon" onClick={() => setRecipOpen(false)}><Icon n="x" /></button></div>
+        <div className="bd" style={{ maxHeight: "62vh", overflow: "auto" }}>
+          <div className="rep-fld"><label>Selected ({recips.length})</label>
+            {recips.length ? <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {recips.map((r) => <span key={r.email} title={r.email} style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11.5, border:"1px solid var(--line)", borderRadius:20, padding:"3px 9px" }}>{r.name || r.email}<button onClick={() => removeRecip(r.email)} style={{ background:"none", border:0, cursor:"pointer", color:"var(--muted)", padding:0, lineHeight:1, fontSize:14 }}>{"\u00d7"}</button></span>)}
+            </div> : <div className="rep-mut" style={{ fontSize:12 }}>No recipients yet.</div>}
+          </div>
+          <div className="rep-fld" style={{ marginTop: 12 }}><label>Add From Platform</label>
+            {(() => {
+              const cnm = (id) => (S.companies.find((c) => c.id === id) || {}).name || "No company";
+              const groups = {};
+              (S.users || []).forEach((u) => { if (!emails[u.id]) return; const k = cnm(u.companyId); (groups[k] = groups[k] || []).push(u); });
+              const keys = Object.keys(groups).sort();
+              if (!keys.length) return <div className="rep-mut" style={{ fontSize:12 }}>No platform emails available.</div>;
+              const has = (u) => recips.some((r) => (r.email||"").toLowerCase() === (emails[u.id]||"").toLowerCase());
+              return keys.map((k) => <div key={k} style={{ marginBottom:8 }}>
+                <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:".05em", textTransform:"uppercase", color:"var(--accent)", margin:"6px 0 3px" }}>{k}</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"2px 14px" }}>
+                  {groups[k].slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map((u) => <label key={u.id} style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, cursor:"pointer", padding:"2px 0" }}><input type="checkbox" checked={has(u)} onChange={() => toggleUser(u)} /><span>{u.name || emails[u.id]}</span></label>)}
+                </div>
+              </div>);
+            })()}
+          </div>
+          <div className="rep-fld" style={{ marginTop: 12 }}><label>Add External (Not On Platform)</label>
+            <div style={{ display:"flex", gap:8 }}>
+              <input className="lk-in" style={{ flex:1 }} placeholder="Name" value={exName} onChange={(e) => setExName(e.target.value)} />
+              <input className="lk-in" style={{ flex:1.4 }} placeholder="Email" value={exEmail} onChange={(e) => setExEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addExternal(); }} />
+              <button className="lk-btn" onClick={addExternal}>Add</button>
+            </div>
+          </div>
+          {recipMsg && <div className="rep-mut" style={{ fontSize:11.5, marginTop:8 }}>{recipMsg}</div>}
+        </div>
+        <div className="rep-foot"><button className="lk-btn" onClick={copyAddresses}>Copy addresses</button><button className="lk-btn" onClick={() => setRecipOpen(false)}>Close</button><button className="lk-btn primary" onClick={saveRecips}>Save list</button></div>
       </div>
     </div>}
   </>);

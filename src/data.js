@@ -520,3 +520,18 @@ export async function clearBaseline(projectId) {
   const { error } = await supabase.from("baselines").delete().eq("project_id", projectId);
   if (error) throw error;
 }
+
+// ---- weekly report distribution list (one saved recipient set per project) ----
+// recipients is an array of { name, email }. Admin-only via RLS.
+export async function loadReportRecipients(projectId) {
+  const { data, error } = await supabase.from("report_recipients").select("recipients").eq("project_id", projectId).maybeSingle();
+  if (error) return null;
+  return data && Array.isArray(data.recipients) ? data.recipients : null;
+}
+
+export async function saveReportRecipients(projectId, recipients) {
+  const clean = (recipients || []).filter((r) => r && r.email).map((r) => ({ name: (r.name || "").trim(), email: (r.email || "").trim() }));
+  const { error } = await supabase.from("report_recipients").upsert({ project_id: projectId, recipients: clean, updated_at: new Date().toISOString() }, { onConflict: "project_id" });
+  if (error) throw error;
+  return clean;
+}
