@@ -4810,7 +4810,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
     const draft = summaryVal; if (!draft) return;
     setPolishing(true); setPolishNote("");
     try {
-      const { data, error } = await supabase.functions.invoke("report-narrative", { body: { draft } });
+      const { data, error } = await supabase.functions.invoke("super-function", { body: { draft } });
       if (error || !data || data.error) setPolishNote("AI polish is not available (edge function or key not configured). Keeping the drafted summary.");
       else if (data.text && rptNumbersOk(draft, data.text)) { setSummary(data.text); setPolishNote("Polished with AI. Every figure preserved and verified."); }
       else setPolishNote("AI output altered a figure, so it was rejected. Keeping the drafted summary.");
