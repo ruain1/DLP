@@ -5,6 +5,7 @@ import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField,
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
 import SetPassword from "./SetPassword.jsx";
 import CxProgressPage from "./CxProgress.jsx";
+import { supabase } from "./supabaseClient";
 
 const KEY = "fin04_app_v3";
 const DAYMS = 86400000;
@@ -160,7 +161,6 @@ const css = `
 .lk-db{padding:16px 18px;display:flex;flex-direction:column;gap:13px}
 .lk-f{display:flex;flex-direction:column;gap:5px}
 .lk-f label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
-.lk-drawer .lk-f label{color:var(--accent)}
 .lk-in,.lk-select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--ink);font-family:inherit;width:100%}
 .lk-in:focus,.lk-select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .lk-in:disabled{opacity:.6}
@@ -1956,9 +1956,9 @@ export default function App({ session }) {
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} markWitnessSent={markWitnessSent} isAdmin={isAdmin} by={cu.name} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
+      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} markWitnessSent={markWitnessSent} isAdmin={isAdmin} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
-      {page === "cx" && isAdmin && <CxProgressPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} />}
+      {page === "cx" && isAdmin && <CxProgressPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={isAdmin} projectId={selProj} label="Weekly Report" variant="cx" />} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
@@ -2235,7 +2235,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
             {renderAdd("tier3", "New zone / room name", { area: a.area, subArea: a.subArea })}</>}</div>
           <div className="lk-f"><label>Discipline{a.witnessInvite && <span style={{ color: "#C0392B" }}> *</span>}</label>
             <div className="lk-levels">{DISCIPLINES.map((d) => { const on = (a.discipline || []).includes(d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (dis) return; const cur = a.discipline || []; set("discipline", on ? cur.filter((x) => x !== d) : [...cur, d]); }}>{d}</div>; })}</div>
-            {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "#E5484D", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.2 }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
+            {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "#C0392B" }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
           <div className="lk-f"><label>System</label>
             {lockS ? roBox(a.system) : <><select className="lk-select" value={a.system} disabled={dis} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
@@ -2402,7 +2402,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           {!isNew && (confirmDel
             ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete this activity?</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => onDelete(a)}>Yes, delete</button><button className="lk-btn" onClick={() => setConfirmDel(false)}>No</button></span>
             : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
-          <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
+          <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
           <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
         </div>}
         {!canEdit && clientViewer && !isNew && <div className="lk-df">
@@ -4467,7 +4467,7 @@ function draftSummary(r){
   return s.trim();
 }
 
-function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme }){
+function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml }){
   const dueColor = (d) => { if(!d) return "ok"; const t=parseD(d).getTime(), now=r.today.getTime(); if(t<now) return "over"; if(t<=addDays(r.today,2).getTime()) return "soon"; return "ok"; };
   const dueLabel = (d) => { if(!d) return ["set","need by"]; const t=parseD(d).getTime(); return [fmtD(parseD(d)), t<r.today.getTime()?"overdue":"need by"]; };
   // KPI tiles
@@ -4542,6 +4542,30 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme })
     : `Week ${weekNo} &nbsp;|&nbsp; commencing ${r.start.toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}`;
   const sumHtml = esc(summary).replace(/\n+/g,"<br>");
 
+  // Dynamic section assembly: gate each block by `sections`, number contiguously, inject Cx block.
+  const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true }, sections||{});
+  let _n = 0; const nn = () => String(++_n).padStart(2,"0");
+  const sh = (title) => `<div class="sec-head"><span class="eyebrow">${nn()}</span><h2>${title}</h2><div class="rule"></div></div>`;
+  const blocks = [];
+  let intro = "";
+  if (SEC.summary) intro += `<p class="lede">${sumHtml}</p>`;
+  if (SEC.kpis) intro += `<div class="kpis">${kpiTiles}</div>`;
+  if (intro) blocks.push(`<section>${intro}</section>`);
+  if (SEC.ppc) blocks.push(`<section>${sh("Plan reliability")}`
+    + `<div class="hero"><div><div class="big num">${r.ppc==null?"&ndash;":r.ppc}<small>${r.ppc==null?"":"%"}</small></div><div class="caplabel"><div class="eyebrow">Percent plan complete</div><div class="sub">${r.ppc==null?"no commitments due":r.kept.length+" of "+r.due.length+" commitments kept"}</div></div></div>`
+    + `<div class="promise"><div class="row"><span class="t">This week's commitments &nbsp;<b>(WILL)</b></span><span class="t"><b>${r.kept.length}</b> kept &nbsp; <b>${r.missed.length}</b> missed</span></div>`
+    + `<div class="cells">${cells}</div>`
+    + `<div class="spark">${spark}<div style="flex:1"></div><div class="legend"><span><i class="dot" style="background:var(--green)"></i>Kept</span><span><i class="dot" style="background:var(--red)"></i>Missed</span></div></div></div></div></section>`);
+  if (SEC.constraints) blocks.push(`<section>${sh("Open constraints")}<div class="cards">${cardsHtml}</div></section>`);
+  if (SEC.reasons && SEC.byco) blocks.push(`<section><div class="twocol"><div>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></div><div>${sh("By contractor")}<div class="bars">${coHtml}</div></div></div></section>`);
+  else { if (SEC.reasons) blocks.push(`<section>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></section>`); if (SEC.byco) blocks.push(`<section>${sh("By contractor")}<div class="bars">${coHtml}</div></section>`); }
+  if (SEC.bycx) blocks.push(`<section>${sh("By Cx stage")}<div class="bars">${cxHtml}</div></section>`);
+  if (SEC.nextweek) blocks.push(`<section>${sh("Committed next week")}<div class="rows">${nwHtml}</div></section>`);
+  if (SEC.milestones) blocks.push(`<section>${sh("Milestones ahead")}<div class="rows">${msHtml}</div></section>`);
+  if (cxSectionsHtml) blocks.push(String(cxSectionsHtml).replace(/__NUM__/g, () => nn()));
+  if (SEC.schedule && includeSchedule && scheduleSection) blocks.push(scheduleSection.replace(/<span class="eyebrow">\d+<\/span>/, `<span class="eyebrow">${nn()}</span>`));
+  const bodyHtml = blocks.join("\n");
+
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FIN04 Weekly DLP Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4574,7 +4598,7 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .body{padding:30px 38px 12px}section{margin:0 0 30px}
 .sec-head{display:flex;align-items:center;gap:12px;margin:0 0 14px}.sec-head .eyebrow{color:var(--signal)}
-.sec-head h2{font-family:var(--display);font-weight:600;font-size:16.5px;letter-spacing:-.01em;margin:0}.sec-head .rule{flex:1;height:1px;background:var(--line)}
+.sec-head h2{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.04em;margin:0;text-transform:uppercase;color:var(--signal)}.sec-head .rule{flex:1;height:1px;background:var(--line)}
 .lede{font-size:14.5px;color:var(--ink-2);line-height:1.6;margin:0 0 20px;max-width:64ch}.lede b{color:var(--ink);font-weight:600}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .kpi{background:var(--paper);padding:13px 15px}.kpi .v{font-family:var(--display);font-weight:600;font-size:25px;line-height:1}
@@ -4611,6 +4635,20 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .g-legend{display:flex;gap:16px;font-size:11px;color:var(--muted);margin-top:10px}.g-legend span{display:inline-flex;align-items:center;gap:6px}
 footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;font-size:11px;color:var(--muted)}footer b{color:var(--ink-2);font-weight:600}
 @media (max-width:720px){.hero{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.twocol{grid-template-columns:1fr}.g-row,.g-head{grid-template-columns:120px 1fr}.body,.mast,footer{padding-left:20px;padding-right:20px}}
+.divider{display:flex;align-items:center;gap:14px;margin:34px 0 22px}.divider .band{flex:1;height:2px;background:var(--ink)}.divider .lbl{font-family:var(--display);font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--signal)}
+.cx-adv{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--ink-2);background:rgba(30,99,214,.07);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:10px}
+.cx-adv .i{width:16px;height:16px;border-radius:50%;background:var(--signal);color:#fff;font-size:10px;font-weight:800;font-style:italic;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.cx-scurve{border:1px solid var(--line);border-radius:10px;padding:8px 10px}.cx-empty{font-size:12px;color:var(--muted);padding:16px;text-align:center}
+.cx-funnel .cx-frow{display:grid;grid-template-columns:70px 1fr 74px;align-items:center;gap:10px;margin-bottom:8px}.cx-fnm{font-size:11.5px;font-weight:600}
+.cx-fbar{height:20px;border-radius:7px;background:var(--line-2);position:relative;overflow:hidden}.cx-fbar i{position:absolute;left:0;top:0;bottom:0;border-radius:7px}.cx-fbar b{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:10.5px;font-weight:700}
+.cx-fct{font-size:11px;color:var(--muted);text-align:right}
+.cx-irl{display:flex;align-items:center;gap:6px}.cx-step{flex:1;border:1px solid var(--line);border-radius:10px;padding:12px 6px;text-align:center}.cx-step .n{font-family:var(--display);font-size:20px;font-weight:700}.cx-step .k{font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:4px}.cx-arr{color:var(--muted)}
+.cx-rag{width:100%;border-collapse:separate;border-spacing:0 5px;font-size:11.5px}.cx-rag th{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;text-align:center}.cx-rag th.l{text-align:left}.cx-rag td{text-align:center}.cx-rag td.v{text-align:left;font-weight:600}
+.cx-cell{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:6px;font-size:10.5px;font-weight:800;border:1px solid}
+.c-g{background:rgba(14,147,132,.13);color:var(--green);border-color:rgba(14,147,132,.32)}.c-a{background:rgba(192,122,0,.12);color:var(--amber);border-color:rgba(192,122,0,.3)}.c-r{background:rgba(192,57,43,.12);color:var(--red);border-color:rgba(192,57,43,.3)}.c-x{background:var(--line-2);color:var(--muted);border-color:var(--line)}
+.cx-risk{width:100%;border-collapse:collapse;font-size:12px}.cx-risk th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:0 8px 7px 0}.cx-risk td{padding:9px 8px 9px 0;border-top:1px solid var(--line);vertical-align:middle}
+.cx-crit{font-size:9.5px;font-weight:700;color:var(--red);background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.28);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.cx-att{display:flex;align-items:flex-end;gap:14px;height:130px;padding-top:8px}.cx-acol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%}.cx-abar{width:100%;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,var(--signal),rgba(30,99,214,.3));min-height:6px}.cx-awl{font-size:10px;color:var(--muted)}
 @page{size:A4;margin:0}
 @media print{html,body{background:var(--paper)}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row{break-inside:avoid}.sec-head{break-after:avoid}}
 </style></head><body class="${theme === 'dark' ? 'dark' : ''}">
@@ -4621,26 +4659,185 @@ footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;f
 <div class="issued">Issued <b>${fmtFull(r.today)}</b><br>${esc(by||"")}</div></div>
 <h1>Weekly DLP Report</h1><div class="wk num">${periodLabel} &nbsp;|&nbsp; lookahead to ${fmtFull(r.laEnd)}</div></div>
 <div class="body">
-<section><p class="lede">${sumHtml}</p>
-<div class="kpis">${kpiTiles}</div></section>
-<section><div class="sec-head"><span class="eyebrow">01</span><h2>Plan reliability</h2><div class="rule"></div></div>
-<div class="hero"><div><div class="big num">${r.ppc==null?"&ndash;":r.ppc}<small>${r.ppc==null?"":"%"}</small></div><div class="caplabel"><div class="eyebrow">Percent plan complete</div><div class="sub">${r.ppc==null?"no commitments due":r.kept.length+" of "+r.due.length+" commitments kept"}</div></div></div>
-<div class="promise"><div class="row"><span class="t">This week's commitments &nbsp;<b>(WILL)</b></span><span class="t"><b>${r.kept.length}</b> kept &nbsp; <b>${r.missed.length}</b> missed</span></div>
-<div class="cells">${cells}</div>
-<div class="spark">${spark}<div style="flex:1"></div><div class="legend"><span><i class="dot" style="background:var(--green)"></i>Kept</span><span><i class="dot" style="background:var(--red)"></i>Missed</span></div></div></div></div></section>
-<section><div class="sec-head"><span class="eyebrow">02</span><h2>Open constraints</h2><div class="rule"></div></div><div class="cards">${cardsHtml}</div></section>
-<section><div class="twocol"><div><div class="sec-head"><span class="eyebrow">03</span><h2>Why work slipped</h2><div class="rule"></div></div><div class="bars">${reasonsHtml}</div></div>
-<div><div class="sec-head"><span class="eyebrow">04</span><h2>By contractor</h2><div class="rule"></div></div><div class="bars">${coHtml}</div></div></div></section>
-<section><div class="sec-head"><span class="eyebrow">05</span><h2>By Cx stage</h2><div class="rule"></div></div><div class="bars">${cxHtml}</div></section>
-<section><div class="sec-head"><span class="eyebrow">06</span><h2>Committed next week</h2><div class="rule"></div></div><div class="rows">${nwHtml}</div></section>
-<section><div class="sec-head"><span class="eyebrow">07</span><h2>Milestones ahead</h2><div class="rule"></div></div><div class="rows">${msHtml}</div></section>
-${scheduleSection}
+${bodyHtml}
 </div>
 <footer>Generated from DLP &middot; dlp-pi.vercel.app &middot; FIN04 commissioning lookahead</footer>
 </div></body></html>`;
 }
 
-function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitnessSent, onOpen, isAdmin, by }) {
+// Build the Weekly Cx Progress sections for the report from a cx_week snapshot. Numbers are placeholders (__NUM__), filled during assembly.
+function buildCxReportSections(snap, sel, baselineAgreed){
+  if (!snap) return "";
+  const D = snap.detail || {};
+  const SS = Object.assign({ cxkpis:true, scurve:true, funnel:true, bytype:false, issues:false, irl:false, docs:true, cxmilestones:false, risks:true, attendance:false }, sel||{});
+  const sh = (t) => `<div class="sec-head"><span class="eyebrow">__NUM__</span><h2>${t}</h2><div class="rule"></div></div>`;
+  const pct = (v) => (v==null||isNaN(v))?0:Math.round(v*10)/10;
+  const secs = [];
+  if (SS.cxkpis){
+    const tiles = [
+      ["Cx assets",(snap.assets||0).toLocaleString(),"var(--signal)"],["Red tag (L1)",pct(snap.red_pct)+"%","var(--red)"],
+      ["Yellow tag (L2)",pct(snap.yellow_pct)+"%","var(--amber)"],["Green tag (L3)",pct(snap.green_pct)+"%","var(--green)"],
+      ["Open issues",snap.open_issues==null?"&ndash;":snap.open_issues,"var(--signal)"],["Awaiting verification",snap.awaiting_verification==null?"&ndash;":snap.awaiting_verification,"var(--amber)"],
+    ].map(([l,v,c])=>`<div class="kpi"><div class="v num" style="color:${c}">${v}</div><div class="l">${l}</div></div>`).join("");
+    secs.push(`<section>${sh("Cx attainment")}<div class="kpis">${tiles}</div></section>`);
+  }
+  if (SS.scurve){
+    const sc = D.scurve||[]; const W=700,H=150,n=sc.length; const X=(i)=>n<2?0:(i/(n-1))*W, Y=(v)=>H-(H-8)*((v||0)/100)-4;
+    const path=(idx)=>{ let d="",st=false; for(let i=0;i<n;i++){const v=sc[i][idx]; if(v==null)continue; d+=(st?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1)+" "; st=true;} return d; };
+    const adv = !baselineAgreed ? `<div class="cx-adv"><span class="i">i</span>Provisional. The planned curve and variance update automatically once a delivery schedule is linked.</div>` : "";
+    const svg = n ? `<div class="cx-scurve"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="150"><line x1="0" y1="${H-4}" x2="${W}" y2="${H-4}" stroke="var(--line)"/>${baselineAgreed?`<path d="${path(1)}" fill="none" stroke="var(--signal)" stroke-width="2" stroke-dasharray="6 5" opacity="0.55"/>`:""}<path d="${path(2)}" fill="none" stroke="var(--green)" stroke-width="2.4"/></svg></div>` : `<div class="cx-empty">No programme data in this import.</div>`;
+    secs.push(`<section>${sh("Programme S-curve, planned vs actual")}${adv}${svg}</section>`);
+  }
+  if (SS.funnel){
+    const rows = [["L1 Red",snap.red_n,snap.red_pct,"var(--red)"],["L2 Yellow",snap.yellow_n,snap.yellow_pct,"var(--amber)"],["L3 Green",snap.green_n,snap.green_pct,"var(--green)"],["L4 Blue",snap.blue_n,snap.blue_pct,"var(--signal)"],["L5 White",snap.white_n,snap.white_pct,"#8593A2"]];
+    const html = rows.map(([nm,nv,p,c])=>`<div class="cx-frow"><div class="cx-fnm">${nm}</div><div class="cx-fbar"><i style="width:${Math.max(1.5,pct(p))}%;background:${c}"></i><b>${pct(p)}%</b></div><div class="cx-fct">${nv||0}</div></div>`).join("");
+    secs.push(`<section>${sh("Tag attainment funnel")}<div class="cx-funnel">${html}</div></section>`);
+  }
+  if (SS.bytype && (D.byType||[]).length){
+    const rows = D.byType.slice(0,10).map((r)=>`<div class="cx-frow"><div class="cx-fnm">${esc(r[0])}</div><div class="cx-fbar"><i style="width:${Math.max(1.5,pct(r[1]))}%;background:var(--red)"></i></div><div class="cx-fct">${pct(r[1])}% &middot; ${r[2]}</div></div>`).join("");
+    secs.push(`<section>${sh("Red tag by equipment type")}<div class="cx-funnel">${rows}</div></section>`);
+  }
+  if (SS.issues && D.issuesByType && Object.keys(D.issuesByType).length){
+    const mx = Math.max(1, ...Object.values(D.issuesByType));
+    const rows = Object.entries(D.issuesByType).map(([k,v])=>`<div class="barrow"><span class="nm">${esc(k)}</span><div class="track"><div class="fill" style="width:${Math.round(v/mx*100)}%;background:var(--signal)"></div></div><span class="ct num">${v}</span></div>`).join("");
+    secs.push(`<section>${sh("Open issues by type")}<div class="bars">${rows}</div></section>`);
+  }
+  if (SS.irl){
+    const irl = D.irl || { opened:snap.irl_opened, started:snap.irl_started, delivered:snap.irl_delivered, verified:snap.irl_verified };
+    const steps = [["Opened",irl.opened],["Started",irl.started],["Delivered",irl.delivered],["Verified",irl.verified]];
+    const html = steps.map(([l,v])=>`<div class="cx-step"><div class="n num">${v==null?"&ndash;":v}</div><div class="k">${l}</div></div>`).join('<span class="cx-arr">&rsaquo;</span>');
+    secs.push(`<section>${sh("IRL workflow this week")}<div class="cx-irl">${html}</div></section>`);
+  }
+  if (SS.docs && D.docs && (D.docs.rows||[]).length){
+    const cols = D.docs.cols||[];
+    const head = `<tr><th class="l">Vendor</th>${cols.map((c)=>`<th>${esc(c)}</th>`).join("")}</tr>`;
+    const rows = D.docs.rows.map((r)=>`<tr><td class="v">${esc(r[0])}</td>${(r[1]||[]).map((g)=>`<td><span class="cx-cell c-${String(g||"x").toLowerCase()}">${g}</span></td>`).join("")}</tr>`).join("");
+    secs.push(`<section>${sh("Documentation register")}<table class="cx-rag">${head}${rows}</table></section>`);
+  }
+  if (SS.cxmilestones && (D.milestones||[]).length){
+    const rows = D.milestones.slice(0,8).map((m)=>`<div class="lrow"><div><div class="nm">${esc(m[0])}</div><div class="sub">${esc(m[2]||"")}</div></div><span class="num">${m[3]==null?"":"+"+m[3]+"d"}</span></div>`).join("");
+    secs.push(`<section>${sh("Cx milestones")}<div class="rows">${rows}</div></section>`);
+  }
+  if (SS.risks && (D.risks||[]).length){
+    const rows = D.risks.map((r)=>`<tr><td>${esc(r[0])}</td><td class="num">${esc(r[3]||"")}</td><td>${/crit/i.test(r[4])?`<span class="cx-crit">${esc(r[4])}</span>`:esc(r[4]||"")}</td></tr>`).join("");
+    secs.push(`<section>${sh("Risk register")}<table class="cx-risk"><tr><th>Risk</th><th>Due</th><th>Priority</th></tr>${rows}</table></section>`);
+  }
+  if (SS.attendance && (D.attendance||[]).length){
+    const att = D.attendance.filter((a)=>a&&a.rate!=null);
+    if (att.length){ const html = att.map((a)=>`<div class="cx-acol"><div class="cx-abar" style="height:${Math.max(6,a.rate)}%"></div><div class="cx-awl">${esc(String(a.wk).replace(/week\s*/i,"W"))} ${a.rate}%</div></div>`).join("");
+      secs.push(`<section>${sh("Vendor attendance")}<div class="cx-att">${html}</div></section>`); }
+  }
+  if (!secs.length) return "";
+  return `<div class="divider"><span class="band"></span><span class="lbl">Weekly Cx Progress</span><span class="band"></span></div>` + secs.join("\n");
+}
+
+// Deterministic narrative composed from only the included sections' live data.
+function draftReportSummary({ r, sections, cxSnap, cxSel }){
+  const SEC = sections||{}; const parts=[];
+  if (r && SEC.ppc!==false){
+    if (r.ppc==null) parts.push("No commitments fell due this week.");
+    else parts.push(`Commitment reliability stood at ${r.ppc}% PPC, with ${r.kept.length} of ${r.due.length} committed activit${r.due.length===1?"y":"ies"} completed on time.`);
+  }
+  if (r && SEC.constraints!==false && r.cards.length) parts.push(`${r.cards.length} activit${r.cards.length===1?"y carries":"ies carry"} open constraints in the lookahead.`);
+  if (r && SEC.reasons!==false && r.reasons[0] && r.reasons[0].name!=="Unattributed") parts.push(`The main driver of non-completion was ${r.reasons[0].name.toLowerCase()}.`);
+  if (cxSnap){
+    const cs = cxSel||{}, D = cxSnap.detail||{};
+    if (cs.cxkpis!==false) parts.push(`On asset attainment, L1 red-tag reached ${Math.round((cxSnap.red_pct||0)*10)/10}% across ${(cxSnap.assets||0).toLocaleString()} assets, with L3 at ${Math.round((cxSnap.green_pct||0)*10)/10}%.`);
+    if (cs.risks!==false && (D.risks||[]).length){ const crit=D.risks.filter((x)=>/crit/i.test(x[4])).length; if (crit) parts.push(`${crit} critical risk${crit===1?"":"s"} remain open on the register.`); }
+    if (cs.docs!==false && D.docs && (D.docs.rows||[]).length){ const red=D.docs.rows.filter((x)=>(x[1]||[]).some((g)=>String(g).toUpperCase()==="R")).length; if (red) parts.push(`${red} document vendor${red===1?" is":"s are"} red on the register.`); }
+  }
+  return parts.join(" ");
+}
+
+const RPT_PLAN_SECTIONS = [["summary","Executive summary"],["ppc","Commitment reliability"],["kpis","Lookahead KPIs"],["constraints","Open constraint cards"],["reasons","Reasons for non-completion"],["breakdowns","By contractor / Cx stage"],["nextweek","Next week commitments"],["milestones","Milestones"],["schedule","Schedule snapshot"]];
+const RPT_CX_SECTIONS = [["cxkpis","Cx attainment KPIs"],["scurve","Programme S-curve"],["funnel","Tag attainment funnel"],["bytype","Red tag by equipment"],["issues","Open issues by type"],["irl","IRL workflow"],["docs","Documentation register"],["cxmilestones","Cx milestones"],["risks","Risk register"],["attendance","Vendor attendance"]];
+const RPT_PLAN_DEFAULT = { summary:true, ppc:true, kpis:true, constraints:true, reasons:true, breakdowns:false, nextweek:false, milestones:true, schedule:true };
+const RPT_CX_DEFAULT = { cxkpis:true, scurve:true, funnel:true, bytype:false, issues:false, irl:false, docs:true, cxmilestones:false, risks:true, attendance:false };
+
+// Shared Weekly Report launcher: identical button + config window used on both Analytics and Weekly Cx Progress.
+function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, variant }){
+  const defWeek = useMemo(() => { const t = new Date(todayMid()); const dow = t.getDay(); const back = (dow - 5 + 7) % 7; const fri = addDays(t, -back); const mon = mondayOf(fri); return { start: mon, end: addDays(mon, 6) }; }, []);
+  const prefKey = "dlp_report_sections_" + (projectId||"x");
+  const loadPref = () => { try { const j = JSON.parse(localStorage.getItem(prefKey)||"null"); if (j && j.plan && j.cx) return j; } catch(e){} return { plan:{...RPT_PLAN_DEFAULT}, cx:{...RPT_CX_DEFAULT} }; };
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState("week");
+  const [from, setFrom] = useState(fmtISO(defWeek.start));
+  const [to, setTo] = useState(fmtISO(defWeek.end));
+  const [summary, setSummary] = useState(null);
+  const [theme, setTheme] = useState("light");
+  const [plan, setPlan] = useState(() => loadPref().plan);
+  const [cx, setCx] = useState(() => loadPref().cx);
+  const [cxSnap, setCxSnap] = useState(null);
+  const [cxBaseline, setCxBaseline] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const start = mode === "week" ? defWeek.start : (from ? parseD(from) : defWeek.start);
+  const end = mode === "week" ? defWeek.end : (to ? parseD(to) : defWeek.end);
+  const rData = useMemo(() => open ? computeReport({ S, LV, coName, start, end }) : null, [open, S, LV, start.getTime(), end.getTime()]);
+  const secObj = () => ({ ...plan, byco: plan.breakdowns, bycx: plan.breakdowns });
+  const autoSummary = useMemo(() => rData ? draftReportSummary({ r: rData, sections: secObj(), cxSnap, cxSel: cx }) : "", [rData, plan, cx, cxSnap]);
+  const summaryVal = summary != null ? summary : autoSummary;
+  const persist = (p, c) => { try { localStorage.setItem(prefKey, JSON.stringify({ plan:p, cx:c })); } catch(e){} };
+  const togPlan = (k) => { const nx = { ...plan, [k]: !plan[k] }; setPlan(nx); setSummary(null); persist(nx, cx); };
+  const togCx = (k) => { const nx = { ...cx, [k]: !cx[k] }; setCx(nx); setSummary(null); persist(plan, nx); };
+  const openModal = async () => {
+    setSummary(null); setMode("week"); setFrom(fmtISO(defWeek.start)); setTo(fmtISO(defWeek.end)); setOpen(true); setBusy(true);
+    try {
+      const [{ data: wk }, { data: conf }] = await Promise.all([
+        supabase.from("cx_week").select("*").eq("project_id", projectId).order("week_ending", { ascending: false }).limit(1),
+        supabase.from("cx_config").select("config").eq("project_id", projectId).maybeSingle(),
+      ]);
+      setCxSnap(wk && wk[0] ? wk[0] : null);
+      setCxBaseline(!!(conf && conf.config && conf.config.baselineAgreed));
+    } catch(e) { setCxSnap(null); }
+    setBusy(false);
+  };
+  const generate = () => {
+    const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
+    const html = buildWeeklyReportHTML({ r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
+    const w = window.open("", "_blank");
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-weekly-report-${fmtISO(start)}${theme==="dark"?"-dark":""}.html`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
+    setOpen(false);
+  };
+  if (!isAdmin) return null;
+  const optRow = (on, lbl, onClick) => (<label key={lbl} className="rep-check" style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 2px", margin:0, cursor:"pointer" }}><input type="checkbox" checked={!!on} onChange={onClick} /><span style={{ fontSize:12.5 }}>{lbl}</span></label>);
+  return (<>
+    <button className={variant==="cx" ? "cxp-btn" : "lk-btn primary"} onClick={openModal}><Icon n="chart" s={14} />{label||"Weekly Report"}</button>
+    {open && <div className="lk-modal-bg" onClick={() => setOpen(false)}>
+      <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-dh"><h3>Generate Weekly DLP Report</h3><button className="lk-btn icon" onClick={() => setOpen(false)}><Icon n="x" /></button></div>
+        <div className="bd">
+          <div className="rep-fld"><label>Reporting Period</label>
+            <div className="rep-seg"><button className={mode==="week"?"on":""} onClick={() => { setMode("week"); setSummary(null); }}>Week Just Ended</button><button className={mode==="range"?"on":""} onClick={() => { setMode("range"); setSummary(null); }}>Custom Range</button></div>
+          </div>
+          {mode==="week" ? <div className="rep-hint">Week {isoWeek(defWeek.start)} {"\u00b7"} {fmtDoW(defWeek.start)} to {fmtDoW(defWeek.end)}</div>
+            : <div className="rep-dates"><div className="lk-f"><label>From</label><input className="lk-in mono" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setSummary(null); }} /></div><div className="lk-f"><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => { setTo(e.target.value); setSummary(null); }} /></div></div>}
+          <div className="rep-fld" style={{ marginTop: 14 }}><label>Sections To Include</label>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+              <div style={{ border:"1px solid var(--line)", borderRadius:10, padding:"8px 12px" }}>
+                <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", color:"var(--accent)", marginBottom:4 }}>Planning board</div>
+                {RPT_PLAN_SECTIONS.map(([k,l]) => optRow(plan[k], l, () => togPlan(k)))}
+              </div>
+              <div style={{ border:"1px solid var(--line)", borderRadius:10, padding:"8px 12px", opacity: cxSnap?1:.6 }}>
+                <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", color:"var(--accent)", marginBottom:4 }}>Weekly Cx Progress</div>
+                {RPT_CX_SECTIONS.map(([k,l]) => optRow(cx[k], l, () => togCx(k)))}
+              </div>
+            </div>
+            <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>{busy ? "Loading latest Cx week..." : cxSnap ? ("Cx sections read the week ending " + fmtFull(new Date(cxSnap.week_ending)) + ".") : "No Cx week imported yet; Cx sections will be skipped."}</div>
+          </div>
+          <div className="rep-fld" style={{ marginTop: 14 }}><label>Executive Summary <span className="rep-mut">(auto-drafted from included sections, editable)</span></label>
+            <textarea className="lk-in rep-sum" rows={4} value={summaryVal} onChange={(e) => setSummary(e.target.value)} /></div>
+          <div className="rep-fld" style={{ marginTop: 14 }}><label>Appearance</label>
+            <div className="rep-seg"><button className={theme==="light"?"on":""} onClick={() => setTheme("light")}>Light</button><button className={theme==="dark"?"on":""} onClick={() => setTheme("dark")}>Dark</button></div>
+          </div>
+        </div>
+        <div className="rep-foot"><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button><button className="lk-btn primary" onClick={generate}><Icon n="chart" s={14} />Generate report</button></div>
+      </div>
+    </div>}
+  </>);
+}
+
+function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitnessSent, onOpen, isAdmin, by, projectId }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
@@ -4758,7 +4955,7 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitne
         <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
         {isAdmin && <><button className="lk-btn" title="Import the sent-confirmations file the Outlook macro writes, to stamp these invites as sent" onClick={() => { const el = document.getElementById("witSentInp"); if (el) el.click(); }}><Icon n="check" s={14} />Mark sent (from Outlook)</button>
         <input id="witSentInp" type="file" accept=".csv,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { const ids = String(rd.result || "").split(/\r?\n/).map((ln) => (ln.split(",")[0] || "").trim().replace(/^"|"$/g, "")).filter((c) => c && c.toLowerCase() !== "activity id"); markWitnessSent(ids); }; rd.readAsText(f); e.target.value = ""; }} /></>}
-        {isAdmin && <button className="lk-btn primary" onClick={() => { setRepMode("week"); setRepFrom(fmtISO(defWeek.start)); setRepTo(fmtISO(defWeek.end)); setRepSummary(null); setRepSchedule(true); setRepOpen(true); }}><Icon n="chart" s={14} />Weekly Report</button>}
+        <WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={isAdmin} projectId={projectId} label="Weekly Report" />
         <button className="lk-btn" onClick={exportMetrics}><Icon n="download" s={14} />Metrics (Excel)</button>
         <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>
       </div>

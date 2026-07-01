@@ -263,12 +263,15 @@ async function parseWorkbook(file) {
 /* =====================================================================
    CHART BUILDERS (SVG / HTML strings, injected; click handled by delegation)
    ===================================================================== */
-function svgScurve(series, showPlan) {
+function svgScurve(series, showPlan, weekEnding) {
   if (!series || !series.length) return '<div class="cxp-empty">No programme data in this import.</div>';
   const W = 760, Hh = 250, pad = { l: 34, r: 14, t: 14, b: 24 }, iw = W - pad.l - pad.r, ih = Hh - pad.t - pad.b, n = series.length;
   const X = (i) => pad.l + iw * i / Math.max(1, n - 1), Y = (v) => pad.t + ih * (1 - (v || 0) / 100);
   const line = (idx) => { let d = "", st = false; for (let i = 0; i < n; i++) { const v = series[i][idx]; if (v == null) continue; d += (st ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; st = true; } return d; };
-  let todayI = series.findIndex((s) => s[2] == null); if (todayI < 0) todayI = n - 1; else todayI = Math.max(0, todayI - 1);
+  // "today" is the reporting week; future weeks are projection only. Fall back to the last week with a recorded actual.
+  let todayI = -1;
+  if (weekEnding) { for (let i = 0; i < n; i++) if (series[i][0] && series[i][0] <= weekEnding) todayI = i; }
+  if (todayI < 0) { todayI = series.findIndex((s) => s[2] == null); if (todayI < 0) todayI = n - 1; else todayI = Math.max(0, todayI - 1); }
   let grid = ""; [0, 25, 50, 75, 100].forEach((v) => { grid += `<line x1="${pad.l}" y1="${Y(v)}" x2="${W - pad.r}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pad.l - 6}" y="${Y(v) + 3}" text-anchor="end" font-size="9" fill="var(--muted)">${v}</text>`; });
   let ticks = ""; const step = Math.max(1, Math.round(n / 6)); for (let i = 0; i < n; i += step) ticks += `<text x="${X(i)}" y="${Hh - 7}" text-anchor="middle" font-size="9" fill="var(--muted)">${fmtDay(series[i][0])}</text>`;
   let pts = ""; for (let i = 0; i < n; i += Math.max(1, Math.round(n / 10))) { const a = series[i][2], yv = a != null ? a : (series[i][1] || 0); pts += `<circle cx="${X(i)}" cy="${Y(yv)}" r="6" fill="transparent" data-pop="sc" data-i="${i}" style="cursor:pointer"/><circle cx="${X(i)}" cy="${Y(yv)}" r="3" fill="${a != null ? "var(--green)" : "var(--accent)"}"/>`; }
@@ -289,12 +292,14 @@ function svgScurve(series, showPlan) {
     `<text x="${X(todayI) + 4}" y="${pad.t + 10}" font-size="9" fill="var(--muted)">today</text>` +
     variance + planLayer + `<path d="${line(2)}" fill="none" stroke="var(--green)" stroke-width="2.4"/>${pts}</svg>`;
 }
-// Variance readout above the S-curve; only meaningful once the baseline is agreed.
-function scVar(series, showPlan) {
+// Variance readout above the S-curve; reads the reporting week, not the last zero-filled row.
+function scVar(series, showPlan, weekEnding) {
   if (!showPlan || !series || !series.length) return null;
-  let lastA = -1; for (let i = 0; i < series.length; i++) if (series[i][2] != null) lastA = i;
-  if (lastA < 0) return null;
-  const plan = series[lastA][1], act = series[lastA][2];
+  let cur = -1;
+  if (weekEnding) { for (let i = 0; i < series.length; i++) if (series[i][0] && series[i][0] <= weekEnding) cur = i; }
+  if (cur < 0) { for (let i = 0; i < series.length; i++) if (series[i][2] != null) cur = i; }
+  if (cur < 0) return null;
+  const plan = series[cur][1], act = series[cur][2];
   if (plan == null || act == null) return null;
   const d = Math.round((act - plan) * 10) / 10;
   const cls = d < 0 ? "behind" : d > 0 ? "ahead" : "on";
@@ -360,7 +365,7 @@ function buildDrill(key, ds, data) {
 /* =====================================================================
    PAGE
    ===================================================================== */
-export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
+export default function CxProgressPage({ projectId, isAdmin, theme, cu, reportButton }) {
   const [weeks, setWeeks] = useState([]);          // [{week_ending, ...headline}]
   const [snap, setSnap] = useState(null);          // current full snapshot row
   const [cfg, setCfg] = useState(DEFAULT_CONFIG);
@@ -446,6 +451,7 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
           {weeks.map((w) => <option key={w.week_ending} value={w.week_ending}>Week ending {fmtFull(w.week_ending)}</option>)}
         </select>
         <label className="cxp-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />{busy ? "Importing\u2026" : "Import workbook"}</label>
+        {reportButton}
         <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>
       </div>
 
@@ -463,14 +469,13 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
 
       {!loading && snap && order.map((key) => {
         if (!show(key)) return null;
-        if (key === "kpi") return <KPIs key="kpi" s={snap} cfg={cfg} />;
+        if (key === "kpi") return <KPIs key="kpi" s={snap} />;
         if (key === "scurve" || key === "funnel") {
           if (key === "funnel") return null;
           const scSeries = snap.detail.scurve || [];
-          const showPlan = cfg.baselineAgreed || scSeries.some((r) => r[1] != null);
           return (
             <div className="cxp-grid" key="row1">
-              {show("scurve") && <Panel title="Programme S-curve, planned vs actual (L1-L3)" right={<Legend />}>{scVar(scSeries, showPlan)}<div dangerouslySetInnerHTML={{ __html: svgScurve(scSeries, showPlan) }} /></Panel>}
+              {show("scurve") && <Panel title="Programme S-curve, planned vs actual (L1-L3)" right={<Legend />}>{cfg.baselineAgreed ? scVar(scSeries, cfg.baselineAgreed, snap.week_ending) : <div className="cxp-advisory"><span className="cxp-advico">i</span>Provisional. KPI variance and the planned curve are placeholders and will update automatically once a delivery schedule is linked.</div>}<div dangerouslySetInnerHTML={{ __html: svgScurve(scSeries, cfg.baselineAgreed, snap.week_ending) }} /></Panel>}
               {show("funnel") && <Funnel s={snap} />}
             </div>
           );
@@ -535,19 +540,7 @@ function Panel({ title, right, children }) {
 }
 function Legend() { return <div className="cxp-legend"><span><i style={{ background: "var(--accent)" }} />Planned</span><span><i style={{ background: "var(--green)" }} />Actual</span></div>; }
 
-function KPIs({ s, cfg }) {
-  const T = (cfg && cfg.targets) || {};
-  // Per-tag plan reference is the configured target; no per-tag planned-to-date exists in the pack.
-  const planMap = { "kpi-red": T.red, "kpi-yellow": T.yellow, "kpi-green": T.green };
-  const actMap = { "kpi-red": s.red_pct || 0, "kpi-yellow": s.yellow_pct || 0, "kpi-green": s.green_pct || 0 };
-  const planChip = (k) => {
-    const plan = planMap[k]; if (plan == null) return null;
-    const dv = Math.round((actMap[k] - plan) * 10) / 10;
-    const cls = Math.abs(dv) <= 0.5 ? "on" : dv < 0 ? "behind" : "ahead";
-    const arrow = cls === "behind" ? "\u25BC " : cls === "ahead" ? "\u25B2 " : "";
-    const label = cls === "on" ? "on plan" : arrow + Math.abs(dv) + " pts " + (dv < 0 ? "behind" : "ahead") + " plan";
-    return <div className={"cxp-kchip " + cls}>{label}</div>;
-  };
+function KPIs({ s }) {
   const tiles = [
     ["kpi-assets", "Cx Assets", (s.assets || 0).toLocaleString(), "var(--accent)", (s.mapped_assets || 0) + " mapped to programme", null],
     ["kpi-red", "Red tag (L1)", (s.red_pct || 0) + "%", TAGC.red, (s.new_red_7d ? "+" + s.new_red_7d + " in last 7d" : "L1 attainment"), s.red_pct || 0],
@@ -556,9 +549,9 @@ function KPIs({ s, cfg }) {
     ["kpi-issues", "Open Issues (Q+C)", s.open_issues == null ? "-" : s.open_issues, "var(--accent)", (s.issues_raised_7d != null ? "+" + s.issues_raised_7d + " raised / " + (s.issues_resolved_7d || 0) + " resolved" : ""), null],
     ["kpi-verify", "Awaiting verification", s.awaiting_verification == null ? "-" : s.awaiting_verification, TAGC.yellow, "contractor done, CTS to close", null],
   ];
-  return <div className="cxp-kpis">{tiles.map(([k, lab, val, col, sub, prog]) => { const chip = planChip(k); return (
-    <div className="cxp-kpi" data-pop={k} key={k}><span className="cxp-ab" style={{ background: col }} /><div className="cxp-lab">{lab}</div><div className="cxp-val" style={{ color: col }}>{val}</div>{prog != null && <div className="cxp-prog"><i style={{ width: Math.max(1.5, prog) + "%", background: col }} /></div>}{chip || <div className="cxp-sub">{sub}</div>}</div>
-  ); })}</div>;
+  return <div className="cxp-kpis">{tiles.map(([k, lab, val, col, sub, prog]) => (
+    <div className="cxp-kpi" data-pop={k} key={k}><span className="cxp-ab" style={{ background: col }} /><div className="cxp-lab">{lab}</div><div className="cxp-val" style={{ color: col }}>{val}</div>{prog != null && <div className="cxp-prog"><i style={{ width: Math.max(1.5, prog) + "%", background: col }} /></div>}<div className="cxp-sub">{sub}</div></div>
+  ))}</div>;
 }
 function Funnel({ s }) {
   const A = s.assets || 0; const rows = [["red", "L1 Red", s.red_n, s.red_pct], ["yellow", "L2 Yellow", s.yellow_n, s.yellow_pct], ["green", "L3 Green", s.green_n, s.green_pct], ["blue", "L4 Blue", s.blue_n || 0, s.blue_pct || 0], ["white", "L5 White", s.white_n || 0, s.white_pct || 0]];
@@ -695,8 +688,8 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-vbig .a{color:var(--green)} .cxp-vbig .p{color:var(--accent)} .cxp-vs{color:var(--muted);font-weight:600}
 .cxp-vchip{font-size:10.5px;font-weight:700;border-radius:999px;padding:3px 10px}
 .cxp-vchip.behind{color:var(--red);background:rgba(226,86,78,.14)} .cxp-vchip.ahead{color:var(--green);background:rgba(24,182,155,.14)} .cxp-vchip.on{color:var(--muted);background:var(--chipbg)}
-.cxp-kchip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;margin-top:9px}
-.cxp-kchip.behind{color:var(--red);background:rgba(226,86,78,.14)} .cxp-kchip.ahead{color:var(--green);background:rgba(24,182,155,.14)} .cxp-kchip.on{color:var(--muted);background:var(--chipbg)}
+.cxp-advisory{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--muted);background:var(--headtint);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:10px;line-height:1.4}
+.cxp-advico{flex:0 0 auto;width:17px;height:17px;border-radius:50%;background:var(--head);color:#fff;font-size:11px;font-weight:800;font-style:italic;display:flex;align-items:center;justify-content:center}
 .cxp-meta{font-size:11px;color:var(--muted)}
 .cxp-legend{display:flex;gap:12px;font-size:11px;color:var(--muted)}
 .cxp-legend span{display:inline-flex;align-items:center;gap:6px}
