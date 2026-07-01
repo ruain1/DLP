@@ -2905,6 +2905,13 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
             </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 10px" }}><button className="lk-btn" title="Download every platform user with email, company, role, projects, status and last seen" onClick={() => {
+              const cnm = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
+              const p2 = (n) => String(n).padStart(2, "0");
+              const fmtSeen = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
+              const rows = (S.users || []).slice().sort((a, b) => (cnm(a.companyId) || "\uffff").localeCompare(cnm(b.companyId) || "\uffff") || (a.name || "").localeCompare(b.name || "")).map((u) => { const st = ustat[u.id] || {}; return [u.name || "", st.email || "", cnm(u.companyId) || "", u.platformRole === "super" ? "Super" : "User", mcount[u.id] || 0, st.lastSignIn ? "Active" : "Invite pending", fmtSeen(st.lastSignIn)]; });
+              downloadFile(`FIN04-users-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Platform role", "Projects", "Status", "Last seen"], rows));
+            }}><Icon n="download" s={14} />Export Users (CSV)</button></div>
             {(() => {
               const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
               const q = uq.trim().toLowerCase();
