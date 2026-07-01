@@ -1377,7 +1377,7 @@ export default function App({ session }) {
   }, []);
   useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
   useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
-  useEffect(() => { if (!S) return; if ((page === "admin" || page === "cx") && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
+  useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
   const cu = S && (() => {
@@ -1801,7 +1801,7 @@ export default function App({ session }) {
         <button title="Constraints Log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="alert" s={20} /><span className="lbl">Constraints Log</span></button>
         <button title="Schedule" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n="gantt" s={20} /><span className="lbl">Schedule</span></button>
         <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
-        {isAdmin && <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n="checkcircle" s={20} /><span className="lbl">Weekly Cx Progress</span></button>}
+        <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n="checkcircle" s={20} /><span className="lbl">Weekly Cx Progress</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
         <div className="lk-railppc" title="Open Analytics" onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
@@ -1958,7 +1958,7 @@ export default function App({ session }) {
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} markWitnessSent={markWitnessSent} isAdmin={isAdmin} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
-      {page === "cx" && isAdmin && <CxProgressPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={isAdmin} projectId={selProj} label="Weekly Report" variant="cx" />} />}
+      {page === "cx" && <CxProgressPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={isAdmin} projectId={selProj} label="Weekly Report" variant="cx" />} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>

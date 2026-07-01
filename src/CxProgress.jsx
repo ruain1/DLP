@@ -436,8 +436,6 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu, reportBu
   const show = (k) => cfg.cards[k] !== false;
   const order = (cfg.order && cfg.order.length ? cfg.order : CARD_KEYS).filter((k) => CARD_KEYS.includes(k));
 
-  if (!isAdmin) return <div className={"cxp" + (theme === "dark" ? " cxp-dark" : "")}><style>{CXP_CSS}</style><div className="cxp-empty">This page is available to administrators only.</div></div>;
-
   return (
     <div className={"cxp" + (theme === "dark" ? " cxp-dark" : "")} onClick={onDrill}>
       <style>{CXP_CSS}</style>
@@ -450,9 +448,9 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu, reportBu
           {weeks.length === 0 && <option value="">No imports yet</option>}
           {weeks.map((w) => <option key={w.week_ending} value={w.week_ending}>Week ending {fmtFull(w.week_ending)}</option>)}
         </select>
-        <label className="cxp-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />{busy ? "Importing\u2026" : "Import workbook"}</label>
+        {isAdmin && <label className="cxp-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />{busy ? "Importing\u2026" : "Import workbook"}</label>}
         {reportButton}
-        <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>
+        {isAdmin && <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>}
       </div>
 
       {err && <div className="cxp-err">{err}</div>}
