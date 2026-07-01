@@ -4810,7 +4810,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
     const draft = summaryVal; if (!draft) return;
     setPolishing(true); setPolishNote("");
     try {
-      const { data, error } = await supabase.functions.invoke("super-function", { body: { draft } });
+      const { data, error } = await supabase.functions.invoke("super-action", { body: { draft } });
       if (error) setPolishNote("AI polish unavailable: " + (error.message || "function not reachable") + ". Keeping the drafted summary.");
       else if (!data || data.error) setPolishNote("AI polish unavailable: " + ((data && (data.detail || data.error)) || "not configured") + ". Keeping the drafted summary.");
       else if (data.text && rptNumbersOk(draft, data.text)) { setSummary(data.text); setPolishNote("Polished with AI. Every figure preserved and verified."); }
