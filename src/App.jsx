@@ -4587,7 +4587,7 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .bar button:hover{filter:brightness(1.08)}
 .sheet{max-width:880px;margin:26px auto;background:var(--paper);box-shadow:0 18px 50px rgba(15,30,46,.14);border-radius:4px;overflow:hidden}
 .mast{background:#001C26;color:#fff;padding:26px 38px 22px;position:relative}
-.mast::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--signal) 0 38%,var(--green) 38% 64%,var(--amber) 64% 86%,var(--red) 86% 100%)}
+.mast::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--red) 0 14%,var(--amber) 14% 36%,var(--green) 36% 62%,var(--signal) 62% 100%)}
 .mast-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
 .brand{display:flex;align-items:center;gap:13px}.brand .logo{height:52px;width:auto;display:block}
 .brand .proj{border-left:1px solid rgba(255,255,255,.22);padding-left:13px;margin-left:2px}
@@ -4599,7 +4599,7 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .body{padding:30px 38px 12px}section{margin:0 0 30px}
 .sec-head{display:flex;align-items:center;gap:12px;margin:0 0 14px}.sec-head .eyebrow{color:var(--signal)}
 .sec-head h2{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.04em;margin:0;text-transform:uppercase;color:var(--signal)}.sec-head .rule{flex:1;height:1px;background:var(--line)}
-.lede{font-size:14.5px;color:var(--ink-2);line-height:1.6;margin:0 0 20px;max-width:64ch}.lede b{color:var(--ink);font-weight:600}
+.lede{font-size:14.5px;color:var(--ink-2);line-height:1.6;margin:0 0 20px}.lede b{color:var(--ink);font-weight:600}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .kpi{background:var(--paper);padding:13px 15px}.kpi .v{font-family:var(--display);font-weight:600;font-size:25px;line-height:1}
 .kpi .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:7px}
