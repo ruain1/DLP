@@ -272,12 +272,34 @@ function svgScurve(series, showPlan) {
   let grid = ""; [0, 25, 50, 75, 100].forEach((v) => { grid += `<line x1="${pad.l}" y1="${Y(v)}" x2="${W - pad.r}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pad.l - 6}" y="${Y(v) + 3}" text-anchor="end" font-size="9" fill="var(--muted)">${v}</text>`; });
   let ticks = ""; const step = Math.max(1, Math.round(n / 6)); for (let i = 0; i < n; i += step) ticks += `<text x="${X(i)}" y="${Hh - 7}" text-anchor="middle" font-size="9" fill="var(--muted)">${fmtDay(series[i][0])}</text>`;
   let pts = ""; for (let i = 0; i < n; i += Math.max(1, Math.round(n / 10))) { const a = series[i][2], yv = a != null ? a : (series[i][1] || 0); pts += `<circle cx="${X(i)}" cy="${Y(yv)}" r="6" fill="transparent" data-pop="sc" data-i="${i}" style="cursor:pointer"/><circle cx="${X(i)}" cy="${Y(yv)}" r="3" fill="${a != null ? "var(--green)" : "var(--accent)"}"/>`; }
-  const planLayer = showPlan ? `<path d="${line(1)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` :
+  let variance = "";
+  if (showPlan) {
+    let lastA = -1; for (let i = 0; i < n; i++) if (series[i][2] != null) lastA = i;
+    if (lastA > 0) {
+      let up = "", dn = "";
+      for (let i = 0; i <= lastA; i++) { if (series[i][1] == null || series[i][2] == null) continue; up += `${X(i).toFixed(1)},${Y(series[i][2]).toFixed(1)} `; }
+      for (let i = lastA; i >= 0; i--) { if (series[i][1] == null || series[i][2] == null) continue; dn += `${X(i).toFixed(1)},${Y(series[i][1]).toFixed(1)} `; }
+      if (up && dn) variance = `<polygon points="${up}${dn}" fill="var(--red)" fill-opacity="0.12"/>`;
+    }
+  }
+  const planLayer = showPlan ? `<path d="${line(1)}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-dasharray="7 5"/>` :
     `<text x="${(W / 2)}" y="${pad.t + 18}" text-anchor="middle" font-size="11" fill="var(--muted)">Baseline pending: awaiting agreed schedule</text>`;
   return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" style="display:block">${grid}${ticks}` +
     `<line x1="${X(todayI)}" y1="${pad.t}" x2="${X(todayI)}" y2="${Hh - pad.b}" stroke="var(--line)" stroke-dasharray="3 3"/>` +
     `<text x="${X(todayI) + 4}" y="${pad.t + 10}" font-size="9" fill="var(--muted)">today</text>` +
-    planLayer + `<path d="${line(2)}" fill="none" stroke="var(--green)" stroke-width="2.4"/>${pts}</svg>`;
+    variance + planLayer + `<path d="${line(2)}" fill="none" stroke="var(--green)" stroke-width="2.4"/>${pts}</svg>`;
+}
+// Variance readout above the S-curve; only meaningful once the baseline is agreed.
+function scVar(series, showPlan) {
+  if (!showPlan || !series || !series.length) return null;
+  let lastA = -1; for (let i = 0; i < series.length; i++) if (series[i][2] != null) lastA = i;
+  if (lastA < 0) return null;
+  const plan = series[lastA][1], act = series[lastA][2];
+  if (plan == null || act == null) return null;
+  const d = Math.round((act - plan) * 10) / 10;
+  const cls = d < 0 ? "behind" : d > 0 ? "ahead" : "on";
+  const label = d === 0 ? "on plan" : (Math.abs(d) + " pts " + (d < 0 ? "behind" : "ahead") + " plan");
+  return <div className="cxp-varhead"><div className="cxp-vbig"><span className="a">{act}% actual</span> <span className="cxp-vs">vs</span> <span className="p">{plan}% planned</span></div><span className={"cxp-vchip " + cls}>{label}</span></div>;
 }
 function svgDonut(parts) {
   const tot = parts.reduce((a, b) => a + b[1], 0) || 1; const R = 46, C = 2 * Math.PI * R, sz = 112; let off = 0, seg = "";
@@ -446,7 +468,7 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
           if (key === "funnel") return null;
           return (
             <div className="cxp-grid" key="row1">
-              {show("scurve") && <Panel title="Programme S-curve  -  planned vs actual (L1-L3)" right={<Legend />}><div dangerouslySetInnerHTML={{ __html: svgScurve(snap.detail.scurve, cfg.baselineAgreed) }} /></Panel>}
+              {show("scurve") && <Panel title="Programme S-curve, planned vs actual (L1-L3)" right={<Legend />}>{scVar(snap.detail.scurve, cfg.baselineAgreed)}<div dangerouslySetInnerHTML={{ __html: svgScurve(snap.detail.scurve, cfg.baselineAgreed) }} /></Panel>}
               {show("funnel") && <Funnel s={snap} />}
             </div>
           );
@@ -488,10 +510,14 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
       {pop && <>
         <div className="cxp-scrim show" onClick={(e) => { e.stopPropagation(); setPop(null); }} />
         <div className="cxp-pop show" onClick={(e) => e.stopPropagation()}>
-          <div className="cxp-ph"><h4 dangerouslySetInnerHTML={{ __html: pop.t }} /><button className="cxp-x" onClick={() => setPop(null)}>{"\u2715"}</button></div>
-          <div className="cxp-ptabs"><button className={"cxp-pt" + (popTab === 0 ? " on" : "")} onClick={() => setPopTab(0)}>Overview</button><button className={"cxp-pt" + (popTab === 1 ? " on" : "")} onClick={() => setPopTab(1)}>Underlying data</button></div>
-          <div className="cxp-pbody" dangerouslySetInnerHTML={{ __html: popTab === 0 ? (pop.b + (pop.calc ? '<div class="cxp-calc">' + pop.calc.replace(/\n/g, "<br>") + "</div>" : "")) : (pop.dt || pnote("No row-level detail.")) }} />
-          <div className="cxp-psrc"><span>Source</span> <span className="cxp-lk">{pop.src}</span> sheet</div>
+          <div className="cxp-ph">
+            <div className="cxp-phic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 20V10M10 20V4M16 20v-7M20 20H3" /></svg></div>
+            <div className="cxp-pht"><h4 dangerouslySetInnerHTML={{ __html: pop.t }} />{pop.b && <div className="cxp-phd" dangerouslySetInnerHTML={{ __html: pop.b }} />}</div>
+            <button className="cxp-x" onClick={() => setPop(null)}>{"\u2715"}</button>
+          </div>
+          <div className="cxp-ptabs"><button className={"cxp-tab" + (popTab === 0 ? " on" : "")} onClick={() => setPopTab(0)}>Overview</button><button className={"cxp-tab" + (popTab === 1 ? " on" : "")} onClick={() => setPopTab(1)}>Underlying data</button></div>
+          <div className="cxp-pbody" dangerouslySetInnerHTML={{ __html: popTab === 0 ? (pop.calc ? '<div class="cxp-calc">' + pop.calc.replace(/\n/g, "<br>") + "</div>" : pnote("No calculation recorded for this item.")) : (pop.dt || pnote("No row-level detail.")) }} />
+          <div className="cxp-psrc"><span className="cxp-srclbl">Source</span> <span className="cxp-lk">{pop.src}</span> sheet</div>
         </div>
       </>}
 
@@ -510,14 +536,14 @@ function Legend() { return <div className="cxp-legend"><span><i style={{ backgro
 function KPIs({ s }) {
   const tiles = [
     ["kpi-assets", "Cx Assets", (s.assets || 0).toLocaleString(), "var(--accent)", (s.mapped_assets || 0) + " mapped to programme", null],
-    ["kpi-red", "Red tag (L1)", (s.red_pct || 0) + "%", TAGC.red, (s.new_red_7d ? "+" + s.new_red_7d + " in last 7d" : "L1 attainment"), "up"],
-    ["kpi-yellow", "Yellow tag (L2)", (s.yellow_pct || 0) + "%", TAGC.yellow, (s.yellow_n || 0) + " of " + (s.assets || 0), null],
-    ["kpi-green", "Green tag (L3)", (s.green_pct || 0) + "%", TAGC.green, "L3 SAT", null],
+    ["kpi-red", "Red tag (L1)", (s.red_pct || 0) + "%", TAGC.red, (s.new_red_7d ? "+" + s.new_red_7d + " in last 7d" : "L1 attainment"), s.red_pct || 0],
+    ["kpi-yellow", "Yellow tag (L2)", (s.yellow_pct || 0) + "%", TAGC.yellow, (s.yellow_n || 0) + " of " + (s.assets || 0), s.yellow_pct || 0],
+    ["kpi-green", "Green tag (L3)", (s.green_pct || 0) + "%", TAGC.green, "L3 SAT", s.green_pct || 0],
     ["kpi-issues", "Open Issues (Q+C)", s.open_issues == null ? "-" : s.open_issues, "var(--accent)", (s.issues_raised_7d != null ? "+" + s.issues_raised_7d + " raised / " + (s.issues_resolved_7d || 0) + " resolved" : ""), null],
     ["kpi-verify", "Awaiting verification", s.awaiting_verification == null ? "-" : s.awaiting_verification, TAGC.yellow, "contractor done, CTS to close", null],
   ];
-  return <div className="cxp-kpis">{tiles.map(([k, lab, val, col, sub]) => (
-    <div className="cxp-kpi" data-pop={k} key={k}><span className="cxp-ab" style={{ background: col }} /><div className="cxp-lab">{lab}</div><div className="cxp-val" style={{ color: col }}>{val}</div><div className="cxp-sub">{sub}</div></div>
+  return <div className="cxp-kpis">{tiles.map(([k, lab, val, col, sub, prog]) => (
+    <div className="cxp-kpi" data-pop={k} key={k}><span className="cxp-ab" style={{ background: col }} /><div className="cxp-lab">{lab}</div><div className="cxp-val" style={{ color: col }}>{val}</div>{prog != null && <div className="cxp-prog"><i style={{ width: Math.max(1.5, prog) + "%", background: col }} /></div>}<div className="cxp-sub">{sub}</div></div>
   ))}</div>;
 }
 function Funnel({ s }) {
@@ -621,10 +647,10 @@ function Configure({ cfg, weeks, cur, onWeek, onSave, onClose }) {
 
 /* ---------- scoped styles (use the app's theme variables) ---------- */
 const CXP_CSS = `
-.cxp{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#ffffff;--card:#ffffff;--surface:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--line2:#d6dde6;--chipbg:#f7f9fc;--hover:#eef3f9;--cxsh:0 1px 2px rgba(16,32,48,.06),0 10px 24px rgba(16,32,48,.07);max-width:1500px;margin:0 auto;padding:0 22px 44px;color:var(--ink);font-family:var(--body)}
-body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#141d29;--card:#141d29;--surface:#101822;--card2:#0f1722;--line:#22303f;--line2:#2c3a4b;--chipbg:#0f1722;--hover:#1b2735;--cxsh:0 1px 0 rgba(255,255,255,.02),0 8px 28px rgba(0,0,0,.35)}
+.cxp{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#ffffff;--card:#ffffff;--surface:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--line2:#d6dde6;--chipbg:#f7f9fc;--hover:#eef3f9;--cxsh:0 1px 2px rgba(16,32,48,.06),0 10px 24px rgba(16,32,48,.07);--head:#2563EB;--headtint:rgba(37,99,235,.09);max-width:1500px;margin:0 auto;padding:0 22px 44px;color:var(--ink);font-family:var(--body)}
+body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#141d29;--card:#141d29;--surface:#101822;--card2:#0f1722;--line:#22303f;--line2:#2c3a4b;--chipbg:#0f1722;--hover:#1b2735;--cxsh:0 1px 0 rgba(255,255,255,.02),0 8px 28px rgba(0,0,0,.35);--head:#7FB0FF;--headtint:rgba(127,176,255,.14)}
 .cxp-top{position:sticky;top:54px;z-index:20;display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin:0 -22px 16px;padding:14px 22px 13px;background:var(--card);border-bottom:1px solid var(--line)}
-.cxp-title{font-size:20px;font-weight:750;letter-spacing:-.01em}
+.cxp-title{font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--head)}
 .cxp-title small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:2px}
 .cxp-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
 .cxp-pill b{color:var(--ink);font-weight:600}
@@ -636,17 +662,25 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-ok{background:rgba(24,182,155,.12);border:1px solid var(--green);color:var(--ink);border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:14px}
 .cxp-empty{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px;text-align:center;color:var(--ink)}
 .cxp-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:14px}
-.cxp-kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 15px;position:relative;overflow:hidden;cursor:pointer;box-shadow:var(--cxsh)}
+.cxp-kpi{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px 16px;position:relative;overflow:hidden;cursor:pointer;box-shadow:var(--cxsh)}
 .cxp-kpi:hover{border-color:var(--accent)}
+.cxp-prog{height:5px;border-radius:999px;background:var(--chipbg);margin-top:10px;overflow:hidden}
+.cxp-prog i{display:block;height:100%;border-radius:999px}
 .cxp-ab{position:absolute;left:0;top:0;bottom:0;width:3px}
 .cxp-lab{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .cxp-val{font-size:30px;font-weight:760;letter-spacing:-.02em;margin-top:7px;line-height:1}
 .cxp-sub{font-size:11px;color:var(--muted);margin-top:8px}
 .cxp-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;margin-bottom:14px}
 .cxp-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
-.cxp-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;min-width:0;box-shadow:var(--cxsh)}
-.cxp-phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
-.cxp-phead h3{margin:0;font-size:13.5px;font-weight:680}
+.cxp-panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px 17px;min-width:0;box-shadow:var(--cxsh)}
+.cxp-phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
+.cxp-phead h3{margin:0;font-size:12.5px;font-weight:700;color:var(--head);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:9px}
+.cxp-phead h3::before{content:"";width:3px;height:14px;border-radius:2px;background:var(--head);display:inline-block}
+.cxp-varhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.cxp-vbig{font-size:14.5px;font-weight:750}
+.cxp-vbig .a{color:var(--green)} .cxp-vbig .p{color:var(--accent)} .cxp-vs{color:var(--muted);font-weight:600}
+.cxp-vchip{font-size:10.5px;font-weight:700;border-radius:999px;padding:3px 10px}
+.cxp-vchip.behind{color:var(--red);background:rgba(226,86,78,.14)} .cxp-vchip.ahead{color:var(--green);background:rgba(24,182,155,.14)} .cxp-vchip.on{color:var(--muted);background:var(--chipbg)}
 .cxp-meta{font-size:11px;color:var(--muted)}
 .cxp-legend{display:flex;gap:12px;font-size:11px;color:var(--muted)}
 .cxp-legend span{display:inline-flex;align-items:center;gap:6px}
@@ -657,12 +691,12 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-frow:hover .cxp-bar,.cxp-tbar:hover .cxp-track{outline:1px solid var(--accent);outline-offset:2px}
 .cxp-fnm{font-size:11.5px;font-weight:600}
 .cxp-tn{font-size:11.5px;color:var(--muted);text-align:right}
-.cxp-bar{height:22px;border-radius:7px;background:var(--chipbg);position:relative;overflow:hidden;border:1px solid var(--line)}
-.cxp-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:7px}
-.cxp-pc{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:10.5px;font-weight:700;color:var(--ink)}
-.cxp-tbar{display:grid;grid-template-columns:84px 1fr 96px;align-items:center;gap:9px;margin-bottom:8px;cursor:pointer}
-.cxp-track{height:9px;border-radius:5px;background:var(--chipbg);border:1px solid var(--line);overflow:hidden}
-.cxp-track i{display:block;height:100%;border-radius:5px;background:${TAGC.red}}
+.cxp-bar{height:22px;border-radius:8px;background:var(--chipbg);position:relative;overflow:hidden;border:1px solid var(--line)}
+.cxp-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:8px}
+.cxp-pc{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:var(--ink)}
+.cxp-tbar{display:grid;grid-template-columns:84px 1fr 96px;align-items:center;gap:9px;margin-bottom:10px;cursor:pointer}
+.cxp-track{height:12px;border-radius:999px;background:var(--chipbg);border:1px solid var(--line);overflow:hidden}
+.cxp-track i{display:block;height:100%;border-radius:999px;background:${TAGC.red}}
 .cxp-tm{font-size:10.5px;color:var(--muted);text-align:right}
 .cxp-donutwrap{display:flex;align-items:center;gap:16px}
 .cxp-dleg{display:flex;flex-direction:column;gap:7px;font-size:11.5px}
@@ -670,7 +704,7 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-dleg b{color:var(--ink);margin-left:auto}
 .cxp-dleg span:hover{color:var(--ink)}
 .cxp-flow{display:flex;gap:8px}
-.cxp-fstep{flex:1;background:var(--chipbg);border:1px solid var(--line);border-radius:10px;padding:11px 8px;text-align:center;position:relative;cursor:pointer}
+.cxp-fstep{flex:1;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:13px 8px;text-align:center;position:relative;cursor:pointer}
 .cxp-fstep:hover{border-color:var(--accent)}
 .cxp-n{font-size:22px;font-weight:740;line-height:1}
 .cxp-fl{font-size:10px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.03em}
@@ -679,8 +713,9 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-matrix th{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;text-align:center;padding-bottom:4px}
 .cxp-matrix td{text-align:center;padding:0 2px}
 .cxp-matrix td.cxp-nm{text-align:left;font-weight:600;padding-right:8px}
-.cxp-cell{display:inline-flex;align-items:center;justify-content:center;width:100%;height:26px;border-radius:7px;font-weight:700;font-size:10.5px;cursor:pointer}
-.c-g{background:rgba(24,182,155,.16);color:var(--green)} .c-a{background:rgba(224,161,6,.16);color:var(--amber)} .c-r{background:rgba(226,86,78,.16);color:var(--red)} .c-x{background:var(--chipbg);color:var(--muted)}
+.cxp-cell{display:inline-flex;align-items:center;justify-content:center;width:100%;height:24px;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;border:1px solid transparent}
+.cxp-cell:hover{outline:2px solid var(--accent);outline-offset:1px}
+.c-g{background:rgba(24,182,155,.15);color:var(--green);border-color:rgba(24,182,155,.34)} .c-a{background:rgba(224,161,6,.14);color:var(--amber);border-color:rgba(224,161,6,.32)} .c-r{background:rgba(226,86,78,.15);color:var(--red);border-color:rgba(226,86,78,.36)} .c-x{background:var(--chipbg);color:var(--muted);border-color:var(--line)}
 .cxp-mt,.cxp-rtable{width:100%;border-collapse:collapse;font-size:12px}
 .cxp-mt td{padding:8px 6px;border-bottom:1px solid var(--line)}
 .cxp-mt tr:last-child td{border-bottom:0}
@@ -695,28 +730,32 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-rtable tr[data-pop]{cursor:pointer}.cxp-rtable tr[data-pop]:hover td{background:var(--hover)}
 .cxp-rk{font-weight:600;line-height:1.4}
 .cxp-od{color:var(--red);font-weight:700;white-space:nowrap}
-.cxp-spark{display:flex;align-items:flex-end;gap:5px;height:42px}
-.cxp-spark i{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:4px;cursor:pointer;opacity:.85}
+.cxp-spark{display:flex;align-items:flex-end;gap:14px;height:140px;padding-top:10px}
+.cxp-spark i{flex:1;background:linear-gradient(180deg,var(--accent),rgba(59,130,246,.32));border-radius:8px 8px 4px 4px;min-height:6px;cursor:pointer}
 .cxp-spark i.open{background:var(--line)}
-.cxp-spark i:hover{opacity:1}
-.cxp-attmeta{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:6px}
+.cxp-spark i:hover{filter:brightness(1.12)}
+.cxp-attmeta{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:8px}
 .cxp-foot{font-size:11px;color:var(--muted);margin-top:6px}
 .cxp-scrim{position:fixed;inset:0;background:rgba(4,8,14,.5);opacity:0;pointer-events:none;transition:.15s;z-index:60}
 .cxp-scrim.show{opacity:1;pointer-events:auto}
-.cxp-pop{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:460px;max-width:calc(100vw - 32px);background:var(--paper);border:1px solid var(--line);border-radius:16px;z-index:61;box-shadow:0 30px 70px rgba(0,0,0,.4)}
-.cxp-ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px 8px}
-.cxp-ph h4{margin:0;font-size:15px;font-weight:720;line-height:1.3}
-.cxp-x{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
-.cxp-ptabs{display:flex;gap:4px;padding:2px 18px 0}
-.cxp-pt{flex:1;font-family:inherit;font-size:11.5px;font-weight:650;color:var(--muted);background:var(--chipbg);border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:7px;cursor:pointer}
-.cxp-pt.on{color:var(--ink);background:var(--paper)}
-.cxp-pbody{padding:10px 18px 6px;font-size:12.8px;line-height:1.6}
-.cxp-calc{margin-top:11px;background:var(--chipbg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--muted)}
+.cxp-pop{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:440px;max-width:calc(100vw - 32px);background:var(--paper);border:1px solid var(--line);border-radius:16px;z-index:61;box-shadow:0 30px 70px rgba(0,0,0,.45)}
+.cxp-ph{display:flex;align-items:flex-start;gap:12px;padding:16px 18px}
+.cxp-phic{flex:0 0 auto;width:36px;height:36px;border-radius:10px;background:var(--headtint);color:var(--head);display:flex;align-items:center;justify-content:center}
+.cxp-pht{min-width:0;flex:1}
+.cxp-ph h4{margin:0;font-size:13px;font-weight:700;color:var(--head);text-transform:uppercase;letter-spacing:.05em;line-height:1.35}
+.cxp-phd{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.cxp-x{flex:0 0 auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.cxp-x:hover{border-color:var(--accent);color:var(--ink)}
+.cxp-ptabs{display:flex;gap:4px;margin:0 18px 12px;padding:3px;background:var(--chipbg);border:1px solid var(--line);border-radius:10px}
+.cxp-tab{flex:1;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:transparent;border:0;border-radius:7px;padding:8px;cursor:pointer}
+.cxp-tab.on{background:var(--accent);color:#fff}
+.cxp-pbody{padding:0 18px 4px;font-size:12.8px;line-height:1.6}
+.cxp-lead{color:var(--ink);line-height:1.55;margin:2px 0}
+.cxp-calc{margin-top:4px;background:var(--chipbg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--muted);line-height:1.7}
 .cxp-pnote{font-size:12px;color:var(--muted);line-height:1.6;padding:4px 0}
-.cxp-pt2,.cxp-pt{}
-.cxp-psrc{padding:11px 18px 16px;font-size:10.5px;color:var(--muted);border-top:1px solid var(--line);margin-top:10px}
-.cxp-lk{color:var(--accent)}
-.cxp-pt-table{}
+.cxp-psrc{display:flex;align-items:center;gap:6px;padding:13px 18px;font-size:10.5px;color:var(--muted);border-top:1px solid var(--line);margin-top:14px}
+.cxp-srclbl{font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.cxp-lk{color:var(--accent);font-weight:650;background:var(--headtint);border-radius:6px;padding:3px 8px}
 table.cxp-pt{width:100%;border-collapse:collapse;font-size:11px;margin-top:2px}
 table.cxp-pt th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:5px 7px;border-bottom:1px solid var(--line)}
 table.cxp-pt td{padding:6px 7px;border-bottom:1px solid var(--line);vertical-align:top}
