@@ -4754,6 +4754,10 @@ const RPT_CX_SECTIONS = [["cxkpis","Cx attainment KPIs"],["scurve","Programme S-
 const RPT_PLAN_DEFAULT = { summary:true, ppc:true, kpis:true, constraints:true, reasons:true, breakdowns:false, nextweek:false, milestones:true, schedule:true };
 const RPT_CX_DEFAULT = { cxkpis:true, scurve:true, funnel:true, bytype:false, issues:false, irl:false, docs:true, cxmilestones:false, risks:true, attendance:false };
 
+// AI polish guard: the polished text may not introduce any number/percentage absent from the deterministic draft.
+const rptNumTokens = (s) => (String(s||"").match(/\d[\d,.]*%?/g) || []).map((t)=>t.replace(/,/g,""));
+const rptNumbersOk = (draft, out) => { const D = new Set(rptNumTokens(draft)); return rptNumTokens(out).every((t)=>D.has(t)); };
+
 // Shared Weekly Report launcher: identical button + config window used on both Analytics and Weekly Cx Progress.
 function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, variant }){
   const defWeek = useMemo(() => { const t = new Date(todayMid()); const dow = t.getDay(); const back = (dow - 5 + 7) % 7; const fri = addDays(t, -back); const mon = mondayOf(fri); return { start: mon, end: addDays(mon, 6) }; }, []);
@@ -4770,6 +4774,8 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   const [cxSnap, setCxSnap] = useState(null);
   const [cxBaseline, setCxBaseline] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [polishing, setPolishing] = useState(false);
+  const [polishNote, setPolishNote] = useState("");
   const start = mode === "week" ? defWeek.start : (from ? parseD(from) : defWeek.start);
   const end = mode === "week" ? defWeek.end : (to ? parseD(to) : defWeek.end);
   const rData = useMemo(() => open ? computeReport({ S, LV, coName, start, end }) : null, [open, S, LV, start.getTime(), end.getTime()]);
@@ -4800,6 +4806,17 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
     setOpen(false);
   };
   if (!isAdmin) return null;
+  const polish = async () => {
+    const draft = summaryVal; if (!draft) return;
+    setPolishing(true); setPolishNote("");
+    try {
+      const { data, error } = await supabase.functions.invoke("report-narrative", { body: { draft } });
+      if (error || !data || data.error) setPolishNote("AI polish is not available (edge function or key not configured). Keeping the drafted summary.");
+      else if (data.text && rptNumbersOk(draft, data.text)) { setSummary(data.text); setPolishNote("Polished with AI. Every figure preserved and verified."); }
+      else setPolishNote("AI output altered a figure, so it was rejected. Keeping the drafted summary.");
+    } catch (e) { setPolishNote("AI polish is not available. Keeping the drafted summary."); }
+    setPolishing(false);
+  };
   const optRow = (on, lbl, onClick) => (<label key={lbl} className="rep-check" style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 2px", margin:0, cursor:"pointer" }}><input type="checkbox" checked={!!on} onChange={onClick} /><span style={{ fontSize:12.5 }}>{lbl}</span></label>);
   return (<>
     <button className={variant==="cx" ? "cxp-btn" : "lk-btn primary"} onClick={openModal}><Icon n="chart" s={14} />{label||"Weekly Report"}</button>
@@ -4825,8 +4842,9 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
             </div>
             <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>{busy ? "Loading latest Cx week..." : cxSnap ? ("Cx sections read the week ending " + fmtFull(new Date(cxSnap.week_ending)) + ".") : "No Cx week imported yet; Cx sections will be skipped."}</div>
           </div>
-          <div className="rep-fld" style={{ marginTop: 14 }}><label>Executive Summary <span className="rep-mut">(auto-drafted from included sections, editable)</span></label>
-            <textarea className="lk-in rep-sum" rows={4} value={summaryVal} onChange={(e) => setSummary(e.target.value)} /></div>
+          <div className="rep-fld" style={{ marginTop: 14 }}><label style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}><span>Executive Summary <span className="rep-mut">(auto-drafted from included sections, editable)</span></span><button type="button" className="lk-btn" style={{ padding:"4px 10px", fontSize:11.5 }} disabled={polishing} onClick={polish}>{polishing ? "Polishing\u2026" : "Polish with AI"}</button></label>
+            <textarea className="lk-in rep-sum" rows={4} value={summaryVal} onChange={(e) => setSummary(e.target.value)} />
+            {polishNote && <div className="rep-mut" style={{ fontSize:11, marginTop:4 }}>{polishNote}</div>}</div>
           <div className="rep-fld" style={{ marginTop: 14 }}><label>Appearance</label>
             <div className="rep-seg"><button className={theme==="light"?"on":""} onClick={() => setTheme("light")}>Light</button><button className={theme==="dark"?"on":""} onClick={() => setTheme("dark")}>Dark</button></div>
           </div>
