@@ -463,12 +463,14 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu }) {
 
       {!loading && snap && order.map((key) => {
         if (!show(key)) return null;
-        if (key === "kpi") return <KPIs key="kpi" s={snap} />;
+        if (key === "kpi") return <KPIs key="kpi" s={snap} cfg={cfg} />;
         if (key === "scurve" || key === "funnel") {
           if (key === "funnel") return null;
+          const scSeries = snap.detail.scurve || [];
+          const showPlan = cfg.baselineAgreed || scSeries.some((r) => r[1] != null);
           return (
             <div className="cxp-grid" key="row1">
-              {show("scurve") && <Panel title="Programme S-curve, planned vs actual (L1-L3)" right={<Legend />}>{scVar(snap.detail.scurve, cfg.baselineAgreed)}<div dangerouslySetInnerHTML={{ __html: svgScurve(snap.detail.scurve, cfg.baselineAgreed) }} /></Panel>}
+              {show("scurve") && <Panel title="Programme S-curve, planned vs actual (L1-L3)" right={<Legend />}>{scVar(scSeries, showPlan)}<div dangerouslySetInnerHTML={{ __html: svgScurve(scSeries, showPlan) }} /></Panel>}
               {show("funnel") && <Funnel s={snap} />}
             </div>
           );
@@ -533,7 +535,19 @@ function Panel({ title, right, children }) {
 }
 function Legend() { return <div className="cxp-legend"><span><i style={{ background: "var(--accent)" }} />Planned</span><span><i style={{ background: "var(--green)" }} />Actual</span></div>; }
 
-function KPIs({ s }) {
+function KPIs({ s, cfg }) {
+  const T = (cfg && cfg.targets) || {};
+  // Per-tag plan reference is the configured target; no per-tag planned-to-date exists in the pack.
+  const planMap = { "kpi-red": T.red, "kpi-yellow": T.yellow, "kpi-green": T.green };
+  const actMap = { "kpi-red": s.red_pct || 0, "kpi-yellow": s.yellow_pct || 0, "kpi-green": s.green_pct || 0 };
+  const planChip = (k) => {
+    const plan = planMap[k]; if (plan == null) return null;
+    const dv = Math.round((actMap[k] - plan) * 10) / 10;
+    const cls = Math.abs(dv) <= 0.5 ? "on" : dv < 0 ? "behind" : "ahead";
+    const arrow = cls === "behind" ? "\u25BC " : cls === "ahead" ? "\u25B2 " : "";
+    const label = cls === "on" ? "on plan" : arrow + Math.abs(dv) + " pts " + (dv < 0 ? "behind" : "ahead") + " plan";
+    return <div className={"cxp-kchip " + cls}>{label}</div>;
+  };
   const tiles = [
     ["kpi-assets", "Cx Assets", (s.assets || 0).toLocaleString(), "var(--accent)", (s.mapped_assets || 0) + " mapped to programme", null],
     ["kpi-red", "Red tag (L1)", (s.red_pct || 0) + "%", TAGC.red, (s.new_red_7d ? "+" + s.new_red_7d + " in last 7d" : "L1 attainment"), s.red_pct || 0],
@@ -542,9 +556,9 @@ function KPIs({ s }) {
     ["kpi-issues", "Open Issues (Q+C)", s.open_issues == null ? "-" : s.open_issues, "var(--accent)", (s.issues_raised_7d != null ? "+" + s.issues_raised_7d + " raised / " + (s.issues_resolved_7d || 0) + " resolved" : ""), null],
     ["kpi-verify", "Awaiting verification", s.awaiting_verification == null ? "-" : s.awaiting_verification, TAGC.yellow, "contractor done, CTS to close", null],
   ];
-  return <div className="cxp-kpis">{tiles.map(([k, lab, val, col, sub, prog]) => (
-    <div className="cxp-kpi" data-pop={k} key={k}><span className="cxp-ab" style={{ background: col }} /><div className="cxp-lab">{lab}</div><div className="cxp-val" style={{ color: col }}>{val}</div>{prog != null && <div className="cxp-prog"><i style={{ width: Math.max(1.5, prog) + "%", background: col }} /></div>}<div className="cxp-sub">{sub}</div></div>
-  ))}</div>;
+  return <div className="cxp-kpis">{tiles.map(([k, lab, val, col, sub, prog]) => { const chip = planChip(k); return (
+    <div className="cxp-kpi" data-pop={k} key={k}><span className="cxp-ab" style={{ background: col }} /><div className="cxp-lab">{lab}</div><div className="cxp-val" style={{ color: col }}>{val}</div>{prog != null && <div className="cxp-prog"><i style={{ width: Math.max(1.5, prog) + "%", background: col }} /></div>}{chip || <div className="cxp-sub">{sub}</div>}</div>
+  ); })}</div>;
 }
 function Funnel({ s }) {
   const A = s.assets || 0; const rows = [["red", "L1 Red", s.red_n, s.red_pct], ["yellow", "L2 Yellow", s.yellow_n, s.yellow_pct], ["green", "L3 Green", s.green_n, s.green_pct], ["blue", "L4 Blue", s.blue_n || 0, s.blue_pct || 0], ["white", "L5 White", s.white_n || 0, s.white_pct || 0]];
@@ -681,6 +695,8 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-vbig .a{color:var(--green)} .cxp-vbig .p{color:var(--accent)} .cxp-vs{color:var(--muted);font-weight:600}
 .cxp-vchip{font-size:10.5px;font-weight:700;border-radius:999px;padding:3px 10px}
 .cxp-vchip.behind{color:var(--red);background:rgba(226,86,78,.14)} .cxp-vchip.ahead{color:var(--green);background:rgba(24,182,155,.14)} .cxp-vchip.on{color:var(--muted);background:var(--chipbg)}
+.cxp-kchip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;margin-top:9px}
+.cxp-kchip.behind{color:var(--red);background:rgba(226,86,78,.14)} .cxp-kchip.ahead{color:var(--green);background:rgba(24,182,155,.14)} .cxp-kchip.on{color:var(--muted);background:var(--chipbg)}
 .cxp-meta{font-size:11px;color:var(--muted)}
 .cxp-legend{display:flex;gap:12px;font-size:11px;color:var(--muted)}
 .cxp-legend span{display:inline-flex;align-items:center;gap:6px}
