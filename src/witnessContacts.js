@@ -35,6 +35,14 @@ export const TO = {
     "sergiu.n@cts-nordics.com",
     "pavel.v@cts-nordics.com",
     "cristi.s@cts-nordics.com",
+    // Client (atnorth) - Mechanical
+    "toni.korpinen@partners.atnorth.com",
+    "miikka.oksanen@atnorth.com",
+    "seppo.vallberg@partners.atnorth.com",
+    "nuutti.niemi@atnorth.com",
+    "samu.spannari@atnorth.com",
+    "aksu.niskala@atnorth.com",
+    "mirva.taylor@atnorth.com",
     // CX team (all disciplines)
     "damian.c@cs-nordics.com",
     "karolina.d@cs-nordics.com",
@@ -61,6 +69,16 @@ export const TO = {
     "rafal.b@cts-nordics.com",
     "mark.he@cts-nordics.com",
     "christopher.j@cts-nordics.com",
+    // Client (atnorth) - Electrical
+    "pertti.levealahti@partners.atnorth.com",
+    "miro.dahlman@partners.atnorth.com",
+    "aku.kangas@atnorth.com",
+    "miki.ruohisto@atnorth.com",
+    "janne.huimala@atnorth.com",
+    "janne.lemola@atnorth.com",
+    "mikko.luoma@atnorth.com",
+    "smrutigandha.angane@atnorth.com",
+    "antti.tepponen@partners.atnorth.com",
     // CX team (all disciplines)
     "damian.c@cs-nordics.com",
     "karolina.d@cs-nordics.com",
