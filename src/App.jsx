@@ -675,6 +675,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV78", date: "2026-07-02", items: ["Help updated to REV 8, covering everything shipped since REV 7: the commit lock (a committed activity's plan is admin-only; progress recording stays open), witness outcomes with failure reasons, ghosted failed records and linked retests, first-time pass, the audit log revert, the board search, and the 1-week lookahead option", "New reference page Slips vs Pass / Fail, spelling out the difference between a Reason for Non-Completion (the schedule verdict on a committed promise, feeding PPC) and a Witness Outcome (the quality verdict on an inspection or FOK, feeding first-time pass), and why the two are independent", "TRY ME interactive demos embedded in the help: toggle the commit lock and watch the plan fields freeze, record a witness outcome and watch the card ghost, and step through the four slip-versus-outcome scenarios", "Fixed: four existing help pages (Delays & Excusing, Marking Work Complete, Discipline, Assets & Auto-fill) were present in the help but missing from the in-app menu, so they could not be reached. All pages are now listed, with the admin-only ones gated"] },
   { rev: "REV77", date: "2026-07-02", items: ["Fix: an Actual Start dated in the future produced a false green progress tail on the board (the renderer drew from today back to the card because the end of an open activity's progress bar is today, and the inverted span was silently swapped by the browser). Progress bars now never draw from a future actual date, and inverted spans are refused outright", "The Schedule tab now shows an amber warning under Actual Start / Actual Finish when either is set in the future, at the moment the mistake is being made. The value is not blocked or auto-cleared; actual dates remain yours to correct, and the audit history records who set them"] },
   { rev: "REV76", date: "2026-07-02", items: ["Planning Board: the search box moved to the far left of the toolbar, ahead of the date navigation", "The lookahead window selector (board toolbar and Admin > Lookahead) gained a 1-week option, for running the board tight on the current week"] },
   { rev: "REV75", date: "2026-07-02", items: ["Planning Board: new search box in the toolbar (beside Import), filtering the board like the Activity Table search. It matches description, company, system, asset tag and location code; matching cards stay, everything else is hidden, lanes with no matches collapse, and a live count shows how many of the window's activities match. Escape or the small cross clears it", "Deliberate scope: the search filters only what the board draws. The KPI tiles, the Export CSV and the Analytics exports are untouched by the search term, so a forgotten search can never silently truncate an export or skew the metrics"] },
@@ -4555,19 +4556,20 @@ function LatestOnline({ users, ustat, pres }) {
 }
 
 function HelpPage({ dark, admin, brandLogo, proj }) {
-  const ADMIN_ONLY = new Set(["weekly", "r_admin"]);
+  const ADMIN_ONLY = new Set(["weekly", "r_admin", "r_delay", "excuse"]);
   const HOWTO_SIM = new Set(["board", "views", "analytics"]);
   const NAV = [
     ["Quick Reference", [
       ["r_overview", "Sign in & scope"], ["r_navigate", "Find your way around"], ["r_board", "The Planning Board"],
       ["r_card", "The activity card"], ["r_table", "The Activity Table"], ["r_schedpage", "The Schedule page"],
-      ["r_reading", "Reading the schedule"], ["r_constraints", "Constraints & make-ready"], ["r_commit", "Committing & PPC"],
-      ["r_witness", "Witness invites"], ["r_analytics", "Analytics & reports"], ["r_admin", "Admin & settings"],
-      ["r_cxstages", "Cx stages & colours"], ["r_markers", "Markers & chips"], ["r_codes", "Location codes"]]],
+      ["r_reading", "Reading the schedule"], ["r_delay", "Delays & excusing"], ["r_constraints", "Constraints & make-ready"], ["r_commit", "Committing & PPC"],
+      ["r_complete", "Marking work complete"], ["r_witness", "Witness invites"], ["r_verdicts", "Slips vs pass / fail"], ["r_discipline", "Discipline"],
+      ["r_analytics", "Analytics & reports"], ["r_admin", "Admin & settings"],
+      ["r_cxstages", "Cx stages & colours"], ["r_markers", "Markers & chips"], ["r_codes", "Location codes"], ["r_assets", "Assets & auto-fill"]]],
     ["How To", [
       ["board", "Add via Planning Board"], ["table", "Add via Activity Table"], ["import", "Bulk import (Excel/CSV)"],
       ["views", "Switch & read views"], ["reschedule", "Reschedule & links"], ["constraints", "Constraints & make-ready"],
-      ["witness", "Witness invites"], ["ytt", "YTT daily focus"], ["analytics", "Dashboard & popouts"], ["weekly", "Weekly Report"]]],
+      ["witness", "Witness invites"], ["complete", "Mark work complete"], ["excuse", "Excuse a delay"], ["ytt", "YTT daily focus"], ["analytics", "Dashboard & popouts"], ["weekly", "Weekly Report"]]],
   ];
   const [hp, setHp] = useState("r_overview");
   const frameRef = useRef(null);
