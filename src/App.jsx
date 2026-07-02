@@ -675,6 +675,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV75", date: "2026-07-02", items: ["Planning Board: new search box in the toolbar (beside Import), filtering the board like the Activity Table search. It matches description, company, system, asset tag and location code; matching cards stay, everything else is hidden, lanes with no matches collapse, and a live count shows how many of the window's activities match. Escape or the small cross clears it", "Deliberate scope: the search filters only what the board draws. The KPI tiles, the Export CSV and the Analytics exports are untouched by the search term, so a forgotten search can never silently truncate an export or skew the metrics"] },
   { rev: "REV74", date: "2026-07-02", items: ["Audit log revert (admin only): activity entries in Admin > Audit now carry revert controls. The most recent change to an activity within the last 24 hours gets a one-click Revert; older or superseded entries get an amber Revert Anyway with an explicit warning of how many later changes will be overwritten; deletions get Restore (the activity returns with the same id, so predecessor and retest links survive); creations get Remove", "The confirmation window shows a field-by-field comparison of what each value restores to versus its current state, and refuses politely when the current state already matches the snapshot. Every revert is written to the audit log by the existing triggers, so a revert is itself revertible and nothing is silently lost", "Powered by a new activity_snapshots table with its own trigger (audit-snapshots.sql). The live audit trigger is deliberately untouched. Entries from before the migration show No Snapshot and cannot be reverted, because no before-state exists for them"] },
   { rev: "REV73", date: "2026-07-02", items: ["Commit lock (Phase 1): once an activity is Committed for this week, its plan is frozen for members in both the New / Edit Activity window and the Activity Table: description, company, building, level, zone, discipline, system, assets, Cx stage, milestone flag, planned start, duration, predecessors, witness setup, the Committed toggle itself, and Delete. A banner in the window explains the lock and directs changes to an admin", "What members can still do on a committed activity, by design: set status, actual dates and percent complete, record the reason for non-completion, record the witness outcome and create a retest, manage constraints, and edit notes. Locking these would break the daily Last Planner workflow, so only the promise is protected, not the progress against it", "Admins are unaffected. Drag and edge-resize of committed activities were already blocked for members; this closes the remaining routes (window edit, table edit, delete) that let a commitment be changed or removed without an admin"] },
   { rev: "REV72", date: "2026-07-02", items: ["New / Edit Activity: the field headers inside the window (What Is The Activity, Company, Building, Level, Zone / Room, Discipline, System, Asset, Cx Stage, Notes, and every label on the Schedule and Readiness tabs) are now blue, matching the window title and the app-wide header colour. REV70 had made only the window title blue; this completes the request as intended"] },
@@ -1327,6 +1328,7 @@ export default function App({ session }) {
   const [ytt, setYtt] = useState(false);
   const [witSched, setWitSched] = useState(false);
   const [witPeriod, setWitPeriod] = useState("4w");
+  const [boardQ, setBoardQ] = useState("");   // board search: display filter only, never touches visible/KPIs/exports
   const [resize, setResize] = useState(null);
   const [metricDrill, setMetricDrill] = useState(null);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1556,6 +1558,13 @@ export default function App({ session }) {
   const delayedList = inWindow.filter((a) => a.delayed);
   const atRiskList = inWindow.filter((a) => a.knockOn > 0 && a.status !== "complete" && !a.delayed);
   const ppcAll = (() => { const c = S.activities.filter((a) => a.committed); return c.length ? Math.round(c.filter((a) => a.status === "complete").length / c.length * 100) : null; })();
+  // Board search: same fields as the Activity Table search (description, company, system),
+  // plus asset and location code since both are printed on the cards. Filters only what the
+  // board draws; visible, the KPI tiles and exportActivities are deliberately untouched so a
+  // forgotten search term can never truncate an export or skew the metrics.
+  const boardQl = boardQ.trim().toLowerCase();
+  const boardMatch = (a) => !boardQl || `${a.desc || ""} ${coName(a.companyId)} ${a.system || ""} ${a.asset || ""} ${locCode(a)}`.toLowerCase().includes(boardQl);
+  const boardShown = boardQl ? inWindow.filter(boardMatch) : inWindow;
 
   const laneOf = (a) => S.laneBy === "level" ? a.level : S.laneBy === "area" ? (a.area || "Unassigned") : S.laneBy === "subarea" ? (a.subArea || "Unassigned") : S.laneBy === "tier3" ? (a.tier3 || "Unassigned") : coName(a.companyId);
   const lanesList = (() => {
@@ -1917,6 +1926,13 @@ export default function App({ session }) {
         <button className={"lk-btn pill" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
         <div className="lk-spacer" />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ position: "relative" }}>
+            <input className="lk-in" style={{ width: 190, maxWidth: "36vw", paddingRight: boardQ ? 28 : 10 }} placeholder="Search activities..." value={boardQ} onChange={(e) => setBoardQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setBoardQ(""); }} />
+            {boardQ && <button title="Clear search" onClick={() => setBoardQ("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", padding: 2 }}><Icon n="x" s={13} /></button>}
+          </div>
+          {boardQl && <span className="mono" style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{boardShown.length} of {inWindow.length}</span>}
+        </div>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
         <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
@@ -1950,10 +1966,11 @@ export default function App({ session }) {
         </div>
 
         {inWindow.length === 0 && <div className="lk-empty">Nothing planned in this window. Click a cell or press Activity to add one.</div>}
+        {inWindow.length > 0 && boardQl && boardShown.length === 0 && <div className="lk-empty">No activities match "{boardQ}" in this window. Clear the search or widen it.</div>}
 
         {S.view === "swimlane" && lanesList.map((lane) => {
-          const la = visible.filter((a) => a.inWin && laneOf(a) === lane).sort((a, b) => a.startOff - b.startOff);
-          if (S.laneBy !== "level" && la.length === 0) return null;
+          const la = visible.filter((a) => a.inWin && laneOf(a) === lane && boardMatch(a)).sort((a, b) => a.startOff - b.startOff);
+          if (la.length === 0 && (S.laneBy !== "level" || boardQl)) return null;
           const effEndU = (a) => { let e = eU(a); if (a.status === "complete") return e; if (!a.excuse && (a.delayed || a.totalShift > 0)) { let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7); if (a.delayed && todayUnit > ee) ee = todayUnit; if (ee > e) e = ee; } return e; };
           const rows = []; la.forEach((a) => { const su = sU(a), eu = effEndU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; a._step = 0; a._stepMax = 0; });
           const msByRow = {}; la.forEach((a) => { if (a.isMilestone) (msByRow[a._row] = msByRow[a._row] || []).push(a); });
@@ -1977,7 +1994,7 @@ export default function App({ session }) {
             </div>);
         })}
 
-        {S.view === "gantt" && visible.filter((a) => a.inWin).sort((a, b) => a.startOff - b.startOff || a.level.localeCompare(b.level)).map((a) => {
+        {S.view === "gantt" && visible.filter((a) => a.inWin && boardMatch(a)).sort((a, b) => a.startOff - b.startOff || a.level.localeCompare(b.level)).map((a) => {
           const lv = lvOf(LV, a.level);
           return (
             <div key={a.id} className="lk-grow" style={{ gridTemplateColumns: gridCols, minWidth: minW }}>
