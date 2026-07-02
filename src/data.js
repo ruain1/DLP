@@ -4,7 +4,9 @@ import { supabase } from "./supabaseClient";
 const fromActivity = (r) => ({
   id: r.id, desc: r.descr || "", companyId: r.company_id || "", area: r.area || "", system: r.system || "",
   level: r.level || "L2", isMilestone: !!r.is_milestone, start: r.start_date || "", duration: r.duration || 1,
-  committed: !!r.committed, status: r.status || "planned", actualStart: r.actual_start || "", actualFinish: r.actual_finish || "", percent: (r.percent == null ? null : Number(r.percent)),
+  // Milestones are binary (Planned / Complete); any legacy in_progress row is coerced at load
+  committed: !!r.committed, status: (r.is_milestone && r.status === "in_progress") ? "planned" : (r.status || "planned"), actualStart: r.actual_start || "", actualFinish: r.actual_finish || "", percent: (r.percent == null ? null : Number(r.percent)),
+  outcome: r.outcome || "pending", outcomeReason: r.outcome_reason || "", outcomeNotes: r.outcome_notes || "", outcomeAt: r.outcome_at || "", retestOf: r.retest_of || null,
   subArea: r.sub_area || "", tier3: r.tier3 || "", asset: r.asset || "", discipline: (r.discipline ? String(r.discipline).split(/\s*;\s*/).filter(Boolean) : []), witnessInvite: !!r.witness_invite, witnessAt: r.witness_at || "", witnessDurationMin: (r.witness_duration_min == null ? 60 : Number(r.witness_duration_min)), witnessSentAt: r.witness_sent_at || "", notes: r.notes || "", slipReason: r.slip_reason || "",
   code: r.code ?? null, predecessors: Array.isArray(r.predecessors) ? r.predecessors : [],
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
@@ -15,6 +17,7 @@ const toActivity = (a, session, isNew) => {
     id: a.id, descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, system: a.system || null,
     level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1,
     committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null, percent: (a.percent == null || a.percent === "" ? null : Math.max(0, Math.min(100, Math.round(Number(a.percent))))),
+    outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_notes: a.outcomeNotes || null, outcome_at: a.outcomeAt || null, retest_of: a.retestOf || null,
     sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, discipline: (Array.isArray(a.discipline) ? a.discipline.join("; ") : (a.discipline || "")) || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, witness_duration_min: (a.witnessDurationMin == null ? 60 : a.witnessDurationMin), witness_sent_at: a.witnessSentAt || null, notes: a.notes || null, slip_reason: a.slipReason || null,
     code: isNew ? null : (a.code ?? null), predecessors: a.predecessors || [],
     constraints: a.constraints || [], reschedules: a.reschedules || [], updated_by: session.user.id, updated_at: new Date().toISOString(),

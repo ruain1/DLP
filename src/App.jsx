@@ -130,6 +130,14 @@ const css = `
 .lk-chip.late{background:#F6D6D3;color:#9B1C16}
 .lk-chip.wit{background:#E7E0FB;color:#5B33C7}
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
+.lk-chip.fail{background:rgba(192,57,58,.18);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
+.lk-chip.pass{background:rgba(14,147,132,.16);color:#0E9384;border:1px solid rgba(14,147,132,.5)}
+.lk-chip.retest{background:rgba(224,161,6,.14);color:#9A6A00;border:1px solid rgba(224,161,6,.45)}
+.lk-ticket.ghostfail{background:repeating-linear-gradient(135deg,rgba(192,57,58,.14) 0 6px,rgba(192,57,58,.04) 6px 12px);border-left-color:#C0392B;cursor:pointer;overflow:visible}
+.lk-ticket.ghostfail .desc,.lk-ticket.ghostfail .meta{opacity:.45}
+.lk-ticket.ghostfail .desc{text-decoration:line-through;text-decoration-color:rgba(192,57,58,.9);text-decoration-thickness:1.5px}
+.lk-failx{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;background:#C0392B;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--card);z-index:3;pointer-events:none}
+.lk-rlink{align-self:center;height:0;border-top:1.5px dashed #E0A106;opacity:.75;z-index:0;pointer-events:none}
 .lk-fc{align-self:stretch;margin:3px 2px;border:1.5px dashed #E0A106;background:rgba(224,161,6,.10);border-radius:6px;z-index:0;pointer-events:none}
 .lk-ghost{opacity:.5;pointer-events:none;z-index:0}.lk-ghost.bar{align-self:stretch;margin:3px 2px;border:1.5px dashed var(--muted);border-radius:6px;background:transparent}.lk-ghost.ms{align-self:center;display:flex;align-items:center;justify-content:center}.lk-ghost.ms .dia{width:12px;height:12px;transform:rotate(45deg);border:1.5px dashed var(--muted);background:transparent}
 .lk-rtrail{align-self:center;height:0;border-top:2px dotted #C0392B;z-index:0;pointer-events:none}
@@ -657,7 +665,16 @@ const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
 const nextCode = (acts) => (acts || []).reduce((m, a) => Math.max(m, a.code || 0), 0) + 1;
 const SLIP_REASONS = ["Prerequisite work incomplete", "Materials / equipment", "Labour / resources", "Design / information / RFI", "Access / permit / approval", "Weather / environment", "Rework / quality / defect", "Changed priorities", "Safety", "Other"];
+// Witness outcome (invitation-flagged activities only). Failure reasons are a quality taxonomy,
+// deliberately separate from SLIP_REASONS which measure planning misses.
+const WITNESS_FAIL_REASONS = ["Test failure / defect found", "Documentation incomplete (ITP / red-line)", "Witness no-show (client / CxA)", "Prerequisite system not available", "Test equipment fault", "Environmental / access constraint", "Other"];
+const witnessOutcome = (a) => (a && a.witnessInvite ? (a.outcome || "pending") : "pending");
+const isFailedInvite = (a) => witnessOutcome(a) === "failed";
+const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
+// Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
+const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV69", date: "2026-07-02", items: ["Milestones are now binary: the Status control offers only Planned and Complete for milestone-flagged activities, a single Achieved Date replaces Actual Start and Finish, and Percent Complete is locked (0 while Planned, 100 on Complete). Legacy milestones saved as In Progress read as Planned", "New Witness Outcome on activities marked Witness invite: Pending, Succeeded or Failed, recorded separately from schedule status. Failed requires a reason from a new witness-quality list and can create a linked retest that clones the discipline, company, location, system, assets and witness routing", "Failed witness events stay on the board ghosted: hatched fill, red edge, struck-through name and a red cross badge. They no longer carry forward, take overdue treatment or accept drag, resize or edits (admins can reopen the outcome). A dashed amber link joins a failed attempt to its retest, which wears a RETEST #n chip (the first retest is attempt #2, so RETEST #1)", "New Invitation Outcomes panel on Analytics beside Reasons For Non-Completion: Attempted, Succeeded, Failed, First-Time Pass (retest chains count once at the root) and a failure-reason Pareto, all clickable to drill. A footnote clarifies that a failed witness executed as committed still counts as a kept promise in PPC", "Export all activities now carries Witness outcome, Failure reason, Outcome date and Retest of columns. The witness invite export is deliberately unchanged so the Outlook macro keeps working"] },
   { rev: "REV68", date: "2026-06-29", items: ["Witness invite wording tidied: the subject and the opening line no longer wrap the activity name in quotes, the opening line reads as a normal sentence rather than capitals, each detail (Discipline, Cx Stage, Performing, Location, Planned start) sits on its own line, and the 'please forward' line now sits at the very bottom of the message"] },
   { rev: "REV67", date: "2026-06-29", items: ["New Witness Schedule button on the board (beside Make-ready and YTT): opens a popup listing the activities marked for witness in the selected period (this week, next 2 or 4 weeks, or all upcoming), each showing the date and time, the duration, the activity name and any open constraints", "Make-ready, YTT and Witness Schedule are now rounded pill buttons on the blue accent scheme, filling solid blue while their panel is open", "Dark mode: the calendar icon in the Witness date & time field (and any datetime field) is now light so it shows against the dark background", "The New / Edit Activity footer now warns in orange and lists exactly which required fields are still missing, rather than a quiet grey count", "When Witness invite is on and a discipline is chosen, the editor now lists the resolved invite recipients (Required and CC) so you can see who will be invited before saving"] },
   { rev: "REV66", date: "2026-06-29", items: ["New Discipline field on the activity Details tab (Mechanical, Electrical, BMS/EPMS, FLS; multi-select), required when Witness invite is on; it drives who the witness invite goes to", "New Witness duration field on Readiness; the witness invite end time is now start plus this duration rather than a fixed hour", "The witness export now carries the resolved Required and CC attendees, a discipline column and a Sent column, with the subject FIN04 - INVITE FOR \"activity\"", "Witness invites can be bulk-sent from classic Outlook with the supplied macro; a new admin Mark sent control stamps which invites have gone out so they are not sent twice"] },
@@ -1549,6 +1566,15 @@ export default function App({ session }) {
     setEditing(null);
   };
   const removeActivity = (a) => { update((p) => ({ ...p, activities: p.activities.filter((x) => x.id !== a.id).map((x) => (x.predecessors && x.predecessors.includes(a.id)) ? { ...x, predecessors: x.predecessors.filter((pid) => pid !== a.id) } : x) }), { action: "Delete activity", detail: a.desc }); setEditing(null); };
+  // Save the failed attempt and create its linked retest in one state update, so the pair persists together.
+  const saveWithRetest = (fa, ra) => {
+    update((p) => {
+      const exists = p.activities.some((x) => x.id === fa.id);
+      const base = exists ? p.activities.map((x) => x.id === fa.id ? fa : x) : [...p.activities, fa];
+      return { ...p, activities: [...base, ra] };
+    }, { action: "Witness failed, retest created", detail: `${fa.desc} -> ${ra.desc}` });
+    setEditing(null);
+  };
   const moveActivity = (id, dayIdx, lane) => {
     const a = S.activities.find((x) => x.id === id); if (!a || !canEdit(a)) { dragId.current = null; return; }
     if (!isAdmin && a.committed) { dragId.current = null; return; }
@@ -1589,14 +1615,15 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
-      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessAt: "", witnessDurationMin: 60, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [] };
+      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessAt: "", witnessDurationMin: 60, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
   const exportActivities = () => {
-    const headers = ["Code", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Predecessors", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Forecast start", "Forecast finish", "Knock-on (d)", "Status", "Percent (%)", "Committed", "Reason for non-completion", "Open constraints", "Constraints", "Notes"];
+    const headers = ["Code", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Witness outcome", "Failure reason", "Outcome date", "Retest of", "Predecessors", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Forecast start", "Forecast finish", "Knock-on (d)", "Status", "Percent (%)", "Committed", "Reason for non-completion", "Open constraints", "Constraints", "Notes"];
     const predCodes = (a) => (a.predecessors || []).map((pid) => { const p = S.activities.find((x) => x.id === pid); return p && p.code != null ? "#" + p.code : null; }).filter(Boolean).join("; ");
-    const rows = visible.map((a) => [a.code != null ? "#" + a.code : "", a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", predCodes(a), a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, fmtISO(addDays(anchor, a.projStartOff)), fmtISO(addDays(anchor, a.projEndOff)), a.knockOn || 0, a.status, pctOf(a), a.committed ? "Yes" : "No", a.slipReason || "", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
+    const retestOfCode = (a) => { if (!a.retestOf) return ""; const p = S.activities.find((x) => x.id === a.retestOf); return p ? (p.code != null ? "#" + p.code : (p.desc || "linked")) : ""; };
+    const rows = visible.map((a) => [a.code != null ? "#" + a.code : "", a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.witnessInvite ? (a.outcome || "pending") : "", a.outcomeReason || "", a.outcomeAt || "", retestOfCode(a), predCodes(a), a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, fmtISO(addDays(anchor, a.projStartOff)), fmtISO(addDays(anchor, a.projEndOff)), a.knockOn || 0, a.status, pctOf(a), a.committed ? "Yes" : "No", a.slipReason || "", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
     downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
@@ -1691,13 +1718,15 @@ export default function App({ session }) {
       </div>;
     }
     const constrained = a.open > 0 && a.status !== "complete";
+    const failedInv = isFailedInvite(a);
+    const passedInv = isPassedInvite(a);
     const spot = makeReady && constrained && a.startOff < mk;
     const dim = makeReady && !spot;
     // "Carried" = an open activity whose planned bar finished before this window starts, so its planned
     // span sits off-screen to the left. Anchor a labelled, clickable overdue bar at the left edge and run
     // it to the live end (today, or a predecessor-pushed projected finish). Forecast skips these to avoid
     // drawing the slip tail twice. Not engaged mid-resize.
-    const carried = !rz && a.status !== "complete" && eU(a) < 0;
+    const carried = !rz && a.status !== "complete" && !failedInv && eU(a) < 0;
     if (carried) {
       let le = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7);
       if (a.delayed && todayUnit > le) le = todayUnit;
@@ -1706,23 +1735,25 @@ export default function App({ session }) {
     const carriedHatch = a.delayed
       ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
       : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
-    const hasTail = !carried && !a.excuse && a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
+    const hasTail = !carried && !failedInv && !a.excuse && a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
     const tailLate = a.delayed && !a.excuse;
     return (
-      <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: carried ? "#C0392B" : lv.color, background: carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
-        draggable={movable && !rz} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
+      <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "") + (failedInv ? " ghostfail" : "")}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : lv.color), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
+        draggable={movable && !rz && !failedInv} onDragStart={() => movable && !failedInv && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={failedInv ? `Witness failed${a.outcomeAt ? " " + a.outcomeAt : ""}${a.outcomeReason ? " \u00b7 " + a.outcomeReason : ""} \u00b7 ${tipOf(a)}` : carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
         <div className="desc">{carried && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{a.desc || "Untitled activity"}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
           {a.committed && <span className="lk-chip commit">will</span>}
-          {a.witnessInvite && <span className="lk-chip wit" title="Witness invite">WIT</span>}
+          {a.witnessInvite && (failedInv ? <span className="lk-chip fail" title={"Witness outcome: failed" + (a.outcomeReason ? " \u00b7 " + a.outcomeReason : "")}>failed</span> : passedInv ? <span className="lk-chip pass" title="Witness outcome: succeeded">passed</span> : <span className="lk-chip wit" title="Witness invite">WIT</span>)}
+          {a.retestOf && <span className="lk-chip retest" title={"Attempt #" + attemptNo(a, S.activities) + " of this witness event"}>retest #{attemptNo(a, S.activities) - 1}</span>}
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
-          {a.delayed && !a.excuse && <span className="lk-chip late">+{a.delayDays}d</span>}
-          {a.knockOn > 0 && a.status !== "complete" && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
+          {a.delayed && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
+          {a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
-        {grain === "day" && resizable(a) && <><div className="lk-rsz l" title="Drag to change the start" onMouseDown={(ev) => startResize(ev, a, "l")} /><div className="lk-rsz r" title="Drag to change the finish" onMouseDown={(ev) => startResize(ev, a, "r")} /></>}
+        {failedInv && <div className="lk-failx" title="Witness failed">{"\u2715"}</div>}
+        {grain === "day" && resizable(a) && !failedInv && <><div className="lk-rsz l" title="Drag to change the start" onMouseDown={(ev) => startResize(ev, a, "l")} /><div className="lk-rsz r" title="Drag to change the finish" onMouseDown={(ev) => startResize(ev, a, "r")} /></>}
       </div>);
   };
 
@@ -1741,6 +1772,7 @@ export default function App({ session }) {
 
   const Forecast = ({ a, row }) => {
     if (a.isMilestone || a.status === "complete") return null;
+    if (isFailedInvite(a)) return null;   // failed witness: record is closed, no slip tail
     if (a.excuse) return null;
     if (eU(a) < 0) return null;   // carried: Ticket draws the whole overdue bar, so do not draw the tail twice
     const late = a.delayed;
@@ -1758,6 +1790,19 @@ export default function App({ session }) {
       : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
     const badge = late ? `${a.delayDays || a.totalShift}d late` : `+${a.totalShift}d`;
     return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", border: "1px solid var(--line)", borderLeft: 0, borderRadius: "0 12px 12px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 8px", zIndex: 0, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap", textShadow: dark ? "0 1px 2px rgba(0,0,0,.6)" : "none" }}>{badge}</span></div>;
+  };
+
+  // Dashed amber connector from a failed attempt to its retest. Drawn on the retest's row,
+  // only when both sit on the same lane row (the row-packing puts sequential bars there anyway).
+  const RetestLink = ({ a, row }) => {
+    if (!a.retestOf) return null;
+    const p = visible.find((x) => x.id === a.retestOf);
+    if (!p || !p.inWin || p._row !== row) return null;
+    const from = eU(p) + 1, to = sU(a) - 1;
+    if (to < from) return null;
+    const gs = Math.max(0, from), ge = Math.min(cols - 1, to);
+    if (ge < gs) return null;
+    return <div className="lk-rlink" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1 }} title={`Retest of ${p.desc || "activity"}`} />;
   };
 
   const RescheduleTrail = ({ a, row }) => {
@@ -1918,6 +1963,7 @@ export default function App({ session }) {
                 <Underlay lane={lane} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: (rows.length ? rows : [0]).map((_, r) => { const mx = la.reduce((m, a) => (a._row === r && a._stepMax > m ? a._stepMax : m), 0); return `minmax(${48 + mx * MS_STEP}px,auto)`; }).join(" ") }}>
                   {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}                  {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
+                  {la.map((a) => <RetestLink key={"rl" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
                   {la.map((a) => <ActualBar key={"ab" + a.id} a={a} row={a._row} />)}
                 </div>
@@ -1951,6 +1997,8 @@ export default function App({ session }) {
         <span className="it"><span style={{ height: 5, width: 16, borderRadius: 3, background: "#0E9384" }} />actual progress</span>
         <span className="it"><span style={{ height: 11, width: 18, borderRadius: "0 4px 4px 0", border: "1px solid #C0392B", borderLeft: 0, background: "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 5px,rgba(192,57,58,.07) 5px 10px)" }} />delayed</span>
         <span className="it"><span style={{ height: 11, width: 18, borderRadius: "0 4px 4px 0", border: "1px solid #E0A106", borderLeft: 0, background: "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 5px,rgba(224,161,6,.06) 5px 10px)" }} />forecast (knock-on)</span>
+        <span className="it"><span className="lk-chip fail">failed</span>witness failed (ghosted, locked)</span>
+        <span className="it"><span style={{ height: 0, width: 18, borderTop: "1.5px dashed #E0A106", display: "inline-block" }} />retest link</span>
       </div>
       </div>}
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
@@ -1964,7 +2012,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onClose={() => setEditing(null)} onDelete={removeActivity} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -2127,8 +2175,11 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onClose, onDelete }) {
+function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete }) {
   const [a, setA] = useState(act);
+  const [rtOpen, setRtOpen] = useState(false);
+  const [rtName, setRtName] = useState("");
+  const [rtStart, setRtStart] = useState("");
   const [tab, setTab] = useState("details");
   const [exReason, setExReason] = useState("");
   const [exNote, setExNote] = useState("");
@@ -2148,8 +2199,29 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
   const [assetQ, setAssetQ] = useState("");
   const [assetOpen, setAssetOpen] = useState(false);
   const setC = (id, k, v) => set("constraints", a.constraints.map((x) => x.id === id ? { ...x, [k]: v } : x));
-  const locked = a.status === "complete" && !isAdmin;
+  // The failed lock keys off the record as opened (act), not the live edit copy, so the person
+  // recording a failure can still fill the reason before saving. Admins are never locked.
+  const failedOnRecord = !!(act.witnessInvite && (act.outcome || "pending") === "failed");
+  const locked = (a.status === "complete" || failedOnRecord) && !isAdmin;
   const set = (k, v) => { if (!canEdit || locked) return; setA((p) => ({ ...p, [k]: v })); };
+  const setOutcome = (k) => {
+    if (!canEdit || locked) return;
+    if (k !== "pending" && a.start && parseD(a.start).getTime() > todayMid() && !window.confirm("The planned start is in the future. Record the outcome anyway?")) return;
+    setA((p) => { const n = { ...p, outcome: k }; if (k === "pending") { n.outcomeReason = ""; n.outcomeAt = ""; } else { if (!n.outcomeAt) n.outcomeAt = fmtISO(new Date()); if (k === "succeeded") n.outcomeReason = ""; } return n; });
+  };
+  const existingRetest = (S.activities || []).find((x) => x.retestOf === a.id);
+  const openRetest = () => {
+    const base = (a.desc || "").replace(/\s#\d+$/, "");
+    setRtName(`${base} #${attemptNo(a, S.activities) + 1}`.trim());
+    setRtStart("");
+    setRtOpen(true);
+  };
+  const doCreateRetest = () => {
+    if (!rtStart || !rtName.trim()) return;
+    const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], witnessInvite: true, witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
+    setRtOpen(false);
+    if (onSaveRetest) onSaveRetest(a, clone); else onSave(a, isNew);
+  };
   const setReason = (v) => { if (!canEdit) return; setA((p) => ({ ...p, slipReason: v })); };
   const isNew = !act.desc && act.constraints.length === 0;
   const doReschedule = () => { if (!isAdmin || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
@@ -2192,6 +2264,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
   if (a.witnessInvite && !a.witnessAt) missing.push("witness date & time");
   if (a.witnessInvite && !(a.discipline || []).length) missing.push("discipline");
   if (a.witnessInvite && !a.witnessDurationMin) missing.push("witness duration");
+  if (a.witnessInvite && (a.outcome || "pending") === "failed" && !a.outcomeReason) missing.push("failure reason");
   const incomplete = missing.length > 0;
   // predecessor options: exclude self and anything downstream of this activity (prevents cycles)
   const descend = new Set();
@@ -2200,6 +2273,23 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
   const predLabel = (id) => { const x = (S.activities || []).find((p) => p.id === id); return x ? `#${x.code ?? "?"} ${x.desc || "Untitled"}` : "(removed)"; };
   return (
     <div className="lk-bg"><style>{css}</style>
+      {rtOpen && <div className="lk-modal-bg" style={{ zIndex: 60 }} onClick={() => setRtOpen(false)}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+          <div className="lk-dh"><h3>Create Retest</h3><button className="lk-btn icon" onClick={() => setRtOpen(false)}><Icon n="x" /></button></div>
+          <div className="bd" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
+            <div className="lk-row">
+              <div className="lk-f"><label>Activity Name</label><input className="lk-in" value={rtName} onChange={(e) => setRtName(e.target.value)} />
+                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Auto-suffixed with the attempt number; editable.</span></div>
+              <div className="lk-f"><label>Planned Start <span style={{ color: "#C0392B" }}>*</span></label><input className="lk-in mono" type="date" value={rtStart} onChange={(e) => setRtStart(e.target.value)} /></div>
+            </div>
+            <div className="lk-f"><label>Retest Of</label>
+              <div style={{ background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--muted)" }}>#{a.code ?? "?"} {a.desc || "Untitled"} (Failed{a.outcomeAt ? " " + a.outcomeAt : ""})</div>
+              <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Stored as the retest link on the new activity. Attempt history and first-time-pass chain on it.</span></div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5 }}>Cloned: discipline, company, location, system, assets, witness routing and duration. Not cloned: dates, outcome, percent, sent stamp. The retest is a fresh invitation and goes through the normal invite flow.</div>
+          </div>
+          <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" onClick={() => setRtOpen(false)}>Cancel</button><button className="lk-btn primary" disabled={!rtStart || !rtName.trim()} onClick={doCreateRetest}><Icon n="check" s={14} />Create</button></div>
+        </div>
+      </div>}
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
@@ -2326,17 +2416,47 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           ); })()}
           </>}
           {tab === "details" && <>
-          <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => set("isMilestone", !a.isMilestone)}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond)</span></span><span className="lk-sw2" /></div>
+          <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => { if (!canEdit || locked) return; setA((p) => { const on = !p.isMilestone; const n = { ...p, isMilestone: on }; if (on && n.status === "in_progress") { n.status = "planned"; n.percent = 0; } return n; }); }}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond; either Planned or Complete)</span></span><span className="lk-sw2" /></div>
           </>}
           {tab === "schedule" && <>
-          {locked && canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit them. The reason for non-completion can still be recorded.</div>}
-          <div className="lk-f"><label>Status</label><div className="lk-status">{[["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]].map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); n.percent = 100; } else if (k === "planned") n.percent = 0; return n; })}>{l}</button>)}</div></div>
-          <div className="lk-row">
-            <div className="lk-f"><label>Actual Start</label><input className="lk-in mono" type="date" value={a.actualStart || ""} disabled={dis} onChange={(e) => set("actualStart", e.target.value)} /></div>
-            <div className="lk-f"><label>Actual Finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
-          </div>
-          <div className="lk-f"><label>Percent complete</label><input className="lk-in mono" type="number" min="0" max="100" step="5" value={a.percent == null ? "" : a.percent} disabled={dis} placeholder={a.status === "complete" ? "100" : "0"} onChange={(e) => { const v = e.target.value; set("percent", v === "" ? null : Math.max(0, Math.min(100, Math.round(Number(v) || 0)))); }} />
-            <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Manual progress you set. Left blank it reads {a.status === "complete" ? "100" : "0"}% from the status.</span></div>
+          {locked && canEdit && a.status === "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit them. The reason for non-completion can still be recorded.</div>}
+          {locked && canEdit && failedOnRecord && a.status !== "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Witness outcome recorded as Failed, so the record is locked. An admin can reopen the outcome by setting it back to Pending.</div>}
+          <div className="lk-f"><label>Status</label><div className="lk-status">{(a.isMilestone ? [["planned", "Planned"], ["complete", "Complete"]] : [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]).map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); n.percent = 100; } else if (k === "planned") n.percent = 0; return n; })}>{l}</button>)}</div>
+            {a.isMilestone && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Milestones are binary: a point event is either Planned or Complete.</span>}</div>
+          {a.witnessInvite && <div className="lk-f"><label>Witness Outcome</label>
+            <div className="lk-status">{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || locked} onClick={() => setOutcome(k)}>{l}</button>)}</div>
+            <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The result of the witnessed event, separate from the schedule status above.</span></div>}
+          {a.witnessInvite && (a.outcome || "pending") === "succeeded" && <div className="lk-f"><label>Outcome Date</label><input className="lk-in mono" type="date" value={a.outcomeAt || ""} disabled={dis} onChange={(e) => set("outcomeAt", e.target.value)} /></div>}
+          {a.witnessInvite && (a.outcome || "pending") === "failed" && <div style={{ border: "1px solid rgba(192,57,58,.4)", background: "rgba(192,57,58,.06)", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="lk-row">
+              <div className="lk-f"><label>Failure Reason <span style={{ color: "#C0392B" }}>*</span></label>
+                <select className="lk-select" value={a.outcomeReason || ""} disabled={dis} onChange={(e) => set("outcomeReason", e.target.value)}>
+                  <option value="">-- record why it failed --</option>{WITNESS_FAIL_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>
+              <div className="lk-f"><label>Outcome Date</label><input className="lk-in mono" type="date" value={a.outcomeAt || ""} disabled={dis} onChange={(e) => set("outcomeAt", e.target.value)} /></div>
+            </div>
+            <div className="lk-f"><label>Notes <span style={{ fontWeight: 400, color: "var(--muted)" }}>(Optional)</span></label>
+              <input className="lk-in" value={a.outcomeNotes || ""} disabled={dis} placeholder="What was observed on the day" onChange={(e) => set("outcomeNotes", e.target.value)} /></div>
+            {!isNew && (existingRetest
+              ? <div style={{ fontSize: 12, color: "var(--muted)" }}>Retest already created: <b style={{ color: "var(--ink)" }}>#{existingRetest.code ?? "?"} {existingRetest.desc}</b></div>
+              : canEdit && !locked && <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Create Linked Retest</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 9 }}>Clones this activity as a new witness invitation linked back to this record, so the attempt history stays connected and first-time-pass stays computable. You can also save without a retest and add one later.</div>
+                  <button className="lk-btn primary" disabled={incomplete} onClick={openRetest} title={incomplete ? "Complete the required fields first" : "Create a linked retest"}>Create Retest</button>
+                </div>)}
+          </div>}
+          {a.isMilestone
+            ? <div className="lk-f"><label>Achieved Date</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => { if (!canEdit || locked) return; const v = e.target.value; setA((p) => ({ ...p, actualStart: v, actualFinish: v })); }} />
+                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>A milestone is a point event, so one date replaces actual start and finish.</span></div>
+            : <div className="lk-row">
+                <div className="lk-f"><label>Actual Start</label><input className="lk-in mono" type="date" value={a.actualStart || ""} disabled={dis} onChange={(e) => set("actualStart", e.target.value)} /></div>
+                <div className="lk-f"><label>Actual Finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
+              </div>}
+          {a.isMilestone
+            ? <div className="lk-f"><label>Percent complete</label>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--muted)" }}><span>{a.status === "complete" ? "100" : "0"}%</span><span style={{ fontSize: 9.5, border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>locked for milestones</span></div>
+                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>0 while Planned, 100 on Complete. Keeps the Gantt fill and exports clean.</span></div>
+            : <div className="lk-f"><label>Percent complete</label><input className="lk-in mono" type="number" min="0" max="100" step="5" value={a.percent == null ? "" : a.percent} disabled={dis} placeholder={a.status === "complete" ? "100" : "0"} onChange={(e) => { const v = e.target.value; set("percent", v === "" ? null : Math.max(0, Math.min(100, Math.round(Number(v) || 0)))); }} />
+                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Manual progress you set. Left blank it reads {a.status === "complete" ? "100" : "0"}% from the status.</span></div>}
           {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "#0E9384" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
           {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
             <select className="lk-select" value={a.slipReason || ""} disabled={!canEdit} onChange={(e) => setReason(e.target.value)}>
@@ -5027,6 +5147,18 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitne
   const reasonTally = {}; misses.forEach((a) => { const r = a.slipReason || "Unattributed"; reasonTally[r] = (reasonTally[r] || 0) + 1; });
   const reasonRows = Object.entries(reasonTally).map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
   const maxR = Math.max(1, ...reasonRows.map((x) => x.n));
+  // Invitation outcomes: a quality Pareto, deliberately separate from the planning misses above.
+  const invites = acts.filter((a) => a.witnessInvite);
+  const witAttempted = invites.filter((a) => (a.outcome || "pending") !== "pending");
+  const witPassed = witAttempted.filter((a) => a.outcome === "succeeded");
+  const witFailed = witAttempted.filter((a) => a.outcome === "failed");
+  // First-Time Pass counts retest chains once at the root: succeeded first attempts over first attempts with an outcome.
+  const witRoots = witAttempted.filter((a) => !a.retestOf);
+  const ftp = witRoots.length ? Math.round((witRoots.filter((a) => a.outcome === "succeeded").length / witRoots.length) * 100) : null;
+  const failTally = {}; witFailed.forEach((a) => { const r = a.outcomeReason || "Unattributed"; failTally[r] = (failTally[r] || 0) + 1; });
+  const failRows = Object.entries(failTally).map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
+  const maxF = Math.max(1, ...failRows.map((x) => x.n));
+  const OutKpi = ({ v, l, c, onClick }) => <div onClick={onClick} style={{ flex: "1 1 92px", minWidth: 92, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px", cursor: onClick ? "pointer" : "default" }}><div style={{ fontSize: 19, fontWeight: 750, color: c || "var(--ink)" }}>{v}</div><div style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted)", marginTop: 2 }}>{l}</div></div>;
   const printPdf = () => { document.body.classList.add("rep-print"); setTimeout(() => { try { window.print(); } finally { setTimeout(() => document.body.classList.remove("rep-print"), 300); } }, 60); };
   const exportMetrics = async () => {
     try {
@@ -5087,12 +5219,25 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitne
         {cards.map((c, i) => <div key={i} className="lk-rep-card clickable" onClick={() => openDrill(c.l, acts.filter(c.f))}><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
       </div>
       </div>
-      <div className="lk-rep-2col">
       <div className="lk-rep-sec"><h3>Weekly PPC Trend</h3>{hasTrend ? <Trend points={points} onPoint={(i) => openDrill("Week " + points[i].label + " \u00b7 committed due", points[i].items)} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
+      <div className="lk-rep-2col">
       <div className="lk-rep-sec"><h3>Reasons For Non-Completion</h3>
         {misses.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No missed commitments to date. Every committed activity whose promised finish has passed was completed on time.</div>
           : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#C0392B" }}>{misses.length}</b> committed activit{misses.length === 1 ? "y" : "ies"} due to date {misses.length === 1 ? "was" : "were"} not completed as promised{reasonTally["Unattributed"] ? <>, of which <b style={{ color: "var(--ink)" }}>{reasonTally["Unattributed"]}</b> {reasonTally["Unattributed"] === 1 ? "has" : "have"} no reason recorded</> : ""}. Recording the reason on each miss turns this into a Pareto of what is actually breaking the plan.</div>
             {reasonRows.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxR} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} onClick={() => openDrill("Missed \u00b7 " + x.name, misses.filter((m) => (m.slipReason || "Unattributed") === x.name))} />)}</>}
+        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>Task misses only. A failed witness where the work was executed as committed still counts as a kept promise here; witness quality lives in Invitation Outcomes.</div>
+      </div>
+      <div className="lk-rep-sec"><h3>Invitation Outcomes</h3>
+        {invites.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No witness invitations in scope yet. Mark activities with Witness invite and record Succeeded or Failed on the day, and this fills in.</div>
+          : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#0E9384" }}>{witAttempted.length}</b> witnessed event{witAttempted.length === 1 ? "" : "s"} reached an outcome. Failure reasons build a quality Pareto, separate from planning misses.</div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+              <OutKpi v={witAttempted.length} l="Attempted" onClick={() => openDrill("Witness outcomes \u00b7 attempted", witAttempted)} />
+              <OutKpi v={witPassed.length} l="Succeeded" c="#0E9384" onClick={() => openDrill("Witness outcomes \u00b7 succeeded", witPassed)} />
+              <OutKpi v={witFailed.length} l="Failed" c="#C0392B" onClick={() => openDrill("Witness outcomes \u00b7 failed", witFailed)} />
+              <OutKpi v={ftp == null ? "--" : ftp + "%"} l="First-Time Pass" c="#14B8A6" onClick={witRoots.length ? () => openDrill("Witness outcomes \u00b7 first attempts", witRoots) : undefined} />
+            </div>
+            {failRows.map((x) => <RepBar key={x.name} label={x.name} n={x.n} max={maxF} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} onClick={() => openDrill("Failed \u00b7 " + x.name, witFailed.filter((m) => (m.outcomeReason || "Unattributed") === x.name))} />)}
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>First-Time Pass = succeeded first attempts divided by first attempts with an outcome. Retest chains count once at the root, so a pass on attempt #2 does not inflate the number.</div></>}
       </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
