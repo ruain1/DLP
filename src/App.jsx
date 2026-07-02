@@ -675,6 +675,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV76", date: "2026-07-02", items: ["Planning Board: the search box moved to the far left of the toolbar, ahead of the date navigation", "The lookahead window selector (board toolbar and Admin > Lookahead) gained a 1-week option, for running the board tight on the current week"] },
   { rev: "REV75", date: "2026-07-02", items: ["Planning Board: new search box in the toolbar (beside Import), filtering the board like the Activity Table search. It matches description, company, system, asset tag and location code; matching cards stay, everything else is hidden, lanes with no matches collapse, and a live count shows how many of the window's activities match. Escape or the small cross clears it", "Deliberate scope: the search filters only what the board draws. The KPI tiles, the Export CSV and the Analytics exports are untouched by the search term, so a forgotten search can never silently truncate an export or skew the metrics"] },
   { rev: "REV74", date: "2026-07-02", items: ["Audit log revert (admin only): activity entries in Admin > Audit now carry revert controls. The most recent change to an activity within the last 24 hours gets a one-click Revert; older or superseded entries get an amber Revert Anyway with an explicit warning of how many later changes will be overwritten; deletions get Restore (the activity returns with the same id, so predecessor and retest links survive); creations get Remove", "The confirmation window shows a field-by-field comparison of what each value restores to versus its current state, and refuses politely when the current state already matches the snapshot. Every revert is written to the audit log by the existing triggers, so a revert is itself revertible and nothing is silently lost", "Powered by a new activity_snapshots table with its own trigger (audit-snapshots.sql). The live audit trigger is deliberately untouched. Entries from before the migration show No Snapshot and cannot be reverted, because no before-state exists for them"] },
   { rev: "REV73", date: "2026-07-02", items: ["Commit lock (Phase 1): once an activity is Committed for this week, its plan is frozen for members in both the New / Edit Activity window and the Activity Table: description, company, building, level, zone, discipline, system, assets, Cx stage, milestone flag, planned start, duration, predecessors, witness setup, the Committed toggle itself, and Delete. A banner in the window explains the lock and directs changes to an admin", "What members can still do on a committed activity, by design: set status, actual dates and percent complete, record the reason for non-completion, record the witness outcome and create a retest, manage constraints, and edit notes. Locking these would break the daily Last Planner workflow, so only the promise is protected, not the progress against it", "Admins are unaffected. Drag and edge-resize of committed activities were already blocked for members; this closes the remaining routes (window edit, table edit, delete) that let a commitment be changed or removed without an admin"] },
@@ -1902,6 +1903,13 @@ export default function App({ session }) {
       </div>
       {page === "board" && <div className="lk-boardpage">
       <div className="lk-toolbar">
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ position: "relative" }}>
+            <input className="lk-in" style={{ width: 190, maxWidth: "36vw", paddingRight: boardQ ? 28 : 10 }} placeholder="Search activities..." value={boardQ} onChange={(e) => setBoardQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setBoardQ(""); }} />
+            {boardQ && <button title="Clear search" onClick={() => setBoardQ("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", padding: 2 }}><Icon n="x" s={13} /></button>}
+          </div>
+          {boardQl && <span className="mono" style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{boardShown.length} of {inWindow.length}</span>}
+        </div>
         <div className="lk-nav">
           <button className="lk-btn icon" onClick={() => setAnchor(addDays(anchor, -7))}><Icon n="cl" /></button>
           <button className="lk-btn" onClick={() => setAnchor(mondayOf(new Date()))}><Icon n="cal" s={14} />Today</button>
@@ -1916,7 +1924,7 @@ export default function App({ session }) {
             <button key={k} className={grain === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, grain: k }))}>{l}</button>))}
         </div>
         {isAdmin && <select className="lk-wsel" value={S.settings.weeks} title="Lookahead window length (project setting; also in Admin -> Lookahead)" onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, weeks: Number(e.target.value) } }), { action: "Change setting", detail: `Lookahead ${e.target.value} weeks` })}>
-          {[2, 4, 6, 8, 12].map((w) => <option key={w} value={w}>{w}-week</option>)}
+          {[1, 2, 4, 6, 8, 12].map((w) => <option key={w} value={w}>{w}-week</option>)}
         </select>}
         {S.view === "swimlane" && <div className="lk-seg">
           {[["company", "Company"], ...(S.areas.length > 1 ? [["area", "Building"]] : []), ["subarea", "Level"], ["tier3", "Zone"], ["level", "Cx Stage"]].map(([k, l]) => (
@@ -1926,13 +1934,6 @@ export default function App({ session }) {
         <button className={"lk-btn pill" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
         <div className="lk-spacer" />
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ position: "relative" }}>
-            <input className="lk-in" style={{ width: 190, maxWidth: "36vw", paddingRight: boardQ ? 28 : 10 }} placeholder="Search activities..." value={boardQ} onChange={(e) => setBoardQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setBoardQ(""); }} />
-            {boardQ && <button title="Clear search" onClick={() => setBoardQ("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", padding: 2 }}><Icon n="x" s={13} /></button>}
-          </div>
-          {boardQl && <span className="mono" style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{boardShown.length} of {inWindow.length}</span>}
-        </div>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
         <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
@@ -3502,7 +3503,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
           </>}
           {tab === "settings" && <>
             <div className="lk-f"><label>Lookahead Length</label>
-              <div className="lk-status">{[2, 4, 6, 8, 12].map((w) => <button key={w} className={S.settings.weeks === w ? "sel" : ""} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, weeks: w } }), { action: "Change setting", detail: `Lookahead ${w} weeks` })}>{w} weeks</button>)}</div></div>
+              <div className="lk-status">{[1, 2, 4, 6, 8, 12].map((w) => <button key={w} className={S.settings.weeks === w ? "sel" : ""} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, weeks: w } }), { action: "Change setting", detail: `Lookahead ${w} week${w === 1 ? "" : "s"}` })}>{w} week{w === 1 ? "" : "s"}</button>)}</div></div>
             <div className="lk-f"><label>Make-Ready Window (Days)</label>
               <input className="lk-in mono" type="number" min="1" value={S.settings.makeReadyDays} onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, makeReadyDays: Math.max(1, +e.target.value || 1) } }))} /></div>
           </>}
