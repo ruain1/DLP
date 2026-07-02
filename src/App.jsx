@@ -675,6 +675,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV77", date: "2026-07-02", items: ["Fix: an Actual Start dated in the future produced a false green progress tail on the board (the renderer drew from today back to the card because the end of an open activity's progress bar is today, and the inverted span was silently swapped by the browser). Progress bars now never draw from a future actual date, and inverted spans are refused outright", "The Schedule tab now shows an amber warning under Actual Start / Actual Finish when either is set in the future, at the moment the mistake is being made. The value is not blocked or auto-cleared; actual dates remain yours to correct, and the audit history records who set them"] },
   { rev: "REV76", date: "2026-07-02", items: ["Planning Board: the search box moved to the far left of the toolbar, ahead of the date navigation", "The lookahead window selector (board toolbar and Admin > Lookahead) gained a 1-week option, for running the board tight on the current week"] },
   { rev: "REV75", date: "2026-07-02", items: ["Planning Board: new search box in the toolbar (beside Import), filtering the board like the Activity Table search. It matches description, company, system, asset tag and location code; matching cards stay, everything else is hidden, lanes with no matches collapse, and a live count shows how many of the window's activities match. Escape or the small cross clears it", "Deliberate scope: the search filters only what the board draws. The KPI tiles, the Export CSV and the Analytics exports are untouched by the search term, so a forgotten search can never silently truncate an export or skew the metrics"] },
   { rev: "REV74", date: "2026-07-02", items: ["Audit log revert (admin only): activity entries in Admin > Audit now carry revert controls. The most recent change to an activity within the last 24 hours gets a one-click Revert; older or superseded entries get an amber Revert Anyway with an explicit warning of how many later changes will be overwritten; deletions get Restore (the activity returns with the same id, so predecessor and retest links survive); creations get Remove", "The confirmation window shows a field-by-field comparison of what each value restores to versus its current state, and refuses politely when the current state already matches the snapshot. Every revert is written to the audit log by the existing triggers, so a revert is itself revertible and nothing is silently lost", "Powered by a new activity_snapshots table with its own trigger (audit-snapshots.sql). The live audit trigger is deliberately untouched. Entries from before the migration show No Snapshot and cannot be reverted, because no before-state exists for them"] },
@@ -1776,11 +1777,17 @@ export default function App({ session }) {
   const ActualBar = ({ a, row }) => {
     if (a.isMilestone || !a.actualStart) return null;
     const as = parseD(a.actualStart);
+    // An actual start in the future is a data error (actual dates record what has happened);
+    // never draw progress from it. Without this, the open-activity end point (today) sits
+    // before the start and CSS grid silently swaps the inverted span, painting a false
+    // progress tail from today back to the card.
+    if (as.getTime() > todayMid()) return null;
     const ae = a.actualFinish ? parseD(a.actualFinish) : (a.status === "complete" ? as : new Date(todayMid()));
     const so = Math.round((as - anchor) / DAYMS), eo = Math.round((ae - anchor) / DAYMS);
-    if (eo < 0 || so >= DAYS) return null;
+    if (eo < 0 || so >= DAYS || eo < so) return null;
     const su = grain === "day" ? so : Math.floor(so / 7), eu = grain === "day" ? eo : Math.floor(eo / 7);
     const s = Math.max(0, su), e = Math.min(cols - 1, eu);
+    if (e < s) return null;
     const startsAtPlanCol = s === Math.max(0, sU(a));
     const mLeft = startsAtPlanCol ? 16 : 2;
     return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: `0 2px 3px ${mLeft}px`, borderRadius: 3, background: "#0E9384", zIndex: 2, pointerEvents: "none" }} />;
@@ -2483,6 +2490,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
                 <div className="lk-f"><label>Actual Start</label><input className="lk-in mono" type="date" value={a.actualStart || ""} disabled={dis} onChange={(e) => set("actualStart", e.target.value)} /></div>
                 <div className="lk-f"><label>Actual Finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
               </div>}
+          {!a.isMilestone && ((a.actualStart && parseD(a.actualStart).getTime() > todayMid()) || (a.actualFinish && parseD(a.actualFinish).getTime() > todayMid())) && <div style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, marginTop: -6 }}><Icon n="alert" s={12} /> Actual dates record what has already happened; a future date here is almost certainly a mistake and is ignored by the progress bar. For planned dates, use Start on this tab.</div>}
           {a.isMilestone
             ? <div className="lk-f"><label>Percent complete</label>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--muted)" }}><span>{a.status === "complete" ? "100" : "0"}%</span><span style={{ fontSize: 9.5, border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>locked for milestones</span></div>
