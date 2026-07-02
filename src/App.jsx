@@ -675,6 +675,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV79", date: "2026-07-02", items: ["Multi-day witness invitations: a new Witness Days stepper on the Readiness tab (1 to 10, default 1) turns a witnessed event such as a multi-day SAT into consecutive daily sessions. The witness date and time becomes the daily session start and the duration the daily session length; a summary line shows the resulting span and a soft warning flags Witness Days exceeding the activity's own duration", "The witness export writes one timed row per day with Day i of N in the subject and body, all sharing the activity's ID, so every session blocks the witnesses' calendars as Busy and the existing Outlook macro sends them without modification (verified against the live macro: it iterates rows independently and its Sent dedup and confirmation round trip both hold). The Witness Schedule popup shows one card per event with the date range and a days multiplier on the duration pill", "Witness Days is plan-locked once committed, cloned onto retests, and included in the audit revert field comparison. Needs the witness-days.sql migration run before data.js and App.jsx"] },
   { rev: "REV78", date: "2026-07-02", items: ["Help updated to REV 8, covering everything shipped since REV 7: the commit lock (a committed activity's plan is admin-only; progress recording stays open), witness outcomes with failure reasons, ghosted failed records and linked retests, first-time pass, the audit log revert, the board search, and the 1-week lookahead option", "New reference page Slips vs Pass / Fail, spelling out the difference between a Reason for Non-Completion (the schedule verdict on a committed promise, feeding PPC) and a Witness Outcome (the quality verdict on an inspection or FOK, feeding first-time pass), and why the two are independent", "TRY ME interactive demos embedded in the help: toggle the commit lock and watch the plan fields freeze, record a witness outcome and watch the card ghost, and step through the four slip-versus-outcome scenarios", "Fixed: four existing help pages (Delays & Excusing, Marking Work Complete, Discipline, Assets & Auto-fill) were present in the help but missing from the in-app menu, so they could not be reached. All pages are now listed, with the admin-only ones gated"] },
   { rev: "REV77", date: "2026-07-02", items: ["Fix: an Actual Start dated in the future produced a false green progress tail on the board (the renderer drew from today back to the card because the end of an open activity's progress bar is today, and the inverted span was silently swapped by the browser). Progress bars now never draw from a future actual date, and inverted spans are refused outright", "The Schedule tab now shows an amber warning under Actual Start / Actual Finish when either is set in the future, at the moment the mistake is being made. The value is not blocked or auto-cleared; actual dates remain yours to correct, and the audit history records who set them"] },
   { rev: "REV76", date: "2026-07-02", items: ["Planning Board: the search box moved to the far left of the toolbar, ahead of the date navigation", "The lookahead window selector (board toolbar and Admin > Lookahead) gained a 1-week option, for running the board tight on the current week"] },
@@ -1633,7 +1634,7 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
-      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessAt: "", witnessDurationMin: 60, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
+      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessAt: "", witnessDurationMin: 60, witnessDays: 1, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
@@ -1652,24 +1653,28 @@ export default function App({ session }) {
     // All witnessable activities with a date, ignoring board filters, earliest first.
     const wit = (S.activities || []).filter((a) => a.witnessInvite && a.witnessAt).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
     const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Required Attendees", "Optional Attendees", "Discipline", "Sent", "Start ISO", "End ISO", "Company", "Cx Stage", "System", "Activity ID"];
-    const rows = wit.map((a) => {
+    const rows = wit.flatMap((a) => {
+      const nDays = Math.max(1, a.witnessDays || 1);
+      return Array.from({ length: nDays }, (_, di) => { const dayIdx = di;
       const mins = a.witnessDurationMin || 60;
-      const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + mins * 60000);
+      const sd = new Date(new Date(a.witnessAt).getTime() + dayIdx * 86400000); const ed = new Date(sd.getTime() + mins * 60000);
       const loc = locCode(a);
       const title = a.desc || "Activity";
-      const subject = `FIN04 - INVITE FOR ${title}`;
+      const subject = `FIN04 - INVITE FOR ${title}` + (nDays > 1 ? ` - Day ${dayIdx + 1} of ${nDays}` : "");
       const open = (a.constraints || []).filter((c) => !c.done).length;
       const disc = (a.discipline || []).join("; ");
       const { to, cc } = witnessRecipients(a.discipline || []);
       const bodyLines = [`Invite to witness ${title}`, "", `Discipline: ${disc || "-"}`, `Cx Stage: ${a.level}${a.system ? " on " + a.system : ""}`, `Performing: ${coName(a.companyId)}`, `Location: ${loc || "-"}`, `Planned start: ${a.start}`];
       if (a.notes) bodyLines.push(`Notes: ${a.notes}`);
       if (open) bodyLines.push(`Open constraints: ${open}`);
+      if (nDays > 1) bodyLines.push(`Session: Day ${dayIdx + 1} of ${nDays} (daily ${String(sd.getHours()).padStart(2, "0")}:${String(sd.getMinutes()).padStart(2, "0")} start)`);
       bodyLines.push("", "Please forward to any stakeholder missed in the invite.");
       const body = bodyLines.join("\n");
       const dmy = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
       const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
       const sent = a.witnessSentAt ? fmtWitnessAt(a.witnessSentAt) : "";
       return [subject, dmy(sd), hm(sd), dmy(ed), hm(ed), "False", loc, body, to.join("; "), cc.join("; "), disc, sent, localISO(sd), localISO(ed), coName(a.companyId), a.level, a.system || "", a.id];
+      });
     });
     downloadFile(`FIN04-witness-invites-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export witness invites", detail: `${rows.length} activities` });
@@ -2155,9 +2160,9 @@ export default function App({ session }) {
                   list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt);
                     return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: isClientViewer ? "118px 1fr auto" : undefined }}>
                       <div className="wsch-when">
-                        <span className="wsch-day">{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span>
+                        <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d.getTime() + (n - 1) * 86400000); return f(d) + " - " + f(ed2); })()}</span>
                         <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
-                        <span className="wsch-durpill">{durLabel(a.witnessDurationMin)}</span>
+                        <span className="wsch-durpill">{durLabel(a.witnessDurationMin)}{Math.max(1, a.witnessDays || 1) > 1 ? " x " + (a.witnessDays || 1) + " days" : ""}</span>
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div className="wsch-name" onClick={() => { setWitSched(false); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
@@ -2250,7 +2255,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
   };
   const doCreateRetest = () => {
     if (!rtStart || !rtName.trim()) return;
-    const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], witnessInvite: true, witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
+    const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], witnessInvite: true, witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessDays: a.witnessDays || 1, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
     setRtOpen(false);
     if (onSaveRetest) onSaveRetest(a, clone); else onSave(a, isNew);
   };
@@ -2444,6 +2449,18 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
               <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option><option value={240}>Half day (4 h)</option><option value={480}>Full day (8 h)</option>
             </select>
             <span style={{ fontSize: 11, color: "var(--muted)" }}>Sets the invite end time (start + duration).</span></div>}
+          {a.witnessInvite && <div className="lk-f"><label>Witness Days</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", opacity: disPlan ? .55 : 1 }}>
+                <button className="lk-btn" style={{ border: 0, borderRadius: 0, width: 32 }} disabled={disPlan} onClick={() => set("witnessDays", Math.max(1, (a.witnessDays || 1) - 1))}>-</button>
+                <b className="mono" style={{ padding: "0 14px", fontSize: 14 }}>{a.witnessDays || 1}</b>
+                <button className="lk-btn" style={{ border: 0, borderRadius: 0, width: 32 }} disabled={disPlan} onClick={() => set("witnessDays", Math.min(10, (a.witnessDays || 1) + 1))}>+</button>
+              </div>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Consecutive daily sessions. 1 = a single-day event, as before.</span>
+            </div>
+            {(a.witnessDays || 1) > 1 && a.witnessAt && (() => { const n = a.witnessDays || 1; const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + (n - 1) * 86400000); const f = (d) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); return <div style={{ border: "1px dashed var(--line)", borderRadius: 8, background: "rgba(107,155,242,.06)", padding: "8px 10px", fontSize: 12, color: "var(--accent)", marginTop: 6 }}>{n} daily sessions, {f(sd)} to {f(ed)}. One invite is sent per day so each session blocks the witnesses' calendars.</div>; })()}
+            {(a.witnessDays || 1) > Math.max(1, a.duration || 1) && <span style={{ fontSize: 11, color: "#E0A106", fontWeight: 600 }}>Witness days exceed the activity's own duration ({Math.max(1, a.duration || 1)}d). Check one of them.</span>}
+          </div>}
           {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = witnessRecipients(a.discipline); return (
             <div className="lk-f"><label>Invite recipients <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(set by discipline)</span></label>
               <div style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)", padding: "8px 10px", maxHeight: 170, overflow: "auto" }}>
@@ -2619,8 +2636,8 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   useEffect(() => { if (tab === "audit" && snaps == null) loadActivitySnapshots().then(setSnaps); }, [tab, snaps]);
   // Revert modal helpers. RVF maps snapshot (snake) columns to human labels; rowView renders the
   // live activity in the same shape so the modal can show restores-to vs currently.
-  const RVF = [["descr", "Description"], ["company_id", "Company"], ["area", "Building"], ["sub_area", "Level"], ["tier3", "Zone / Room"], ["asset", "Asset"], ["system", "System"], ["level", "Cx Stage"], ["is_milestone", "Milestone"], ["start_date", "Planned Start"], ["duration", "Days (Calendar)"], ["committed", "Committed"], ["status", "Status"], ["percent", "Percent"], ["actual_start", "Actual Start"], ["actual_finish", "Actual Finish"], ["witness_invite", "Witness Invite"], ["witness_at", "Witness Date"], ["witness_duration_min", "Witness Duration"], ["slip_reason", "Slip Reason"], ["outcome", "Witness Outcome"], ["outcome_reason", "Failure Reason"], ["outcome_at", "Outcome Date"], ["notes", "Notes"]];
-  const rvRowView = (a) => a ? ({ descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, system: a.system || null, level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1, committed: !!a.committed, status: a.status, percent: a.percent == null ? null : a.percent, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, witness_duration_min: a.witnessDurationMin == null ? 60 : a.witnessDurationMin, slip_reason: a.slipReason || null, outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_at: a.outcomeAt || null, notes: a.notes || null }) : null;
+  const RVF = [["descr", "Description"], ["company_id", "Company"], ["area", "Building"], ["sub_area", "Level"], ["tier3", "Zone / Room"], ["asset", "Asset"], ["system", "System"], ["level", "Cx Stage"], ["is_milestone", "Milestone"], ["start_date", "Planned Start"], ["duration", "Days (Calendar)"], ["committed", "Committed"], ["status", "Status"], ["percent", "Percent"], ["actual_start", "Actual Start"], ["actual_finish", "Actual Finish"], ["witness_invite", "Witness Invite"], ["witness_at", "Witness Date"], ["witness_duration_min", "Witness Duration"], ["witness_days", "Witness Days"], ["slip_reason", "Slip Reason"], ["outcome", "Witness Outcome"], ["outcome_reason", "Failure Reason"], ["outcome_at", "Outcome Date"], ["notes", "Notes"]];
+  const rvRowView = (a) => a ? ({ descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, system: a.system || null, level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1, committed: !!a.committed, status: a.status, percent: a.percent == null ? null : a.percent, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, witness_duration_min: a.witnessDurationMin == null ? 60 : a.witnessDurationMin, witness_days: a.witnessDays == null ? 1 : a.witnessDays, slip_reason: a.slipReason || null, outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_at: a.outcomeAt || null, notes: a.notes || null }) : null;
   const rvCoName = (id) => (S.companies.find((c) => c.id === id) || {}).name || (id ? "(unknown)" : "--");
   const rvFmt = (k, v) => { if (v == null || v === "") return "--"; if (k === "company_id") return rvCoName(v); if (typeof v === "boolean") return v ? "Yes" : "No"; return String(v); };
   const rvNorm = (v) => (v == null || v === "" ? "" : typeof v === "boolean" ? (v ? "1" : "0") : String(v));
