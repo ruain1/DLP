@@ -153,7 +153,26 @@
   body.embed .shell{ gap:0; }
   body.embed .subbody{ border:0; border-radius:0; box-shadow:none; min-height:100vh; padding:18px 22px 44px; }
 </style>
-</head>
+<style>
+  .tryme{border:1px solid var(--line);border-radius:14px;background:var(--surface2);padding:14px 16px;margin:14px 0}
+  .tryme .tmtag{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;background:var(--brand);color:#fff;border-radius:6px;padding:3px 8px;margin-bottom:9px}
+  .tryme .tmrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+  .tryme button.tmb{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600}
+  .tryme button.tmb.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .tryme .tmfield{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;background:var(--surface);min-width:110px}
+  .tryme .tmfield.lk{opacity:.45;position:relative}
+  .tryme .tmnote{font-size:11.5px;color:var(--mut);margin-top:8px;line-height:1.5}
+  .tryme .tmcard{border:1px solid var(--line);border-left:4px solid var(--ready);border-radius:12px;background:var(--surface);padding:10px 13px;max-width:340px}
+  .tryme .tmcard.fail{border-left-color:var(--late);background:repeating-linear-gradient(135deg,rgba(192,57,58,.12) 0 6px,rgba(192,57,58,.03) 6px 12px)}
+  .tryme .tmcard.fail .tmdesc{text-decoration:line-through;opacity:.55}
+  .tryme .tmdesc{font-weight:700;font-size:13px}
+  .tryme .tmmeta{display:flex;gap:6px;margin-top:5px;align-items:center;flex-wrap:wrap}
+  .vgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+  .vcol{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:12px 14px}
+  .vcol h4{font-size:13px;margin-bottom:6px}
+  .vcol ul{margin:6px 0 0 16px;font-size:12.5px;line-height:1.6}
+  @media(max-width:640px){.vgrid{grid-template-columns:1fr}}
+</style></head>
 <body>
 <script>try{var sp=new URLSearchParams(location.search);if(sp.get('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');if(sp.get('embed')==='1')document.body.classList.add('embed');}catch(e){}</script>
 <div class="wrap">
@@ -177,7 +196,7 @@
     <nav class="subnav" id="subnav"></nav>
     <div class="subbody" id="subbody"></div>
   </div>
-  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 7</footer>
+  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 8</footer>
 </div>
 
 <script>
@@ -343,7 +362,9 @@ const REF={
       </ul>
     </div>
     <p style="color:var(--faint); font-size:12px;">Set the milestones (delivery, MV power on, power released to the PODs, flushing complete, L3 FoK) early and far out: they are the moments everyone else plans around, even while the detailed activities feeding them are still beyond the lookahead.</p>
-  ` },
+  
+    <p><b>Search the board.</b> The search box at the far left of the toolbar filters the board like the Activity Table search: it matches the description, company, system, asset tag and location code. Matching cards stay, lanes with no matches collapse, and a live count shows how many of the window's activities match. Escape or the small cross clears it. The search filters only what the board draws: the KPI tiles and every export ignore it, so a forgotten search can never truncate an export or skew the metrics.</p>
+    <p>The lookahead window selector now runs from <b>1 week</b> up to 12. It is a shared project setting, so changing it changes the board for everyone.</p>` },
   r_card:{ title:"The activity card", ill:`<div class="sample"><div class="d">Terminate LV cables</div><div class="m">FIN04.01.L0.GY01 / EPMS / L3 SAT</div><div class="pb"><i></i></div><div style="display:flex;gap:5px"><span class="chip will">will</span><span class="chip wit">WIT</span></div></div>`, body:`
     <p>Every card carries its <b>location code, system, Cx stage</b> and a progress bar, plus status chips. The code reads <b>Site.Building.Level.Zone</b>, so <span class="mono">FIN04.01.L0.GY01</span> is building 01, level L0, zone GY01.</p>
     <p>Required fields when you add one: <b>Description, Building, Level, Zone / Room, System</b> and <b>Cx Stage</b>. <b>Asset</b> sits under System and is optional: it is a searchable picker over the project equipment register, and choosing one or several fills Building, Level, Zone and System from the asset tag and locks them (clear the asset to edit those by hand). A <b>Discipline</b> field (Mechanical, Electrical, BMS/EPMS, FLS; multi-select) also sits on Details; it stays optional unless you turn on a witness invite, when it becomes required and decides who the invite reaches. Opening a card shows a tabbed editor: <b>Details</b> (identity, location, Cx stage, milestone, notes), <b>Schedule</b> (dates, predecessors, status, actuals, and the admin-only reschedule), <b>Readiness</b> (constraints, committed, witness), and for admins a <b>Delay</b> tab. Audit history sits at the foot for admins.</p>` },
@@ -365,12 +386,76 @@ const REF={
     <p>While any constraint is open the readiness dot is <b>amber</b>; clear them all and it turns <b>teal</b>, ready to run. The <b>Make-ready</b> toggle fades ready work and spotlights what is still constrained inside the window, so the planning meeting drives blockers out. Assignees can clear their own constraints.</p>` },
   r_commit:{ title:"Committing &amp; PPC", ill:`<div class="ill" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">${ring(75,'var(--amber)')}<div style="flex:1;min-width:180px;font-size:12.5px;color:var(--mut)">PPC is the share of committed activities finished on or before their promised date.</div></div>`, body:`
     <p>Committing turns a planned activity into a <b>reliable promise</b> for the week, shown as a <span class="chip will">will</span> tag. Commit only what you are confident will be done.</p>
-    <p>At week end, <b>PPC</b> (Percent Plan Complete) measures how many committed activities finished on or before their promised date. It is the core Last Planner reliability metric, so an honest commitment is worth more than an optimistic one.</p>` },
+    <p>At week end, <b>PPC</b> (Percent Plan Complete) measures how many committed activities finished on or before their promised date. It is the core Last Planner reliability metric, so an honest commitment is worth more than an optimistic one.</p>
+    <p><b>The commit lock.</b> The moment an activity is committed, its <b>plan is frozen for members</b>: the description, company, location, discipline, system, assets, Cx stage, milestone flag, planned start, duration, predecessors, witness setup, the Committed toggle itself, and Delete are all locked. <b>Only an admin can change or delete a committed activity.</b> A promise that anyone could quietly rewrite or remove would make PPC meaningless, so the plan is protected while the work is measured against it.</p>
+    <p>What you can still do on your committed activity, by design: set the <b>status</b>, record <b>actual dates</b> and <b>percent complete</b>, record the <b>reason for non-completion</b> if it misses, record the <b>witness outcome</b> and create a retest, manage <b>constraints</b>, and edit <b>notes</b>. Progress is always yours to record; the promise is not yours to rewrite. If the plan genuinely must change, ask an admin.</p>
+    <p>If a committed activity misses its promised finish, DLP asks for a <b>Reason for non-completion</b>. This is a schedule verdict about the promise, not a quality verdict about the work: see <b>Slips vs pass / fail</b> for the difference.</p>
+    <div class="tryme"><span class="tmtag">TRY ME</span>
+      <div style="font-size:12.5px;margin-bottom:4px">Toggle Committed and watch what locks (member view):</div>
+      <div class="tmrow"><button class="tmb" id="tl-btn" onclick="dlpLock()">Committed: OFF</button></div>
+      <div class="tmrow">
+        <span class="tmfield" id="tl-start">Start: 13-Jul</span>
+        <span class="tmfield" id="tl-days">Days: 4</span>
+        <span class="tmfield" id="tl-del">Delete</span>
+      </div>
+      <div class="tmrow">
+        <span class="tmfield" style="border-color:var(--ready)">Status: In progress</span>
+        <span class="tmfield" style="border-color:var(--ready)">Percent: 40</span>
+        <span class="tmfield" style="border-color:var(--ready)">Slip reason</span>
+      </div>
+      <div class="tmnote" id="tl-note">Everything is editable while the activity is only planned.</div>
+    </div>` },
   r_witness:{ title:"Witness invites &amp; schedule", ill:witnessReadiness(), body:`
     <p>Some activities need a <b>client or third-party witness</b> to attend an inspection. On the <b>Readiness</b> tab turn on <b>Witness invite</b>, set the <b>witness date and time</b> and a <b>Duration</b> (the invite end time is the start plus this duration). The activity then carries a <span class="chip wit">WIT</span> chip everywhere it appears.</p>
     <p>A witness invite needs a <b>Discipline</b> (set on the Details tab), because the discipline decides who is invited. Once a discipline is chosen the editor lists the resolved <b>Required</b> and <b>CC</b> recipients, so you can see exactly who will be invited before you save. You (the organiser) are never on the list.</p>
     <p>The <b>Witness Schedule</b> pill on the board toolbar (beside Make-ready and YTT) lists the witnessable work for a chosen period (this week, the next 2 or 4 weeks, or all upcoming), each with its time, duration and any open constraints, so the client can see what is coming and you can see what is not yet ready.</p>
-    <p>From <b>Analytics</b>, <b>Export witness invites</b> produces one row per witnessed activity with the resolved attendees, the discipline and a <b>Sent</b> column. The invites can be <b>bulk-sent from classic Outlook</b> with the supplied macro, and an admin uses <b>Mark sent</b> to stamp which have gone out so none is sent twice.</p>` },
+    <p>From <b>Analytics</b>, <b>Export witness invites</b> produces one row per witnessed activity with the resolved attendees, the discipline and a <b>Sent</b> column. The invites can be <b>bulk-sent from classic Outlook</b> with the supplied macro, and an admin uses <b>Mark sent</b> to stamp which have gone out so none is sent twice.</p>
+    <p><b>Recording the outcome.</b> Once the witnessed event has happened (an inspection or FOK), record its result on the <b>Schedule</b> tab: <b>Witness Outcome</b> is Pending, Succeeded or Failed. This is the pass / fail verdict of the event itself, entirely separate from whether the activity ran on its promised date: see <b>Slips vs pass / fail</b>.</p>
+    <p>A <b>failed</b> outcome requires a <b>failure reason</b> (test failure, documentation incomplete, witness no-show, prerequisite unavailable, and so on). The failed record is then <b>ghosted and locked</b> on the board: hatched, struck through, marked with a red cross, and closed to further edits (an admin can reopen it by setting the outcome back to Pending). From the failed record you can <b>Create Linked Retest</b>: a fresh invitation cloned with the same discipline, company, location, system and routing, linked back to the original so the attempt history stays connected. Retests wear a <b>RETEST #</b> chip and a dashed amber link joins the attempts on the board.</p>
+    <p>Analytics gains an <b>Invitation Outcomes</b> panel (attempted, succeeded, failed, first-time pass, and a failure-reason Pareto), and the Weekly DLP Report can include the same as a section. <b>First-time pass</b> counts each witness chain once, at its first attempt, so retesting your way to green never inflates the number.</p>
+    <p>Client viewers (atnorth) can press <b>Request Invite</b> on any witnessed activity; the request lands in the admin notification envelope to be forwarded.</p>
+    <div class="tryme"><span class="tmtag">TRY ME</span>
+      <div style="font-size:12.5px;margin-bottom:4px">Record an outcome and watch the card:</div>
+      <div class="tmrow">
+        <button class="tmb on" id="od-b-pending" onclick="dlpOutcome('pending')">Pending</button>
+        <button class="tmb" id="od-b-succeeded" onclick="dlpOutcome('succeeded')">Succeeded</button>
+        <button class="tmb" id="od-b-failed" onclick="dlpOutcome('failed')">Failed</button>
+      </div>
+      <div class="tmcard" id="od-card">
+        <div class="tmdesc" id="od-desc">MV Switchgear SAT &middot; Panel 3</div>
+        <div class="tmmeta"><span class="chip will">will</span><span class="chip wit" id="od-chip">WIT</span><span id="od-extra"></span></div>
+      </div>
+      <div class="tmnote" id="od-note">Pending: the invitation is live and the event has not been recorded yet.</div>
+    </div>` },
+  r_verdicts:{ title:"Slips vs pass / fail: two different verdicts", ill:`<div class="ill" style="font-size:12.5px;color:var(--mut)">One activity can carry two independent verdicts: did it run <b>when promised</b>, and did the witnessed event <b>pass</b>?</div>`, body:`
+    <p>DLP records two verdicts that are easy to conflate and must never be. They measure different things, use different reason lists, and feed different metrics.</p>
+    <div class="vgrid">
+      <div class="vcol"><h4 style="color:var(--amber)">Reason for non-completion (the schedule verdict)</h4>
+        <ul><li>Asked when a <b>committed activity</b> misses its promised finish date.</li>
+        <li>About the <b>promise</b>: prerequisites, materials, labour, access, design information, weather, priorities.</li>
+        <li>Feeds <b>PPC</b> and the <b>Reasons for Non-Completion</b> Pareto.</li>
+        <li>Applies to <b>every committed activity</b>, witnessed or not.</li></ul></div>
+      <div class="vcol"><h4 style="color:var(--late)">Witness outcome: pass / fail (the quality verdict)</h4>
+        <ul><li>Asked when a <b>witnessed event</b> (inspection or FOK) has been held.</li>
+        <li>About the <b>work and the event</b>: test failure, documentation, witness no-show, prerequisite system, equipment.</li>
+        <li>Feeds <b>first-time pass</b> and the <b>Invitation Outcomes</b> panel and report section.</li>
+        <li>Applies only to activities flagged <span class="chip wit">WIT</span>.</li></ul></div>
+    </div>
+    <p><b>The verdicts are independent.</b> An inspection held exactly on its promised day that fails is a <b>kept promise</b> (good PPC) and a <b>failed event</b> (poor first-time pass): the team did what it said, and the work was not ready to pass. An inspection that slips a week and then passes is a <b>broken promise</b> and a <b>passed event</b>. Recording both honestly is what makes the analytics worth reading: PPC tells you whether the plan is reliable, first-time pass tells you whether the work is right first time.</p>
+    <div class="tryme"><span class="tmtag">TRY ME</span>
+      <div style="font-size:12.5px;margin-bottom:4px">Pick a scenario and read both verdicts:</div>
+      <div class="tmrow">
+        <button class="tmb on" id="vd-1" onclick="dlpVerdict(1)">On time, passed</button>
+        <button class="tmb" id="vd-2" onclick="dlpVerdict(2)">On time, failed</button>
+        <button class="tmb" id="vd-3" onclick="dlpVerdict(3)">Late, passed</button>
+        <button class="tmb" id="vd-4" onclick="dlpVerdict(4)">Late, failed</button>
+      </div>
+      <div class="tmrow">
+        <span class="tmfield" id="vd-ppc" style="border-color:var(--ready)">PPC: kept promise</span>
+        <span class="tmfield" id="vd-ftp" style="border-color:var(--ready)">First-time pass: yes</span>
+      </div>
+      <div class="tmnote" id="vd-note">The ideal: ran on the promised day and the event passed. No reason to record anywhere.</div>
+    </div>` },
   r_discipline:{ title:"Discipline", ill:disciplinePick(), body:`
     <p>The <b>Discipline</b> field on the <b>Details</b> tab tags an activity by trade: <b>Mechanical</b>, <b>Electrical</b>, <b>BMS/EPMS</b> or <b>FLS</b>. It is a <b>multi-select</b>, so work that spans trades can carry more than one.</p>
     <p>It is optional in general, but <b>required when a witness invite is on</b>, because the discipline is what routes the invite: each discipline maps to a set of required attendees, the Cx team and contractor companies are attached by discipline, and a fixed CC list is always copied. Pick the discipline(s) and the editor shows the people who will be invited before you save.</p>
@@ -384,7 +469,8 @@ const REF={
     <p>Every number is <b>clickable</b> and drills to the activities behind it; click a row to open it on the board. Export all activities or witness invites, pull <b>Metrics</b> to Excel or <b>PDF</b>, and admins can generate the <b>Weekly Report</b>. The witness export carries the resolved attendees, the discipline and a <b>Sent</b> stamp, and an admin can <b>Mark sent</b> after a bulk send.</p>` },
   r_admin:{ title:"Admin &amp; settings", ill:adminList(), body:`
     <p>Admins get a settings area with its own sub-sidebar. <b>Project Setup</b> covers Branding, Cx Stages, Systems, Locations, Companies and the Lookahead length. <b>User management</b> covers Global Contacts, Project Team and Access requests.</p>
-    <p>There is also an <b>Audit log</b>, <b>Import / Export</b>, and a <b>Changelog</b>. Most people will not see this; it is where the project is configured.</p>` },
+    <p>There is also an <b>Audit log</b>, <b>Import / Export</b>, and a <b>Changelog</b>. Most people will not see this; it is where the project is configured.</p>
+    <p><b>Audit log revert.</b> Activity entries in Admin &gt; Audit carry revert controls. The most recent change to an activity within the last 24 hours gets a one-click <b>Revert</b>; older or superseded entries get an amber <b>Revert Anyway</b> that warns exactly how many later changes will be overwritten; deletions get <b>Restore</b> (the activity returns with the same id, so predecessor and retest links survive); creations get <b>Remove</b>. The confirmation window shows field by field what each value restores to versus its current state. Every revert is itself written to the audit log, so a revert can be reverted and nothing is ever silently lost. Entries from before the snapshot migration show <b>No snapshot</b> and cannot be reverted.</p>` },
   r_cxstages:{ title:"Cx stages &amp; colours", ill:cxKey(), body:`
     <p>Commissioning runs in stages, each with a fixed colour so a bar's phase is obvious. This project uses <b>L1 FAT</b>, <b>L2 MEP</b>, <b>L3 SAT</b> and <b>L4 FPT</b>.</p>
     <p>The set of stages, their labels and their colours are a project setting an admin controls under <b>Cx Stages</b>, so another project may show a different list.</p>` },
@@ -473,7 +559,7 @@ const TUT={
 };
 
 const NAV=[
-  ["Quick Reference",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"],["r_reading","Reading the schedule","◷"],["r_delay","Delays & excusing","⏱"],["r_constraints","Constraints & make-ready","⚑"],["r_commit","Committing & PPC","✓"],["r_complete","Marking work complete","◉"],["r_witness","Witness invites & schedule","◎"],["r_discipline","Discipline","⬢"],["r_analytics","Analytics & reports","◔"],["r_admin","Admin & settings","⚙"],["r_cxstages","Cx stages & colours","◆"],["r_markers","Markers & chips","▣"],["r_codes","Location codes","#"],["r_assets","Assets & auto-fill","⬡"]]],
+  ["Quick Reference",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"],["r_reading","Reading the schedule","◷"],["r_delay","Delays & excusing","⏱"],["r_constraints","Constraints & make-ready","⚑"],["r_commit","Committing & PPC","✓"],["r_complete","Marking work complete","◉"],["r_witness","Witness invites & schedule","◎"],["r_verdicts","Slips vs pass / fail","⇄"],["r_discipline","Discipline","⬢"],["r_analytics","Analytics & reports","◔"],["r_admin","Admin & settings","⚙"],["r_cxstages","Cx stages & colours","◆"],["r_markers","Markers & chips","▣"],["r_codes","Location codes","#"],["r_assets","Assets & auto-fill","⬡"]]],
   ["How To",[["board","Add via Planning Board","+"],["table","Add via Activity Table","▤"],["import","Bulk import (Excel/CSV)","⇪"],["views","Switch & read views","▫"],["reschedule","Reschedule & links","↔"],["constraints","Constraints & make-ready","⚑"],["complete","Mark work complete","◉"],["witness","Witness invites","◎"],["excuse","Excuse a delay","⏱"],["ytt","YTT daily focus","☼"],["analytics","Dashboard & popouts","◔"],["weekly","Weekly Report","▣"]]],
 ];
 const isTut=(k)=>!!TUT[k];
@@ -540,5 +626,9 @@ window.addEventListener('message',function(ev){ var d=ev.data; if(!d||d.src!=='d
   if(d.type==='help-nav' && d.page && (REF[d.page]||TUT[d.page])){ cur=d.page; mode='walk'; step=0; renderNav(); renderBody(); try{(document.scrollingElement||document.documentElement).scrollTop=0;}catch(e){} }
 });
 </script>
-</body>
+<script>
+function dlpLock(){var b=document.getElementById('tl-btn');var on=b.textContent.indexOf('OFF')>=0;b.textContent='Committed: '+(on?'ON':'OFF');b.className='tmb'+(on?' on':'');['tl-start','tl-days','tl-del'].forEach(function(id){var e=document.getElementById(id);e.className='tmfield'+(on?' lk':'');});document.getElementById('tl-note').textContent=on?'Plan locked: start, duration, scope and Delete are admin-only now. Status, percent, slip reason, witness outcome, constraints and notes stay yours.':'Everything is editable while the activity is only planned.';}
+function dlpOutcome(k){['pending','succeeded','failed'].forEach(function(x){document.getElementById('od-b-'+x).className='tmb'+(x===k?' on':'');});var card=document.getElementById('od-card'),chip=document.getElementById('od-chip'),ex=document.getElementById('od-extra'),n=document.getElementById('od-note');card.className='tmcard'+(k==='failed'?' fail':'');if(k==='pending'){chip.textContent='WIT';chip.className='chip wit';ex.innerHTML='';n.textContent='Pending: the invitation is live and the event has not been recorded yet.';}else if(k==='succeeded'){chip.textContent='passed';chip.className='chip will';ex.innerHTML='';n.textContent='Succeeded: the event passed. It counts toward first-time pass if this was the first attempt.';}else{chip.textContent='failed';chip.className='chip';chip.style.background='rgba(192,57,58,.18)';chip.style.color='var(--late)';ex.innerHTML='<span style=\'font-size:11px;color:var(--late);font-weight:700\'>&#10005; reason required &middot; Create Linked Retest</span>';n.textContent='Failed: a failure reason is required, the record ghosts and locks, and a linked retest can be created. If it ran on the promised day, PPC still counts the promise as kept.';}}
+function dlpVerdict(n){for(var i=1;i<=4;i++){document.getElementById('vd-'+i).className='tmb'+(i===n?' on':'');}var ppc=document.getElementById('vd-ppc'),ftp=document.getElementById('vd-ftp'),note=document.getElementById('vd-note');var P=function(ok){ppc.textContent='PPC: '+(ok?'kept promise':'broken promise, reason required');ppc.style.borderColor=ok?'var(--ready)':'var(--amber)';};var F=function(ok){ftp.textContent='First-time pass: '+(ok?'yes':'no, failure reason + retest');ftp.style.borderColor=ok?'var(--ready)':'var(--late)';};if(n===1){P(true);F(true);note.textContent='The ideal: ran on the promised day and the event passed. No reason to record anywhere.';}if(n===2){P(true);F(false);note.textContent='Kept promise, failed event: the team did what it said, the work was not ready to pass. Slip reason: none. Failure reason: required.';}if(n===3){P(false);F(true);note.textContent='Broken promise, passed event: the work is right, the plan was not reliable. Slip reason: required. Failure reason: none.';}if(n===4){P(false);F(false);note.textContent='Both verdicts against: record a slip reason for the promise and a failure reason for the event. Two lists, two metrics.';}}
+</script></body>
 </html>
