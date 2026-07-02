@@ -61,7 +61,7 @@ export async function loadAll(session, projectId, projectName) {
     settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7 },
     users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, platformRole: p.platform_role || "user", mustReset: !!p.must_reset })),
     activities: (activities.data || []).map(fromActivity),
-    audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail })),
+    audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail, entity: e.entity, entityId: e.entity_id })),
     brand: brandFrom(branding.data, projectName),
     subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
     tier3s: (tier3s.data || []).map((t) => ({ area: t.area, subArea: t.sub_area, name: t.name })),
@@ -448,6 +448,37 @@ export async function loadPresence() {
     (data || []).forEach((r) => { m[r.user_id] = r.last_seen; });
     return m;
   } catch (e) { return {}; }
+}
+
+// ---- audit revert: activity snapshots (admin-only via RLS on activity_snapshots) ----
+export async function loadActivitySnapshots() {
+  try {
+    const { data, error } = await supabase.from("activity_snapshots").select("*").order("ts", { ascending: false }).limit(1000);
+    if (error) return [];
+    return data || [];
+  } catch (e) { return []; }
+}
+
+// UPDATE: restore before_row wholesale. DELETE: re-insert before_row (same id keeps
+// predecessor and retest links). INSERT: remove the created activity. Writes go through
+// the normal activities table so the live audit trigger and the snapshot trigger both
+// record the revert as a fresh entry; nothing is ever silently lost.
+export async function applyAuditRevert(snap, byName) {
+  let err = null;
+  if (snap.op === "UPDATE" || snap.op === "DELETE") {
+    const row = { ...(snap.before_row || {}) };
+    if (!row.id) return "Snapshot has no before state";
+    const { error } = await supabase.from("activities").upsert(row);
+    err = error;
+  } else if (snap.op === "INSERT") {
+    const id = snap.after_row && snap.after_row.id;
+    if (!id) return "Snapshot has no created row";
+    const { error } = await supabase.from("activities").delete().eq("id", id);
+    err = error;
+  } else return "Unknown snapshot type";
+  if (err) return err.message || "Revert failed";
+  await supabase.from("activity_snapshots").update({ reverted_at: new Date().toISOString(), reverted_by: byName || "" }).eq("id", snap.id);
+  return null;
 }
 
 // Full audit history for a single activity (admin-only; RLS enforces it).

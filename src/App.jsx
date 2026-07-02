@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -675,6 +675,8 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV74", date: "2026-07-02", items: ["Audit log revert (admin only): activity entries in Admin > Audit now carry revert controls. The most recent change to an activity within the last 24 hours gets a one-click Revert; older or superseded entries get an amber Revert Anyway with an explicit warning of how many later changes will be overwritten; deletions get Restore (the activity returns with the same id, so predecessor and retest links survive); creations get Remove", "The confirmation window shows a field-by-field comparison of what each value restores to versus its current state, and refuses politely when the current state already matches the snapshot. Every revert is written to the audit log by the existing triggers, so a revert is itself revertible and nothing is silently lost", "Powered by a new activity_snapshots table with its own trigger (audit-snapshots.sql). The live audit trigger is deliberately untouched. Entries from before the migration show No Snapshot and cannot be reverted, because no before-state exists for them"] },
+  { rev: "REV73", date: "2026-07-02", items: ["Commit lock (Phase 1): once an activity is Committed for this week, its plan is frozen for members in both the New / Edit Activity window and the Activity Table: description, company, building, level, zone, discipline, system, assets, Cx stage, milestone flag, planned start, duration, predecessors, witness setup, the Committed toggle itself, and Delete. A banner in the window explains the lock and directs changes to an admin", "What members can still do on a committed activity, by design: set status, actual dates and percent complete, record the reason for non-completion, record the witness outcome and create a retest, manage constraints, and edit notes. Locking these would break the daily Last Planner workflow, so only the promise is protected, not the progress against it", "Admins are unaffected. Drag and edge-resize of committed activities were already blocked for members; this closes the remaining routes (window edit, table edit, delete) that let a commitment be changed or removed without an admin"] },
   { rev: "REV72", date: "2026-07-02", items: ["New / Edit Activity: the field headers inside the window (What Is The Activity, Company, Building, Level, Zone / Room, Discipline, System, Asset, Cx Stage, Notes, and every label on the Schedule and Readiness tabs) are now blue, matching the window title and the app-wide header colour. REV70 had made only the window title blue; this completes the request as intended"] },
   { rev: "REV71", date: "2026-07-02", items: ["Weekly DLP Report: new Invitation Outcomes section, on by default in Sections To Include under Planning Board. It reports witnessed events that reached an outcome in the period (keyed on the outcome date) with passed and failed counts and a failure-reason Pareto, plus first-time pass to date (programme level, retest chains counted once at the root, since a per-week rate over a handful of events would be noise)", "The auto-drafted executive summary now includes a witness outcomes sentence when events reached an outcome in the period, and drops it if the section is unticked", "Saved section preferences now merge with the defaults, so sections added in future revisions appear ticked for existing users instead of silently missing"] },
   { rev: "REV70", date: "2026-07-02", items: ["WILL and WIT chips restyled to the approved graphics everywhere they appear (board, popups, Schedule, Witness Schedule, drill lists): solid dark-blue WILL and solid purple WIT with light text. The printed Weekly Report badges use the same colours in both light and dark", "Consistency pass: Analytics section headers now use the Weekly Cx Progress style (small blue capitals with letter spacing, theme-aware). In the other direction, the Weekly Cx Progress drill popup now follows the Analytics popup styling: same corner radius and shadow, normal-case title with a header divider, and the calculation block and data tables rendered as card rows with the grey left edge", "New Activity / Edit Activity header text is now blue for contrast, and the same applies to every popup title on that pattern (Weekly Report window, Create Retest, and the rest) so titles read consistently across the app"] },
@@ -2231,11 +2233,18 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
   const doReschedule = () => { if (!isAdmin || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
   const dis = !canEdit || locked;
+  // Phase 1 commit lock: the plan of a committed activity (dates, duration, scope, identity,
+  // witness setup, predecessors, the committed flag itself, and delete) is frozen for members.
+  // Progress recording (status, actual dates, percent, slip reason, witness outcome, constraints,
+  // notes) stays open. Keyed on the record as opened (act) so the lock cannot be dodged by
+  // unticking Committed first. Admins are never plan-locked.
+  const planLocked = !!act.committed && !isAdmin;
+  const disPlan = dis || planLocked;
   const assetTags = parseAssetField(a.asset);
   const assetDerived = deriveFromAssets(assetTags);
   const hasKnownAsset = assetTags.some((t) => ASSET_BY_TAG[t]);
   const applyAssets = (tags) => {
-    if (!canEdit || locked) return;
+    if (!canEdit || locked || planLocked) return;
     const known = tags.some((t) => ASSET_BY_TAG[t]);
     const d = deriveFromAssets(tags);
     setA((p) => ({ ...p, asset: joinAssetField(tags), area: known ? d.area : p.area, subArea: known ? d.subArea : p.subArea, tier3: known ? d.tier3 : p.tier3, system: known ? d.system : p.system }));
@@ -2298,6 +2307,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
         <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
           {!canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
+          {planLocked && canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Committed promise: the plan is locked. Progress, percent, reasons for non-completion and witness outcomes can still be recorded. Ask an admin to change or delete this commitment.</div>}
           <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
             {[["details", "Details"], ["schedule", "Schedule"], ["ready", "Readiness"]].concat(isAdmin && !isNew ? [["delay", "Delay"]] : []).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)} style={{ flex: 1, fontFamily: "inherit", fontSize: 12, fontWeight: 650, padding: "8px 6px", borderRadius: "8px 8px 0 0", cursor: "pointer", borderWidth: 1, borderStyle: "solid", borderColor: tab === k ? "var(--line)" : "transparent", borderBottom: 0, background: tab === k ? "var(--card)" : "transparent", color: tab === k ? "var(--ink)" : "var(--muted)" }}>
@@ -2305,7 +2315,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
               </button>))}
           </div>
           {tab === "details" && <>
-          <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={dis} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
+          <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={disPlan} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
           <div className="lk-row">
             <div className="lk-f"><label>Company (Performing)</label>
               <select className="lk-select" value={a.companyId || ""} disabled={dis || !isAdmin} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("company"); } else set("companyId", e.target.value); }}>
@@ -2318,27 +2328,27 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
               {!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Building is fixed for the project.</span>}</>}</div>
           </div>
           <div className="lk-f"><label>Level</label>
-            {lockL ? roBox(a.subArea) : <><select className="lk-select" value={a.subArea || ""} disabled={dis || !a.area} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("subArea"); } else { set("subArea", e.target.value); set("tier3", ""); } }}>
+            {lockL ? roBox(a.subArea) : <><select className="lk-select" value={a.subArea || ""} disabled={disPlan || !a.area} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("subArea"); } else { set("subArea", e.target.value); set("tier3", ""); } }}>
               <option value="">--</option>{(S.subAreas || []).filter((s) => s.area === a.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}{isAdmin && !dis && a.area && ADD_OPT}</select>
             {!isAdmin && a.area && (S.subAreas || []).filter((s) => s.area === a.area).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No levels defined for {a.area}.</span>}
             {renderAdd("subArea", "New level name", { area: a.area })}</>}</div>
           <div className="lk-f"><label>Zone / Room</label>
-            {lockZ ? roBox(a.tier3) : <><select className="lk-select" value={a.tier3 || ""} disabled={dis || !a.subArea} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("tier3"); } else set("tier3", e.target.value); }}>
+            {lockZ ? roBox(a.tier3) : <><select className="lk-select" value={a.tier3 || ""} disabled={disPlan || !a.subArea} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("tier3"); } else set("tier3", e.target.value); }}>
               <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}{isAdmin && !dis && a.subArea && ADD_OPT}</select>
             {!isAdmin && a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}.</span>}
             {renderAdd("tier3", "New zone / room name", { area: a.area, subArea: a.subArea })}</>}</div>
           <div className="lk-f"><label>Discipline{a.witnessInvite && <span style={{ color: "#C0392B" }}> *</span>}</label>
-            <div className="lk-levels">{DISCIPLINES.map((d) => { const on = (a.discipline || []).includes(d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (dis) return; const cur = a.discipline || []; set("discipline", on ? cur.filter((x) => x !== d) : [...cur, d]); }}>{d}</div>; })}</div>
+            <div className="lk-levels">{DISCIPLINES.map((d) => { const on = (a.discipline || []).includes(d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.discipline || []; set("discipline", on ? cur.filter((x) => x !== d) : [...cur, d]); }}>{d}</div>; })}</div>
             {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "#C0392B" }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
           <div className="lk-f"><label>System</label>
-            {lockS ? roBox(a.system) : <><select className="lk-select" value={a.system} disabled={dis} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
+            {lockS ? roBox(a.system) : <><select className="lk-select" value={a.system} disabled={disPlan} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
             {renderAdd("system", "New system name", {})}</>}</div>
           <div className="lk-f"><label>Asset (Optional)</label>
             <div style={{ position: "relative" }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 8px", minHeight: 40, opacity: dis ? 0.6 : 1 }} onClick={() => { if (!dis) { const el = document.getElementById("assetInp"); if (el) el.focus(); } }}>
                 {assetTags.map((t) => { const known = ASSET_BY_TAG[t]; const lbl = t.split(".").slice(3).join(".") || t; return <span key={t} title={known ? known.name : "Not in register"} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(99,102,241,0.16)", border: "1px solid rgba(99,102,241,0.4)", color: "#c9ccff", borderRadius: 7, padding: "3px 6px 3px 8px", fontSize: 11.5, fontFamily: "ui-monospace,Menlo,Consolas,monospace", opacity: known ? 1 : 0.75 }}>{lbl}{!dis && <span style={{ cursor: "pointer", color: "#9aa0e6", fontWeight: 700, padding: "0 2px" }} onClick={(e) => { e.stopPropagation(); toggleAsset(t); }}>×</span>}</span>; })}
-                {!dis && <input id="assetInp" autoComplete="off" value={assetQ} placeholder={assetTags.length ? "Add another..." : "Search tag or equipment, e.g. UPS, CRAH, GY01..."} onFocus={() => setAssetOpen(true)} onBlur={() => setTimeout(() => setAssetOpen(false), 150)} onChange={(e) => { setAssetQ(e.target.value); setAssetOpen(true); }} style={{ flex: 1, minWidth: 130, background: "transparent", border: 0, outline: "none", color: "inherit", fontSize: 13, padding: "3px 2px" }} />}
+                {!disPlan && <input id="assetInp" autoComplete="off" value={assetQ} placeholder={assetTags.length ? "Add another..." : "Search tag or equipment, e.g. UPS, CRAH, GY01..."} onFocus={() => setAssetOpen(true)} onBlur={() => setTimeout(() => setAssetOpen(false), 150)} onChange={(e) => { setAssetQ(e.target.value); setAssetOpen(true); }} style={{ flex: 1, minWidth: 130, background: "transparent", border: 0, outline: "none", color: "inherit", fontSize: 13, padding: "3px 2px" }} />}
               </div>
               {assetOpen && assetMatches.length > 0 && <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 5px)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 18px 50px rgba(0,0,0,.5)", maxHeight: 260, overflow: "auto", zIndex: 40, padding: 5 }}>
                 {assetMatches.map((x) => { const on = assetTags.includes(x.tag); return <div key={x.tag} onMouseDown={(e) => { e.preventDefault(); toggleAsset(x.tag); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 9px", borderRadius: 8, cursor: "pointer", background: on ? "rgba(99,102,241,0.12)" : "transparent" }}>
@@ -2351,12 +2361,12 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
             </div>
             {hasKnownAsset && <span style={{ fontSize: 10.5, color: "var(--muted)", display: "block", marginTop: 5 }}>Location and System are set from the asset. Remove the asset to edit them by hand.</span>}</div>
           <div className="lk-f"><label>Cx Stage</label>
-            <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => set("level", k)}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
+            <div className="lk-levels">{Object.entries(S.levels).map(([k, v]) => <div key={k} className={"lk-lvl" + (a.level === k ? " sel" : "")} onClick={() => { if (planLocked) return; set("level", k); }}><span className="sw" style={{ background: v.color }} />{k}</div>)}</div></div>
           </>}
           {tab === "schedule" && <>
           <div className="lk-row">
-            <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={dis} onChange={(e) => set("start", e.target.value)} /></div>
-            <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={dis} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div>
+            <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={disPlan} onChange={(e) => set("start", e.target.value)} /></div>
+            <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={disPlan} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div>
           </div>
           {isAdmin && !isNew && <div className="lk-f" style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon n="loader" s={13} />Reschedule <span style={{ fontWeight: 400, color: "var(--muted)" }}>(keeps the original date on record)</span></label>
@@ -2372,9 +2382,9 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
             </div>}
           </div>}
           <div className="lk-f"><label>Predecessors <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this starts after these finish; a slip upstream pushes this forward)</span></label>
-            {(a.predecessors || []).map((pid) => <div key={pid} className="lk-cstr"><span className="t">{predLabel(pid)}</span>{!dis && <button onClick={() => set("predecessors", a.predecessors.filter((x) => x !== pid))}><Icon n="trash" s={13} /></button>}</div>)}
+            {(a.predecessors || []).map((pid) => <div key={pid} className="lk-cstr"><span className="t">{predLabel(pid)}</span>{!disPlan && <button onClick={() => set("predecessors", a.predecessors.filter((x) => x !== pid))}><Icon n="trash" s={13} /></button>}</div>)}
             {(a.predecessors || []).length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>None. Not waiting on another activity.</div>}
-            {!dis && predOptions.length > 0 && <div className="lk-add"><select className="lk-select" value="" onChange={(e) => { if (e.target.value) set("predecessors", [...(a.predecessors || []), e.target.value]); }}><option value="">Add a predecessor…</option>{predOptions.map((x) => <option key={x.id} value={x.id}>#{x.code ?? "?"} - {x.desc || "Untitled"}</option>)}</select></div>}
+            {!disPlan && predOptions.length > 0 && <div className="lk-add"><select className="lk-select" value="" onChange={(e) => { if (e.target.value) set("predecessors", [...(a.predecessors || []), e.target.value]); }}><option value="">Add a predecessor…</option>{predOptions.map((x) => <option key={x.id} value={x.id}>#{x.code ?? "?"} - {x.desc || "Untitled"}</option>)}</select></div>}
           </div>
           </>}
           {tab === "ready" && <>
@@ -2398,13 +2408,13 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
               <input className="lk-in mono" style={{ maxWidth: 150 }} type="date" title="Need-by date (optional)" value={cDue} onChange={(e) => setCDue(e.target.value)} />
               <button className="lk-btn primary" title="Add constraint" onClick={addC}><Icon n="plus" s={15} /></button>
             </div>}</div>
-          <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => set("committed", !a.committed)}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
-          <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => set("witnessInvite", !a.witnessInvite)}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
+          <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => { if (planLocked) return; set("committed", !a.committed); }}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
+          <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => { if (planLocked) return; set("witnessInvite", !a.witnessInvite); }}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
-            <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={dis} onChange={(e) => set("witnessAt", e.target.value)} />
+            <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={disPlan} onChange={(e) => set("witnessAt", e.target.value)} />
             {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness duration <span style={{ color: "#C0392B" }}>*</span></label>
-            <select className="lk-select" value={a.witnessDurationMin || 60} disabled={dis} onChange={(e) => set("witnessDurationMin", parseInt(e.target.value, 10))}>
+            <select className="lk-select" value={a.witnessDurationMin || 60} disabled={disPlan} onChange={(e) => set("witnessDurationMin", parseInt(e.target.value, 10))}>
               <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option><option value={240}>Half day (4 h)</option><option value={480}>Full day (8 h)</option>
             </select>
             <span style={{ fontSize: 11, color: "var(--muted)" }}>Sets the invite end time (start + duration).</span></div>}
@@ -2420,7 +2430,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           ); })()}
           </>}
           {tab === "details" && <>
-          <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => { if (!canEdit || locked) return; setA((p) => { const on = !p.isMilestone; const n = { ...p, isMilestone: on }; if (on && n.status === "in_progress") { n.status = "planned"; n.percent = 0; } return n; }); }}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond; either Planned or Complete)</span></span><span className="lk-sw2" /></div>
+          <div className={"lk-tog" + (a.isMilestone ? " on" : "")} onClick={() => { if (!canEdit || locked || planLocked) return; setA((p) => { const on = !p.isMilestone; const n = { ...p, isMilestone: on }; if (on && n.status === "in_progress") { n.status = "planned"; n.percent = 0; } return n; }); }}><span>Milestone <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a point in time, shown as a diamond; either Planned or Complete)</span></span><span className="lk-sw2" /></div>
           </>}
           {tab === "schedule" && <>
           {locked && canEdit && a.status === "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit them. The reason for non-completion can still be recorded.</div>}
@@ -2523,7 +2533,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           </div>}
         </div>
         {canEdit && <div className="lk-df">
-          {!isNew && (confirmDel
+          {!isNew && !planLocked && (confirmDel
             ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete this activity?</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => onDelete(a)}>Yes, delete</button><button className="lk-btn" onClick={() => setConfirmDel(false)}>No</button></span>
             : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
           <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
@@ -2575,6 +2585,27 @@ function AdminPanel({ S, cu, update, exportActivities }) {
   const [auditUser, setAuditUser] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditQ, setAuditQ] = useState("");
+  const [snaps, setSnaps] = useState(null);          // activity_snapshots rows (admin; RLS enforced)
+  const [rv, setRv] = useState(null);                // { e, snap, mode, laterN } for the revert modal
+  const [rvBusy, setRvBusy] = useState(false);
+  const [rvErr, setRvErr] = useState("");
+  useEffect(() => { if (tab === "audit" && snaps == null) loadActivitySnapshots().then(setSnaps); }, [tab, snaps]);
+  // Revert modal helpers. RVF maps snapshot (snake) columns to human labels; rowView renders the
+  // live activity in the same shape so the modal can show restores-to vs currently.
+  const RVF = [["descr", "Description"], ["company_id", "Company"], ["area", "Building"], ["sub_area", "Level"], ["tier3", "Zone / Room"], ["asset", "Asset"], ["system", "System"], ["level", "Cx Stage"], ["is_milestone", "Milestone"], ["start_date", "Planned Start"], ["duration", "Days (Calendar)"], ["committed", "Committed"], ["status", "Status"], ["percent", "Percent"], ["actual_start", "Actual Start"], ["actual_finish", "Actual Finish"], ["witness_invite", "Witness Invite"], ["witness_at", "Witness Date"], ["witness_duration_min", "Witness Duration"], ["slip_reason", "Slip Reason"], ["outcome", "Witness Outcome"], ["outcome_reason", "Failure Reason"], ["outcome_at", "Outcome Date"], ["notes", "Notes"]];
+  const rvRowView = (a) => a ? ({ descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, system: a.system || null, level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1, committed: !!a.committed, status: a.status, percent: a.percent == null ? null : a.percent, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, witness_duration_min: a.witnessDurationMin == null ? 60 : a.witnessDurationMin, slip_reason: a.slipReason || null, outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_at: a.outcomeAt || null, notes: a.notes || null }) : null;
+  const rvCoName = (id) => (S.companies.find((c) => c.id === id) || {}).name || (id ? "(unknown)" : "--");
+  const rvFmt = (k, v) => { if (v == null || v === "") return "--"; if (k === "company_id") return rvCoName(v); if (typeof v === "boolean") return v ? "Yes" : "No"; return String(v); };
+  const rvNorm = (v) => (v == null || v === "" ? "" : typeof v === "boolean" ? (v ? "1" : "0") : String(v));
+  const rvDiffs = (before, cur) => RVF.filter(([k]) => rvNorm(before[k]) !== rvNorm(cur ? cur[k] : undefined)).map(([k, l]) => ({ k, l, restore: rvFmt(k, before[k]), cur: rvFmt(k, cur ? cur[k] : null) }));
+  const doRevert = async () => {
+    if (!rv || rvBusy) return; setRvBusy(true); setRvErr("");
+    const err = await applyAuditRevert(rv.snap, cu.name);
+    setRvBusy(false);
+    if (err) { setRvErr(err); return; }
+    setSnaps(null);   // refetch with the reverted stamp; activities refresh via realtime
+    setRv(null);
+  };
   const [lvKey, setLvKey] = useState("");
   const [lvName, setLvName] = useState("");
   const [lvColor, setLvColor] = useState("#64748B");
@@ -3502,14 +3533,82 @@ function AdminPanel({ S, cu, update, exportActivities }) {
             {(() => { const qq = auditQ.trim().toLowerCase();
               const flt = (e) => (auditUser === "all" || e.user === auditUser) && (!qq || `${e.action || ""} ${e.detail || ""} ${e.user || ""}`.toLowerCase().includes(qq));
               const list = S.audit.filter(flt);
+              // Snapshot join: (activity_id, ts) matches exactly because both DB triggers fire in
+              // the same transaction and now() is transaction-stable.
+              const snapByKey = {}; const latestByAct = {};
+              (snaps || []).forEach((sn) => { snapByKey[sn.activity_id + "|" + sn.ts] = sn; const c = latestByAct[sn.activity_id]; if (!c || sn.ts > c.ts) latestByAct[sn.activity_id] = sn; });
+              const liveById = Object.fromEntries((S.activities || []).map((x) => [x.id, x]));
+              const affFor = (e) => {
+                if (e.entity !== "activity" || !e.entityId || snaps == null) return null;
+                const snap = snapByKey[e.entityId + "|" + e.ts];
+                if (!snap) return { tag: "No snapshot (pre-migration)" };
+                if (snap.reverted_at) return { tag: `Reverted by ${snap.reverted_by || "admin"} ${new Date(snap.reverted_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`, done: true };
+                const isLatest = latestByAct[snap.activity_id] && latestByAct[snap.activity_id].id === snap.id;
+                const laterN = (snaps || []).filter((x) => x.activity_id === snap.activity_id && x.ts > snap.ts).length;
+                const fresh = Date.now() - new Date(snap.ts).getTime() <= 24 * 3600 * 1000;
+                if (snap.op === "DELETE") { if (liveById[snap.activity_id]) return { tag: "Superseded (recreated)" }; return isLatest ? { btn: "Restore", mode: "restore", snap, laterN } : { tag: "Superseded" }; }
+                if (snap.op === "INSERT") { if (!liveById[snap.activity_id]) return { tag: "Already removed" }; return isLatest ? { btn: "Remove", mode: "remove", snap, laterN } : { tag: "Superseded" }; }
+                if (isLatest && fresh) return { btn: "Revert", mode: "revert", snap, laterN };
+                return { btn: "Revert Anyway", mode: "override", snap, laterN };
+              };
+              const tagSt = (done) => ({ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", border: "1px solid var(--line)", color: "var(--muted)", flex: "none", ...(done ? { color: "#0E9384", borderColor: "rgba(14,147,132,.5)", background: "rgba(14,147,132,.08)" } : {}) });
+              const btnSt = (mode) => mode === "override" ? { color: "#E0A106", borderColor: "rgba(224,161,6,.5)" } : mode === "remove" ? { color: "#C0392B", borderColor: "rgba(192,57,58,.5)" } : { color: "var(--accent)", borderColor: "var(--accent)" };
               return <>
                 <button className="lk-btn" onClick={() => { const rows = list.map((e) => [e.ts, e.user, e.action, e.detail]); downloadFile(`FIN04-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows)); }}><Icon n="download" s={14} />Export audit (CSV)</button>
                 <button className="lk-btn" style={{ marginTop: 4 }} onClick={() => setAuditOpen((o) => !o)}><span style={{ display: "inline-flex", transform: auditOpen ? "rotate(90deg)" : "none", transition: "transform .12s" }}><Icon n="cr" s={13} /></span>{auditOpen ? "Hide" : "Show"} log ({list.length} {list.length === 1 ? "entry" : "entries"})</button>
                 {auditOpen && (list.length === 0
                   ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No actions match this selection.</div>
-                  : <div style={{ marginTop: 8 }}>{list.map((e) => <div key={e.id} className="lk-audit"><span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span><span className="m">{e.user} · {new Date(e.ts).toLocaleString("en-GB")}</span></div>)}</div>)}
+                  : <div style={{ marginTop: 8 }}>{list.map((e) => { const aff = affFor(e); return <div key={e.id} className="lk-audit" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                        <span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span>
+                        <span className="m">{e.user} {"\u00b7"} {new Date(e.ts).toLocaleString("en-GB")}</span>
+                      </div>
+                      {aff && aff.tag && <span style={tagSt(aff.done)}>{aff.tag}</span>}
+                      {aff && aff.btn && <button className="lk-btn" style={{ ...btnSt(aff.mode), flex: "none" }} onClick={() => { setRvErr(""); setRv({ e, snap: aff.snap, mode: aff.mode, laterN: aff.laterN }); }}>{aff.btn}</button>}
+                    </div>; })}</div>)}
               </>; })()}
           </>}
+          {rv && (() => {
+            const live = (S.activities || []).find((x) => x.id === rv.snap.activity_id) || null;
+            const isOvr = rv.mode === "override";
+            const before = rv.snap.before_row || {};
+            const after = rv.snap.after_row || {};
+            const dl = (rv.mode === "revert" || isOvr) ? rvDiffs(before, rvRowView(live)) : [];
+            const noChange = (rv.mode === "revert" || isOvr) && dl.length === 0;
+            const title = rv.mode === "restore" ? "Restore Activity" : rv.mode === "remove" ? "Remove Created Activity" : isOvr ? "Revert Change (Override)" : "Revert Change";
+            const keyRow = (k, l, src) => <div key={k} style={{ display: "contents" }}><div>{l}</div><div style={{ color: "#0E9384" }}>{rvFmt(k, src[k])}</div></div>;
+            return <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => !rvBusy && setRv(null)}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 540 }} onClick={(ev) => ev.stopPropagation()}>
+                <div className="lk-dh"><h3>{title}</h3><button className="lk-btn icon" onClick={() => setRv(null)}><Icon n="x" /></button></div>
+                <div className="bd" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, fontSize: 13 }}>
+                  {rv.mode === "restore" && <>
+                    <div>Restore <b>{before.descr || "this activity"}</b>, removed by <b>{rv.e.user}</b> at {new Date(rv.e.ts).toLocaleString("en-GB")}. It comes back with the same id, so predecessor and retest links survive.</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "6px 12px", fontSize: 12.5, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 9, padding: 12 }}>
+                      {keyRow("descr", "Description", before)}{keyRow("company_id", "Company", before)}{keyRow("start_date", "Planned Start", before)}{keyRow("duration", "Days (Calendar)", before)}{keyRow("status", "Status", before)}
+                    </div>
+                  </>}
+                  {rv.mode === "remove" && <div>Remove <b>{after.descr || "this activity"}</b>, created by <b>{rv.e.user}</b> at {new Date(rv.e.ts).toLocaleString("en-GB")}. The removal is recorded in the audit log and is itself revertible.</div>}
+                  {(rv.mode === "revert" || isOvr) && <>
+                    <div>Restore <b>{before.descr || "this activity"}</b> to its state before the change by <b>{rv.e.user}</b> at {new Date(rv.e.ts).toLocaleString("en-GB")}.{!live && " The activity no longer exists; reverting recreates it."}</div>
+                    {isOvr && rv.laterN > 0 && <div style={{ border: "1px solid rgba(224,161,6,.45)", background: "rgba(224,161,6,.07)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#E0A106" }}>{rv.laterN} later change{rv.laterN === 1 ? "" : "s"} to this activity will be overwritten. This restores the snapshot wholesale; it does not undo only the one change.</div>}
+                    {noChange
+                      ? <div style={{ fontSize: 12.5, color: "var(--muted)" }}>The current state already matches this snapshot. Nothing to revert.</div>
+                      : <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 1fr", gap: "6px 12px", fontSize: 12.5, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 9, padding: 12 }}>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", fontWeight: 700 }}>Field</div>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", fontWeight: 700 }}>Restores To</div>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", fontWeight: 700 }}>Currently</div>
+                          {dl.map((d) => <div key={d.k} style={{ display: "contents" }}><div>{d.l}</div><div style={{ color: "#0E9384" }}>{d.restore}</div><div style={{ color: "var(--muted)", textDecoration: "line-through" }}>{d.cur}</div></div>)}
+                        </div>}
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Unchanged fields are not touched. The revert is recorded in the audit log and is itself revertible.</div>
+                  </>}
+                  {rvErr && <div style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>{rvErr}</div>}
+                </div>
+                <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" disabled={rvBusy} onClick={() => setRv(null)}>Cancel</button>
+                  <button className="lk-btn primary" disabled={rvBusy || noChange} style={isOvr || rv.mode === "remove" ? { background: "#C0392B", borderColor: "#C0392B" } : undefined} onClick={doRevert}>
+                    <Icon n="check" s={14} />{rvBusy ? "Working..." : rv.mode === "restore" ? "Restore" : rv.mode === "remove" ? "Remove" : isOvr ? "Revert And Overwrite" : "Revert"}</button>
+                </div>
+              </div>
+            </div>; })()}
           {tab === "changelog" && <>
             <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />What changed in DLP, newest first. Each revision lists the changes shipped in it. Admin only.</div>
             <div style={{ marginTop: 6 }}>{CHANGELOG.map((r) => <div key={r.rev} style={{ marginBottom: 16 }}>
@@ -4310,25 +4409,25 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
           <tbody>
             {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
             {list.map((a, idx) => {
-              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete" && !isAdmin;
+              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete" && !isAdmin; const plk = lk || (ed && !!a.committed && !isAdmin);
               return <tr key={a.id} className={ed ? "ed" : ""}>
                 <td>{ed
                   ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
                   : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{isAdmin && <input type="checkbox" checked={sel.has(a.id)} onClick={(e) => clickRow(e, idx, a.id)} onChange={() => {}} title="Select; Shift-click to select a range" />}<button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button></span>}</td>
                 {C("code") && <td className="mono">#{a.code ?? "?"}</td>}
-                <td>{ed ? <input className="lk-in" style={cell} value={d.desc} disabled={lk} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
-                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin || lk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
-                {C("building") && <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} disabled={lk} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>}
-                {C("level") && <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area || lk} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>}
-                {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea || lk} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
-                {C("system") && <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} disabled={lk} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>}
-                {C("cx") && <td>{ed ? <select className="lk-select" style={cell} value={d.level} disabled={lk} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>}
-                {C("start") && <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} disabled={lk} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
-                {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} disabled={lk} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
-                {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} disabled={lk} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
+                <td>{ed ? <input className="lk-in" style={cell} value={d.desc} disabled={plk} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
+                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin || plk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
+                {C("building") && <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} disabled={plk} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>}
+                {C("level") && <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area || plk} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>}
+                {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea || plk} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
+                {C("system") && <td>{ed ? <select className="lk-select" style={cell} value={d.system || ""} disabled={plk} onChange={(e) => set("system", e.target.value)}><option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}</select> : a.system}</td>}
+                {C("cx") && <td>{ed ? <select className="lk-select" style={cell} value={d.level} disabled={plk} onChange={(e) => set("level", e.target.value)}>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select> : a.level}</td>}
+                {C("start") && <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} disabled={plk} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
+                {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} disabled={plk} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
+                {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} disabled={plk} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
                 {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>}
-                {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={lk} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
-                {C("witnessat") && <td>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={lk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
+                {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={plk} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
+                {C("witnessat") && <td>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={plk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
                 {C("notes") && <td style={{ width: 320, maxWidth: 320 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <div style={{ maxWidth: 320, whiteSpace: "normal", overflowWrap: "break-word", color: "var(--muted)" }}>{a.notes || ""}</div>}</td>}
               </tr>;
             })}
