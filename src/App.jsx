@@ -674,6 +674,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV71", date: "2026-07-02", items: ["Weekly DLP Report: new Invitation Outcomes section, on by default in Sections To Include under Planning Board. It reports witnessed events that reached an outcome in the period (keyed on the outcome date) with passed and failed counts and a failure-reason Pareto, plus first-time pass to date (programme level, retest chains counted once at the root, since a per-week rate over a handful of events would be noise)", "The auto-drafted executive summary now includes a witness outcomes sentence when events reached an outcome in the period, and drops it if the section is unticked", "Saved section preferences now merge with the defaults, so sections added in future revisions appear ticked for existing users instead of silently missing"] },
   { rev: "REV70", date: "2026-07-02", items: ["WILL and WIT chips restyled to the approved graphics everywhere they appear (board, popups, Schedule, Witness Schedule, drill lists): solid dark-blue WILL and solid purple WIT with light text. The printed Weekly Report badges use the same colours in both light and dark", "Consistency pass: Analytics section headers now use the Weekly Cx Progress style (small blue capitals with letter spacing, theme-aware). In the other direction, the Weekly Cx Progress drill popup now follows the Analytics popup styling: same corner radius and shadow, normal-case title with a header divider, and the calculation block and data tables rendered as card rows with the grey left edge", "New Activity / Edit Activity header text is now blue for contrast, and the same applies to every popup title on that pattern (Weekly Report window, Create Retest, and the rest) so titles read consistently across the app"] },
   { rev: "REV69", date: "2026-07-02", items: ["Milestones are now binary: the Status control offers only Planned and Complete for milestone-flagged activities, a single Achieved Date replaces Actual Start and Finish, and Percent Complete is locked (0 while Planned, 100 on Complete). Legacy milestones saved as In Progress read as Planned", "New Witness Outcome on activities marked Witness invite: Pending, Succeeded or Failed, recorded separately from schedule status. Failed requires a reason from a new witness-quality list and can create a linked retest that clones the discipline, company, location, system, assets and witness routing", "Failed witness events stay on the board ghosted: hatched fill, red edge, struck-through name and a red cross badge. They no longer carry forward, take overdue treatment or accept drag, resize or edits (admins can reopen the outcome). A dashed amber link joins a failed attempt to its retest, which wears a RETEST #n chip (the first retest is attempt #2, so RETEST #1)", "New Invitation Outcomes panel on Analytics beside Reasons For Non-Completion: Attempted, Succeeded, Failed, First-Time Pass (retest chains count once at the root) and a failure-reason Pareto, all clickable to drill. A footnote clarifies that a failed witness executed as committed still counts as a kept promise in PPC", "Export all activities now carries Witness outcome, Failure reason, Outcome date and Retest of columns. The witness invite export is deliberately unchanged so the Outlook macro keeps working"] },
   { rev: "REV68", date: "2026-06-29", items: ["Witness invite wording tidied: the subject and the opening line no longer wrap the activity name in quotes, the opening line reads as a normal sentence rather than capitals, each detail (Discipline, Cx Stage, Performing, Location, Planned start) sits on its own line, and the 'please forward' line now sits at the very bottom of the message"] },
@@ -4575,7 +4576,19 @@ function computeReport({ S, LV, coName, start, end }){
     .sort((a,b)=>(a.start||"").localeCompare(b.start||"")).slice(0,6);
   const schedule = la.filter((a)=>a.committed||a.status==="in_progress"||openOf(a)>0)
     .sort((a,b)=>(a.start||"").localeCompare(b.start||"")).slice(0,18);
-  return { start, end, ppc, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, milestones, schedule,
+  // Witness outcomes: attempted/passed/failed are outcomes RECORDED in the reporting period (keyed on
+  // outcome date). First-time pass is programme-to-date, because a per-week FTP over a handful of
+  // events is noise; retest chains count once at the root.
+  const invitesAll = acts.filter((a)=>a.witnessInvite);
+  const outInPeriod = invitesAll.filter((a)=>{ if ((a.outcome||"pending")==="pending" || !a.outcomeAt) return false; const t = parseD(a.outcomeAt).getTime(); return t >= start.getTime() && t <= end.getTime(); });
+  const woPassed = outInPeriod.filter((a)=>a.outcome==="succeeded").length;
+  const woFailed = outInPeriod.filter((a)=>a.outcome==="failed");
+  const woTally = {}; woFailed.forEach((a)=>{ const k = a.outcomeReason || "Unattributed"; woTally[k] = (woTally[k]||0)+1; });
+  const woRows = Object.entries(woTally).map(([name,n])=>({name,n})).sort((x,y)=>y.n-x.n);
+  const woRoots = invitesAll.filter((a)=>!a.retestOf && (a.outcome||"pending")!=="pending");
+  const woFtp = woRoots.length ? Math.round((woRoots.filter((a)=>a.outcome==="succeeded").length / woRoots.length) * 100) : null;
+  const witnessOut = { attempted: outInPeriod.length, passed: woPassed, failed: woFailed.length, failReasons: woRows, ftp: woFtp, roots: woRoots.length };
+  return { start, end, ppc, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, milestones, schedule, witnessOut,
            today, laStart:today, laEnd:addDays(today,27), finishOf, openOf, openCs, coName, LV };
 }
 
@@ -4589,6 +4602,7 @@ function draftSummary(r){
   s += ". ";
   s += r.cards.length ? `${r.cards.length} activit${r.cards.length===1?"y carries":"ies carry"} open constraints in the lookahead. ` : "No open constraints remain in the lookahead. ";
   if (r.reasons[0] && r.reasons[0].name !== "Unattributed") s += `The main driver of non-completion was ${r.reasons[0].name.toLowerCase()}. `;
+  if (r.witnessOut && r.witnessOut.attempted) s += `${r.witnessOut.passed} of ${r.witnessOut.attempted} witnessed event${r.witnessOut.attempted===1?"":"s"} passed in the period. `;
   const atRisk = r.milestones.find((m)=>r.openOf(m)>0);
   if (atRisk) s += `The ${atRisk.desc||"next"} milestone on ${fmtD(r.finishOf(atRisk))} is at risk pending open constraints.`;
   else if (r.milestones[0]) s += `Next milestone: ${r.milestones[0].desc||"milestone"} on ${fmtD(r.finishOf(r.milestones[0]))}.`;
@@ -4671,7 +4685,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const sumHtml = esc(summary).replace(/\n+/g,"<br>");
 
   // Dynamic section assembly: gate each block by `sections`, number contiguously, inject Cx block.
-  const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true }, sections||{});
+  const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, invites:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true }, sections||{});
   let _n = 0; const nn = () => String(++_n).padStart(2,"0");
   const sh = (title) => `<div class="sec-head"><span class="eyebrow">${nn()}</span><h2>${title}</h2><div class="rule"></div></div>`;
   const blocks = [];
@@ -4687,6 +4701,17 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   if (SEC.constraints) blocks.push(`<section>${sh("Open constraints")}<div class="cards">${cardsHtml}</div></section>`);
   if (SEC.reasons && SEC.byco) blocks.push(`<section><div class="twocol"><div>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></div><div>${sh("By contractor")}<div class="bars">${coHtml}</div></div></div></section>`);
   else { if (SEC.reasons) blocks.push(`<section>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></section>`); if (SEC.byco) blocks.push(`<section>${sh("By contractor")}<div class="bars">${coHtml}</div></section>`); }
+  if (SEC.invites) {
+    const w = r.witnessOut || { attempted:0, passed:0, failed:0, failReasons:[], ftp:null, roots:0 };
+    const maxWF = Math.max(1, ...w.failReasons.map((x)=>x.n));
+    const woBars = w.failReasons.length
+      ? w.failReasons.map((x)=>`<div class="barrow"><span class="nm">${esc(x.name)}</span><div class="track"><div class="fill" style="width:${Math.round(x.n/maxWF*100)}%;background:var(--red)"></div></div><span class="ct num">${x.n}</span></div>`).join("")
+      : (w.attempted ? `<div class="empty">No failed witness events in the period.</div>` : "");
+    const woLead = w.attempted
+      ? `<div class="wo-lead"><b>${w.attempted}</b> witnessed event${w.attempted===1?"":"s"} reached an outcome in the period: <b style="color:var(--green)">${w.passed}</b> passed, <b style="color:var(--red)">${w.failed}</b> failed. First-time pass to date: <b>${w.ftp==null?"&ndash;":w.ftp+"%"}</b>${w.roots?` of ${w.roots} first attempt${w.roots===1?"":"s"}`:""} (retest chains count once at the root).</div>`
+      : `<div class="empty">No witness outcomes recorded in the period.</div>`;
+    blocks.push(`<section>${sh("Invitation outcomes")}${woLead}${woBars?`<div class="bars">${woBars}</div>`:""}</section>`);
+  }
   if (SEC.bycx) blocks.push(`<section>${sh("By Cx stage")}<div class="bars">${cxHtml}</div></section>`);
   if (SEC.nextweek) blocks.push(`<section>${sh("Committed next week")}<div class="rows">${nwHtml}</div></section>`);
   if (SEC.milestones) blocks.push(`<section>${sh("Milestones ahead")}<div class="rows">${msHtml}</div></section>`);
@@ -4747,6 +4772,7 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .con .due{text-align:right;white-space:nowrap}.con .due .d{font-weight:600;font-size:12.5px}.con .due .dl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .due.ok .d{color:var(--ink-2)}.pip.ok{background:var(--green)}.due.soon .d{color:var(--amber)}.pip.soon{background:var(--amber)}.due.over .d{color:var(--red)}.pip.over{background:var(--red)}
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:26px}.bars{display:flex;flex-direction:column;gap:10px}
+.wo-lead{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 12px}.wo-lead b{color:var(--ink)}
 .barrow{display:grid;grid-template-columns:140px 1fr 26px;gap:10px;align-items:center;font-size:12.5px}.barrow .nm{color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .track{height:9px;background:var(--line-2);border-radius:999px;overflow:hidden}.fill{height:100%;border-radius:999px}.barrow .ct{text-align:right;font-weight:600}
 .rows{border:1px solid var(--line);border-radius:11px;overflow:hidden}.lrow{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:11px 16px}.lrow+.lrow{border-top:1px solid var(--line)}
@@ -4868,6 +4894,7 @@ function draftReportSummary({ r, sections, cxSnap, cxSel }){
   }
   if (r && SEC.constraints!==false && r.cards.length) parts.push(`${r.cards.length} activit${r.cards.length===1?"y carries":"ies carry"} open constraints in the lookahead.`);
   if (r && SEC.reasons!==false && r.reasons[0] && r.reasons[0].name!=="Unattributed") parts.push(`The main driver of non-completion was ${r.reasons[0].name.toLowerCase()}.`);
+  if (r && SEC.invites!==false && r.witnessOut && r.witnessOut.attempted) parts.push(`${r.witnessOut.passed} of ${r.witnessOut.attempted} witnessed event${r.witnessOut.attempted===1?"":"s"} passed in the period; first-time pass to date is ${r.witnessOut.ftp==null?"not yet measurable":r.witnessOut.ftp+"%"}.`);
   if (cxSnap){
     const cs = cxSel||{}, D = cxSnap.detail||{};
     if (cs.cxkpis!==false) parts.push(`On asset attainment, L1 red-tag reached ${Math.round((cxSnap.red_pct||0)*10)/10}% across ${(cxSnap.assets||0).toLocaleString()} assets, with L3 at ${Math.round((cxSnap.green_pct||0)*10)/10}%.`);
@@ -4877,9 +4904,9 @@ function draftReportSummary({ r, sections, cxSnap, cxSel }){
   return parts.join(" ");
 }
 
-const RPT_PLAN_SECTIONS = [["summary","Executive summary"],["ppc","Commitment reliability"],["kpis","Lookahead KPIs"],["constraints","Open constraint cards"],["reasons","Reasons for non-completion"],["breakdowns","By contractor / Cx stage"],["nextweek","Next week commitments"],["milestones","Milestones"],["schedule","Schedule snapshot"]];
+const RPT_PLAN_SECTIONS = [["summary","Executive summary"],["ppc","Commitment reliability"],["kpis","Lookahead KPIs"],["constraints","Open constraint cards"],["reasons","Reasons for non-completion"],["invites","Invitation outcomes"],["breakdowns","By contractor / Cx stage"],["nextweek","Next week commitments"],["milestones","Milestones"],["schedule","Schedule snapshot"]];
 const RPT_CX_SECTIONS = [["cxkpis","Cx attainment KPIs"],["scurve","Programme S-curve"],["funnel","Tag attainment funnel"],["bytype","Red tag by equipment"],["issues","Open issues by type"],["irl","IRL workflow"],["docs","Documentation register"],["cxmilestones","Cx milestones"],["risks","Risk register"],["attendance","Vendor attendance"]];
-const RPT_PLAN_DEFAULT = { summary:true, ppc:true, kpis:true, constraints:true, reasons:true, breakdowns:false, nextweek:false, milestones:true, schedule:true };
+const RPT_PLAN_DEFAULT = { summary:true, ppc:true, kpis:true, constraints:true, reasons:true, invites:true, breakdowns:false, nextweek:false, milestones:true, schedule:true };
 const RPT_CX_DEFAULT = { cxkpis:true, scurve:true, funnel:true, bytype:false, issues:false, irl:false, docs:true, cxmilestones:false, risks:true, attendance:false };
 
 // AI polish guard: the polished text may not introduce any number/percentage absent from the deterministic draft.
@@ -4890,7 +4917,7 @@ const rptNumbersOk = (draft, out) => { const D = new Set(rptNumTokens(draft)); r
 function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, variant }){
   const defWeek = useMemo(() => { const t = new Date(todayMid()); const dow = t.getDay(); const back = (dow - 5 + 7) % 7; const fri = addDays(t, -back); const mon = mondayOf(fri); return { start: mon, end: addDays(mon, 6) }; }, []);
   const prefKey = "dlp_report_sections_" + (projectId||"x");
-  const loadPref = () => { try { const j = JSON.parse(localStorage.getItem(prefKey)||"null"); if (j && j.plan && j.cx) return j; } catch(e){} return { plan:{...RPT_PLAN_DEFAULT}, cx:{...RPT_CX_DEFAULT} }; };
+  const loadPref = () => { try { const j = JSON.parse(localStorage.getItem(prefKey)||"null"); if (j && j.plan && j.cx) return { plan: { ...RPT_PLAN_DEFAULT, ...j.plan }, cx: { ...RPT_CX_DEFAULT, ...j.cx } }; } catch(e){} return { plan:{...RPT_PLAN_DEFAULT}, cx:{...RPT_CX_DEFAULT} }; };
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState("week");
   const [from, setFrom] = useState(fmtISO(defWeek.start));
