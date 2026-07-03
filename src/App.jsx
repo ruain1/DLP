@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV96", date: "2026-07-03", items: ["New Hide Complete pill on the board toolbar (beside Make-ready and YTT): hides activities marked Complete in both the Swimlane and the Gantt so open work stands out. Failed witness events stay visible even when complete, since they remain open questions until a retest closes them; the search counter counts within the focused set; a clear empty state appears when everything in the window is complete; and the choice persists with your other board preferences", "Strictly display-only, on the same scope contract as board search: KPI tiles, exports, the Weekly Report, digests and the Witness Schedule are never affected by the toggle"] },
   { rev: "REV95", date: "2026-07-03", items: ["Scheduled admin digests, sent from inside DLP: a daily update at 17:00 and a weekly update at 16:00 on Friday (Europe/Helsinki), emailed to all admin users from Ruain's connected Outlook session whenever his DLP tab is open. Each carries the changelog entries shipped in the window and Activity By Vendor with an itemised summary per user rendered verbatim from the audit trail; the weekly opens with the KPI strip and rolls high-churn verbs into counts with the largest movements named. Quiet days still send, so silence reads as signal", "Engineered guarantees: a database claim (report_runs, run the new report-runs.sql) makes duplicate sends across tabs impossible; a 72 hour catch-up sweep sends missed boundaries late instead of losing them, so a weekend away yields the digests on Monday's first open; Saturday's window starts at Friday 16:00 so no audit hour is skipped; send times are DST-proof. Accepted limits: a boundary with no DLP tab open sends late or, past 72 hours, not at all, and if the Microsoft session needs interactive refresh a toast asks for Connect Outlook and retries", "The server-side sender, its cron schedule and the pending IT credential request are all retired; the app keeps zero standing Microsoft permissions"] },
   { rev: "REV93", date: "2026-07-03", items: ["User invitations can now be emailed straight from DLP through your connected Outlook account, in the approved guided-steps design: Email Invite sits on the credentials card after adding a person or approving an access request, on the set-password link flow (as Your FIN04 DLP sign-in link), and Email All Created Invites sends the whole bulk batch one by one with per-row results. Links state their 30-day validity; temporary passwords are never emailed by design, copy remains the path for those", "Retest invitations now declare their history: subject reads RETEST INVITE with the attempt number, the header chip shows the attempt (and day for multi-day retests), and a red block above the details states the failed date and the recorded reason. Sending a retest whose failed attempt still holds a live invitation offers one click to also cancel it with a cross-reference comment, so attendees' calendars close the loop themselves", "Cancellation comments rewritten: a failed activity with a scheduled retest sends a comment naming the recorded reason and the retest's date and time; ordinary cancellations state plainly that the session is off and any replacement arrives separately", "New Test To Me on every Witness Schedule row: creates the real event with the real template and vendor logo in your own calendar only, no witnesses invited, nothing stamped, and the result line reports whether the logo deep-insert was accepted or the name-only fallback fired", "The CSV witness export and the Outlook macro path are retired: the export and Mark Sent buttons are gone from Reports and the Witness Schedule hint no longer mentions them. Invites now live entirely in the in-app Outlook flow; the SendWitnessInvites.bas macro on your machine is historical"] },
   { rev: "REV92", date: "2026-07-03", items: ["Report email body rebuilt to the approved Option A design: two-line branded header, accent-topped KPI tiles, the executive summary, a truthful Attached block, an Open DLP button (bulletproof table-cell pattern) and a clean footer, all in the email-safe subset", "Every report email and every classic Outlook draft now carries both themes as attachments, FIN04-weekly-report-<date>-light.html for printing and -dark.html for screens; the Appearance toggle now governs only the on-screen Generate Report", "The size guard works on the pair: dark is dropped first if the send would breach Graph's single-request ceiling, and the email body and the result line state exactly which files attached"] },
@@ -800,7 +801,7 @@ function defaults() {
     { id: "co4", name: "Baudouin" }, { id: "co5", name: "Daikin" }, { id: "co6", name: "IKM" },
   ];
   return {
-    theme: "light", view: "swimlane", grain: "day", laneBy: "company", currentUserId: "u1",
+    theme: "light", view: "swimlane", grain: "day", laneBy: "company", hideDone: false, currentUserId: "u1",
     companies,
     users: [
       { id: "u1", name: "R Burrows (QMC)", role: "admin", companyId: null },
@@ -1443,7 +1444,7 @@ export default function App({ session }) {
     try {
       const data = await loadAll(session, projectId, proj?.name);
       const p = prefs();
-      setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company" });
+      setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company", hideDone: !!p.hideDone });
     } catch (e) { console.error("Load failed:", e); }
   };
   const goPortal = () => { setSelProj(null); setS(null); setSwOpen(false); try { history.replaceState(null, "", location.pathname); } catch (e) {} boot(); };
@@ -1481,7 +1482,7 @@ export default function App({ session }) {
   useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
-  const PREF_KEYS = ["theme", "view", "grain", "laneBy"];
+  const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone"];
   const cu = S && (() => {
     const base = S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null };
     return { ...base, role: (isSuper || S.projectRole === "admin") ? "admin" : "member" };
@@ -1491,7 +1492,7 @@ export default function App({ session }) {
   // intentionally ignored and kept only as inline documentation of intent.
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
-    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy })); } catch (e) {} }
+    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone })); } catch (e) {} }
     syncCollections(prev, n, session, prev.projectId);
     return n;
   });
@@ -1889,7 +1890,15 @@ export default function App({ session }) {
   // forgotten search term can never truncate an export or skew the metrics.
   const boardQl = boardQ.trim().toLowerCase();
   const boardMatch = (a) => !boardQl || `${a.desc || ""} ${coName(a.companyId)} ${a.system || ""} ${a.asset || ""} ${locCode(a)}`.toLowerCase().includes(boardQl);
-  const boardShown = boardQl ? inWindow.filter(boardMatch) : inWindow;
+  // Hide Complete (REV96): a display-only focus filter with the same scope contract as search:
+  // lanes, Gantt, the counter and the empty states only; visible, KPIs, exports, reports and the
+  // Witness Schedule never see it. Failed witness events stay visible even when their status is
+  // complete: they are open questions until a retest closes them, and hiding them would defeat
+  // the point of a focus mode.
+  const doneHidden = (a) => !!S.hideDone && a.status === "complete" && !(a.witnessInvite && (a.outcome || "") === "failed");
+  const boardVis = (a) => boardMatch(a) && !doneHidden(a);
+  const inWindowShown = S.hideDone ? inWindow.filter((a) => !doneHidden(a)) : inWindow;
+  const boardShown = boardQl ? inWindowShown.filter(boardMatch) : inWindowShown;
 
   const laneOf = (a) => S.laneBy === "level" ? a.level : S.laneBy === "area" ? (a.area || "Unassigned") : S.laneBy === "subarea" ? (a.subArea || "Unassigned") : S.laneBy === "tier3" ? (a.tier3 || "Unassigned") : coName(a.companyId);
   const lanesList = (() => {
@@ -2271,7 +2280,7 @@ export default function App({ session }) {
             <input className="lk-in" style={{ width: 190, maxWidth: "36vw", paddingRight: boardQ ? 28 : 10 }} placeholder="Search activities..." value={boardQ} onChange={(e) => setBoardQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setBoardQ(""); }} />
             {boardQ && <button title="Clear search" onClick={() => setBoardQ("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", padding: 2 }}><Icon n="x" s={13} /></button>}
           </div>
-          {boardQl && <span className="mono" style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{boardShown.length} of {inWindow.length}</span>}
+          {boardQl && <span className="mono" style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{boardShown.length} of {inWindowShown.length}</span>}
         </div>
         <div className="lk-nav">
           <button className="lk-btn icon" onClick={() => setAnchor(addDays(anchor, -7))}><Icon n="cl" /></button>
@@ -2295,6 +2304,7 @@ export default function App({ session }) {
         </div>}
         <button className={"lk-btn pill" + (makeReady ? " on" : "")} onClick={() => setMakeReady((v) => !v)}><Icon n="cross" s={14} />Make-ready</button>
         <button className={"lk-btn pill" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
+        <button className={"lk-btn pill" + (S.hideDone ? " on" : "")} title="Hide activities marked Complete so open work stands out. Failed witness events stay visible until their retest closes them. Board display only: KPIs, reports, exports and the Witness Schedule are unaffected." onClick={() => setS((prev) => ({ ...prev, hideDone: !prev.hideDone }))}><Icon n="check" s={14} />Hide Complete</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
         <div className="lk-spacer" />
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
@@ -2331,9 +2341,10 @@ export default function App({ session }) {
 
         {inWindow.length === 0 && <div className="lk-empty">Nothing planned in this window. Click a cell or press Activity to add one.</div>}
         {inWindow.length > 0 && boardQl && boardShown.length === 0 && <div className="lk-empty">No activities match "{boardQ}" in this window. Clear the search or widen it.</div>}
+        {inWindow.length > 0 && !boardQl && S.hideDone && inWindowShown.length === 0 && <div className="lk-empty">Everything in this window is marked Complete. Turn off Hide Complete to see it.</div>}
 
         {S.view === "swimlane" && lanesList.map((lane) => {
-          const la = visible.filter((a) => a.inWin && laneOf(a) === lane && boardMatch(a)).sort((a, b) => a.startOff - b.startOff || (a.retestOf ? 0 : 1) - (b.retestOf ? 0 : 1));
+          const la = visible.filter((a) => a.inWin && laneOf(a) === lane && boardVis(a)).sort((a, b) => a.startOff - b.startOff || (a.retestOf ? 0 : 1) - (b.retestOf ? 0 : 1));
           if (la.length === 0 && (S.laneBy !== "level" || boardQl)) return null;
           const effEndU = (a) => { let e = eU(a); if (isFailedInvite(a)) { if (a.outcomeOff != null) { const fo = grain === "day" ? a.outcomeOff : Math.floor(a.outcomeOff / 7); if (fo > e) e = fo; } return e; } if (a.status === "complete") return e; if (!a.excuse && (a.delayed || a.totalShift > 0)) { let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7); if (a.delayed && todayUnit > ee) ee = todayUnit; if (ee > e) e = ee; } return e; };
           // First-fit packing, with one preference: a retest takes its failed parent's row whenever that
@@ -2371,7 +2382,7 @@ export default function App({ session }) {
             </div>);
         })}
 
-        {S.view === "gantt" && visible.filter((a) => a.inWin && boardMatch(a)).sort((a, b) => a.startOff - b.startOff || a.level.localeCompare(b.level)).map((a) => {
+        {S.view === "gantt" && visible.filter((a) => a.inWin && boardVis(a)).sort((a, b) => a.startOff - b.startOff || a.level.localeCompare(b.level)).map((a) => {
           const lv = lvOf(LV, a.level);
           return (
             <div key={a.id} className="lk-grow" style={{ gridTemplateColumns: gridCols, minWidth: minW }}>
