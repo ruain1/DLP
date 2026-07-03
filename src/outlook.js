@@ -14,19 +14,23 @@ const SITE_TZ = "Europe/Helsinki";
 
 let msal = null;
 let ready = null;
+let pendingHash;   // auth response hash captured synchronously by the app before boot rewrote the URL
+export function primeRedirectHash(h) { if (!msal) pendingHash = h || undefined; }
 const app = () => {
   if (!msal) {
     msal = new PublicClientApplication({
-      auth: { clientId: CLIENT_ID, authority: "https://login.microsoftonline.com/" + TENANT_ID, redirectUri: window.location.origin },
+      // navigateToLoginRequestUrl false: the app restores its own state from ?p=, so after the
+      // redirect return we stay put instead of MSAL bouncing the page a second time.
+      auth: { clientId: CLIENT_ID, authority: "https://login.microsoftonline.com/" + TENANT_ID, redirectUri: window.location.origin, navigateToLoginRequestUrl: false },
       cache: { cacheLocation: "localStorage" },
     });
-    // initialize, then absorb a redirect return if one is in the URL hash. This is what makes the
-    // popup-blocked fallback (loginRedirect) land: without handleRedirectPromise the tokens in the
-    // return hash would never be captured.
+    // initialize, then absorb a redirect return. The hash is passed in explicitly (primeRedirectHash)
+    // because the app's boot rewrites the URL with history.replaceState("?p=...") before this lazy
+    // chunk can read location.hash, which silently destroyed redirect sign-ins.
     ready = msal.initialize()
-      .then(() => msal.handleRedirectPromise())
-      .then((res) => { if (res && res.account) msal.setActiveAccount(res.account); return null; })
-      .catch(() => null);
+      .then(() => msal.handleRedirectPromise(pendingHash))
+      .then((res) => { pendingHash = undefined; if (res && res.account) msal.setActiveAccount(res.account); return null; })
+      .catch(() => { pendingHash = undefined; return null; });
   }
   return msal;
 };
@@ -240,4 +244,43 @@ export function buildReportEmailHtml(p) {
     + `<tr><td style="padding:14px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${TPL.blue};background-color:${TPL.blueSoft};padding:9px 14px;font-size:12px;color:${TPL.blueInk};${FSTACK}">${note}</td></tr></table></td></tr>`
     + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Generated from DLP by ${eH(p.by || "")} &#183; FIN04 &#183; atnorth Koski &#183; CSN Commissioning</td></tr>`
     + `</table>`;
+}
+
+// ---- REV89: classic Outlook draft (.eml with X-Unsent: 1) ----
+// A downloaded .eml carrying X-Unsent: 1 opens in classic Outlook as an editable draft with the
+// attachment in place; the user reviews and presses Send from their own mailbox. Pure client-side:
+// no Graph call, no sign-in. CRLF line endings per RFC 5322. Known limit: new Outlook handles
+// this unreliably (may drop the attachment); classic is the target, which is where the macro
+// already lives.
+const wrap76 = (b64) => b64.replace(/(.{76})/g, "$1\r\n");
+const hdrWord = (s) => (/[^\x20-\x7e]/.test(s) ? "=?utf-8?B?" + b64utf8(s) + "?=" : s);
+export function buildReportEml({ subject, to, bodyHtml, attachment }) {
+  const boundary = "----=_DLP_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const addr = (r) => {
+    const n = (r.name || "").trim();
+    return n && /^[\x20-\x7e]+$/.test(n) && !/[,<>\"]/.test(n) ? n + " <" + r.email + ">" : r.email;
+  };
+  const toHdr = (to || []).filter((r) => r && r.email).map(addr).join(", ");
+  const lines = [
+    "X-Unsent: 1",
+    toHdr ? "To: " + toHdr : null,
+    "Subject: " + hdrWord(subject),
+    "MIME-Version: 1.0",
+    'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+    "",
+    "--" + boundary,
+    'Content-Type: text/html; charset="utf-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrap76(b64utf8(bodyHtml)),
+    "--" + boundary,
+    'Content-Type: text/html; charset="utf-8"; name="' + attachment.name + '"',
+    'Content-Disposition: attachment; filename="' + attachment.name + '"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrap76(b64utf8(attachment.html)),
+    "--" + boundary + "--",
+    "",
+  ].filter((l) => l !== null);
+  return lines.join("\r\n");
 }
