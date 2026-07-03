@@ -690,6 +690,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV87", date: "2026-07-03", items: ["Witness invites and the weekly report email now wear the approved styled templates, built entirely in the email-safe subset (nested tables, inline styles) so classic Outlook's Word engine, new Outlook, OWA and Gmail all render them: branded FIN04 header bar, labelled details table, a conditional amber open-constraints callout, notes and an organiser footer on invites; header bar, a KPI strip (PPC, Delayed, Witness Passed, Make-Ready, each tile dropping with its unticked section), the executive summary and the attachment callout on the report email", "The responsible vendor's logo now appears on the invite as a CID inline attachment fetched from the company's stored light-surface asset, measured at send time so Outlook receives true width and height attributes, with the company name as alt text so clients that strip images degrade to text. Deep-inserting the attachment at event creation is not explicitly documented by Graph, so a rejected send automatically retries without the logo and the invite always goes out; each session records whether its event carries the logo so later updates rebuild the matching body", "Meeting updates never resend attachments; the creation-time logo persists on the event"] },
   { rev: "REV86", date: "2026-07-03", items: ["The Weekly DLP Report now emails itself: Email Report in the report window sends from the signed-in admin's Outlook account (delegated Mail.Send, granted by CSN IT) to the saved distribution list, replacing the old mailto draft that asked for a hand-attached PDF. A copy lands in the sender's Sent Items", "The email body is a deliberately email-safe rendering (title, period, the executive summary) because desktop Outlook renders HTML with the Word engine; the full report, exactly as Generate Report produces it including the chosen appearance and Cx sections, travels as an HTML attachment that opens pixel-perfect in any browser", "Send Test To Me delivers the identical email to the sender alone, marked [TEST], for a safe dry run before the distribution list sees anything", "A size guard keeps the send inside Graph's single-request ceiling: a report too large to attach still sends the summary and says so, rather than failing", "Connect Outlook in the report window shares the same Microsoft session as the Witness Schedule; one sign-in covers invites and report emails"] },
   { rev: "REV85", date: "2026-07-03", items: ["Witness invites can now be sent directly from the Witness Schedule (admins): Connect Outlook signs in with the CSN Microsoft account (delegated, PKCE, no secret) and the signed-in admin becomes the organiser. Creating the calendar event sends the invitations, one event per session day, in Europe/Helsinki wall-clock time so Exchange owns the DST maths", "Every witness row carries a live status: Not Sent, Sent with date, Partially Sent with per-day pills for multi-day series, Details Changed when the date, time, duration, name, location or recipient routing moved after sending, and Cancellation Sent. Update Invite reconciles in one click: changed days are updated, added days sent, surplus days cancelled, and attendees receive the changes automatically", "Cancel sends a proper calendar cancellation to all attendees, with confirmation first. Recording a Failed outcome deliberately does not auto-cancel; a Cancel Outlook Invite button sits in the editor beside Create Retest for when it is wanted", "Send All Pending sends every unsent event in the selected period in one pass. Sending stamps the activity's Sent marker, so the CSV export and the Outlook macro (both untouched, kept as the fallback) skip anything already sent from the app", "Graph event ids are stored per day on the activity (new witness_events column; run witness-events.sql before pushing). Push order: witness-events.sql in Supabase, then package.json, src/outlook.js, src/data.js, and App.jsx last"] },
   { rev: "REV84", date: "2026-07-03", items: ["Rescheduled milestones no longer lose their trail when the origin date scrolls off the window: the red dotted line now clamps to the window edge on the origin side, wearing a chevron to say it continues off screen and, when the visible span allows, a small mono chip stating the origin date (from 26 Jun). Hover still carries the full original date. When both ends are in the window nothing changes", "The same chevron and origin chip were added to the bar trail's clipped end, which already clamped to the edge but gave no cue that the line continued off screen", "The chip drops automatically on spans too short to carry it, falling back to the tooltip"] },
@@ -1357,6 +1358,7 @@ export default function App({ session }) {
   const [olAcct, setOlAcct] = useState(null);      // connected Outlook account (email) or null
   const [olBusy, setOlBusy] = useState(null);      // activity id currently sending, or "bulk"
   const [olMsg, setOlMsg] = useState(null);        // { ok, text } result line in the popup
+  const vendorLogoCache = useRef({});              // company id -> fetched CID logo payload or null
   useEffect(() => {
     if (!witSched) return;
     let live = true;
@@ -1560,21 +1562,48 @@ export default function App({ session }) {
     if (es.length < n) return "partial";
     return "sent";
   };
-  const invPayload = (a, dayIdx) => {
+  // Plain fields per session day; the styled HTML body is assembled by the shared template in
+  // outlook.js (buildInviteBodyHtml), in the email-safe subset, with the vendor logo as a CID.
+  const invFields = (a, dayIdx) => {
     const { to, cc } = witnessRecipients(a.discipline || []);
     const n = Math.max(1, a.witnessDays || 1);
     const sd = new Date(a.witnessAt); sd.setDate(sd.getDate() + dayIdx);   // calendar arithmetic, DST-safe (REV82)
+    const mins = a.witnessDurationMin || 60;
+    const ed = new Date(sd.getTime() + mins * 60000);
+    const hm = (d) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
     const title = a.desc || "Activity";
-    const open = (a.constraints || []).filter((c) => !c.done).length;
     return {
       subject: `FIN04 - INVITE FOR ${title}` + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
-      bodyHtml: `<p>Witness invitation issued from DLP.</p><p><b>Activity:</b> ${escH(title)}${a.code != null ? " (#" + a.code + ")" : ""}<br/><b>Location:</b> ${escH(locCode(a))}<br/><b>Company:</b> ${escH(coName(a.companyId))}<br/><b>Cx Stage:</b> ${escH(a.level)}<br/><b>System:</b> ${escH(a.system || "-")}<br/><b>Discipline:</b> ${escH((a.discipline || []).join("; "))}${open ? `<br/><b>Open constraints:</b> ${open}` : ""}</p>${a.notes ? `<p>${escH(a.notes)}</p>` : ""}`,
-      location: locCode(a),
-      startLocal: sd,
-      durationMin: a.witnessDurationMin || 60,
-      required: to || [],
-      optional: cc || [],
+      title, code: a.code != null ? String(a.code) : "",
+      location: locCode(a), companyName: coName(a.companyId), cxStage: a.level, system: a.system || "-",
+      discipline: (a.discipline || []).join("; "),
+      sessionsLine: (n > 1 ? `${n} daily sessions, ` : "") + `${hm(sd)} to ${hm(ed)} (Europe/Helsinki)`,
+      openCount: (a.constraints || []).filter((c) => !c.done).length,
+      notes: a.notes || "", dayLabel: n > 1 ? `Day ${dayIdx + 1} of ${n}` : "",
+      startLocal: sd, durationMin: mins, required: to || [], optional: cc || [],
     };
+  };
+  // Fetch the responsible vendor's light-surface logo once per company, measured so Outlook
+  // gets real width and height attributes (CSS sizing is ignored by the Word engine). Any
+  // failure caches null and the invite degrades to the company name in text.
+  const fetchVendorLogo = async (co) => {
+    if (!co || !co.id) return null;
+    const cache = vendorLogoCache.current;
+    if (cache[co.id] !== undefined) return cache[co.id];
+    const url = co.logoUrl || co.logoDark || "";
+    if (!url) { cache[co.id] = null; return null; }
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("logo fetch " + res.status);
+      const blob = await res.blob();
+      if (blob.size > 200000) throw new Error("logo over 200KB");
+      const bmp = await createImageBitmap(blob);
+      const width = Math.min(124, Math.max(1, Math.round(bmp.width * 24 / bmp.height)));
+      if (bmp.close) bmp.close();
+      const b64 = await new Promise((res2, rej) => { const r = new FileReader(); r.onload = () => res2(String(r.result).split(",")[1]); r.onerror = () => rej(new Error("logo read failed")); r.readAsDataURL(blob); });
+      const out = { name: "vendor-logo.png", contentType: blob.type || "image/png", contentBytes: b64, width };
+      cache[co.id] = out; return out;
+    } catch (e) { cache[co.id] = null; return null; }
   };
   const persistInv = (a, witnessEvents, action, detail) => update((p) => ({ ...p, activities: p.activities.map((x) => (x.id === a.id ? { ...x, witnessEvents, witnessSentAt: witnessEvents.some((e) => e.status !== "cancelled") ? (x.witnessSentAt || new Date().toISOString()) : x.witnessSentAt } : x)) }), { action, detail });
   // mode: "send" reconciles (create missing days, update mismatched, cancel surplus); "cancel" cancels all active sessions.
@@ -1596,17 +1625,31 @@ export default function App({ session }) {
         persistInv(a, [...cancelled, ...active.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled witness invites", `${a.desc || ""} (${active.length} session${active.length === 1 ? "" : "s"})`);
         setOlMsg({ ok: true, text: `Cancellation sent for ${a.desc || "activity"} (${active.length} session${active.length === 1 ? "" : "s"}).` });
       } else {
+        const co = (S.companies || []).find((c) => c.id === a.companyId) || null;
+        const logo = await fetchVendorLogo(co);
+        const mk = (dayIdx, wantLogo) => {
+          const f = invFields(a, dayIdx);
+          const useLogo = !!(wantLogo && logo);
+          return { ...f,
+            bodyHtml: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: useLogo ? { width: logo.width, alt: f.companyName } : null }),
+            bodyHtmlNoLogo: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: null }),
+            inlineLogo: useLogo ? logo : null };
+        };
         const keep = [];
         for (const e of active) {
           if (e.day >= n) { await ol.cancelWitnessEvent(e.eventId, "Session removed: witness days reduced in DLP."); cancelled.push({ ...e, status: "cancelled" }); done.push(`day ${e.day + 1} cancelled`); continue; }
-          if (e.hash !== h) { await ol.updateWitnessEvent(e.eventId, invPayload(a, e.day)); keep.push({ ...e, hash: h, sentAt: new Date().toISOString(), organiser: acct.username }); done.push(`day ${e.day + 1} updated`); }
+          if (e.hash !== h) {
+            const f = mk(e.day, !!e.logo);
+            await ol.updateWitnessEvent(e.eventId, { ...f, bodyHtml: e.logo && logo ? f.bodyHtml : f.bodyHtmlNoLogo });
+            keep.push({ ...e, hash: h, sentAt: new Date().toISOString(), organiser: acct.username }); done.push(`day ${e.day + 1} updated`);
+          }
           else keep.push(e);
         }
         const have = new Set(keep.map((e) => e.day));
         for (let d = 0; d < n; d++) {
           if (have.has(d)) continue;
-          const id = await ol.sendWitnessEvent(invPayload(a, d));
-          keep.push({ day: d, eventId: id, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
+          const r = await ol.sendWitnessEvent(mk(d, true));
+          keep.push({ day: d, eventId: r.id, logo: !!r.logo, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
           done.push(`day ${d + 1} sent`);
         }
         persistInv(a, [...cancelled, ...keep.sort((x, y) => x.day - y.day)], "Sent witness invites", `${a.desc || ""}: ${done.join(", ")}`);
@@ -5431,16 +5474,13 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
       const contentBytes = ol.b64utf8(full);
       const tooBig = contentBytes.length > 3400000;   // ~2.5 MB binary once base64 bloat is counted; sendMail single-request ceiling is 4 MB total
       const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
-      const escR = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-      const paras = String(summaryVal || "").trim().split(/\n{2,}/).filter(Boolean).map((p) => '<p style="margin:0 0 10px;line-height:1.55">' + escR(p).replace(/\n/g, "<br/>") + "</p>").join("");
-      const bodyHtml = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:680px">'
-        + '<h2 style="font-size:18px;margin:0 0 4px;color:#111827">FIN04 Weekly DLP Report</h2>'
-        + '<p style="margin:0 0 14px;color:#6b7280;font-size:12.5px">' + escR(lbl) + " \u00b7 generated from DLP by " + escR(by || acct.username) + "</p>"
-        + (paras || '<p style="margin:0 0 10px">Weekly DLP report for the period.</p>')
-        + (tooBig
-          ? '<p style="margin:16px 0 0;font-size:12.5px;color:#374151">The full report exceeded the email attachment limit; open DLP for the complete sections and charts.</p>'
-          : '<p style="margin:16px 0 0;font-size:12.5px;color:#374151">The full report is attached as an HTML file; open it in any browser for the complete sections and charts.</p>')
-        + "</div>";
+      // KPI strip wired from the same figures the report computes; tiles drop with unticked sections.
+      const tiles = [];
+      if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
+      if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "#C0392B" });
+      if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "#0E9384" });
+      if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "#E0A106" });
+      const bodyHtml = ol.buildReportEmailHtml({ periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles, tooBig });
       await ol.sendMailMessage({
         subject: (testOnly ? "[TEST] " : "") + "FIN04 Weekly DLP Report, " + lbl,
         html: bodyHtml,
