@@ -358,6 +358,21 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .wsch-conhdr{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#E0A106;font-weight:700;margin-top:9px}
 .wsch-con{display:flex;align-items:flex-start;gap:8px;font-size:12px;margin-top:5px;line-height:1.35}
 .wsch-con .cdot{width:7px;height:7px;border-radius:50%;background:#E0A106;margin-top:5px;flex:0 0 auto}
+.wsch-olbar{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--line);font-size:12px;flex-shrink:0;flex-wrap:wrap}
+.wsch-acct{border:1px solid rgba(107,155,242,.5);color:var(--accent);background:rgba(107,155,242,.1);border-radius:6px;padding:2px 8px;font-weight:700;font-size:11px}
+.wsch-olhint{color:var(--muted);font-size:11.5px}
+.wsch-olmsg{padding:7px 18px;font-size:11.5px;border-bottom:1px solid var(--line);color:#0E9384;background:rgba(14,147,132,.07);flex-shrink:0}
+.wsch-olmsg.err{color:#C0392B;background:rgba(192,57,58,.07)}
+.wsch-st{display:inline-block;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.3px;width:max-content}
+.wsch-st.notsent{background:var(--chipbg);color:var(--muted);border:1px solid var(--line)}
+.wsch-st.sent{background:rgba(14,147,132,.13);color:#0E9384;border:1px solid rgba(14,147,132,.45)}
+.wsch-st.changed{background:rgba(224,161,6,.12);color:#E0A106;border:1px solid rgba(224,161,6,.5)}
+.wsch-st.partial{background:rgba(224,161,6,.12);color:#E0A106;border:1px solid rgba(224,161,6,.5)}
+.wsch-st.cancelled{background:rgba(192,57,58,.11);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
+.wsch-act{display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:center}
+.wsch-dpill{border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:9.5px;font-weight:700;color:var(--muted)}
+.wsch-dpill.s{border-color:rgba(14,147,132,.5);color:#0E9384}
+.wsch-btnrow{display:flex;gap:6px}
 @media (max-width:760px){.ytt-cols{grid-template-columns:1fr}.ytt-col{border-right:0;border-bottom:1px solid var(--line)}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
 .cal-dow{padding:6px 8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
@@ -675,6 +690,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV85", date: "2026-07-03", items: ["Witness invites can now be sent directly from the Witness Schedule (admins): Connect Outlook signs in with the CSN Microsoft account (delegated, PKCE, no secret) and the signed-in admin becomes the organiser. Creating the calendar event sends the invitations, one event per session day, in Europe/Helsinki wall-clock time so Exchange owns the DST maths", "Every witness row carries a live status: Not Sent, Sent with date, Partially Sent with per-day pills for multi-day series, Details Changed when the date, time, duration, name, location or recipient routing moved after sending, and Cancellation Sent. Update Invite reconciles in one click: changed days are updated, added days sent, surplus days cancelled, and attendees receive the changes automatically", "Cancel sends a proper calendar cancellation to all attendees, with confirmation first. Recording a Failed outcome deliberately does not auto-cancel; a Cancel Outlook Invite button sits in the editor beside Create Retest for when it is wanted", "Send All Pending sends every unsent event in the selected period in one pass. Sending stamps the activity's Sent marker, so the CSV export and the Outlook macro (both untouched, kept as the fallback) skip anything already sent from the app", "Graph event ids are stored per day on the activity (new witness_events column; run witness-events.sql before pushing). Push order: witness-events.sql in Supabase, then package.json, src/outlook.js, src/data.js, and App.jsx last"] },
   { rev: "REV84", date: "2026-07-03", items: ["Rescheduled milestones no longer lose their trail when the origin date scrolls off the window: the red dotted line now clamps to the window edge on the origin side, wearing a chevron to say it continues off screen and, when the visible span allows, a small mono chip stating the origin date (from 26 Jun). Hover still carries the full original date. When both ends are in the window nothing changes", "The same chevron and origin chip were added to the bar trail's clipped end, which already clamped to the edge but gave no cue that the line continued off screen", "The chip drops automatically on spans too short to carry it, falling back to the tooltip"] },
   { rev: "REV83", date: "2026-07-03", items: ["Retests now take priority in lane row packing: a retest claims its failed parent's row whenever that row is free from the retest's start, and wins same-day ties against ordinary activities, so an attempt chain reads as one horizontal line: card, failure tail, X, amber connector, retest. Chains of retests inherit the same row. Previously an unrelated activity starting the same day could steal the parent's row, dropping the retest to another line and losing the connector, which only draws same-row"] },
   { rev: "REV82", date: "2026-07-03", items: ["Failed witness events now show a frozen failure tail: a red hatched tail runs from the planned card to the recorded outcome date with the X badge at the failure point, so the board reads planned here, failed there. The tail is anchored to the outcome date and never grows", "A failed event whose planned week has scrolled off the window now carries as a hatched ghost from the window edge to its outcome date, and drops off only once the window is past the failure. This replaces both the REV81 hard cutoff at the planned week and the pre-REV81 unbounded carry", "The retest connector now starts beyond the failure tail rather than the planned finish, and lane row packing reserves space through the tail so neighbouring bars cannot overlap it", "DST fix for multi-day witness invitations: session days are now advanced with calendar arithmetic instead of adding 24-hour blocks of milliseconds, which drifted the start time by one hour across the Europe/Helsinki clock changes (25 Oct 2026, 28 Mar 2027). The invite export, the Witness Schedule date range and the editor's session summary are all corrected", "The editor now warns when the witness date, or the last day of a multi-day series, falls outside the activity's planned span, and points to Reschedule, so a moved witness event can no longer silently drift away from its card on the board"] },
@@ -1337,6 +1353,15 @@ export default function App({ session }) {
   const [ytt, setYtt] = useState(false);
   const [witSched, setWitSched] = useState(false);
   const [witPeriod, setWitPeriod] = useState("4w");
+  const [olAcct, setOlAcct] = useState(null);      // connected Outlook account (email) or null
+  const [olBusy, setOlBusy] = useState(null);      // activity id currently sending, or "bulk"
+  const [olMsg, setOlMsg] = useState(null);        // { ok, text } result line in the popup
+  useEffect(() => {
+    if (!witSched) return;
+    let live = true;
+    import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); if (live) setOlAcct(acct ? acct.username : null); }).catch(() => {});
+    return () => { live = false; };
+  }, [witSched]);
   const [boardQ, setBoardQ] = useState("");   // board search: display filter only, never touches visible/KPIs/exports
   const [resize, setResize] = useState(null);
   const [metricDrill, setMetricDrill] = useState(null);
@@ -1510,6 +1535,89 @@ export default function App({ session }) {
 
   const isAdmin = cu.role === "admin";
   const csnCompanyId = cu.companyId ? cu.companyId : (cu.role === "admin" ? (((S.companies || []).find((c) => (c.name || "").trim().toLowerCase() === "csn") || {}).id || null) : null);
+
+  // ---- REV85: Outlook invite engine (delegated Graph; organiser = signed-in admin) ----
+  const escH = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // Snapshot of the invite-relevant fields. A later change to any of them flips the row to
+  // Details Changed. Day count is handled structurally (entries vs witnessDays), not hashed,
+  // so adding a day offers Send Remaining instead of re-sending everything.
+  const invHash = (a) => {
+    const { to, cc } = witnessRecipients(a.discipline || []);
+    const s = JSON.stringify([a.desc || "", locCode(a), a.witnessAt || "", a.witnessDurationMin || 60, (to || []).slice().sort(), (cc || []).slice().sort()]);
+    let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return String(h);
+  };
+  const invEntries = (a) => (Array.isArray(a.witnessEvents) ? a.witnessEvents : []);
+  const invActive = (a) => invEntries(a).filter((e) => e.status !== "cancelled");
+  // notsent | sent | changed | partial | cancelled
+  const invState = (a) => {
+    const n = Math.max(1, a.witnessDays || 1);
+    const es = invActive(a);
+    if (!es.length) return invEntries(a).length ? "cancelled" : "notsent";
+    const h = invHash(a);
+    if (es.some((e) => e.hash !== h) || es.some((e) => e.day >= n)) return "changed";
+    if (es.length < n) return "partial";
+    return "sent";
+  };
+  const invPayload = (a, dayIdx) => {
+    const { to, cc } = witnessRecipients(a.discipline || []);
+    const n = Math.max(1, a.witnessDays || 1);
+    const sd = new Date(a.witnessAt); sd.setDate(sd.getDate() + dayIdx);   // calendar arithmetic, DST-safe (REV82)
+    const title = a.desc || "Activity";
+    const open = (a.constraints || []).filter((c) => !c.done).length;
+    return {
+      subject: `FIN04 - INVITE FOR ${title}` + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
+      bodyHtml: `<p>Witness invitation issued from DLP.</p><p><b>Activity:</b> ${escH(title)}${a.code != null ? " (#" + a.code + ")" : ""}<br/><b>Location:</b> ${escH(locCode(a))}<br/><b>Company:</b> ${escH(coName(a.companyId))}<br/><b>Cx Stage:</b> ${escH(a.level)}<br/><b>System:</b> ${escH(a.system || "-")}<br/><b>Discipline:</b> ${escH((a.discipline || []).join("; "))}${open ? `<br/><b>Open constraints:</b> ${open}` : ""}</p>${a.notes ? `<p>${escH(a.notes)}</p>` : ""}`,
+      location: locCode(a),
+      startLocal: sd,
+      durationMin: a.witnessDurationMin || 60,
+      required: to || [],
+      optional: cc || [],
+    };
+  };
+  const persistInv = (a, witnessEvents, action, detail) => update((p) => ({ ...p, activities: p.activities.map((x) => (x.id === a.id ? { ...x, witnessEvents, witnessSentAt: witnessEvents.some((e) => e.status !== "cancelled") ? (x.witnessSentAt || new Date().toISOString()) : x.witnessSentAt } : x)) }), { action, detail });
+  // mode: "send" reconciles (create missing days, update mismatched, cancel surplus); "cancel" cancels all active sessions.
+  const runInv = async (a, mode) => {
+    if (!isAdmin || olBusy) return;
+    if (mode === "cancel" && !window.confirm(`Send a cancellation to all attendees for "${a.desc || "this activity"}"?`)) return;
+    setOlBusy(a.id); setOlMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const acct = await ol.outlookAccount();
+      if (!acct) throw new Error("Outlook is not connected.");
+      const n = Math.max(1, a.witnessDays || 1);
+      const h = invHash(a);
+      const active = invActive(a).slice().sort((x, y) => x.day - y.day);
+      const cancelled = invEntries(a).filter((e) => e.status === "cancelled");
+      const done = [];
+      if (mode === "cancel") {
+        for (const e of active) { await ol.cancelWitnessEvent(e.eventId, "Witness event cancelled via DLP."); }
+        persistInv(a, [...cancelled, ...active.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled witness invites", `${a.desc || ""} (${active.length} session${active.length === 1 ? "" : "s"})`);
+        setOlMsg({ ok: true, text: `Cancellation sent for ${a.desc || "activity"} (${active.length} session${active.length === 1 ? "" : "s"}).` });
+      } else {
+        const keep = [];
+        for (const e of active) {
+          if (e.day >= n) { await ol.cancelWitnessEvent(e.eventId, "Session removed: witness days reduced in DLP."); cancelled.push({ ...e, status: "cancelled" }); done.push(`day ${e.day + 1} cancelled`); continue; }
+          if (e.hash !== h) { await ol.updateWitnessEvent(e.eventId, invPayload(a, e.day)); keep.push({ ...e, hash: h, sentAt: new Date().toISOString(), organiser: acct.username }); done.push(`day ${e.day + 1} updated`); }
+          else keep.push(e);
+        }
+        const have = new Set(keep.map((e) => e.day));
+        for (let d = 0; d < n; d++) {
+          if (have.has(d)) continue;
+          const id = await ol.sendWitnessEvent(invPayload(a, d));
+          keep.push({ day: d, eventId: id, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
+          done.push(`day ${d + 1} sent`);
+        }
+        persistInv(a, [...cancelled, ...keep.sort((x, y) => x.day - y.day)], "Sent witness invites", `${a.desc || ""}: ${done.join(", ")}`);
+        setOlMsg({ ok: true, text: `${a.desc || "Activity"}: ${done.length ? done.join(", ") : "already up to date"}. Organiser ${acct.username}.` });
+      }
+    } catch (err) {
+      setOlMsg({ ok: false, text: (err && err.message) || String(err) });
+    }
+    setOlBusy(null);
+  };
+  const connectOl = async () => { try { const m = await import("./outlook"); const acct = await m.connectOutlook(); setOlAcct(acct ? acct.username : null); setOlMsg(null); } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); } };
+  const disconnectOl = async () => { try { const m = await import("./outlook"); await m.disconnectOutlook(); } catch (e) { } setOlAcct(null); };
   const myConstraints = (() => {
     const out = [];
     (S.activities || []).forEach((a) => (a.constraints || []).forEach((c) => {
@@ -2148,7 +2256,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -2254,10 +2362,25 @@ export default function App({ session }) {
                 <select value={witPeriod} onChange={(e) => setWitPeriod(e.target.value)}>{periodOpts.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
                 <span style={{ marginLeft: "auto" }}>{list.length} witness point{list.length === 1 ? "" : "s"}</span>
               </div>
+              {isAdmin && (() => {
+                const pending = list.filter(({ a }) => ["notsent", "partial"].includes(invState(a))).map((x) => x.a);
+                const bulkSend = async () => { setOlMsg(null); for (const a of pending) { await runInv(a, "send"); } };
+                return <div className="wsch-olbar">
+                  {olAcct
+                    ? <><span className="wsch-acct">Outlook: {olAcct}</span><span className="wsch-olhint">Invites are organised by this account.</span>
+                        <span style={{ marginLeft: "auto" }} />
+                        <button className="lk-btn primary" style={{ fontSize: 12 }} disabled={!!olBusy || pending.length === 0} onClick={bulkSend}>{olBusy === "bulk" ? "Sending..." : `Send All Pending (${pending.length})`}</button>
+                        <button className="lk-btn" style={{ fontSize: 12 }} disabled={!!olBusy} onClick={disconnectOl}>Disconnect</button></>
+                    : <><span className="wsch-olhint">Send invites directly from DLP through your CSN Outlook account. One click per event; reschedules send updates and cancellations follow automatically. The CSV export and macro remain available underneath.</span>
+                        <span style={{ marginLeft: "auto" }} />
+                        <button className="lk-btn primary" style={{ fontSize: 12 }} onClick={connectOl}>Connect Outlook</button></>}
+                </div>;
+              })()}
+              {isAdmin && olMsg && <div className={"wsch-olmsg" + (olMsg.ok ? "" : " err")}>{olMsg.text}</div>}
               <div className="wsch-list">
                 {list.length === 0 ? <div className="ytt-empty" style={{ textAlign: "center", padding: 18 }}>No witness activities in this period.</div> :
                   list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt);
-                    return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: isClientViewer ? "118px 1fr auto" : undefined }}>
+                    return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: (isClientViewer || isAdmin) ? "118px 1fr auto" : undefined }}>
                       <div className="wsch-when">
                         <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d); ed2.setDate(ed2.getDate() + (n - 1)); return f(d) + " - " + f(ed2); })()}</span>
                         <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
@@ -2275,6 +2398,22 @@ export default function App({ session }) {
                               {open.map((c) => <div key={c.id} className="wsch-con"><span className="cdot" /><span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span></div>)}</>
                           : <div className="ytt-ready">No open constraints</div>}
                       </div>
+                      {isAdmin && !isClientViewer && (() => {
+                        const st = invState(a); const nD = Math.max(1, a.witnessDays || 1); const es = invActive(a);
+                        const busy = !!olBusy && (olBusy === a.id || olBusy === "bulk");
+                        const lbl = st === "sent" ? "Sent " + new Date((es[0] || {}).sentAt || Date.now()).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                          : st === "changed" ? "Details Changed" : st === "partial" ? "Partially Sent" : st === "cancelled" ? "Cancellation Sent" : "Not Sent";
+                        const btn = { fontSize: 11.5, padding: "4px 10px" };
+                        return <div className="wsch-act">
+                          <span className={"wsch-st " + st}>{lbl}</span>
+                          {nD > 1 && st !== "notsent" && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 150 }}>{Array.from({ length: nD }, (_, d) => { const e = es.find((x) => x.day === d); return <span key={d} className={"wsch-dpill" + (e ? " s" : "")}>{"D" + (d + 1) + (e ? " sent" : " pending")}</span>; })}</div>}
+                          <div className="wsch-btnrow">
+                            {["notsent", "partial", "changed", "cancelled"].includes(st) && <button className="lk-btn primary" style={btn} disabled={!olAcct || busy} title={!olAcct ? "Connect Outlook first" : undefined} onClick={() => runInv(a, "send")}>{busy ? "Working..." : st === "changed" ? "Update Invite" : st === "partial" ? "Send Remaining" : st === "cancelled" ? "Send Again" : "Send"}</button>}
+                            {st === "sent" && <button className="lk-btn" style={btn} disabled title="Nothing has changed since this invite was sent">Update</button>}
+                            {es.length > 0 && st !== "cancelled" && <button className="lk-btn" style={{ ...btn, color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} disabled={!olAcct || busy} onClick={() => runInv(a, "cancel")}>Cancel</button>}
+                          </div>
+                        </div>;
+                      })()}
                       {isClientViewer && (() => { const r = myInviteFor(a.id); return <div style={{ alignSelf: "center" }}>{r
                         ? <button className="lk-btn" disabled title="Already requested">{r.status === "forwarded" ? "Invite Forwarded" : "Invite Requested"}</button>
                         : <button className="lk-btn primary" onClick={() => requestInvite(a)}><Icon n="mail" s={14} />Request Invite</button>}</div>; })()}
@@ -2311,7 +2450,7 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete }) {
+function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete, hasLiveInvite, onCancelInvite }) {
   const [a, setA] = useState(act);
   const [rtOpen, setRtOpen] = useState(false);
   const [rtName, setRtName] = useState("");
@@ -2609,6 +2748,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
                   <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Create Linked Retest</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 9 }}>Clones this activity as a new witness invitation linked back to this record, so the attempt history stays connected and first-time-pass stays computable. You can also save without a retest and add one later.</div>
                   <button className="lk-btn primary" disabled={incomplete} onClick={openRetest} title={incomplete ? "Complete the required fields first" : "Create a linked retest"}>Create Retest</button>
+                  {isAdmin && hasLiveInvite && onCancelInvite && <button className="lk-btn" style={{ color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} onClick={() => onCancelInvite(act)} title="Send a calendar cancellation to all attendees of this witness event (deliberately manual: a failure recorded mid-session should not vaporise the meeting)">Cancel Outlook Invite</button>}
                 </div>)}
           </div>}
           {a.isMilestone

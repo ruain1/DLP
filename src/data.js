@@ -11,6 +11,7 @@ const fromActivity = (r) => ({
   code: r.code ?? null, predecessors: Array.isArray(r.predecessors) ? r.predecessors : [],
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
   reschedules: Array.isArray(r.reschedules) ? r.reschedules : [],
+  witnessEvents: Array.isArray(r.witness_events) ? r.witness_events : [],
 });
 const toActivity = (a, session, isNew) => {
   const row = {
@@ -20,7 +21,7 @@ const toActivity = (a, session, isNew) => {
     outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_notes: a.outcomeNotes || null, outcome_at: a.outcomeAt || null, retest_of: a.retestOf || null,
     sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, discipline: (Array.isArray(a.discipline) ? a.discipline.join("; ") : (a.discipline || "")) || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, witness_duration_min: (a.witnessDurationMin == null ? 60 : a.witnessDurationMin), witness_days: (a.witnessDays == null ? 1 : Math.max(1, a.witnessDays)), witness_sent_at: a.witnessSentAt || null, notes: a.notes || null, slip_reason: a.slipReason || null,
     code: isNew ? null : (a.code ?? null), predecessors: a.predecessors || [],
-    constraints: a.constraints || [], reschedules: a.reschedules || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
+    constraints: a.constraints || [], reschedules: a.reschedules || [], witness_events: a.witnessEvents || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
   };
   if (isNew) row.created_by = session.user.id;
   return row;
