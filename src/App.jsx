@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV100", date: "2026-07-03", items: ["New Admin Update Emails card at the top of Reports (admins only): shows when the daily and weekly digests last went out and to how many recipients, plus your Outlook connection, with Send Weekly Update Now and Send Daily Update Now buttons. Manual sends go to all admins from your own connected Outlook, target the most recent boundary with its correct fixed window, complete a stuck claim if one exists, and ask before re-sending a digest that already went out", "Scheduler liveness fix: a digest claim orphaned in the sending state (for example a reload killing the tab mid-send) used to block that boundary silently and forever; the scheduler now adopts claims stuck for over ten minutes and finishes them. The digest content assembly is now one shared path for the scheduler and the manual buttons, so the two can never drift apart"] },
   { rev: "REV99", date: "2026-07-03", items: ["Fix: Email Invite from the Resend set-password link card was sending to the person's display name instead of their address (Exchange refused to resolve it), because that flow stored the name where the other flows store the email. The card now carries the real address from the roster's status lookup, the emailer refuses a name-shaped address with plain guidance instead of an Exchange error, and the Outlook transport drops any recipient without an @ so the readable no-valid-recipients message fires first. Add, approve and bulk flows were unaffected"] },
   { rev: "REV98", date: "2026-07-03", items: ["Critical fix: invitation emails from the bulk Email All Created Invites, the credentials card's Email Invite, the set-password link flow, the approve auto-send and the scheduled admin digests were all failing at the transport layer (recipient addresses were being serialised without the address field, so Outlook rejected every send), while the bulk screen wrongly reported success. The transport now accepts both address shapes and refuses addressless sends with a readable error", "The bulk results now tell the truth: each row shows Emailed or Email failed (hover a failed row for the reason) and the completion message reports exact counts, for example Invitations emailed: 4 of 5, instead of announcing success unconditionally. The Weekly Report emails were unaffected throughout"] },
   { rev: "REV97", date: "2026-07-03", items: ["Approve And Invite now does what it says: approving an access request also sends the invitation email (the approved guided-steps template, link only, never a password) from your connected Outlook as part of the same action, and the modal states this. If Outlook is not connected or the send fails, the message says exactly what happened and the credentials card's Email Invite button is the retry path. The Add User path deliberately stays manual: there you initiate, so nothing is emailed until you press Email Invite"] },
@@ -1759,28 +1760,23 @@ export default function App({ session }) {
         if (!test) {
           const ins = await supabase.from("report_runs").insert({ kind: b.kind, run_date: runDate, status: "sending", recipients: 0 }).select("id").single();
           if (ins.error) {
-            if (ins.error.code === "23505" || /duplicate|unique/i.test(ins.error.message || "")) continue;   // another tab or already sent
-            setDigestNote({ ok: false, text: "Digest claim failed: " + ins.error.message }); return;
-          }
-          claimId = ins.data.id;
+            if (ins.error.code === "23505" || /duplicate|unique/i.test(ins.error.message || "")) {
+              // A row exists. Usually another tab, or already sent. But a claim stuck in
+              // "sending" (a reload killed the sender between claim and cleanup) would block
+              // this boundary forever, so adopt stale claims older than ten minutes and
+              // finish their job instead of treating them as done.
+              const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("kind", b.kind).eq("run_date", runDate).maybeSingle();
+              if (ex.data && ex.data.status === "sending" && (Date.now() - new Date(ex.data.sent_at).getTime()) > 600000) claimId = ex.data.id;
+              else continue;
+            } else { setDigestNote({ ok: false, text: "Digest claim failed: " + ins.error.message }); return; }
+          } else claimId = ins.data.id;
         }
         try {
-          const win = core.windowFor(b.kind, b.due);
-          const audQ = await supabase.from("audit_log").select("ts, user_name, action, detail, entity, entity_id").gte("ts", win.start.toISOString()).lt("ts", win.end.toISOString()).order("ts");
-          if (audQ.error) throw new Error("audit query: " + audQ.error.message);
-          const audit = (audQ.data || []).map((e) => ({ ts: e.ts, user: e.user_name || "Unknown", action: e.action || "", detail: e.detail || "", entity: e.entity || "", entityId: e.entity_id }));
-          const profiles = (St.users || []).map((u) => ({ id: u.id, name: u.name, role: u.role, companyId: u.companyId }));
-          const companiesM = new Map((St.companies || []).map((c) => [c.id, c.name]));
-          const actsM = new Map((St.activities || []).map((x) => [x.id, { code: x.code, desc: x.desc || "", companyId: x.companyId }]));
-          const vendors = core.assembleVendors(audit, profiles, companiesM, actsM, b.kind);
-          const clRows = core.changelogRows(CHANGELOG.map((e) => ({ rev: e.rev, date: e.date, items: e.items || [] })), core.helDateStr(win.start), core.helDateStr(win.end), b.kind);
-          const kpi = b.kind === "weekly" ? core.weeklyKpis(core.actRowsFromClient(St.activities || []), core.helDateStr(new Date(win.end.getTime() - 6 * 86400000)), core.helDateStr(win.end), core.helDateStr(new Date())) : null;
-          const html = core.buildDigestHtml({ kind: b.kind, dateLine: core.dateLineFor(b.kind, win), changelog: clRows, vendors, kpi, appUrl: window.location.origin });
-          const subject = core.subjectFor(b.kind, core.subjectLabelFor(b.kind, win));
-          const us = await fetchUserStatus();
-          const admins = profiles.filter((p) => p.role === "admin");
-          const missing = [];
-          let recipients = admins.map((p) => { const em = us[p.id] && us[p.id].email; if (!em) missing.push(p.name); return em; }).filter(Boolean);
+          const asm = await assembleDigest(core, St, b.kind, b.due);
+          const subject = asm.subject, html = asm.html;
+          const rr = await resolveDigestRecipients(St);
+          const missing = rr.missing;
+          let recipients = rr.recipients;
           if (test) recipients = [acct.username];
           if (!recipients.length) throw new Error("no admin email addresses resolved");
           await ol.sendMailMessage({ subject, html, to: recipients });
@@ -5793,6 +5789,105 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   </>);
 }
 
+// ---- REV100: shared digest assembly, used by the automatic scheduler and the manual triggers ----
+// One source of truth for content: window, audit pull, summaries, template, subject. The two
+// callers differ only in claim semantics (strict for the scheduler, adopt-or-confirm for manual).
+async function assembleDigest(core, St, kind, due) {
+  const win = core.windowFor(kind, due);
+  const audQ = await supabase.from("audit_log").select("ts, user_name, action, detail, entity, entity_id").gte("ts", win.start.toISOString()).lt("ts", win.end.toISOString()).order("ts");
+  if (audQ.error) throw new Error("audit query: " + audQ.error.message);
+  const audit = (audQ.data || []).map((e) => ({ ts: e.ts, user: e.user_name || "Unknown", action: e.action || "", detail: e.detail || "", entity: e.entity || "", entityId: e.entity_id }));
+  const profiles = (St.users || []).map((u) => ({ id: u.id, name: u.name, role: u.role, companyId: u.companyId }));
+  const companiesM = new Map((St.companies || []).map((c) => [c.id, c.name]));
+  const actsM = new Map((St.activities || []).map((x) => [x.id, { code: x.code, desc: x.desc || "", companyId: x.companyId }]));
+  const vendors = core.assembleVendors(audit, profiles, companiesM, actsM, kind);
+  const clRows = core.changelogRows(CHANGELOG.map((e) => ({ rev: e.rev, date: e.date, items: e.items || [] })), core.helDateStr(win.start), core.helDateStr(win.end), kind);
+  const kpi = kind === "weekly" ? core.weeklyKpis(core.actRowsFromClient(St.activities || []), core.helDateStr(new Date(win.end.getTime() - 6 * 86400000)), core.helDateStr(win.end), core.helDateStr(new Date())) : null;
+  const html = core.buildDigestHtml({ kind, dateLine: core.dateLineFor(kind, win), changelog: clRows, vendors, kpi, appUrl: window.location.origin });
+  const subject = core.subjectFor(kind, core.subjectLabelFor(kind, win));
+  return { win, html, subject };
+}
+async function resolveDigestRecipients(St) {
+  const us = await fetchUserStatus();
+  const admins = (St.users || []).filter((p) => p.role === "admin");
+  const missing = [];
+  const recipients = admins.map((p) => { const em = us[p.id] && us[p.id].email; if (!em) missing.push(p.name); return em; }).filter(Boolean);
+  return { recipients, missing };
+}
+function AdminDigestCard({ S }) {
+  const [runs, setRuns] = useState(null);
+  const [acct, setAcct] = useState(null);
+  const [busyK, setBusyK] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const load = async () => {
+    try {
+      const [d, w] = await Promise.all([
+        supabase.from("report_runs").select("*").eq("kind", "daily").order("run_date", { ascending: false }).limit(1),
+        supabase.from("report_runs").select("*").eq("kind", "weekly").order("run_date", { ascending: false }).limit(1),
+      ]);
+      setRuns({ daily: (d.data || [])[0] || null, weekly: (w.data || [])[0] || null });
+    } catch (e) { setRuns({ daily: null, weekly: null }); }
+    try { const ol = await import("./outlook"); const a = await ol.outlookAccount(); setAcct(a ? a.username : null); } catch (e) { setAcct(null); }
+  };
+  useEffect(() => { load(); }, []);
+  const fmtRun = (r) => {
+    if (!r) return "never sent";
+    const t = new Date(r.sent_at);
+    const when = t.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
+    return r.status === "sent" ? ("sent " + when + " to " + r.recipients + " recipient" + (r.recipients === 1 ? "" : "s")) : (r.status + " since " + when + "; Send Now completes it");
+  };
+  const sendNow = async (kind) => {
+    setBusyK(kind); setMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const a = await ol.outlookAccount();
+      if (!a) throw new Error("Connect Outlook first: open the Weekly Report window or the Witness Schedule and press Connect Outlook, then retry.");
+      const core = await import("./digestCore");
+      const all = core.dueBoundaries(new Date(), 9 * 24).filter((b) => b.kind === kind);
+      if (!all.length) throw new Error("No " + kind + " boundary found in the last 9 days.");
+      const due = all[all.length - 1].due;
+      const runDate = core.helDateStr(due);
+      let claimId = null; let resend = false;
+      const ex = await supabase.from("report_runs").select("id, status, sent_at, recipients").eq("kind", kind).eq("run_date", runDate).maybeSingle();
+      if (ex.data) {
+        if (ex.data.status === "sent") {
+          const t = new Date(ex.data.sent_at);
+          if (!window.confirm("The " + kind + " update for " + runDate + " was already sent at " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + " to " + ex.data.recipients + " recipient" + (ex.data.recipients === 1 ? "" : "s") + ". Send it again to all admins?")) { setBusyK(null); return; }
+          resend = true;
+        }
+        claimId = ex.data.id;
+      } else {
+        const ins = await supabase.from("report_runs").insert({ kind, run_date: runDate, status: "sending", recipients: 0 }).select("id").single();
+        if (ins.error) throw new Error("claim: " + ins.error.message);
+        claimId = ins.data.id;
+      }
+      const asm = await assembleDigest(core, S, kind, due);
+      const rr = await resolveDigestRecipients(S);
+      if (!rr.recipients.length) throw new Error("no admin email addresses resolved");
+      await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
+      await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " \u00b7 no email for: " + rr.missing.join(", ") : "") + (resend ? " \u00b7 resent manually" : " \u00b7 sent manually") }).eq("id", claimId);
+      setMsg({ ok: true, text: (kind === "daily" ? "Daily" : "Weekly") + " update sent to " + rr.recipients.length + " admin" + (rr.recipients.length === 1 ? "" : "s") + " from " + a.username + "." + (rr.missing.length ? " No email on file for: " + rr.missing.join(", ") + "." : "") });
+      load();
+    } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
+    setBusyK(null);
+  };
+  return <div className="lk-rep-sec" style={{ marginBottom: 14 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ fontWeight: 700, fontSize: 13.5 }}>Admin Update Emails</div>
+      <span style={{ fontSize: 11, color: "var(--muted)" }}>Internal digests to all admins; separate from the stakeholder Weekly Report. Automatic sends run from the designated session at 17:00 daily and Friday 16:00; these buttons send now, from your connected Outlook.</span>
+    </div>
+    <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 8, fontSize: 12 }}>
+      <div><span style={{ color: "var(--muted)" }}>Weekly: </span><span className="mono">{runs ? fmtRun(runs.weekly) : "loading"}</span></div>
+      <div><span style={{ color: "var(--muted)" }}>Daily: </span><span className="mono">{runs ? fmtRun(runs.daily) : "loading"}</span></div>
+      <div><span style={{ color: "var(--muted)" }}>Outlook: </span><span className="mono">{acct || "not connected"}</span></div>
+    </div>
+    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+      <button className="lk-btn" disabled={!!busyK} onClick={() => sendNow("weekly")}><Icon n="mail" s={13} />{busyK === "weekly" ? "Sending..." : "Send Weekly Update Now"}</button>
+      <button className="lk-btn" disabled={!!busyK} onClick={() => sendNow("daily")}><Icon n="mail" s={13} />{busyK === "daily" ? "Sending..." : "Send Daily Update Now"}</button>
+    </div>
+    {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.ok ? "#0E9384" : "#C0392B" }}>{msg.text}</div>}
+  </div>;
+}
 function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, by, projectId }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
@@ -5924,6 +6019,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, by, pro
         <button className="lk-btn" onClick={exportMetrics}><Icon n="download" s={14} />Metrics (Excel)</button>
         <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>
       </div>
+      {isAdmin && <AdminDigestCard S={S} />}
       {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
