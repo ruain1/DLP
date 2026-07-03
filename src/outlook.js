@@ -20,7 +20,13 @@ const app = () => {
       auth: { clientId: CLIENT_ID, authority: "https://login.microsoftonline.com/" + TENANT_ID, redirectUri: window.location.origin },
       cache: { cacheLocation: "localStorage" },
     });
-    ready = msal.initialize();
+    // initialize, then absorb a redirect return if one is in the URL hash. This is what makes the
+    // popup-blocked fallback (loginRedirect) land: without handleRedirectPromise the tokens in the
+    // return hash would never be captured.
+    ready = msal.initialize()
+      .then(() => msal.handleRedirectPromise())
+      .then((res) => { if (res && res.account) msal.setActiveAccount(res.account); return null; })
+      .catch(() => null);
   }
   return msal;
 };
@@ -31,11 +37,30 @@ export async function outlookAccount() {
   return accts.length ? accts[0] : null;
 }
 
+
+// True when MSAL failed because the browser refused to open the sign-in window
+// (popup blocker or enterprise policy). Codes per aka.ms/msal.js.errors.
+const isPopupBlocked = (e) => {
+  const c = (e && (e.errorCode || e.code)) || "";
+  const m = (e && e.message) || "";
+  return c === "popup_window_error" || c === "empty_window_error" || /popup_window_error|empty_window_error|blocked/i.test(m);
+};
 export async function connectOutlook() {
   const m = app(); await ready;
-  const res = await m.loginPopup({ scopes: SCOPES, prompt: "select_account" });
-  if (res && res.account) m.setActiveAccount(res.account);
-  return res.account;
+  try {
+    const res = await m.loginPopup({ scopes: SCOPES, prompt: "select_account" });
+    if (res && res.account) m.setActiveAccount(res.account);
+    return res.account;
+  } catch (e) {
+    if (isPopupBlocked(e)) {
+      // Full-page redirect sign-in: immune to popup blockers. The browser leaves this page;
+      // on return, ready() absorbs the response and the account is in the cache. Callers get
+      // null and should do nothing, navigation is already in flight.
+      await m.loginRedirect({ scopes: SCOPES, prompt: "select_account" });
+      return null;
+    }
+    throw e;
+  }
 }
 
 export async function disconnectOutlook() {
@@ -51,8 +76,17 @@ async function token() {
     const r = await m.acquireTokenSilent({ scopes: SCOPES, account });
     return r.accessToken;
   } catch (e) {
-    const r = await m.acquireTokenPopup({ scopes: SCOPES, account });
-    return r.accessToken;
+    try {
+      const r = await m.acquireTokenPopup({ scopes: SCOPES, account });
+      return r.accessToken;
+    } catch (e2) {
+      if (isPopupBlocked(e2)) {
+        // Deliberately no redirect here: a full-page redirect mid-send would abandon
+        // partially-sent state and risk duplicate invites on retry.
+        throw new Error("Your Microsoft session needs a refresh and the browser blocked the sign-in window. Press Connect Outlook to sign in again (it will use a full-page redirect if the popup is blocked), then retry this action.");
+      }
+      throw e2;
+    }
   }
 }
 

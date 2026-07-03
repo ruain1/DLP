@@ -690,6 +690,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV88", date: "2026-07-03", items: ["Connect Outlook now survives popup blockers: when the browser refuses the Microsoft sign-in popup (the popup_window_error seen on corporate machines and under enterprise policy), the app automatically falls back to a full-page redirect sign-in and returns to DLP signed in. The redirect return is absorbed at boot, so the account is connected on the next open of the Witness Schedule or report window", "A blocked popup during a token refresh mid-send deliberately does not redirect (a full-page navigation there would abandon partially-sent invites and risk duplicates); it stops with a clear instruction to press Connect Outlook and retry", "Raw MSAL error strings no longer surface for this case"] },
   { rev: "REV87", date: "2026-07-03", items: ["Witness invites and the weekly report email now wear the approved styled templates, built entirely in the email-safe subset (nested tables, inline styles) so classic Outlook's Word engine, new Outlook, OWA and Gmail all render them: branded FIN04 header bar, labelled details table, a conditional amber open-constraints callout, notes and an organiser footer on invites; header bar, a KPI strip (PPC, Delayed, Witness Passed, Make-Ready, each tile dropping with its unticked section), the executive summary and the attachment callout on the report email", "The responsible vendor's logo now appears on the invite as a CID inline attachment fetched from the company's stored light-surface asset, measured at send time so Outlook receives true width and height attributes, with the company name as alt text so clients that strip images degrade to text. Deep-inserting the attachment at event creation is not explicitly documented by Graph, so a rejected send automatically retries without the logo and the invite always goes out; each session records whether its event carries the logo so later updates rebuild the matching body", "Meeting updates never resend attachments; the creation-time logo persists on the event"] },
   { rev: "REV86", date: "2026-07-03", items: ["The Weekly DLP Report now emails itself: Email Report in the report window sends from the signed-in admin's Outlook account (delegated Mail.Send, granted by CSN IT) to the saved distribution list, replacing the old mailto draft that asked for a hand-attached PDF. A copy lands in the sender's Sent Items", "The email body is a deliberately email-safe rendering (title, period, the executive summary) because desktop Outlook renders HTML with the Word engine; the full report, exactly as Generate Report produces it including the chosen appearance and Cx sections, travels as an HTML attachment that opens pixel-perfect in any browser", "Send Test To Me delivers the identical email to the sender alone, marked [TEST], for a safe dry run before the distribution list sees anything", "A size guard keeps the send inside Graph's single-request ceiling: a report too large to attach still sends the summary and says so, rather than failing", "Connect Outlook in the report window shares the same Microsoft session as the Witness Schedule; one sign-in covers invites and report emails"] },
   { rev: "REV85", date: "2026-07-03", items: ["Witness invites can now be sent directly from the Witness Schedule (admins): Connect Outlook signs in with the CSN Microsoft account (delegated, PKCE, no secret) and the signed-in admin becomes the organiser. Creating the calendar event sends the invitations, one event per session day, in Europe/Helsinki wall-clock time so Exchange owns the DST maths", "Every witness row carries a live status: Not Sent, Sent with date, Partially Sent with per-day pills for multi-day series, Details Changed when the date, time, duration, name, location or recipient routing moved after sending, and Cancellation Sent. Update Invite reconciles in one click: changed days are updated, added days sent, surplus days cancelled, and attendees receive the changes automatically", "Cancel sends a proper calendar cancellation to all attendees, with confirmation first. Recording a Failed outcome deliberately does not auto-cancel; a Cancel Outlook Invite button sits in the editor beside Create Retest for when it is wanted", "Send All Pending sends every unsent event in the selected period in one pass. Sending stamps the activity's Sent marker, so the CSV export and the Outlook macro (both untouched, kept as the fallback) skip anything already sent from the app", "Graph event ids are stored per day on the activity (new witness_events column; run witness-events.sql before pushing). Push order: witness-events.sql in Supabase, then package.json, src/outlook.js, src/data.js, and App.jsx last"] },
@@ -1365,6 +1366,13 @@ export default function App({ session }) {
     import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); if (live) setOlAcct(acct ? acct.username : null); }).catch(() => {});
     return () => { live = false; };
   }, [witSched]);
+  useEffect(() => {
+    // Returning from a popup-blocked redirect sign-in: the auth response sits in the URL hash and
+    // is only absorbed when the outlook module runs handleRedirectPromise, so trigger it at boot.
+    if (/[#&](code|error|error_description)=/.test(window.location.hash || "")) {
+      import("./outlook").then((m) => m.outlookAccount()).then((acct) => { if (acct) setOlAcct(acct.username); }).catch(() => {});
+    }
+  }, []);
   const [boardQ, setBoardQ] = useState("");   // board search: display filter only, never touches visible/KPIs/exports
   const [resize, setResize] = useState(null);
   const [metricDrill, setMetricDrill] = useState(null);
@@ -1660,7 +1668,7 @@ export default function App({ session }) {
     }
     setOlBusy(null);
   };
-  const connectOl = async () => { try { const m = await import("./outlook"); const acct = await m.connectOutlook(); setOlAcct(acct ? acct.username : null); setOlMsg(null); } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); } };
+  const connectOl = async () => { try { const m = await import("./outlook"); const acct = await m.connectOutlook(); if (acct) { setOlAcct(acct.username); setOlMsg(null); } } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); } };
   const disconnectOl = async () => { try { const m = await import("./outlook"); await m.disconnectOutlook(); } catch (e) { } setOlAcct(null); };
   const myConstraints = (() => {
     const out = [];
@@ -5454,7 +5462,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
     catch(e) { setRecipMsg("Copy failed; select the addresses manually."); }
   };
   const connectRep = async () => {
-    try { const ol = await import("./outlook"); const acct = await ol.connectOutlook(); setRepOl(acct ? acct.username : null); setRepMsg(null); }
+    try { const ol = await import("./outlook"); const acct = await ol.connectOutlook(); if (acct) { setRepOl(acct.username); setRepMsg(null); } }
     catch (err) { setRepMsg({ ok: false, text: (err && err.message) || String(err) }); }
   };
   // Sends the report from the signed-in account. Body: email-safe summary (Outlook desktop
