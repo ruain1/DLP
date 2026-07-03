@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV96",
+  "date": "2026-07-03",
+  "items": [
+   "New Hide Complete pill on the board toolbar (beside Make-ready and YTT): hides activities marked Complete in both the Swimlane and the Gantt so open work stands out. Failed witness events stay visible even when complete, since they remain open questions until a retest closes them; the search counter counts within the focused set; a clear empty state appears when everything in the window is complete; and the choice persists with your other board preferences",
+   "Strictly display-only, on the same scope contract as board search: KPI tiles, exports, the Weekly Report, digests and the Witness Schedule are never affected by the toggle"
+  ]
+ },
+ {
   "rev": "REV95",
   "date": "2026-07-03",
   "items": [
