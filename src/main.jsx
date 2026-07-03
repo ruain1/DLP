@@ -35,4 +35,18 @@ function Root() {
   if (!session) return <Login />;
   return <App session={session} />;
 }
-createRoot(document.getElementById("root")).render(<Root />);
+// REV90: MSAL auth landing guard (Microsoft's documented pattern for SPAs whose redirectUri is
+// the app root). When this page loads as the redirect target inside the sign-in popup or inside
+// MSAL's hidden token-renewal iframe, booting the app would strip the auth response from the URL
+// (enterProject replaceStates "?p=..."), starving the opener or parent frame of the result. So:
+// auth response present AND we are a child window or frame -> render a static line, leave the URL
+// untouched, and let the opener read the hash and close this window. A top-level redirect return
+// (no opener, not framed) boots normally and is absorbed by the captured-hash path in App.jsx.
+const msalHash = initialHash || (typeof window !== "undefined" ? window.location.hash : "") || "";
+const isMsalReturn = /[#&](code|error|error_description)=/.test(msalHash) && !cameFromAuthLink;
+const isAuthChild = typeof window !== "undefined" && (((window.opener && window.opener !== window)) || window !== window.parent);
+if (isMsalReturn && isAuthChild) {
+  document.getElementById("root").innerHTML = '<div style="font-family:Segoe UI,Arial,sans-serif;padding:48px 20px;text-align:center;color:#475569;font-size:14px">Completing sign-in&hellip; this window will close itself.</div>';
+} else {
+  createRoot(document.getElementById("root")).render(<Root />);
+}
