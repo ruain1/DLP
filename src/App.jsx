@@ -675,6 +675,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV84", date: "2026-07-03", items: ["Rescheduled milestones no longer lose their trail when the origin date scrolls off the window: the red dotted line now clamps to the window edge on the origin side, wearing a chevron to say it continues off screen and, when the visible span allows, a small mono chip stating the origin date (from 26 Jun). Hover still carries the full original date. When both ends are in the window nothing changes", "The same chevron and origin chip were added to the bar trail's clipped end, which already clamped to the edge but gave no cue that the line continued off screen", "The chip drops automatically on spans too short to carry it, falling back to the tooltip"] },
   { rev: "REV83", date: "2026-07-03", items: ["Retests now take priority in lane row packing: a retest claims its failed parent's row whenever that row is free from the retest's start, and wins same-day ties against ordinary activities, so an attempt chain reads as one horizontal line: card, failure tail, X, amber connector, retest. Chains of retests inherit the same row. Previously an unrelated activity starting the same day could steal the parent's row, dropping the retest to another line and losing the connector, which only draws same-row"] },
   { rev: "REV82", date: "2026-07-03", items: ["Failed witness events now show a frozen failure tail: a red hatched tail runs from the planned card to the recorded outcome date with the X badge at the failure point, so the board reads planned here, failed there. The tail is anchored to the outcome date and never grows", "A failed event whose planned week has scrolled off the window now carries as a hatched ghost from the window edge to its outcome date, and drops off only once the window is past the failure. This replaces both the REV81 hard cutoff at the planned week and the pre-REV81 unbounded carry", "The retest connector now starts beyond the failure tail rather than the planned finish, and lane row packing reserves space through the tail so neighbouring bars cannot overlap it", "DST fix for multi-day witness invitations: session days are now advanced with calendar arithmetic instead of adding 24-hour blocks of milliseconds, which drifted the start time by one hour across the Europe/Helsinki clock changes (25 Oct 2026, 28 Mar 2027). The invite export, the Witness Schedule date range and the editor's session summary are all corrected", "The editor now warns when the witness date, or the last day of a multi-day series, falls outside the activity's planned span, and points to Reschedule, so a moved witness event can no longer silently drift away from its card on the board"] },
   { rev: "REV81", date: "2026-07-03", items: ["Fixed a phantom overdue trail on failed witness events: a failed invite whose planned day sat left of the visibility window was still retained by the carry-forward rule, bypassed the carried-bar handling (which deliberately skips failed invites), and its off-window end produced a negative CSS grid line, painting a hatched bar from the window edge deep into the future, wider the larger the window. Failed invites are closed records and now follow the same window rule as complete activities: visible in their own week, never carried forward", "The Delayed KPI and make-ready counts no longer include closed failed witness events carried into future windows", "Row packing no longer reserves an overdue tail for failed invites (no tail is ever drawn for them), so lanes pack tighter around ghosted events", "Defensive guard in the bar renderer: a span wholly left of the window that is not a carried item now draws nothing rather than emitting a negative grid line"] },
@@ -1894,11 +1895,46 @@ export default function App({ session }) {
     const out = [];
     const inWin = (u) => u >= 0 && u < cols;
     if (a.isMilestone) {
-      if (inWin(oS) && inWin(cS) && oS !== cS) { const gs = Math.min(oS, cS), ge = Math.max(oS, cS); const N = ge - gs + 1; const inset = `calc(${(50 / N).toFixed(4)}% + 8px)`; out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}><div style={{ position: "absolute", top: -1, left: inset, right: inset, borderTop: "2px dotted #C0392B" }} /></div>); }
+      // Option A (REV84): the trail no longer demands both ends visible. The dotted line clamps to
+      // the window edge on the origin side, wearing a chevron ("continues off screen") and, when the
+      // visible span is wide enough, a mono chip stating the origin date. When both ends are in the
+      // window the output is pixel-identical to the pre-REV84 trail. cS is always in-window for a
+      // rendered milestone, so only the origin side can ever be clipped.
+      if (oS !== cS && inWin(cS)) {
+        const lo = Math.min(oS, cS), hi = Math.max(oS, cS);
+        if (hi >= 0 && lo < cols) {
+          const gs = Math.max(0, lo), ge = Math.min(cols - 1, hi);
+          const clip = lo < 0 || hi > cols - 1;
+          const clipLeft = lo < 0;
+          const N = ge - gs + 1;
+          const inset = `calc(${(50 / N).toFixed(4)}% + 8px)`;
+          const chip = clip && (grain === "week" || N >= 3);
+          out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}>
+            <div style={{ position: "absolute", top: -1, left: clip && clipLeft ? "16px" : inset, right: clip && !clipLeft ? "16px" : inset, borderTop: "2px dotted #C0392B" }} />
+            {clip && <span style={{ position: "absolute", [clipLeft ? "left" : "right"]: 2, top: 0, transform: "translateY(-52%)", color: "#C0392B", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>{clipLeft ? "\u25C2" : "\u25B8"}</span>}
+            {chip && <span style={{ position: "absolute", [clipLeft ? "left" : "right"]: 20, top: -15, font: "600 10px/1.4 Consolas, ui-monospace, monospace", color: "#f0b9b2", background: "rgba(192,57,58,.14)", border: "1px solid rgba(192,57,58,.55)", borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>from {fmtWC(parseD(rs[0].from))}</span>}
+          </div>);
+        }
+      }
     } else {
-      let gapFrom, gapTo;
-      if (cS > oE) { gapFrom = oE + 1; gapTo = cS - 1; } else if (cE < oS) { gapFrom = cE + 1; gapTo = oS - 1; }
-      if (gapFrom != null && gapTo >= gapFrom) { const gs = Math.max(0, gapFrom), ge = Math.min(cols - 1, gapTo); if (ge >= gs) out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}><div style={{ position: "absolute", top: -1, left: -2, right: -2, borderTop: "2px dotted #C0392B" }} /></div>); }
+      let gapFrom, gapTo, originLeft;
+      if (cS > oE) { gapFrom = oE + 1; gapTo = cS - 1; originLeft = true; } else if (cE < oS) { gapFrom = cE + 1; gapTo = oS - 1; originLeft = false; }
+      if (gapFrom != null && gapTo >= gapFrom) {
+        const gs = Math.max(0, gapFrom), ge = Math.min(cols - 1, gapTo);
+        if (ge >= gs) {
+          // Bars have always clamped the dotted line to the window; REV84 adds the same chevron and
+          // origin-date chip as milestones on the clipped origin side, so the clipped line reads as
+          // "continues off screen" instead of appearing to start at the edge for no reason.
+          const clip = originLeft ? gapFrom < 0 : gapTo > cols - 1;
+          const N = ge - gs + 1;
+          const chip = clip && (grain === "week" || N >= 3);
+          out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}>
+            <div style={{ position: "absolute", top: -1, left: clip && originLeft ? 16 : -2, right: clip && !originLeft ? 16 : -2, borderTop: "2px dotted #C0392B" }} />
+            {clip && <span style={{ position: "absolute", [originLeft ? "left" : "right"]: 2, top: 0, transform: "translateY(-52%)", color: "#C0392B", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>{originLeft ? "\u25C2" : "\u25B8"}</span>}
+            {chip && <span style={{ position: "absolute", [originLeft ? "left" : "right"]: 20, top: -15, font: "600 10px/1.4 Consolas, ui-monospace, monospace", color: "#f0b9b2", background: "rgba(192,57,58,.14)", border: "1px solid rgba(192,57,58,.55)", borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>from {fmtWC(parseD(rs[0].from))}</span>}
+          </div>);
+        }
+      }
     }
     if ((oS >= 0 && oS < cols) || (oE >= 0 && oE < cols)) {
       const gs = Math.max(0, oS), ge = Math.min(cols - 1, oE);
