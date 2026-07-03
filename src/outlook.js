@@ -165,13 +165,23 @@ export const b64utf8 = (str) => {
 // Send an email from the signed-in account (delegated Mail.Send). Single-request sendMail:
 // the whole message is one JSON body with a 4 MB ceiling, so keep attachments under ~3 MB
 // of binary (base64 inflates by a third). Callers guard the size before attaching.
+// Recipients arrive as plain address strings or as { email, name } objects; both are valid.
+// Entries without a resolvable address are dropped rather than serialised addressless, which
+// Graph rejects with an opaque 400 (the REV98 root cause).
+export const mailRecipients = (list) => (list || []).map((r) => {
+  const o = typeof r === "string" ? { email: r } : (r || {});
+  return { emailAddress: { address: o.email || "", name: o.name || o.email || "" } };
+}).filter((x) => x.emailAddress.address);
+
 export async function sendMailMessage({ subject, html, to, cc, attachment, attachments }) {
   const message = {
     subject,
     body: { contentType: "HTML", content: html },
-    toRecipients: (to || []).map((r) => ({ emailAddress: { address: r.email, name: r.name || r.email } })),
+    toRecipients: mailRecipients(to),
   };
-  if (cc && cc.length) message.ccRecipients = cc.map((r) => ({ emailAddress: { address: r.email, name: r.name || r.email } }));
+  if (!message.toRecipients.length) throw new Error("No valid recipient addresses.");
+  const ccR = mailRecipients(cc);
+  if (ccR.length) message.ccRecipients = ccR;
   const atts = attachments || (attachment ? [attachment] : []);
   if (atts.length) message.attachments = atts.map((x) => ({ "@odata.type": "#microsoft.graph.fileAttachment", name: x.name, contentType: x.contentType || "text/html", contentBytes: x.contentBytes }));
   await graph("/me/sendMail", "POST", { message, saveToSentItems: true });
