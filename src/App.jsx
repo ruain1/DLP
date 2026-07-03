@@ -690,6 +690,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV86", date: "2026-07-03", items: ["The Weekly DLP Report now emails itself: Email Report in the report window sends from the signed-in admin's Outlook account (delegated Mail.Send, granted by CSN IT) to the saved distribution list, replacing the old mailto draft that asked for a hand-attached PDF. A copy lands in the sender's Sent Items", "The email body is a deliberately email-safe rendering (title, period, the executive summary) because desktop Outlook renders HTML with the Word engine; the full report, exactly as Generate Report produces it including the chosen appearance and Cx sections, travels as an HTML attachment that opens pixel-perfect in any browser", "Send Test To Me delivers the identical email to the sender alone, marked [TEST], for a safe dry run before the distribution list sees anything", "A size guard keeps the send inside Graph's single-request ceiling: a report too large to attach still sends the summary and says so, rather than failing", "Connect Outlook in the report window shares the same Microsoft session as the Witness Schedule; one sign-in covers invites and report emails"] },
   { rev: "REV85", date: "2026-07-03", items: ["Witness invites can now be sent directly from the Witness Schedule (admins): Connect Outlook signs in with the CSN Microsoft account (delegated, PKCE, no secret) and the signed-in admin becomes the organiser. Creating the calendar event sends the invitations, one event per session day, in Europe/Helsinki wall-clock time so Exchange owns the DST maths", "Every witness row carries a live status: Not Sent, Sent with date, Partially Sent with per-day pills for multi-day series, Details Changed when the date, time, duration, name, location or recipient routing moved after sending, and Cancellation Sent. Update Invite reconciles in one click: changed days are updated, added days sent, surplus days cancelled, and attendees receive the changes automatically", "Cancel sends a proper calendar cancellation to all attendees, with confirmation first. Recording a Failed outcome deliberately does not auto-cancel; a Cancel Outlook Invite button sits in the editor beside Create Retest for when it is wanted", "Send All Pending sends every unsent event in the selected period in one pass. Sending stamps the activity's Sent marker, so the CSV export and the Outlook macro (both untouched, kept as the fallback) skip anything already sent from the app", "Graph event ids are stored per day on the activity (new witness_events column; run witness-events.sql before pushing). Push order: witness-events.sql in Supabase, then package.json, src/outlook.js, src/data.js, and App.jsx last"] },
   { rev: "REV84", date: "2026-07-03", items: ["Rescheduled milestones no longer lose their trail when the origin date scrolls off the window: the red dotted line now clamps to the window edge on the origin side, wearing a chevron to say it continues off screen and, when the visible span allows, a small mono chip stating the origin date (from 26 Jun). Hover still carries the full original date. When both ends are in the window nothing changes", "The same chevron and origin chip were added to the bar trail's clipped end, which already clamped to the edge but gave no cue that the line continued off screen", "The chip drops automatically on spans too short to carry it, falling back to the tooltip"] },
   { rev: "REV83", date: "2026-07-03", items: ["Retests now take priority in lane row packing: a retest claims its failed parent's row whenever that row is free from the retest's start, and wins same-day ties against ordinary activities, so an attempt chain reads as one horizontal line: card, failure tail, X, amber connector, retest. Chains of retests inherit the same row. Previously an unrelated activity starting the same day could steal the parent's row, dropping the retest to another line and losing the connector, which only draws same-row"] },
@@ -5333,6 +5334,9 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   const [recipMsg, setRecipMsg] = useState("");
   const [exName, setExName] = useState("");
   const [exEmail, setExEmail] = useState("");
+  const [repOl, setRepOl] = useState(null);          // connected Outlook account for report emailing
+  const [repBusy, setRepBusy] = useState(false);      // false | "send" | "test"
+  const [repMsg, setRepMsg] = useState(null);         // { ok, text }
   const start = mode === "week" ? defWeek.start : (from ? parseD(from) : defWeek.start);
   const end = mode === "week" ? defWeek.end : (to ? parseD(to) : defWeek.end);
   const rData = useMemo(() => open ? computeReport({ S, LV, coName, start, end }) : null, [open, S, LV, start.getTime(), end.getTime()]);
@@ -5344,6 +5348,8 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   const togCx = (k) => { const nx = { ...cx, [k]: !cx[k] }; setCx(nx); setSummary(null); persist(plan, nx); };
   const openModal = async () => {
     setSummary(null); setMode("week"); setFrom(fmtISO(defWeek.start)); setTo(fmtISO(defWeek.end)); setOpen(true); setBusy(true);
+    setRepMsg(null);
+    import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); setRepOl(acct ? acct.username : null); }).catch(() => {});
     try {
       const [{ data: wk }, { data: conf }] = await Promise.all([
         supabase.from("cx_week").select("*").eq("project_id", projectId).order("week_ending", { ascending: false }).limit(1),
@@ -5404,13 +5410,48 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
     try { await navigator.clipboard.writeText(list); setRecipMsg("Addresses copied to clipboard."); }
     catch(e) { setRecipMsg("Copy failed; select the addresses manually."); }
   };
-  const emailReport = () => {
-    const to = recips.map((r) => r.email).filter(Boolean).join(";");
-    if (!to) return;
-    const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
-    const subject = "FIN04 Weekly DLP Report, " + lbl;
-    const body = "Please find attached the FIN04 Weekly DLP Report (" + lbl + ").\r\n\r\nGenerated by " + by + ".\r\n\r\nAttach the PDF saved from the report window before sending.";
-    window.location.href = "mailto:?to=" + encodeURIComponent(to) + "&subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+  const connectRep = async () => {
+    try { const ol = await import("./outlook"); const acct = await ol.connectOutlook(); setRepOl(acct ? acct.username : null); setRepMsg(null); }
+    catch (err) { setRepMsg({ ok: false, text: (err && err.message) || String(err) }); }
+  };
+  // Sends the report from the signed-in account. Body: email-safe summary (Outlook desktop
+  // renders with the Word engine, so no modern CSS). Attachment: the full report HTML, which
+  // opens pixel-perfect in any browser. testOnly sends to the organiser alone.
+  const sendReport = async (testOnly) => {
+    if (repBusy || !rData) return;
+    setRepMsg(null); setRepBusy(testOnly ? "test" : "send");
+    try {
+      const ol = await import("./outlook");
+      const acct = await ol.outlookAccount();
+      if (!acct) throw new Error("Outlook is not connected.");
+      const to = testOnly ? [{ name: by || acct.username, email: acct.username }] : recips.filter((r) => r.email);
+      if (!to.length) throw new Error("The distribution list is empty.");
+      const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
+      const full = buildWeeklyReportHTML({ r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
+      const contentBytes = ol.b64utf8(full);
+      const tooBig = contentBytes.length > 3400000;   // ~2.5 MB binary once base64 bloat is counted; sendMail single-request ceiling is 4 MB total
+      const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
+      const escR = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const paras = String(summaryVal || "").trim().split(/\n{2,}/).filter(Boolean).map((p) => '<p style="margin:0 0 10px;line-height:1.55">' + escR(p).replace(/\n/g, "<br/>") + "</p>").join("");
+      const bodyHtml = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:680px">'
+        + '<h2 style="font-size:18px;margin:0 0 4px;color:#111827">FIN04 Weekly DLP Report</h2>'
+        + '<p style="margin:0 0 14px;color:#6b7280;font-size:12.5px">' + escR(lbl) + " \u00b7 generated from DLP by " + escR(by || acct.username) + "</p>"
+        + (paras || '<p style="margin:0 0 10px">Weekly DLP report for the period.</p>')
+        + (tooBig
+          ? '<p style="margin:16px 0 0;font-size:12.5px;color:#374151">The full report exceeded the email attachment limit; open DLP for the complete sections and charts.</p>'
+          : '<p style="margin:16px 0 0;font-size:12.5px;color:#374151">The full report is attached as an HTML file; open it in any browser for the complete sections and charts.</p>')
+        + "</div>";
+      await ol.sendMailMessage({
+        subject: (testOnly ? "[TEST] " : "") + "FIN04 Weekly DLP Report, " + lbl,
+        html: bodyHtml,
+        to,
+        attachment: tooBig ? null : { name: "FIN04-weekly-report-" + fmtISO(start) + (theme === "dark" ? "-dark" : "") + ".html", contentType: "text/html", contentBytes },
+      });
+      setRepMsg({ ok: true, text: (testOnly ? "Test sent to " + acct.username + "." : "Report emailed to " + to.length + " recipient" + (to.length === 1 ? "" : "s") + " from " + acct.username + ".") + (tooBig ? " Summary only; the report was too large to attach." : " Full report attached.") + " A copy is in your Sent Items." });
+    } catch (err) {
+      setRepMsg({ ok: false, text: (err && err.message) || String(err) });
+    }
+    setRepBusy(false);
   };
   const optRow = (on, lbl, onClick) => (<label key={lbl} className="rep-check" style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 2px", margin:0, cursor:"pointer" }}><input type="checkbox" checked={!!on} onChange={onClick} /><span style={{ fontSize:12.5 }}>{lbl}</span></label>);
   return (<>
@@ -5448,10 +5489,15 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
               <span className="rep-mut" style={{ fontSize:12 }}>{recips.length} recipient{recips.length===1?"":"s"} saved</span>
               <button type="button" className="lk-btn" style={{ padding:"4px 10px", fontSize:11.5 }} onClick={() => { setRecipMsg(""); setRecipOpen(true); }}>Manage recipients</button>
             </div>
-            <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>Email report opens an Outlook draft addressed to this list; attach the PDF you save from the report window, then send.</div>
+            <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>Email Report sends directly from your connected Outlook account: an email-safe summary in the body with the full report attached as an HTML file. Send Test To Me delivers only to you first.</div>
           </div>
         </div>
-        <div className="rep-foot"><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button><button className="lk-btn" onClick={emailReport} disabled={!recips.length} title="Open an Outlook draft addressed to the distribution list">Email report</button><button className="lk-btn primary" onClick={generate}><Icon n="chart" s={14} />Generate report</button></div>
+        {repMsg && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: repMsg.ok ? "#0E9384" : "#C0392B" }}>{repMsg.text}</div>}
+        <div className="rep-foot" style={{ flexWrap: "wrap", gap: 8 }}><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button>
+          {!repOl && <button className="lk-btn" onClick={connectRep} title="Sign in with your CSN Microsoft account to send the report by email">Connect Outlook</button>}
+          {repOl && <button className="lk-btn" disabled={!!repBusy || !rData} onClick={() => sendReport(true)} title={"Send only to " + repOl}>{repBusy === "test" ? "Sending..." : "Send Test To Me"}</button>}
+          {repOl && <button className="lk-btn" disabled={!!repBusy || !recips.length || !rData} onClick={() => sendReport(false)} title={recips.length ? "Send from " + repOl + " to the saved distribution list" : "The distribution list is empty"}>{repBusy === "send" ? "Sending..." : "Email Report (" + recips.length + ")"}</button>}
+          <button className="lk-btn primary" onClick={generate}><Icon n="chart" s={14} />Generate report</button></div>
       </div>
     </div>}
     {recipOpen && <div className="lk-modal-bg" onClick={() => setRecipOpen(false)}>

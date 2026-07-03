@@ -9,7 +9,7 @@ import { PublicClientApplication } from "@azure/msal-browser";
 
 const CLIENT_ID = "fa956186-27d4-4fae-b276-6c9fb2454457";
 const TENANT_ID = "b095dac5-f2b1-4834-b5dd-d29460f9075c";
-const SCOPES = ["Calendars.ReadWrite"];
+const SCOPES = ["Calendars.ReadWrite", "Mail.Send"];
 const SITE_TZ = "Europe/Helsinki";
 
 let msal = null;
@@ -100,4 +100,27 @@ export async function updateWitnessEvent(eventId, p) {
 // Organiser-only cancel action; Exchange sends the cancellation with the comment.
 export async function cancelWitnessEvent(eventId, comment) {
   await graph("/me/events/" + encodeURIComponent(eventId) + "/cancel", "POST", { comment: comment || "Cancelled via DLP." });
+}
+
+// UTF-8 safe base64 for attachment contentBytes (btoa alone corrupts non-Latin1 text).
+export const b64utf8 = (str) => {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return btoa(bin);
+};
+
+// Send an email from the signed-in account (delegated Mail.Send). Single-request sendMail:
+// the whole message is one JSON body with a 4 MB ceiling, so keep attachments under ~3 MB
+// of binary (base64 inflates by a third). Callers guard the size before attaching.
+export async function sendMailMessage({ subject, html, to, cc, attachment }) {
+  const message = {
+    subject,
+    body: { contentType: "HTML", content: html },
+    toRecipients: (to || []).map((r) => ({ emailAddress: { address: r.email, name: r.name || r.email } })),
+  };
+  if (cc && cc.length) message.ccRecipients = cc.map((r) => ({ emailAddress: { address: r.email, name: r.name || r.email } }));
+  if (attachment) message.attachments = [{ "@odata.type": "#microsoft.graph.fileAttachment", name: attachment.name, contentType: attachment.contentType || "text/html", contentBytes: attachment.contentBytes }];
+  await graph("/me/sendMail", "POST", { message, saveToSentItems: true });
 }
