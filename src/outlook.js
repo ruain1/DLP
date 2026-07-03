@@ -183,7 +183,7 @@ export async function sendMailMessage({ subject, html, to, cc, attachment, attac
   const ccR = mailRecipients(cc);
   if (ccR.length) message.ccRecipients = ccR;
   const atts = attachments || (attachment ? [attachment] : []);
-  if (atts.length) message.attachments = atts.map((x) => ({ "@odata.type": "#microsoft.graph.fileAttachment", name: x.name, contentType: x.contentType || "text/html", contentBytes: x.contentBytes }));
+  if (atts.length) message.attachments = atts.map((x) => { const a = { "@odata.type": "#microsoft.graph.fileAttachment", name: x.name, contentType: x.contentType || "text/html", contentBytes: x.contentBytes }; if (x.contentId) { a.contentId = x.contentId; a.isInline = true; } return a; });
   await graph("/me/sendMail", "POST", { message, saveToSentItems: true });
 }
 

@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV101", date: "2026-07-03", items: ["Admin digest emails redesigned to the approved QMC brand: white header carrying the Quantum Mission Critical mark, the four-colour Cx workflow bar (read live from this project's L1 to L4 stage colours) under the header and echoed above the footer, and each vendor as a bordered card with a shaded band carrying its real logo, name and counts, most active person named on multi-user vendors. Vendor logos embed as inline attachments from each company's light-surface asset with a name-only fallback; the daily and weekly share the one template", "Content fixes in both digests: repeated references within a verb group now collapse to one entry with a count (x2 style) and the caps count deduplicated entries; detail fragments that merely echo the activity name are suppressed; and audit entries whose author matches no current user profile now appear in their own Unattributed card pinned last, with an explanation, instead of being silently filed under CSN"] },
   { rev: "REV100", date: "2026-07-03", items: ["New Admin Update Emails card at the top of Reports (admins only): shows when the daily and weekly digests last went out and to how many recipients, plus your Outlook connection, with Send Weekly Update Now and Send Daily Update Now buttons. Manual sends go to all admins from your own connected Outlook, target the most recent boundary with its correct fixed window, complete a stuck claim if one exists, and ask before re-sending a digest that already went out", "Scheduler liveness fix: a digest claim orphaned in the sending state (for example a reload killing the tab mid-send) used to block that boundary silently and forever; the scheduler now adopts claims stuck for over ten minutes and finishes them. The digest content assembly is now one shared path for the scheduler and the manual buttons, so the two can never drift apart"] },
   { rev: "REV99", date: "2026-07-03", items: ["Fix: Email Invite from the Resend set-password link card was sending to the person's display name instead of their address (Exchange refused to resolve it), because that flow stored the name where the other flows store the email. The card now carries the real address from the roster's status lookup, the emailer refuses a name-shaped address with plain guidance instead of an Exchange error, and the Outlook transport drops any recipient without an @ so the readable no-valid-recipients message fires first. Add, approve and bulk flows were unaffected"] },
   { rev: "REV98", date: "2026-07-03", items: ["Critical fix: invitation emails from the bulk Email All Created Invites, the credentials card's Email Invite, the set-password link flow, the approve auto-send and the scheduled admin digests were all failing at the transport layer (recipient addresses were being serialised without the address field, so Outlook rejected every send), while the bulk screen wrongly reported success. The transport now accepts both address shapes and refuses addressless sends with a readable error", "The bulk results now tell the truth: each row shows Emailed or Email failed (hover a failed row for the reason) and the completion message reports exact counts, for example Invitations emailed: 4 of 5, instead of announcing success unconditionally. The Weekly Report emails were unaffected throughout"] },
@@ -1779,7 +1780,7 @@ export default function App({ session }) {
           let recipients = rr.recipients;
           if (test) recipients = [acct.username];
           if (!recipients.length) throw new Error("no admin email addresses resolved");
-          await ol.sendMailMessage({ subject, html, to: recipients });
+          await ol.sendMailMessage({ subject, html, to: recipients, attachments: asm.attachments });
           if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: recipients.length, detail: subject + (missing.length ? " \u00b7 no email for: " + missing.join(", ") : "") }).eq("id", claimId);
           setDigestNote({ ok: true, text: (b.kind === "daily" ? "Daily" : "Weekly") + " digest sent to " + recipients.length + " recipient" + (recipients.length === 1 ? "" : "s") + (test ? " (test, to you only)" : "") + "." });
         } catch (err) {
@@ -5803,9 +5804,53 @@ async function assembleDigest(core, St, kind, due) {
   const vendors = core.assembleVendors(audit, profiles, companiesM, actsM, kind);
   const clRows = core.changelogRows(CHANGELOG.map((e) => ({ rev: e.rev, date: e.date, items: e.items || [] })), core.helDateStr(win.start), core.helDateStr(win.end), kind);
   const kpi = kind === "weekly" ? core.weeklyKpis(core.actRowsFromClient(St.activities || []), core.helDateStr(new Date(win.end.getTime() - 6 * 86400000)), core.helDateStr(win.end), core.helDateStr(new Date())) : null;
-  const html = core.buildDigestHtml({ kind, dateLine: core.dateLineFor(kind, win), changelog: clRows, vendors, kpi, appUrl: window.location.origin });
+  // Logo gathering (REV101): the QMC mark from the app's own origin plus each vendor's stored
+  // light-surface logo, embedded as inline attachments and referenced by cid. Every fetch is
+  // failure-tolerant: a missing or oversized logo degrades that block to its name, never the send.
+  const attachments = [];
+  let qmc = null;
+  const qb = await fetchLogoAsset(window.location.origin + "/qmc-logo.png");
+  if (qb) { attachments.push({ name: "qmc-logo.png", contentType: qb.type, contentBytes: qb.b64, contentId: "qmc-logo" }); qmc = { cid: "qmc-logo", w: 56, h: 54 }; }
+  for (const b of vendors.blocks) {
+    if (b.id === "__unattr") continue;
+    const co = b.id === "__csn"
+      ? (St.companies || []).find((x) => (x.name || "").trim().toLowerCase() === "csn")
+      : (St.companies || []).find((x) => x.id === b.id);
+    const url = co && co.logoUrl;
+    if (!url) continue;
+    const lb = await fetchLogoAsset(url);
+    if (!lb) continue;
+    const h = 24, w = Math.min(124, Math.round(24 * (lb.w / Math.max(1, lb.h))));
+    const cid = "v-" + String(b.id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 40);
+    attachments.push({ name: cid + ".png", contentType: lb.type, contentBytes: lb.b64, contentId: cid });
+    b.logo = { cid, w, h };
+  }
+  const html = core.buildDigestHtml({ kind, dateLine: core.dateLineFor(kind, win), changelog: clRows, vendors, kpi, appUrl: window.location.origin, qmc, stageColors: core.stageColorsFor(St.levels) });
   const subject = core.subjectFor(kind, core.subjectLabelFor(kind, win));
-  return { win, html, subject };
+  return { win, html, subject, attachments };
+}
+// Fetches an image, base64-encodes it and measures it, with a module-level cache and a 200KB
+// guard. Returns { b64, w, h, type } or null; never throws to the caller.
+const _logoAssetCache = new Map();
+async function fetchLogoAsset(url) {
+  if (_logoAssetCache.has(url)) return _logoAssetCache.get(url);
+  let out = null;
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob.size <= 200000) {
+        const bmp = await createImageBitmap(blob);
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        let s = "";
+        for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+        out = { b64: btoa(s), w: bmp.width, h: bmp.height, type: blob.type || "image/png" };
+        bmp.close && bmp.close();
+      }
+    }
+  } catch (e) { out = null; }
+  _logoAssetCache.set(url, out);
+  return out;
 }
 async function resolveDigestRecipients(St) {
   const us = await fetchUserStatus();
@@ -5864,7 +5909,7 @@ function AdminDigestCard({ S }) {
       const asm = await assembleDigest(core, S, kind, due);
       const rr = await resolveDigestRecipients(S);
       if (!rr.recipients.length) throw new Error("no admin email addresses resolved");
-      await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
+      await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients, attachments: asm.attachments });
       await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " \u00b7 no email for: " + rr.missing.join(", ") : "") + (resend ? " \u00b7 resent manually" : " \u00b7 sent manually") }).eq("id", claimId);
       setMsg({ ok: true, text: (kind === "daily" ? "Daily" : "Weekly") + " update sent to " + rr.recipients.length + " admin" + (rr.recipients.length === 1 ? "" : "s") + " from " + a.username + "." + (rr.missing.length ? " No email on file for: " + rr.missing.join(", ") + "." : "") });
       load();

@@ -107,7 +107,33 @@ export function refName(row: AuditRow, acts: Map<string, ActRef>): string {
   const d = (row.detail || row.action || "").split(/[\n;]/)[0];
   return trunc(d, 40);
 }
-const detailFrag = (row: AuditRow) => { const d = (row.detail || "").trim(); return d ? " (" + trunc(d, 60) + ")" : ""; };
+const normT = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// Detail fragments that merely echo the activity name add nothing and read as stutter
+// ("#1 MV Interlock Cabling Cx (MV Interlock Cabling Cx)"), so exact matches against the
+// reference, with or without its #code prefix, are suppressed.
+const detailFrag = (row: AuditRow, ref?: string) => {
+  const d = (row.detail || "").trim();
+  if (!d) return "";
+  if (ref) {
+    const nd = normT(d);
+    if (nd && (nd === normT(ref) || nd === normT(ref.replace(/^#\d+\s*/, "")))) return "";
+  }
+  return " (" + trunc(d, 60) + ")";
+};
+// Duplicate references within a verb group collapse to one entry with a count, and the caps
+// and "+n more" maths run on the deduped list so the numbers stay honest.
+const dedupeRefs = (rows: AuditRow[], acts: Map<string, ActRef>, withDetail: boolean) => {
+  const order: string[] = [];
+  const info = new Map<string, { n: number; frag: string }>();
+  for (const r of rows) {
+    const ref = refName(r, acts);
+    if (!info.has(ref)) { order.push(ref); info.set(ref, { n: 0, frag: "" }); }
+    const it = info.get(ref)!;
+    it.n += 1;
+    if (withDetail && !it.frag) it.frag = detailFrag(r, ref);
+  }
+  return order.map((ref) => ({ ref, n: info.get(ref)!.n, frag: info.get(ref)!.frag }));
+};
 const PCT = /(\d{1,3})\s*(?:%)?\s*(?:to|->|\u2192)\s*(\d{1,3})\s*%/;
 
 // ---------- per-user summaries ----------
@@ -127,8 +153,9 @@ export function summariseDaily(rows: AuditRow[], acts: Map<string, ActRef>): str
   const shown = groups.slice(0, 5);
   const out: string[] = [];
   for (const g of shown) {
-    const refs = g.rows.slice(0, 6).map((r) => esc(refName(r, acts)) + esc(detailFrag(r)));
-    const more = g.rows.length > 6 ? ` (+${g.rows.length - 6} more)` : "";
+    const dd = dedupeRefs(g.rows, acts, true);
+    const refs = dd.slice(0, 6).map((x) => esc(x.ref) + (x.n > 1 ? " (x" + x.n + ")" : "") + esc(x.frag));
+    const more = dd.length > 6 ? ` (+${dd.length - 6} more)` : "";
     out.push(line(g.key, refs.join("; ") + more));
   }
   const rest = groups.slice(5).reduce((n, g) => n + g.rows.length, 0);
@@ -144,8 +171,10 @@ export function summariseWeekly(rows: AuditRow[], acts: Map<string, ActRef>): st
   for (const g of groups) {
     if (out.length >= 6) break;
     if (WEEKLY_ITEMISE.includes(g.key)) {
-      const refs = g.rows.slice(0, 4).map((r) => esc(refName(r, acts)) + (g.key === "constraints" || g.key === "witness" ? esc(detailFrag(r)) : ""));
-      const more = g.rows.length > 4 ? ` (+${g.rows.length - 4} more)` : "";
+      const withD = g.key === "constraints" || g.key === "witness";
+      const dd = dedupeRefs(g.rows, acts, withD);
+      const refs = dd.slice(0, 4).map((x) => esc(x.ref) + (x.n > 1 ? " (x" + x.n + ")" : "") + (withD ? esc(x.frag) : ""));
+      const more = dd.length > 4 ? ` (+${dd.length - 4} more)` : "";
       out.push(line(g.key, refs.join("; ") + more));
     } else if (g.key === "progress" || g.key === "edited" || g.key === "noted") {
       const perAct = new Map<string, { name: string; best: number; span: string }>();
@@ -169,21 +198,25 @@ export function summariseWeekly(rows: AuditRow[], acts: Map<string, ActRef>): st
 
 // ---------- vendor assembly ----------
 export type Profile = { id: string; name: string; role: string; companyId: string | null };
+export type VendorBlock = { id: string; name: string; total: number; users: { name: string; n: number; lines: string[] }[]; note?: string; logo?: { cid: string; w: number; h: number } | null };
 export function assembleVendors(audit: AuditRow[], profiles: Profile[], companies: Map<string, string>, acts: Map<string, ActRef>, kind: "daily" | "weekly") {
   const byName = new Map(profiles.map((p) => [p.name, p]));
   const perUser = new Map<string, AuditRow[]>();
   for (const r of audit) { if (!perUser.has(r.user)) perUser.set(r.user, []); perUser.get(r.user)!.push(r); }
-  const perCo = new Map<string, { name: string; total: number; users: { name: string; n: number; lines: string[] }[] }>();
+  const perCo = new Map<string, VendorBlock>();
   for (const [user, rows] of perUser) {
     const prof = byName.get(user);
-    const coId = prof && prof.companyId ? prof.companyId : "__none";
-    const coName = coId === "__none" ? "CSN" : companies.get(coId) || "Unassigned";
-    if (!perCo.has(coId)) perCo.set(coId, { name: coName, total: 0, users: [] });
+    // Matched admins with no company are CSN by convention; audit authors matching no current
+    // profile (system writes, renamed or removed accounts) go to a pinned Unattributed block
+    // rather than being silently filed under CSN.
+    const coId = prof ? (prof.companyId || "__csn") : "__unattr";
+    const coName = coId === "__unattr" ? "Unattributed" : (coId === "__csn" ? "CSN" : companies.get(coId) || "Unassigned");
+    if (!perCo.has(coId)) perCo.set(coId, { id: coId, name: coName, total: 0, users: [], note: coId === "__unattr" ? "Audit entries whose author does not match a current user profile." : undefined });
     const blk = perCo.get(coId)!;
     blk.total += rows.length;
     blk.users.push({ name: user, n: rows.length, lines: kind === "daily" ? summariseDaily(rows, acts) : summariseWeekly(rows, acts) });
   }
-  const blocks = [...perCo.values()].sort((a, b) => b.total - a.total);
+  const blocks = [...perCo.values()].sort((a, b) => (a.id === "__unattr" ? 1 : 0) - (b.id === "__unattr" ? 1 : 0) || b.total - a.total);
   for (const b of blocks) b.users.sort((x, y) => y.n - x.n);
   return { blocks, totalActions: audit.length, totalUsers: perUser.size };
 }
@@ -198,6 +231,17 @@ export function changelogRows(entries: ChangeEntry[], startDate: string, endDate
     return [{ head: `${inWin[0].rev} to ${inWin[inWin.length - 1].rev}`, text: trunc(inWin.map((e) => e.items[0].split(/[.;:]/)[0]).join("; "), 420) }];
   }
   return inWin.map((e) => ({ head: e.rev, text: condense(e, 300) }));
+}
+
+// ---------- workflow palette ----------
+// The Cx bar reads the project's own stage colours (L1 to L4, sorted naturally), padded with
+// the established red, amber, green, blue when a project defines fewer than four stages.
+export function stageColorsFor(levels: Record<string, { color?: string }> | null | undefined): string[] {
+  const fallback = ["#C0392B", "#E0A106", "#0E9384", "#2456A6"];
+  const keys = Object.keys(levels || {}).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const got = keys.map((k) => (levels as any)[k] && (levels as any)[k].color).filter(Boolean).slice(0, 4);
+  while (got.length < 4) got.push(fallback[got.length]);
+  return got;
 }
 
 // ---------- weekly KPIs (server-side replica of the client computeReport formulas) ----------
@@ -236,8 +280,16 @@ export function buildDigestHtml(p: {
   vendors: ReturnType<typeof assembleVendors>;
   kpi?: ReturnType<typeof weeklyKpis> | null;
   appUrl: string;
+  qmc?: { cid: string; w: number; h: number } | null;
+  stageColors?: string[];
 }) {
   const title = p.kind === "daily" ? `${APP_NAME} Daily Update` : `${APP_NAME} Weekly Update`;
+  const sc = (p.stageColors && p.stageColors.length === 4) ? p.stageColors : ["#C0392B", "#E0A106", "#0E9384", "#2456A6"];
+  const bar = (h: number) => `<tr><td style="padding:0;font-size:0;line-height:0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>` + sc.map((col) => `<td width="25%" height="${h}" style="background-color:${col};font-size:0;line-height:0;">&nbsp;</td>`).join("") + `</tr></table></td></tr>`;
+  const header = `<tr><td style="padding:16px 20px 12px 20px;background-color:#ffffff;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
+    + (p.qmc ? `<td width="${p.qmc.w + 10}" style="vertical-align:middle;"><img src="cid:${p.qmc.cid}" width="${p.qmc.w}" height="${p.qmc.h}" alt="Quantum Mission Critical" style="display:block;"></td>` : "")
+    + `<td style="vertical-align:middle;${p.qmc ? "padding-left:6px;" : ""}"><span style="font-size:18px;font-weight:bold;color:#111827;${F}">${title}</span><br><span style="font-size:11.5px;color:#6b7280;${F}">${esc(p.dateLine)}</span></td>`
+    + `</tr></table></td></tr>` + bar(6);
   const kpiStrip = p.kpi
     ? `<tr><td style="padding:16px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr>`
       + tile(p.kpi.ppc == null ? "n/a" : p.kpi.ppc + "%", "PPC", "#111827", B)
@@ -246,33 +298,39 @@ export function buildDigestHtml(p: {
       + `<td width="8" style="font-size:0;line-height:0;">&nbsp;</td>` + tile(String(p.kpi.makeReady), "Make-Ready", "#E0A106", "#E0A106")
       + `</tr></table></td></tr>`
     : "";
+  const headW = p.changelog.some((x) => x.head.length > 7) ? 98 : 70;
   const clRows = p.changelog.length
     ? `<tr><td style="padding:${p.kpi ? 14 : 16}px 20px 2px 20px;"><span style="font-size:11px;font-weight:bold;color:${B};text-transform:uppercase;letter-spacing:0.6px;${F}">Changelog Updates${p.kind === "weekly" ? " This Week" : ""}</span></td></tr>`
       + `<tr><td style="padding:6px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">`
-      + p.changelog.map((c) => `<tr><td width="90" valign="top" style="padding:4px 10px 4px 0;font-size:12px;font-weight:bold;color:${B};${F}">${esc(c.head)}</td><td style="padding:4px 0;font-size:12.5px;color:#1f2937;line-height:1.55;${F}">${esc(c.text)}</td></tr>`).join("")
+      + p.changelog.map((x) => `<tr><td width="${headW}" valign="top" style="padding:4px 10px 4px 0;font-size:12px;font-weight:bold;color:${B};${F}">${esc(x.head)}</td><td style="padding:4px 0;font-size:12.5px;color:#1f2937;line-height:1.55;${F}">${esc(x.text)}</td></tr>`).join("")
       + `</table></td></tr>`
     : "";
   const v = p.vendors;
-  const vendorHead = `<tr><td style="padding:14px 20px 2px 20px;"><span style="font-size:11px;font-weight:bold;color:${B};text-transform:uppercase;letter-spacing:0.6px;${F}">Activity By Vendor</span> <span style="font-size:11px;color:#6b7280;${F}">&#183; ${v.totalActions} action${v.totalActions === 1 ? "" : "s"} by ${v.totalUsers} ${v.totalUsers === 1 ? "person" : "people"}${p.kind === "weekly" ? " across " + v.blocks.length + " vendor" + (v.blocks.length === 1 ? "" : "s") : ""}</span></td></tr>`;
-  const vendorBody = v.totalActions === 0
-    ? `<tr><td style="padding:8px 20px 10px 20px;font-size:12.5px;color:#6b7280;${F}">No activity recorded ${p.kind === "daily" ? "today" : "this week"}.</td></tr>`
-    : `<tr><td style="padding:6px 20px 10px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">`
-      + v.blocks.map((b) =>
-        `<tr><td style="padding:10px 0 3px 0;border-bottom:1px solid #e5e7eb;font-size:12.5px;font-weight:bold;color:#111827;${F}">${esc(b.name)} <span style="font-weight:normal;color:#6b7280;font-size:11px;">&#183; ${b.total} action${b.total === 1 ? "" : "s"}</span></td></tr>`
-        + b.users.map((u) =>
-          `<tr><td style="padding:7px 0 2px 0;font-size:12px;font-weight:bold;color:#1f2937;${F}">${esc(u.name)} <span style="font-weight:normal;color:#6b7280;">&#183; ${u.n} action${u.n === 1 ? "" : "s"}</span></td></tr>`
-          + `<tr><td style="padding:2px 0 6px 12px;font-size:12px;color:#374151;line-height:1.65;${F}">${u.lines.join("<br>")}</td></tr>`
-        ).join("")
+  const vendorHead = `<tr><td style="padding:14px 20px 8px 20px;"><span style="font-size:11px;font-weight:bold;color:${B};text-transform:uppercase;letter-spacing:0.6px;${F}">Activity By Vendor</span> <span style="font-size:11px;color:#6b7280;${F}">&#183; ${v.totalActions} action${v.totalActions === 1 ? "" : "s"} by ${v.totalUsers} ${v.totalUsers === 1 ? "person" : "people"}${p.kind === "weekly" ? " across " + v.blocks.length + " vendor" + (v.blocks.length === 1 ? "" : "s") : ""}</span></td></tr>`;
+  const card = (b: VendorBlock) => {
+    const meta = `${b.total} action${b.total === 1 ? "" : "s"}` + (b.users.length > 1 ? ` &#183; most active: ${esc(b.users[0].name)}` : "");
+    const logo = b.logo ? `<img src="cid:${b.logo.cid}" width="${b.logo.w}" height="${b.logo.h}" alt="${esc(b.name)}" style="display:inline-block;vertical-align:middle;">` : "";
+    const note = b.note ? `<tr><td style="padding:8px 0 2px 0;font-size:11.5px;color:#6b7280;line-height:1.6;${F}">${esc(b.note)}</td></tr>` : "";
+    return `<tr><td style="padding:0 0 16px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;border:1px solid #e2e8f2;">`
+      + `<tr><td style="background-color:#EEF2F8;padding:9px 14px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
+      + `<td style="vertical-align:middle;">${logo}<span style="font-size:13px;font-weight:bold;color:#111827;${logo ? "padding-left:10px;" : ""}${F}">${esc(b.name)}</span></td>`
+      + `<td align="right" style="font-size:11px;color:#55627a;${F}">${meta}</td>`
+      + `</tr></table></td></tr>`
+      + `<tr><td style="padding:2px 14px 6px 14px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">${note}`
+      + b.users.map((u) =>
+        `<tr><td style="padding:8px 0 2px 0;font-size:12px;font-weight:bold;color:#1f2937;${F}">${esc(u.name)} <span style="font-weight:normal;color:#6b7280;">&#183; ${u.n} action${u.n === 1 ? "" : "s"}</span></td></tr>`
+        + `<tr><td style="padding:2px 0 8px 12px;font-size:12px;color:#374151;line-height:1.7;${F}">${u.lines.join("<br>")}</td></tr>`
       ).join("")
-      + `</table></td></tr>`;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${F}">`
-    + `<tr><td style="padding:0;background-color:${B};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">`
-    + `<tr><td style="padding:14px 20px 2px 20px;font-size:17px;font-weight:bold;color:#ffffff;${F}">${title}</td></tr>`
-    + `<tr><td style="padding:0 20px 12px 20px;font-size:11.5px;color:#cfe0f7;${F}">${esc(p.dateLine)}</td></tr>`
-    + `</table></td></tr>`
-    + kpiStrip + clRows + vendorHead + vendorBody
-    + `<tr><td style="padding:8px 20px 16px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${B};padding:9px 22px;font-size:12.5px;font-weight:bold;${F}"><a href="${esc(p.appUrl)}" style="color:#ffffff;text-decoration:none;">Open DLP</a></td></tr></table></td></tr>`
-    + `<tr><td style="padding:10px 20px;border-top:1px solid #e5e7eb;font-size:10.5px;color:#9ca3af;${F}">Automated update &#183; FIN04 &#183; atnorth Koski &#183; CSN Commissioning</td></tr>`
+      + `</table></td></tr></table></td></tr>`;
+  };
+  const vendorBody = v.totalActions === 0
+    ? `<tr><td style="padding:0 20px 10px 20px;font-size:12.5px;color:#6b7280;${F}">No activity recorded ${p.kind === "daily" ? "today" : "this week"}.</td></tr>`
+    : `<tr><td style="padding:0 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">` + v.blocks.map(card).join("") + `</table></td></tr>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="620" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${F}">`
+    + header + kpiStrip + clRows + vendorHead + vendorBody
+    + `<tr><td style="padding:4px 20px 16px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${B};padding:9px 22px;font-size:12.5px;font-weight:bold;${F}"><a href="${esc(p.appUrl)}" style="color:#ffffff;text-decoration:none;">Open DLP</a></td></tr></table></td></tr>`
+    + bar(3)
+    + `<tr><td style="padding:10px 20px;font-size:10.5px;color:#9ca3af;${F}">Automated update &#183; FIN04 &#183; atnorth Koski &#183; Quantum Mission Critical</td></tr>`
     + `</table>`;
 }
 function tile(v: string, l: string, vColor: string, accent: string) {
