@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV97", date: "2026-07-03", items: ["Approve And Invite now does what it says: approving an access request also sends the invitation email (the approved guided-steps template, link only, never a password) from your connected Outlook as part of the same action, and the modal states this. If Outlook is not connected or the send fails, the message says exactly what happened and the credentials card's Email Invite button is the retry path. The Add User path deliberately stays manual: there you initiate, so nothing is emailed until you press Email Invite"] },
   { rev: "REV96", date: "2026-07-03", items: ["New Hide Complete pill on the board toolbar (beside Make-ready and YTT): hides activities marked Complete in both the Swimlane and the Gantt so open work stands out. Failed witness events stay visible even when complete, since they remain open questions until a retest closes them; the search counter counts within the focused set; a clear empty state appears when everything in the window is complete; and the choice persists with your other board preferences", "Strictly display-only, on the same scope contract as board search: KPI tiles, exports, the Weekly Report, digests and the Witness Schedule are never affected by the toggle"] },
   { rev: "REV95", date: "2026-07-03", items: ["Scheduled admin digests, sent from inside DLP: a daily update at 17:00 and a weekly update at 16:00 on Friday (Europe/Helsinki), emailed to all admin users from Ruain's connected Outlook session whenever his DLP tab is open. Each carries the changelog entries shipped in the window and Activity By Vendor with an itemised summary per user rendered verbatim from the audit trail; the weekly opens with the KPI strip and rolls high-churn verbs into counts with the largest movements named. Quiet days still send, so silence reads as signal", "Engineered guarantees: a database claim (report_runs, run the new report-runs.sql) makes duplicate sends across tabs impossible; a 72 hour catch-up sweep sends missed boundaries late instead of losing them, so a weekend away yields the digests on Monday's first open; Saturday's window starts at Friday 16:00 so no audit hour is skipped; send times are DST-proof. Accepted limits: a boundary with no DLP tab open sends late or, past 72 hours, not at all, and if the Microsoft session needs interactive refresh a toast asks for Connect Outlook and retries", "The server-side sender, its cron schedule and the pending IT credential request are all retired; the app keeps zero standing Microsoft permissions"] },
   { rev: "REV93", date: "2026-07-03", items: ["User invitations can now be emailed straight from DLP through your connected Outlook account, in the approved guided-steps design: Email Invite sits on the credentials card after adding a person or approving an access request, on the set-password link flow (as Your FIN04 DLP sign-in link), and Email All Created Invites sends the whole bulk batch one by one with per-row results. Links state their 30-day validity; temporary passwords are never emailed by design, copy remains the path for those", "Retest invitations now declare their history: subject reads RETEST INVITE with the attempt number, the header chip shows the attempt (and day for multi-day retests), and a red block above the details states the failed date and the recorded reason. Sending a retest whose failed attempt still holds a live invitation offers one click to also cancel it with a cross-reference comment, so attendees' calendars close the loop themselves", "Cancellation comments rewritten: a failed activity with a scheduled retest sends a comment naming the recorded reason and the retest's date and time; ordinary cancellations state plainly that the session is off and any replacement arrives separately", "New Test To Me on every Witness Schedule row: creates the real event with the real template and vendor logo in your own calendar only, no witnesses invited, nothing stamped, and the result line reports whether the logo deep-insert was accepted or the name-only fallback fired", "The CSV witness export and the Outlook macro path are retired: the export and Mark Sent buttons are gone from Reports and the Witness Schedule hint no longer mentions them. Invites now live entirely in the in-app Outlook flow; the SendWitnessInvites.bas macro on your machine is historical"] },
@@ -3286,7 +3287,26 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       setApprove(null); setReqBusy(false);
       const projName = S.brand?.projectName || "this project";
       setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, roleLabel: a.projRole === "admin" ? "Admin" : "Member", companyName: companyName || "", title: "Approved \u00b7 " + (granted ? ((a.projRole === "admin" ? "Admin" : "Member") + " on " + projName) : (a.grantProject ? "account made, grant failed" : (companyName || "global contacts only"))) });
-      setUserMsg(grantErr ? ("Account created, but the project grant failed: " + grantErr + ". Add them under Project Team.") : "");
+      // REV97: Approve And Invite now means what it says. If this session's Outlook is connected,
+      // the invitation email (approved A2 template, link only, never a password) goes out as part
+      // of the approval; otherwise, or on failure, the card's Email Invite button is the retry
+      // path and the message says exactly what did and did not happen.
+      const msgs = [];
+      if (grantErr) msgs.push("Account created, but the project grant failed: " + grantErr + ". Add them under Project Team.");
+      if (res && res.link) {
+        try {
+          const ol = await import("./outlook");
+          const acct = await ol.outlookAccount();
+          if (!acct) {
+            msgs.push("Not emailed yet: Outlook is not connected in this session. Press Email Invite on the card (connect via the Witness Schedule or the Weekly Report window).");
+          } else {
+            const html = ol.buildUserInviteEmailHtml({ mode: "invite", email, roleLabel: a.projRole === "admin" ? "Admin" : "Member", companyName: companyName || "", link: res.link, sentByName: cu.name || acct.username, validityDays: 30 });
+            await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [email] });
+            msgs.push("Invitation emailed to " + email + " from " + acct.username + ".");
+          }
+        } catch (mailErr) { msgs.push("Approved, but the invitation email failed: " + ((mailErr && mailErr.message) || mailErr) + ". Press Email Invite on the card to retry."); }
+      }
+      setUserMsg(msgs.join(" "));
     } catch (e) { setReqBusy(false); setUserMsg("Approve failed: " + (e.message || e)); }
   };
   const doReject = async () => {
@@ -4152,7 +4172,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               <div className="lk-f"><label>Project Access</label>
                 <label className="lk-remember"><input type="checkbox" checked={approve.grantProject} onChange={(e) => setApprove((a) => ({ ...a, grantProject: e.target.checked }))} /><span>Add to <b>{S.brand?.projectName || "this project"}</b> on approval</span></label>
                 {approve.grantProject && <div className="lk-row" style={{ marginTop: 8, alignItems: "center" }}><span style={{ fontSize: 11.5, color: "var(--muted)" }}>as</span><select className="lk-select" style={{ maxWidth: 160 }} value={approve.projRole} onChange={(e) => setApprove((a) => ({ ...a, projRole: e.target.value }))}><option value="member">Member</option><option value="admin">Admin</option></select></div>}
-                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{approve.grantProject ? "They can open this project immediately, with no separate invite to accept." : "Creates their account only; add them to projects later under Members."}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{approve.grantProject ? "They can open this project immediately, with no separate invite to accept. Approving also emails their sign-in link from your connected Outlook; if it is not connected, the card that follows has Email Invite." : "Creates their account only; add them to projects later under Members."}</div>
               </div>
               {userMsg && <div style={{ fontSize: 11.5, color: "var(--red)" }}>{userMsg}</div>}
             </div>
