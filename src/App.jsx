@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV95", date: "2026-07-03", items: ["Scheduled admin digests, sent from inside DLP: a daily update at 17:00 and a weekly update at 16:00 on Friday (Europe/Helsinki), emailed to all admin users from Ruain's connected Outlook session whenever his DLP tab is open. Each carries the changelog entries shipped in the window and Activity By Vendor with an itemised summary per user rendered verbatim from the audit trail; the weekly opens with the KPI strip and rolls high-churn verbs into counts with the largest movements named. Quiet days still send, so silence reads as signal", "Engineered guarantees: a database claim (report_runs, run the new report-runs.sql) makes duplicate sends across tabs impossible; a 72 hour catch-up sweep sends missed boundaries late instead of losing them, so a weekend away yields the digests on Monday's first open; Saturday's window starts at Friday 16:00 so no audit hour is skipped; send times are DST-proof. Accepted limits: a boundary with no DLP tab open sends late or, past 72 hours, not at all, and if the Microsoft session needs interactive refresh a toast asks for Connect Outlook and retries", "The server-side sender, its cron schedule and the pending IT credential request are all retired; the app keeps zero standing Microsoft permissions"] },
   { rev: "REV93", date: "2026-07-03", items: ["User invitations can now be emailed straight from DLP through your connected Outlook account, in the approved guided-steps design: Email Invite sits on the credentials card after adding a person or approving an access request, on the set-password link flow (as Your FIN04 DLP sign-in link), and Email All Created Invites sends the whole bulk batch one by one with per-row results. Links state their 30-day validity; temporary passwords are never emailed by design, copy remains the path for those", "Retest invitations now declare their history: subject reads RETEST INVITE with the attempt number, the header chip shows the attempt (and day for multi-day retests), and a red block above the details states the failed date and the recorded reason. Sending a retest whose failed attempt still holds a live invitation offers one click to also cancel it with a cross-reference comment, so attendees' calendars close the loop themselves", "Cancellation comments rewritten: a failed activity with a scheduled retest sends a comment naming the recorded reason and the retest's date and time; ordinary cancellations state plainly that the session is off and any replacement arrives separately", "New Test To Me on every Witness Schedule row: creates the real event with the real template and vendor logo in your own calendar only, no witnesses invited, nothing stamped, and the result line reports whether the logo deep-insert was accepted or the name-only fallback fired", "The CSV witness export and the Outlook macro path are retired: the export and Mark Sent buttons are gone from Reports and the Witness Schedule hint no longer mentions them. Invites now live entirely in the in-app Outlook flow; the SendWitnessInvites.bas macro on your machine is historical"] },
   { rev: "REV92", date: "2026-07-03", items: ["Report email body rebuilt to the approved Option A design: two-line branded header, accent-topped KPI tiles, the executive summary, a truthful Attached block, an Open DLP button (bulletproof table-cell pattern) and a clean footer, all in the email-safe subset", "Every report email and every classic Outlook draft now carries both themes as attachments, FIN04-weekly-report-<date>-light.html for printing and -dark.html for screens; the Appearance toggle now governs only the on-screen Generate Report", "The size guard works on the pair: dark is dropped first if the send would breach Graph's single-request ceiling, and the email body and the result line state exactly which files attached"] },
   { rev: "REV91", date: "2026-07-03", items: ["Root cause of the persisting Connect Outlook button found and fixed: msal-browser 5.x changed handleRedirectPromise to take an options object, so the captured sign-in response was being passed as a bare string, silently ignored, and MSAL fell back to the live URL hash that the app's boot had already rewritten away. The captured hash is now passed as { hash }, per the 5.16 type contract, and the redirect return connects the account", "Sign-in return diagnostics: the outlook module now records the outcome of every redirect return, and if the account fails to arrive, the Witness Schedule bar and the report window print the exact error code and message (the raw error also goes to the browser console) instead of silently showing Connect Outlook again"] },
@@ -1370,12 +1371,29 @@ export default function App({ session }) {
   const [olMsg, setOlMsg] = useState(null);        // { ok, text } result line in the popup
   const vendorLogoCache = useRef({});              // company id -> fetched CID logo payload or null
   const [authDiag, setAuthDiag] = useState(null);  // last redirect-return diagnostics from the outlook module
+  const digestBusy = useRef(false);                // re-entrancy guard for the digest scheduler
+  const digestRef = useRef({ S: null, admin: false });   // latest state snapshot for the interval tick
+  const [digestNote, setDigestNote] = useState(null);    // { ok, text } toast for digest sends and failures
   useEffect(() => {
     if (!witSched) return;
     let live = true;
     import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); const d = await m.authDiagnostics(); if (live) { setOlAcct(acct ? acct.username : null); setAuthDiag(d); } }).catch(() => {});
     return () => { live = false; };
   }, [witSched]);
+  useEffect(() => {
+    // Digest scheduler (REV95): the daily (17:00) and weekly (Friday 16:00) admin digests are
+    // sent from this tab's delegated session, only when the connected Outlook account is the
+    // designated sender. A minute tick plus focus and visibility triggers; the report_runs
+    // unique claim makes duplicate sends across tabs impossible; a 72 hour catch-up sweep
+    // sends missed boundaries late instead of losing them.
+    const tick = () => { digestTick().catch(() => { }); };
+    const iv = setInterval(tick, 60000);
+    const onWake = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    const t0 = setTimeout(tick, 4000);
+    return () => { clearInterval(iv); clearTimeout(t0); document.removeEventListener("visibilitychange", onWake); window.removeEventListener("focus", onWake); };
+  }, []);
   useEffect(() => {
     // Returning from a popup-blocked redirect sign-in: hand the synchronously captured auth
     // response to the outlook module (the live URL may already have been rewritten by boot),
@@ -1559,6 +1577,7 @@ export default function App({ session }) {
   const LV = S.levels || DEFAULT_LEVELS;
 
   const isAdmin = cu.role === "admin";
+  digestRef.current = { S, admin: isAdmin };
   const csnCompanyId = cu.companyId ? cu.companyId : (cu.role === "admin" ? (((S.companies || []).find((c) => (c.name || "").trim().toLowerCase() === "csn") || {}).id || null) : null);
 
   // ---- REV85: Outlook invite engine (delegated Graph; organiser = signed-in admin) ----
@@ -1711,6 +1730,66 @@ export default function App({ session }) {
       setOlMsg({ ok: false, text: (err && err.message) || String(err) });
     }
     setOlBusy(null);
+  };
+  // ---- REV95: client-side digest scheduler ----
+  const DIGEST_SENDER = "ruain.b@cs-nordics.com";
+  const digestTick = async () => {
+    if (digestBusy.current) return;
+    const snap = digestRef.current;
+    if (!snap.S || !snap.admin) return;
+    digestBusy.current = true;
+    try {
+      const core = await import("./digestCore");
+      let test = null; try { test = localStorage.getItem("fin04_digest_test"); } catch (e) { }
+      const bounds = (test === "daily" || test === "weekly")
+        ? [{ kind: test, due: new Date() }]
+        : core.dueBoundaries(new Date(), 72);
+      if (!bounds.length) return;
+      const ol = await import("./outlook");
+      const acct = await ol.outlookAccount();
+      if (!acct || String(acct.username).toLowerCase() !== DIGEST_SENDER) return;   // not the designated sender's session
+      for (const b of bounds) {
+        const St = digestRef.current.S; if (!St) break;
+        const runDate = core.helDateStr(b.due);
+        let claimId = null;
+        if (!test) {
+          const ins = await supabase.from("report_runs").insert({ kind: b.kind, run_date: runDate, status: "sending", recipients: 0 }).select("id").single();
+          if (ins.error) {
+            if (ins.error.code === "23505" || /duplicate|unique/i.test(ins.error.message || "")) continue;   // another tab or already sent
+            setDigestNote({ ok: false, text: "Digest claim failed: " + ins.error.message }); return;
+          }
+          claimId = ins.data.id;
+        }
+        try {
+          const win = core.windowFor(b.kind, b.due);
+          const audQ = await supabase.from("audit_log").select("ts, user_name, action, detail, entity, entity_id").gte("ts", win.start.toISOString()).lt("ts", win.end.toISOString()).order("ts");
+          if (audQ.error) throw new Error("audit query: " + audQ.error.message);
+          const audit = (audQ.data || []).map((e) => ({ ts: e.ts, user: e.user_name || "Unknown", action: e.action || "", detail: e.detail || "", entity: e.entity || "", entityId: e.entity_id }));
+          const profiles = (St.users || []).map((u) => ({ id: u.id, name: u.name, role: u.role, companyId: u.companyId }));
+          const companiesM = new Map((St.companies || []).map((c) => [c.id, c.name]));
+          const actsM = new Map((St.activities || []).map((x) => [x.id, { code: x.code, desc: x.desc || "", companyId: x.companyId }]));
+          const vendors = core.assembleVendors(audit, profiles, companiesM, actsM, b.kind);
+          const clRows = core.changelogRows(CHANGELOG.map((e) => ({ rev: e.rev, date: e.date, items: e.items || [] })), core.helDateStr(win.start), core.helDateStr(win.end), b.kind);
+          const kpi = b.kind === "weekly" ? core.weeklyKpis(core.actRowsFromClient(St.activities || []), core.helDateStr(new Date(win.end.getTime() - 6 * 86400000)), core.helDateStr(win.end), core.helDateStr(new Date())) : null;
+          const html = core.buildDigestHtml({ kind: b.kind, dateLine: core.dateLineFor(b.kind, win), changelog: clRows, vendors, kpi, appUrl: window.location.origin });
+          const subject = core.subjectFor(b.kind, core.subjectLabelFor(b.kind, win));
+          const us = await fetchUserStatus();
+          const admins = profiles.filter((p) => p.role === "admin");
+          const missing = [];
+          let recipients = admins.map((p) => { const em = us[p.id] && us[p.id].email; if (!em) missing.push(p.name); return em; }).filter(Boolean);
+          if (test) recipients = [acct.username];
+          if (!recipients.length) throw new Error("no admin email addresses resolved");
+          await ol.sendMailMessage({ subject, html, to: recipients });
+          if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: recipients.length, detail: subject + (missing.length ? " \u00b7 no email for: " + missing.join(", ") : "") }).eq("id", claimId);
+          setDigestNote({ ok: true, text: (b.kind === "daily" ? "Daily" : "Weekly") + " digest sent to " + recipients.length + " recipient" + (recipients.length === 1 ? "" : "s") + (test ? " (test, to you only)" : "") + "." });
+        } catch (err) {
+          if (claimId) { try { await supabase.from("report_runs").delete().eq("id", claimId); } catch (e2) { } }
+          setDigestNote({ ok: false, text: "Digest not sent (" + b.kind + " " + runDate + "): " + ((err && err.message) || err) + ". It will retry on the next tick; if this mentions sign-in, press Connect Outlook." });
+          break;
+        }
+      }
+      if (test) { try { localStorage.removeItem("fin04_digest_test"); } catch (e) { } }
+    } finally { digestBusy.current = false; }
   };
   // Real event, real template, real vendor logo, sent to the signed-in admin only. No routing,
   // no witness_events persistence, no sent stamps. The result line reports the logo verdict
@@ -2333,6 +2412,7 @@ export default function App({ session }) {
       </div>
       </div>
 
+      {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "rgba(14,147,132,.14)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "#0E9384" : "#C0392B"), color: digestNote.ok ? "#0E9384" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
