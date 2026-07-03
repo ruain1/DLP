@@ -171,7 +171,7 @@ export const b64utf8 = (str) => {
 export const mailRecipients = (list) => (list || []).map((r) => {
   const o = typeof r === "string" ? { email: r } : (r || {});
   return { emailAddress: { address: o.email || "", name: o.name || o.email || "" } };
-}).filter((x) => x.emailAddress.address);
+}).filter((x) => x.emailAddress.address && x.emailAddress.address.includes("@"));
 
 export async function sendMailMessage({ subject, html, to, cc, attachment, attachments }) {
   const message = {
