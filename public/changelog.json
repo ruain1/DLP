@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV97",
+  "date": "2026-07-03",
+  "items": [
+   "Approve And Invite now does what it says: approving an access request also sends the invitation email (the approved guided-steps template, link only, never a password) from your connected Outlook as part of the same action, and the modal states this. If Outlook is not connected or the send fails, the message says exactly what happened and the credentials card's Email Invite button is the retry path. The Add User path deliberately stays manual: there you initiate, so nothing is emailed until you press Email Invite"
+  ]
+ },
+ {
   "rev": "REV96",
   "date": "2026-07-03",
   "items": [
