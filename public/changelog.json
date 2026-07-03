@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV101",
+  "date": "2026-07-03",
+  "items": [
+   "Admin digest emails redesigned to the approved QMC brand: white header carrying the Quantum Mission Critical mark, the four-colour Cx workflow bar (read live from this project's L1 to L4 stage colours) under the header and echoed above the footer, and each vendor as a bordered card with a shaded band carrying its real logo, name and counts, most active person named on multi-user vendors. Vendor logos embed as inline attachments from each company's light-surface asset with a name-only fallback; the daily and weekly share the one template",
+   "Content fixes in both digests: repeated references within a verb group now collapse to one entry with a count (x2 style) and the caps count deduplicated entries; detail fragments that merely echo the activity name are suppressed; and audit entries whose author matches no current user profile now appear in their own Unattributed card pinned last, with an explanation, instead of being silently filed under CSN"
+  ]
+ },
+ {
   "rev": "REV100",
   "date": "2026-07-03",
   "items": [
