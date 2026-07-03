@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV91", date: "2026-07-03", items: ["Root cause of the persisting Connect Outlook button found and fixed: msal-browser 5.x changed handleRedirectPromise to take an options object, so the captured sign-in response was being passed as a bare string, silently ignored, and MSAL fell back to the live URL hash that the app's boot had already rewritten away. The captured hash is now passed as { hash }, per the 5.16 type contract, and the redirect return connects the account", "Sign-in return diagnostics: the outlook module now records the outcome of every redirect return, and if the account fails to arrive, the Witness Schedule bar and the report window print the exact error code and message (the raw error also goes to the browser console) instead of silently showing Connect Outlook again"] },
   { rev: "REV90", date: "2026-07-03", items: ["Connect Outlook is now redirect-first: the popup sign-in is retired after colliding with three separate failure modes in this deployment (popup blockers and enterprise policy, the opener's popup monitoring being timer-throttled while the app booting inside the popup stripped the auth response, and a reported msal-browser 5.x regression where the popup redirects to the app instead of closing). Sign-in is a quick full-page Microsoft redirect that returns to DLP already connected", "New auth landing guard, Microsoft's documented pattern: when the page loads as the sign-in popup or as MSAL's hidden token-renewal iframe, the app no longer boots there (booting stripped the auth response from the URL); a static completing-sign-in line shows and the parent window reads the response. This also makes future silent token renewals reliable, which previously loaded the entire app inside a hidden iframe", "Token refresh is silent-only; if it cannot refresh it asks you to press Connect Outlook rather than opening interactive windows mid-operation"] },
   { rev: "REV89", date: "2026-07-03", items: ["Fixed the redirect sign-in landing signed out: the app's boot rewrites the URL with history.replaceState the moment it restores your project, which erased Microsoft's auth response from the hash before the Outlook module could read it. The response is now captured synchronously at page evaluation and handed to MSAL explicitly, so the account connects regardless of what boot does to the URL; MSAL also no longer performs a second navigation after sign-in", "New Open In Outlook (Draft) in the report window: downloads a pre-addressed .eml carrying X-Unsent: 1 with the styled summary body and the full report attached; opening the file launches classic Outlook in compose mode for review and Send from your own mailbox. Pure client-side, works without Connect Outlook. Classic Outlook only; new Outlook handles these drafts unreliably and may drop the attachment"] },
   { rev: "REV88", date: "2026-07-03", items: ["Connect Outlook now survives popup blockers: when the browser refuses the Microsoft sign-in popup (the popup_window_error seen on corporate machines and under enterprise policy), the app automatically falls back to a full-page redirect sign-in and returns to DLP signed in. The redirect return is absorbed at boot, so the account is connected on the next open of the Witness Schedule or report window", "A blocked popup during a token refresh mid-send deliberately does not redirect (a full-page navigation there would abandon partially-sent invites and risk duplicates); it stops with a clear instruction to press Connect Outlook and retry", "Raw MSAL error strings no longer surface for this case"] },
@@ -1366,10 +1367,11 @@ export default function App({ session }) {
   const [olBusy, setOlBusy] = useState(null);      // activity id currently sending, or "bulk"
   const [olMsg, setOlMsg] = useState(null);        // { ok, text } result line in the popup
   const vendorLogoCache = useRef({});              // company id -> fetched CID logo payload or null
+  const [authDiag, setAuthDiag] = useState(null);  // last redirect-return diagnostics from the outlook module
   useEffect(() => {
     if (!witSched) return;
     let live = true;
-    import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); if (live) setOlAcct(acct ? acct.username : null); }).catch(() => {});
+    import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); const d = await m.authDiagnostics(); if (live) { setOlAcct(acct ? acct.username : null); setAuthDiag(d); } }).catch(() => {});
     return () => { live = false; };
   }, [witSched]);
   useEffect(() => {
@@ -1377,7 +1379,7 @@ export default function App({ session }) {
     // response to the outlook module (the live URL may already have been rewritten by boot),
     // absorb it, reflect the account, and tidy any hash still visible.
     if (MSAL_RETURN_HASH) {
-      import("./outlook").then((m) => { m.primeRedirectHash(MSAL_RETURN_HASH); return m.outlookAccount(); })
+      import("./outlook").then(async (m) => { m.primeRedirectHash(MSAL_RETURN_HASH); const acct = await m.outlookAccount(); const d = await m.authDiagnostics(); setAuthDiag(d); return acct; })
         .then((acct) => { if (acct) setOlAcct(acct.username); })
         .catch(() => {})
         .finally(() => { try { if (/[#&](code|error)=/.test(window.location.hash || "")) history.replaceState(null, "", location.pathname + location.search); } catch (e) {} });
@@ -2439,6 +2441,7 @@ export default function App({ session }) {
                 </div>;
               })()}
               {isAdmin && olMsg && <div className={"wsch-olmsg" + (olMsg.ok ? "" : " err")}>{olMsg.text}</div>}
+              {isAdmin && !olAcct && authDiag && (!authDiag.ok || (authDiag.hadHash && !authDiag.account)) && <div className="wsch-olmsg err">Sign-in return: {authDiag.ok ? "response processed but no account arrived" : (authDiag.code || "error") + ": " + authDiag.message}</div>}
               <div className="wsch-list">
                 {list.length === 0 ? <div className="ytt-empty" style={{ textAlign: "center", padding: 18 }}>No witness activities in this period.</div> :
                   list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt);
@@ -5398,6 +5401,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   const [repOl, setRepOl] = useState(null);          // connected Outlook account for report emailing
   const [repBusy, setRepBusy] = useState(false);      // false | "send" | "test"
   const [repMsg, setRepMsg] = useState(null);         // { ok, text }
+  const [repDiag, setRepDiag] = useState(null);       // last redirect-return diagnostics
   const start = mode === "week" ? defWeek.start : (from ? parseD(from) : defWeek.start);
   const end = mode === "week" ? defWeek.end : (to ? parseD(to) : defWeek.end);
   const rData = useMemo(() => open ? computeReport({ S, LV, coName, start, end }) : null, [open, S, LV, start.getTime(), end.getTime()]);
@@ -5410,7 +5414,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   const openModal = async () => {
     setSummary(null); setMode("week"); setFrom(fmtISO(defWeek.start)); setTo(fmtISO(defWeek.end)); setOpen(true); setBusy(true);
     setRepMsg(null);
-    import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); setRepOl(acct ? acct.username : null); }).catch(() => {});
+    import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); const d = await m.authDiagnostics(); setRepOl(acct ? acct.username : null); setRepDiag(d); }).catch(() => {});
     try {
       const [{ data: wk }, { data: conf }] = await Promise.all([
         supabase.from("cx_week").select("*").eq("project_id", projectId).order("week_ending", { ascending: false }).limit(1),
@@ -5571,6 +5575,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
           </div>
         </div>
         {repMsg && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: repMsg.ok ? "#0E9384" : "#C0392B" }}>{repMsg.text}</div>}
+        {!repOl && repDiag && (!repDiag.ok || (repDiag.hadHash && !repDiag.account)) && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: "#C0392B" }}>Sign-in return: {repDiag.ok ? "response processed but no account arrived" : (repDiag.code || "error") + ": " + repDiag.message}</div>}
         <div className="rep-foot" style={{ flexWrap: "wrap", gap: 8 }}><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button>
           {!repOl && <button className="lk-btn" onClick={connectRep} title="Signs in via a quick full-page Microsoft redirect and returns here">Connect Outlook</button>}
           {repOl && <button className="lk-btn" disabled={!!repBusy || !rData} onClick={() => sendReport(true)} title={"Send only to " + repOl}>{repBusy === "test" ? "Sending..." : "Send Test To Me"}</button>}

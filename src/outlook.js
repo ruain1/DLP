@@ -15,7 +15,9 @@ const SITE_TZ = "Europe/Helsinki";
 let msal = null;
 let ready = null;
 let pendingHash;   // auth response hash captured synchronously by the app before boot rewrote the URL
+let lastAuthDiag = null;   // { at, ok, hadHash, account | code, message } from the last redirect-return processing
 export function primeRedirectHash(h) { if (!msal) pendingHash = h || undefined; }
+export async function authDiagnostics() { app(); await ready; return lastAuthDiag; }
 const app = () => {
   if (!msal) {
     msal = new PublicClientApplication({
@@ -28,8 +30,23 @@ const app = () => {
     // because the app's boot rewrites the URL with history.replaceState("?p=...") before this lazy
     // chunk can read location.hash, which silently destroyed redirect sign-ins.
     ready = msal.initialize()
-      .then(() => msal.handleRedirectPromise(pendingHash))
-      .then((res) => { pendingHash = undefined; if (res && res.account) msal.setActiveAccount(res.account); return null; })
+      .then(() => {
+        const hadHash = !!pendingHash;
+        // v5 contract: handleRedirectPromise takes an options OBJECT ({ hash }), not a bare hash
+        // string. The bare-string call of the v2/v3 era is silently ignored by 5.x, which is
+        // exactly how the REV89 captured-hash fix failed: MSAL fell back to the live URL hash,
+        // already wiped by the app's boot rewrite, and resolved null without an error.
+        return msal.handleRedirectPromise(pendingHash ? { hash: pendingHash } : undefined)
+          .then((res) => {
+            lastAuthDiag = { at: new Date().toISOString(), ok: true, hadHash, account: res && res.account ? res.account.username : null };
+            if (res && res.account) msal.setActiveAccount(res.account);
+          })
+          .catch((e) => {
+            lastAuthDiag = { at: new Date().toISOString(), ok: false, hadHash, code: (e && (e.errorCode || e.code)) || "", message: (e && e.message) || String(e) };
+            try { console.error("[DLP outlook] redirect return failed:", e); } catch (x) { }
+          });
+      })
+      .then(() => { pendingHash = undefined; return null; })
       .catch(() => { pendingHash = undefined; return null; });
   }
   return msal;
