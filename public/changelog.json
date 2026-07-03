@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV99",
+  "date": "2026-07-03",
+  "items": [
+   "Fix: Email Invite from the Resend set-password link card was sending to the person's display name instead of their address (Exchange refused to resolve it), because that flow stored the name where the other flows store the email. The card now carries the real address from the roster's status lookup, the emailer refuses a name-shaped address with plain guidance instead of an Exchange error, and the Outlook transport drops any recipient without an @ so the readable no-valid-recipients message fires first. Add, approve and bulk flows were unaffected"
+  ]
+ },
+ {
   "rev": "REV98",
   "date": "2026-07-03",
   "items": [
