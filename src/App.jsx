@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV93", date: "2026-07-03", items: ["User invitations can now be emailed straight from DLP through your connected Outlook account, in the approved guided-steps design: Email Invite sits on the credentials card after adding a person or approving an access request, on the set-password link flow (as Your FIN04 DLP sign-in link), and Email All Created Invites sends the whole bulk batch one by one with per-row results. Links state their 30-day validity; temporary passwords are never emailed by design, copy remains the path for those", "Retest invitations now declare their history: subject reads RETEST INVITE with the attempt number, the header chip shows the attempt (and day for multi-day retests), and a red block above the details states the failed date and the recorded reason. Sending a retest whose failed attempt still holds a live invitation offers one click to also cancel it with a cross-reference comment, so attendees' calendars close the loop themselves", "Cancellation comments rewritten: a failed activity with a scheduled retest sends a comment naming the recorded reason and the retest's date and time; ordinary cancellations state plainly that the session is off and any replacement arrives separately", "New Test To Me on every Witness Schedule row: creates the real event with the real template and vendor logo in your own calendar only, no witnesses invited, nothing stamped, and the result line reports whether the logo deep-insert was accepted or the name-only fallback fired", "The CSV witness export and the Outlook macro path are retired: the export and Mark Sent buttons are gone from Reports and the Witness Schedule hint no longer mentions them. Invites now live entirely in the in-app Outlook flow; the SendWitnessInvites.bas macro on your machine is historical"] },
   { rev: "REV92", date: "2026-07-03", items: ["Report email body rebuilt to the approved Option A design: two-line branded header, accent-topped KPI tiles, the executive summary, a truthful Attached block, an Open DLP button (bulletproof table-cell pattern) and a clean footer, all in the email-safe subset", "Every report email and every classic Outlook draft now carries both themes as attachments, FIN04-weekly-report-<date>-light.html for printing and -dark.html for screens; the Appearance toggle now governs only the on-screen Generate Report", "The size guard works on the pair: dark is dropped first if the send would breach Graph's single-request ceiling, and the email body and the result line state exactly which files attached"] },
   { rev: "REV91", date: "2026-07-03", items: ["Root cause of the persisting Connect Outlook button found and fixed: msal-browser 5.x changed handleRedirectPromise to take an options object, so the captured sign-in response was being passed as a bare string, silently ignored, and MSAL fell back to the live URL hash that the app's boot had already rewritten away. The captured hash is now passed as { hash }, per the 5.16 type contract, and the redirect return connects the account", "Sign-in return diagnostics: the outlook module now records the outcome of every redirect return, and if the account fails to arrive, the Witness Schedule bar and the report window print the exact error code and message (the raw error also goes to the browser console) instead of silently showing Connect Outlook again"] },
   { rev: "REV90", date: "2026-07-03", items: ["Connect Outlook is now redirect-first: the popup sign-in is retired after colliding with three separate failure modes in this deployment (popup blockers and enterprise policy, the opener's popup monitoring being timer-throttled while the app booting inside the popup stripped the auth response, and a reported msal-browser 5.x regression where the popup redirects to the app instead of closing). Sign-in is a quick full-page Microsoft redirect that returns to DLP already connected", "New auth landing guard, Microsoft's documented pattern: when the page loads as the sign-in popup or as MSAL's hidden token-renewal iframe, the app no longer boots there (booting stripped the auth response from the URL); a static completing-sign-in line shows and the parent window reads the response. This also makes future silent token renewals reliable, which previously loaded the entire app inside a hidden iframe", "Token refresh is silent-only; if it cannot refresh it asks you to press Connect Outlook rather than opening interactive windows mid-operation"] },
@@ -1573,6 +1574,18 @@ export default function App({ session }) {
   };
   const invEntries = (a) => (Array.isArray(a.witnessEvents) ? a.witnessEvents : []);
   const invActive = (a) => invEntries(a).filter((e) => e.status !== "cancelled");
+  // Cancellation comment (plain text: the medium Exchange gives us). When the activity failed
+  // and a scheduled retest child exists, the comment cross-references it so attendees' calendars
+  // tell a coherent story; otherwise the plain template.
+  const cancelComment = (a) => {
+    const child = (S.activities || []).find((x) => x.retestOf === a.id && x.witnessInvite && x.witnessAt);
+    if ((a.outcome || "") === "failed" && child) {
+      const cd = new Date(child.witnessAt);
+      const when = fmtDoW(cd) + ", " + String(cd.getHours()).padStart(2, "0") + ":" + String(cd.getMinutes()).padStart(2, "0") + " (Europe/Helsinki)";
+      return "This witness attempt did not pass" + (a.outcomeReason ? "; reason recorded: " + a.outcomeReason : "") + ". A retest is scheduled for " + when + " and its invitation has been sent separately; please accept that one. Cancelled from DLP by " + (cu.name || "CSN Commissioning") + ", CSN Commissioning.";
+    }
+    return "Cancelled from DLP by " + (cu.name || "CSN Commissioning") + ", CSN Commissioning. This witness session is no longer taking place at this date; remove it from your calendar. Any replacement will arrive as a separate invitation. Questions to the organiser.";
+  };
   // notsent | sent | changed | partial | cancelled
   const invState = (a) => {
     const n = Math.max(1, a.witnessDays || 1);
@@ -1593,14 +1606,21 @@ export default function App({ session }) {
     const ed = new Date(sd.getTime() + mins * 60000);
     const hm = (d) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
     const title = a.desc || "Activity";
+    // Retest invitations declare their history: attempt number, the failed date and the recorded
+    // reason travel into the body's red block, the header chip and the subject line.
+    const par = a.retestOf ? (S.activities || []).find((x) => x.id === a.retestOf) : null;
+    const att = a.retestOf ? attemptNo(a, S.activities) : 1;
+    const retest = par ? { attemptNo: att, failedDate: par.outcomeAt ? fmtDoW(parseD(par.outcomeAt)) : "", reason: par.outcomeReason || "" } : null;
+    const dayChip = n > 1 ? `Day ${dayIdx + 1} of ${n}` : "";
     return {
-      subject: `FIN04 - INVITE FOR ${title}` + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
+      subject: (retest ? `FIN04 - RETEST INVITE FOR ${title} (Attempt ${att})` : `FIN04 - INVITE FOR ${title}`) + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
       title, code: a.code != null ? String(a.code) : "",
       location: locCode(a), companyName: coName(a.companyId), cxStage: a.level, system: a.system || "-",
       discipline: (a.discipline || []).join("; "),
       sessionsLine: (n > 1 ? `${n} daily sessions, ` : "") + `${hm(sd)} to ${hm(ed)} (Europe/Helsinki)`,
       openCount: (a.constraints || []).filter((c) => !c.done).length,
-      notes: a.notes || "", dayLabel: n > 1 ? `Day ${dayIdx + 1} of ${n}` : "",
+      notes: a.notes || "", retest,
+      headerChip: retest ? `Attempt ${att}` + (dayChip ? " \u00b7 " + dayChip : "") : dayChip,
       startLocal: sd, durationMin: mins, required: to || [], optional: cc || [],
     };
   };
@@ -1642,7 +1662,7 @@ export default function App({ session }) {
       const cancelled = invEntries(a).filter((e) => e.status === "cancelled");
       const done = [];
       if (mode === "cancel") {
-        for (const e of active) { await ol.cancelWitnessEvent(e.eventId, "Witness event cancelled via DLP."); }
+        for (const e of active) { await ol.cancelWitnessEvent(e.eventId, cancelComment(a)); }
         persistInv(a, [...cancelled, ...active.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled witness invites", `${a.desc || ""} (${active.length} session${active.length === 1 ? "" : "s"})`);
         setOlMsg({ ok: true, text: `Cancellation sent for ${a.desc || "activity"} (${active.length} session${active.length === 1 ? "" : "s"}).` });
       } else {
@@ -1656,6 +1676,17 @@ export default function App({ session }) {
             bodyHtmlNoLogo: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: null }),
             inlineLogo: useLogo ? logo : null };
         };
+        // Sending a retest whose failed parent still holds a live invitation: offer to close the
+        // loop, cancelling the parent with the cross-reference comment (approved workflow).
+        if (a.retestOf) {
+          const par = (S.activities || []).find((x) => x.id === a.retestOf);
+          const pAct = par ? invActive(par) : [];
+          if (par && pAct.length && window.confirm(`Also cancel the failed attempt's invitation for "${par.desc || "the previous attempt"}"? Attendees receive a cancellation referencing this retest (recommended).`)) {
+            for (const e of pAct) await ol.cancelWitnessEvent(e.eventId, cancelComment(par));
+            persistInv(par, [...invEntries(par).filter((e) => e.status === "cancelled"), ...pAct.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled failed attempt invites", `${par.desc || ""} (retest issued)`);
+            done.push("failed attempt's invitation cancelled");
+          }
+        }
         const keep = [];
         for (const e of active) {
           if (e.day >= n) { await ol.cancelWitnessEvent(e.eventId, "Session removed: witness days reduced in DLP."); cancelled.push({ ...e, status: "cancelled" }); done.push(`day ${e.day + 1} cancelled`); continue; }
@@ -1679,6 +1710,30 @@ export default function App({ session }) {
     } catch (err) {
       setOlMsg({ ok: false, text: (err && err.message) || String(err) });
     }
+    setOlBusy(null);
+  };
+  // Real event, real template, real vendor logo, sent to the signed-in admin only. No routing,
+  // no witness_events persistence, no sent stamps. The result line reports the logo verdict
+  // (deep-insert accepted vs name-only fallback), which is the definitive template check.
+  const testInv = async (a) => {
+    setOlBusy(a.id); setOlMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const acct = await ol.outlookAccount();
+      if (!acct) throw new Error("Outlook is not connected.");
+      const co = (S.companies || []).find((c) => c.id === a.companyId) || null;
+      const logo = await fetchVendorLogo(co);
+      const f = invFields(a, 0);
+      const payload = { ...f,
+        subject: "[TEST] " + f.subject,
+        required: [acct.username], optional: [],
+        bodyHtml: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: logo ? { width: logo.width, alt: f.companyName } : null }),
+        bodyHtmlNoLogo: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: null }),
+        inlineLogo: logo || null };
+      const r = await ol.sendWitnessEvent(payload);
+      const nD = Math.max(1, a.witnessDays || 1);
+      setOlMsg({ ok: true, text: `Test event created in your calendar${nD > 1 ? " (day 1 of " + nD + " only)" : ""}${logo ? (r.logo ? ", vendor logo embedded" : ", vendor logo was rejected by Graph so the name-only fallback fired") : ", no logo on file for " + (co ? co.name : "this company") + " so the name shows as text"}. No witnesses were invited and nothing was stamped; delete it from your calendar when done.` });
+    } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); }
     setOlBusy(null);
   };
   const connectOl = async () => { try { const m = await import("./outlook"); const acct = await m.connectOutlook(); if (acct) { setOlAcct(acct.username); setOlMsg(null); } } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); } };
@@ -1834,49 +1889,6 @@ export default function App({ session }) {
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
   const fmtWitnessAt = (s) => { if (!s) return ""; const d = new Date(s); if (isNaN(d)) return s; return d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
-  const exportWitness = () => {
-    const pad = (n) => String(n).padStart(2, "0");
-    const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    // All witnessable activities with a date, ignoring board filters, earliest first.
-    const wit = (S.activities || []).filter((a) => a.witnessInvite && a.witnessAt).sort((a, b) => (a.witnessAt || "").localeCompare(b.witnessAt || ""));
-    const headers = ["Subject", "Start Date", "Start Time", "End Date", "End Time", "All Day Event", "Location", "Description", "Required Attendees", "Optional Attendees", "Discipline", "Sent", "Start ISO", "End ISO", "Company", "Cx Stage", "System", "Activity ID"];
-    const rows = wit.flatMap((a) => {
-      const nDays = Math.max(1, a.witnessDays || 1);
-      return Array.from({ length: nDays }, (_, di) => { const dayIdx = di;
-      const mins = a.witnessDurationMin || 60;
-      // Calendar arithmetic, not milliseconds: adding dayIdx * 24h drifts one hour across the
-      // Europe/Helsinki DST changes (25 Oct 2026 back, 28 Mar 2027 forward). setDate preserves
-      // the wall-clock start time on every session day.
-      const sd = new Date(a.witnessAt); sd.setDate(sd.getDate() + dayIdx); const ed = new Date(sd.getTime() + mins * 60000);
-      const loc = locCode(a);
-      const title = a.desc || "Activity";
-      const subject = `FIN04 - INVITE FOR ${title}` + (nDays > 1 ? ` - Day ${dayIdx + 1} of ${nDays}` : "");
-      const open = (a.constraints || []).filter((c) => !c.done).length;
-      const disc = (a.discipline || []).join("; ");
-      const { to, cc } = witnessRecipients(a.discipline || []);
-      const bodyLines = [`Invite to witness ${title}`, "", `Discipline: ${disc || "-"}`, `Cx Stage: ${a.level}${a.system ? " on " + a.system : ""}`, `Performing: ${coName(a.companyId)}`, `Location: ${loc || "-"}`, `Planned start: ${a.start}`];
-      if (a.notes) bodyLines.push(`Notes: ${a.notes}`);
-      if (open) bodyLines.push(`Open constraints: ${open}`);
-      if (nDays > 1) bodyLines.push(`Session: Day ${dayIdx + 1} of ${nDays} (daily ${String(sd.getHours()).padStart(2, "0")}:${String(sd.getMinutes()).padStart(2, "0")} start)`);
-      bodyLines.push("", "Please forward to any stakeholder missed in the invite.");
-      const body = bodyLines.join("\n");
-      const dmy = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-      const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      const sent = a.witnessSentAt ? fmtWitnessAt(a.witnessSentAt) : "";
-      return [subject, dmy(sd), hm(sd), dmy(ed), hm(ed), "False", loc, body, to.join("; "), cc.join("; "), disc, sent, localISO(sd), localISO(ed), coName(a.companyId), a.level, a.system || "", a.id];
-      });
-    });
-    downloadFile(`FIN04-witness-invites-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
-    update((p) => p, { action: "Export witness invites", detail: `${rows.length} activities` });
-  };
-  // Stamp activities as invite-sent from the macro's confirmation file (Activity IDs).
-  const markWitnessSent = (ids) => {
-    const want = new Set((ids || []).filter(Boolean));
-    if (!want.size) return;
-    const now = new Date().toISOString();
-    update((p) => ({ ...p, activities: p.activities.map((x) => (want.has(x.id) && !x.witnessSentAt ? { ...x, witnessSentAt: now } : x)) }), { action: "Mark witness invites sent", detail: `${want.size} activit${want.size === 1 ? "y" : "ies"}` });
-  };
-
   const grain = S.grain || "day";
   const cols = grain === "day" ? DAYS : WEEKS;
   const colMin = grain === "day" ? 32 : 90;
@@ -2313,7 +2325,7 @@ export default function App({ session }) {
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} exportWitness={exportWitness} markWitnessSent={markWitnessSent} isAdmin={isAdmin} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
+      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
       {page === "cx" && <CxProgressPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={isAdmin} projectId={selProj} label="Weekly Report" variant="cx" />} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
@@ -2436,7 +2448,7 @@ export default function App({ session }) {
                         <span style={{ marginLeft: "auto" }} />
                         <button className="lk-btn primary" style={{ fontSize: 12 }} disabled={!!olBusy || pending.length === 0} onClick={bulkSend}>{olBusy === "bulk" ? "Sending..." : `Send All Pending (${pending.length})`}</button>
                         <button className="lk-btn" style={{ fontSize: 12 }} disabled={!!olBusy} onClick={disconnectOl}>Disconnect</button></>
-                    : <><span className="wsch-olhint">Send invites directly from DLP through your CSN Outlook account. One click per event; reschedules send updates and cancellations follow automatically. The CSV export and macro remain available underneath.</span>
+                    : <><span className="wsch-olhint">Send invites directly from DLP through your CSN Outlook account. One click per event; reschedules send updates and cancellations follow automatically. Test To Me puts the event in your own calendar first.</span>
                         <span style={{ marginLeft: "auto" }} />
                         <button className="lk-btn primary" style={{ fontSize: 12 }} onClick={connectOl} title="Signs in via a quick full-page Microsoft redirect and returns here">Connect Outlook</button></>}
                 </div>;
@@ -2477,6 +2489,7 @@ export default function App({ session }) {
                             {["notsent", "partial", "changed", "cancelled"].includes(st) && <button className="lk-btn primary" style={btn} disabled={!olAcct || busy} title={!olAcct ? "Connect Outlook first" : undefined} onClick={() => runInv(a, "send")}>{busy ? "Working..." : st === "changed" ? "Update Invite" : st === "partial" ? "Send Remaining" : st === "cancelled" ? "Send Again" : "Send"}</button>}
                             {st === "sent" && <button className="lk-btn" style={btn} disabled title="Nothing has changed since this invite was sent">Update</button>}
                             {es.length > 0 && st !== "cancelled" && <button className="lk-btn" style={{ ...btn, color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} disabled={!olAcct || busy} onClick={() => runInv(a, "cancel")}>Cancel</button>}
+                            <button className="lk-btn" style={btn} disabled={!olAcct || busy} title="Creates this event in your calendar only, with the real template and vendor logo. Nothing goes to the witnesses and no status changes; delete it from your calendar after checking." onClick={() => testInv(a)}>Test To Me</button>
                           </div>
                         </div>;
                       })()}
@@ -3181,7 +3194,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       setReqs((rs) => rs.map((r) => r.id === a.req.id ? { ...r, status: "approved", decidedByName: cu.name, decidedAt: new Date().toISOString() } : r));
       setApprove(null); setReqBusy(false);
       const projName = S.brand?.projectName || "this project";
-      setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, title: "Approved \u00b7 " + (granted ? ((a.projRole === "admin" ? "Admin" : "Member") + " on " + projName) : (a.grantProject ? "account made, grant failed" : (companyName || "global contacts only"))) });
+      setNewCred({ who: email, pw: res && res.tempPassword, link: res && res.link, roleLabel: a.projRole === "admin" ? "Admin" : "Member", companyName: companyName || "", title: "Approved \u00b7 " + (granted ? ((a.projRole === "admin" ? "Admin" : "Member") + " on " + projName) : (a.grantProject ? "account made, grant failed" : (companyName || "global contacts only"))) });
       setUserMsg(grantErr ? ("Account created, but the project grant failed: " + grantErr + ". Add them under Project Team.") : "");
     } catch (e) { setReqBusy(false); setUserMsg("Approve failed: " + (e.message || e)); }
   };
@@ -3194,15 +3207,26 @@ function AdminPanel({ S, cu, update, exportActivities }) {
       setRejecting(null); setReqBusy(false);
     } catch (e) { setReqBusy(false); setUserMsg("Reject failed: " + (e.message || e)); }
   };
+  const [emailBusy, setEmailBusy] = useState(false);
+  // Sends the approved A2 invitation email from the connected Outlook account. Links only;
+  // temporary passwords are never emailed by design.
+  const emailUserInvite = async ({ email, roleLabel, companyName, link, mode }) => {
+    const ol = await import("./outlook");
+    const acct = await ol.outlookAccount();
+    if (!acct) { setUserMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window, press Connect Outlook, then retry."); return null; }
+    const html = ol.buildUserInviteEmailHtml({ mode: mode || "invite", email, roleLabel, companyName, link, sentByName: cu.name || acct.username, validityDays: 30 });
+    await ol.sendMailMessage({ subject: mode === "link" ? "Your FIN04 DLP sign-in link" : "You're invited to FIN04 DLP", html, to: [email] });
+    return acct.username;
+  };
   const addUser = async () => {
     if (!nu.email.trim()) { setUserMsg("Email required."); return; }
     setUserMsg("Creating account…"); setNewCred(null);
     try { const res = await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId, redirect: window.location.origin });
-      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, link: res.link, title: "Account created" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
+      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, link: res.link, title: "Account created", roleLabel: nu.role === "admin" ? "Admin" : "Member", companyName: (S.companies.find((c) => c.id === nu.companyId) || {}).name || "" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
     catch (e) { setUserMsg("Failed: " + (e.message || e)); }
   };
   const resetPw = async (id, who) => { setUserMsg("Resetting password…"); setNewCred(null); try { const res = await userOp({ op: "resetpw", id }); setNewCred({ who, pw: res.tempPassword, title: "New password set" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
-  const sendLink = async (id, who) => { setUserMsg("Generating link…"); setNewCred(null); try { const res = await userOp({ op: "link", id, redirect: window.location.origin }); setNewCred({ who, link: res.link, title: "Set-password link" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
+  const sendLink = async (id, who) => { setUserMsg("Generating link…"); setNewCred(null); try { const res = await userOp({ op: "link", id, redirect: window.location.origin }); setNewCred({ who, link: res.link, title: "Set-password link", mode: "link" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const [bulkText, setBulkText] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResults, setBulkResults] = useState(null);
@@ -3472,18 +3496,37 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               {newCred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{newCred.link}</span></div>}
               {newCred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{newCred.pw}</span></div>}
               <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(newCred.link ? `Email: ${newCred.who}\nSet your DLP password: ${newCred.link}` : `Site: ${window.location.origin}\nEmail: ${newCred.who}\nPassword: ${newCred.pw}`); setUserMsg("Copied to clipboard"); } catch (e) { setUserMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy {newCred.link ? "invite" : "login"} details</button>
+              {newCred.link && <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} disabled={emailBusy} onClick={async () => { setEmailBusy(true); try { const from = await emailUserInvite({ email: newCred.who, roleLabel: newCred.roleLabel, companyName: newCred.companyName, link: newCred.link, mode: newCred.mode || "invite" }); if (from) setUserMsg("Invitation emailed to " + newCred.who + " from " + from + "."); } catch (err) { setUserMsg("Email failed: " + ((err && err.message) || err)); } setEmailBusy(false); }}><Icon n="mail" s={13} />Email Invite</button>}
               <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setNewCred(null)}>Done</button>
-              <div style={{ marginTop: 7, color: "var(--muted)" }}>{newCred.link ? "The link lets them set their own password and signs them straight in. It is valid for 30 days; use the link button on their row to issue a fresh one. No email is sent automatically." : "They can keep this password. To issue a new one later, use the ↻ button on their row. No email is sent."}</div>
+              <div style={{ marginTop: 7, color: "var(--muted)" }}>{newCred.link ? "The link lets them set their own password and signs them straight in. It is valid for 30 days; use the link button on their row to issue a fresh one. Email Invite sends it from your connected Outlook." : "They can keep this password. To issue a new one later, use the ↻ button on their row. No email is sent."}</div>
             </div>}
             {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{userMsg}</div>}
             <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
               <div className="lk-f"><label>Bulk Add Users</label>
                 <textarea className="lk-in" rows={5} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"One per line:  email, name, role, company\njdoe@acme.com, John Doe, member, ABB\nmsmith@acme.com, Mary Smith, member, Schneider"} style={{ resize: "vertical", minHeight: 92, fontFamily: "inherit" }} /></div>
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own set-password link in the downloadable CSV. No email is sent from here, mail-merge the CSV from Outlook.</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own set-password link in the downloadable CSV, kept as a record. Email All Created Invites sends each invitation from your connected Outlook.</div>
               <button className="lk-btn primary" disabled={bulkBusy} onClick={bulkCreate}>{bulkBusy ? `Creating… (${(bulkResults || []).length})` : "Create all"}</button>
               {bulkResults && <div style={{ marginTop: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status.startsWith("Created")).length} created, {bulkResults.filter((r) => !r.status.startsWith("Created")).length} need attention</div>
                 <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span style={{ fontSize: 10, color: r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "#E0A106") : "#C0392B" }}>{r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status}</span></div>)}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  <button className="lk-btn" disabled={emailBusy || !bulkResults.some((r) => r.link)} title="Sends the invitation email to every created account with a link, one by one, from your connected Outlook" onClick={async () => {
+                    setEmailBusy(true);
+                    const ol = await import("./outlook"); const acct = await ol.outlookAccount().catch(() => null);
+                    if (!acct) { setUserMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window, press Connect Outlook, then retry."); setEmailBusy(false); return; }
+                    const rows = [...bulkResults];
+                    for (let i = 0; i < rows.length; i++) {
+                      const r = rows[i]; if (!r.link) continue;
+                      try {
+                        const html = ol.buildUserInviteEmailHtml({ mode: "invite", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: cu.name || acct.username, validityDays: 30 });
+                        await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [r.email] });
+                        rows[i] = { ...r, status: r.status + " \u00b7 Emailed" };
+                      } catch (err) { rows[i] = { ...r, status: r.status + " \u00b7 Email failed" }; }
+                      setBulkResults([...rows]);
+                    }
+                    setUserMsg("Bulk invitations sent from " + acct.username + "."); setEmailBusy(false);
+                  }}><Icon n="mail" s={13} />{emailBusy ? "Emailing..." : "Email All Created Invites"}</button>
+                </div>
                 <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV (set-password links)</button>
               </div>}
             </div>
@@ -3620,8 +3663,9 @@ function AdminPanel({ S, cu, update, exportActivities }) {
               {newCred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{newCred.link}</span></div>}
               {newCred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{newCred.pw}</span></div>}
               <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(newCred.link ? `Email: ${newCred.who}\nSet your DLP password: ${newCred.link}` : `Site: ${window.location.origin}\nEmail: ${newCred.who}\nPassword: ${newCred.pw}`); setUserMsg("Copied to clipboard"); } catch (e) { setUserMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy invite details</button>
+              {newCred.link && <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} disabled={emailBusy} onClick={async () => { setEmailBusy(true); try { const from = await emailUserInvite({ email: newCred.who, roleLabel: newCred.roleLabel, companyName: newCred.companyName, link: newCred.link, mode: newCred.mode || "invite" }); if (from) setUserMsg("Invitation emailed to " + newCred.who + " from " + from + "."); } catch (err) { setUserMsg("Email failed: " + ((err && err.message) || err)); } setEmailBusy(false); }}><Icon n="mail" s={13} />Email Invite</button>}
               <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setNewCred(null)}>Done</button>
-              <div style={{ marginTop: 7, color: "var(--muted)" }}>The link lets them set their own password and signs them straight in. No email is sent automatically.</div>
+              <div style={{ marginTop: 7, color: "var(--muted)" }}>The link lets them set their own password and signs them straight in. Email Invite sends it from your connected Outlook.</div>
             </div>}
             {pendReqs.length === 0
               ? <div style={{ fontSize: 13, color: "var(--muted)", padding: "30px 0", textAlign: "center", border: "1px dashed var(--line)", borderRadius: 12 }}>No pending requests.</div>
@@ -5632,7 +5676,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
   </>);
 }
 
-function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitnessSent, onOpen, isAdmin, by, projectId }) {
+function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, by, projectId }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
@@ -5759,9 +5803,6 @@ function ReportsPage({ S, LV, coName, exportActivities, exportWitness, markWitne
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>From</label><input className="lk-in mono" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>}
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>}
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
-        <button className="lk-btn" onClick={exportWitness}><Icon n="download" s={14} />Export witness invites</button>
-        {isAdmin && <><button className="lk-btn" title="Import the sent-confirmations file the Outlook macro writes, to stamp these invites as sent" onClick={() => { const el = document.getElementById("witSentInp"); if (el) el.click(); }}><Icon n="check" s={14} />Mark sent (from Outlook)</button>
-        <input id="witSentInp" type="file" accept=".csv,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { const ids = String(rd.result || "").split(/\r?\n/).map((ln) => (ln.split(",")[0] || "").trim().replace(/^"|"$/g, "")).filter((c) => c && c.toLowerCase() !== "activity id"); markWitnessSent(ids); }; rd.readAsText(f); e.target.value = ""; }} /></>}
         <WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={isAdmin} projectId={projectId} label="Weekly Report" />
         <button className="lk-btn" onClick={exportMetrics}><Icon n="download" s={14} />Metrics (Excel)</button>
         <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>

@@ -191,11 +191,18 @@ export function buildInviteBodyHtml(p) {
   const vendor = p.logo
     ? `<img src="cid:vendorlogo" width="${p.logo.width}" height="24" alt="${eH(p.logo.alt || p.companyName)}" style="display:block;border:0;height:24px;" /><span style="padding-left:10px;font-weight:bold;font-size:13px;color:${TPL.ink};${FSTACK}">${eH(p.companyName)}</span>`
     : `<span style="font-weight:bold;font-size:13px;color:${TPL.ink};${FSTACK}">${eH(p.companyName)}</span>`;
+  const chip = p.headerChip || p.dayLabel || "";
+  // Retest invitations declare their history: a red block above the vendor row states what
+  // failed, when, and the recorded reason. Red sits above amber (constraints): history first.
+  const retestBlock = p.retest
+    ? `<tr><td style="padding:12px 18px 0 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr><td style="border-left:3px solid #C0392B;background-color:#FBECEA;padding:9px 12px;font-size:12px;color:#7f2b20;${FSTACK}">Retest. The witness${p.retest.failedDate ? " on " + eH(p.retest.failedDate) : ""} did not pass${p.retest.reason ? "; reason recorded: " + eH(p.retest.reason) : ""}. This session replaces that attempt.</td></tr></table></td></tr>`
+    : "";
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
     + `<tr><td style="padding:0;background-color:${TPL.blue};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
     + `<td style="padding:12px 18px;font-size:15px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 Witness Invitation</td>`
-    + (p.dayLabel ? `<td align="right" style="padding:12px 18px;font-size:11px;color:#cfe0f7;${FSTACK}">${eH(p.dayLabel)}</td>` : "")
+    + (chip ? `<td align="right" style="padding:12px 18px;font-size:11px;color:#cfe0f7;${FSTACK}">${eH(chip)}</td>` : "")
     + `</tr></table></td></tr>`
+    + retestBlock
     + `<tr><td style="padding:12px 18px 0 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>`
     + `<td style="padding:2px 0;vertical-align:middle;font-size:10px;color:${TPL.mut};text-transform:uppercase;letter-spacing:0.4px;${FSTACK}">Responsible Vendor&nbsp;&nbsp;</td>`
     + `<td style="padding:2px 0;vertical-align:middle;">${vendor}</td></tr></table></td></tr>`
@@ -296,4 +303,35 @@ export function buildReportEml({ subject, to, bodyHtml, attachment, attachments 
     "",
   ].filter((l) => l !== null);
   return lines.join("\r\n");
+}
+
+// ---- REV93: user invitation email, approved Option A2 (guided steps) ----
+// p: { mode: "invite" | "link", email, roleLabel?, companyName?, link, sentByName, validityDays }
+export function buildUserInviteEmailHtml(p) {
+  const days = p.validityDays || 30;
+  const stepCell = (n) => `<td width="26" valign="top" style="padding:7px 10px 7px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" width="22" style="background-color:${TPL.blue};color:#ffffff;font-size:12px;font-weight:bold;padding:3px 0;${FSTACK}">${n}</td></tr></table></td>`;
+  const stepRow = (n, text) => `<tr>${stepCell(n)}<td style="padding:7px 0;font-size:13px;color:${TPL.ink};${FSTACK}">${text}</td></tr>`;
+  const who = `<b>${eH(p.email)}</b>`;
+  const extras = (p.roleLabel ? ` as a <b>${eH(p.roleLabel)}</b>` : "") + (p.companyName ? ` for <b>${eH(p.companyName)}</b>` : "");
+  const intro = p.mode === "link"
+    ? `${eH(p.sentByName)} (CSN Commissioning) has issued a fresh sign-in link for ${who}. Getting in takes a minute:`
+    : `${eH(p.sentByName)} (CSN Commissioning) has invited ${who} to FIN04${extras}. Getting in takes a minute:`;
+  const btnLabel = p.mode === "link" ? "Set Your Password" : "Set Up Your Account";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
+    + `<tr><td style="padding:0;background-color:${TPL.blue};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">`
+    + `<tr><td style="padding:14px 20px 2px 20px;font-size:17px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 DLP</td></tr>`
+    + `<tr><td style="padding:0 20px 12px 20px;font-size:11.5px;color:#cfe0f7;${FSTACK}">Commissioning planning workspace &#183; atnorth Koski</td></tr>`
+    + `</table></td></tr>`
+    + `<tr><td style="padding:16px 20px 2px 20px;"><span style="font-size:15px;font-weight:bold;color:#111827;${FSTACK}">${p.mode === "link" ? "Your sign-in link" : "You have been invited"}</span>`
+    + `<p style="margin:8px 0 6px;line-height:1.6;font-size:13.5px;color:${TPL.ink};${FSTACK}">${intro}</p></td></tr>`
+    + `<tr><td style="padding:4px 20px 6px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">`
+    + stepRow(1, "Press the button below and choose your password.")
+    + stepRow(2, "You are signed straight in and land on the FIN04 Planning Board.")
+    + stepRow(3, `Afterwards, sign in any time at <span style="font-family:Consolas,ui-monospace,monospace;font-size:12px;color:${TPL.blueInk};">dlp-pi.vercel.app</span> with this email address.`)
+    + `</table></td></tr>`
+    + `<tr><td style="padding:10px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:10px 26px;font-size:13px;font-weight:bold;${FSTACK}"><a href="${eH(p.link)}" style="color:#ffffff;text-decoration:none;">${btnLabel}</a></td></tr></table></td></tr>`
+    + `<tr><td style="padding:8px 20px 12px 20px;font-size:11.5px;color:${TPL.mut};line-height:1.6;${FSTACK}">If the button does not work, open this link:<br><span style="font-family:Consolas,ui-monospace,monospace;font-size:11px;color:${TPL.blueInk};">${eH(p.link)}</span></td></tr>`
+    + `<tr><td style="padding:0 20px 14px 20px;font-size:11.5px;color:${TPL.faint};line-height:1.6;${FSTACK}">This link is valid for ${days} days and is personal to you. If it has expired, reply to this email and a fresh one will be issued. If you were not expecting this invitation, you can ignore this email.</td></tr>`
+    + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Sent by ${eH(p.sentByName)} &#183; FIN04 &#183; atnorth Koski &#183; CSN Commissioning</td></tr>`
+    + `</table>`;
 }
