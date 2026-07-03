@@ -675,6 +675,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV82", date: "2026-07-03", items: ["Failed witness events now show a frozen failure tail: a red hatched tail runs from the planned card to the recorded outcome date with the X badge at the failure point, so the board reads planned here, failed there. The tail is anchored to the outcome date and never grows", "A failed event whose planned week has scrolled off the window now carries as a hatched ghost from the window edge to its outcome date, and drops off only once the window is past the failure. This replaces both the REV81 hard cutoff at the planned week and the pre-REV81 unbounded carry", "The retest connector now starts beyond the failure tail rather than the planned finish, and lane row packing reserves space through the tail so neighbouring bars cannot overlap it", "DST fix for multi-day witness invitations: session days are now advanced with calendar arithmetic instead of adding 24-hour blocks of milliseconds, which drifted the start time by one hour across the Europe/Helsinki clock changes (25 Oct 2026, 28 Mar 2027). The invite export, the Witness Schedule date range and the editor's session summary are all corrected", "The editor now warns when the witness date, or the last day of a multi-day series, falls outside the activity's planned span, and points to Reschedule, so a moved witness event can no longer silently drift away from its card on the board"] },
   { rev: "REV81", date: "2026-07-03", items: ["Fixed a phantom overdue trail on failed witness events: a failed invite whose planned day sat left of the visibility window was still retained by the carry-forward rule, bypassed the carried-bar handling (which deliberately skips failed invites), and its off-window end produced a negative CSS grid line, painting a hatched bar from the window edge deep into the future, wider the larger the window. Failed invites are closed records and now follow the same window rule as complete activities: visible in their own week, never carried forward", "The Delayed KPI and make-ready counts no longer include closed failed witness events carried into future windows", "Row packing no longer reserves an overdue tail for failed invites (no tail is ever drawn for them), so lanes pack tighter around ghosted events", "Defensive guard in the bar renderer: a span wholly left of the window that is not a carried item now draws nothing rather than emitting a negative grid line"] },
   { rev: "REV80", date: "2026-07-02", items: ["Help REV 9: exhaustive rebuild of every Try It simulator against the app as it is actually built. The Add via Planning Board walkthrough now steps through the real three-tab editor (Details with company, location, discipline, system, asset and Cx stage; Schedule with start, days, predecessors, status, actuals and percent; Readiness with constraints, the Committed toggle and witness setup), and committing in the simulator states the commit lock", "Simulator fidelity across the board: the toolbar replica gained the search box and Witness Schedule pill; Switch Views gained a working search that filters the simulated board; Analytics gained the Invitation Outcomes panel with the slips-versus-pass-fail separation stated; Witness Invites gained the date, duration and the new Witness Days stepper with the one-invite-per-day explanation; Mark Work Complete now states the slip-reason consequence of a late finish", "The static step illustrations in the tutorials now render the same three-tab editor replica as the simulator, from one shared builder, so the help drawer can never again drift from the real one in two places", "Try It badges added in the help menu for Mark Work Complete and Witness Invites, whose simulators previously existed but were not flagged"] },
   { rev: "REV79", date: "2026-07-02", items: ["Multi-day witness invitations: a new Witness Days stepper on the Readiness tab (1 to 10, default 1) turns a witnessed event such as a multi-day SAT into consecutive daily sessions. The witness date and time becomes the daily session start and the duration the daily session length; a summary line shows the resulting span and a soft warning flags Witness Days exceeding the activity's own duration", "The witness export writes one timed row per day with Day i of N in the subject and body, all sharing the activity's ID, so every session blocks the witnesses' calendars as Busy and the existing Outlook macro sends them without modification (verified against the live macro: it iterates rows independently and its Sent dedup and confirmation round trip both hold). The Witness Schedule popup shows one card per event with the date range and a days multiplier on the duration pill", "Witness Days is plan-locked once committed, cloned onto retests, and included in the audit revert field comparison. Needs the witness-days.sql migration run before data.js and App.jsx"] },
@@ -1484,11 +1485,16 @@ export default function App({ session }) {
       // the overdue tail stretched to today, or a start/finish that a slipped predecessor pushed in
       // (knock-on). Complete activities keep the planned-span rule and drop off once they are behind us.
       const liveEnd = Math.max(a.endOff, a.projEndOff, a.delayed ? todayOff : a.endOff);
-      // Failed witness invites are closed records: they stay visible while their planned span overlaps
-      // the window, but never carry forward via the live-span rule. Without this exclusion a failed
-      // invite left of the window slips past Ticket's carried handling (which skips failed invites),
-      // emits a negative grid end line, and paints a phantom bar across most of the board.
-      a.inWin = (a.endOff >= 0 && a.startOff < DAYS) || (a.status !== "complete" && !isFailedInvite(a) && liveEnd >= 0 && a.projStartOff < DAYS);
+      // Failed witness invites are closed records anchored to their failure point: the record stays
+      // visible in any window overlapping planned start through the outcome date (a fixed, bounded
+      // span, unlike the old today-stretched carry), and drops off once the window moves past the
+      // failure. Open activities keep the live-span carry rule; failed invites are excluded from it
+      // because a today-anchored carry never ends and, being skipped by the carried-bar handling,
+      // used to emit a negative grid line that painted a phantom bar across the board.
+      a.outcomeOff = (isFailedInvite(a) && a.outcomeAt) ? Math.round((parseD(a.outcomeAt) - anchor) / DAYMS) : null;
+      a.inWin = (a.endOff >= 0 && a.startOff < DAYS)
+        || (a.outcomeOff != null && a.outcomeOff >= 0 && a.startOff < DAYS)
+        || (a.status !== "complete" && !isFailedInvite(a) && liveEnd >= 0 && a.projStartOff < DAYS);
       delete a._ps; delete a._pe; delete a._base;
     });
     return base;
@@ -1663,7 +1669,10 @@ export default function App({ session }) {
       const nDays = Math.max(1, a.witnessDays || 1);
       return Array.from({ length: nDays }, (_, di) => { const dayIdx = di;
       const mins = a.witnessDurationMin || 60;
-      const sd = new Date(new Date(a.witnessAt).getTime() + dayIdx * 86400000); const ed = new Date(sd.getTime() + mins * 60000);
+      // Calendar arithmetic, not milliseconds: adding dayIdx * 24h drifts one hour across the
+      // Europe/Helsinki DST changes (25 Oct 2026 back, 28 Mar 2027 forward). setDate preserves
+      // the wall-clock start time on every session day.
+      const sd = new Date(a.witnessAt); sd.setDate(sd.getDate() + dayIdx); const ed = new Date(sd.getTime() + mins * 60000);
       const loc = locCode(a);
       const title = a.desc || "Activity";
       const subject = `FIN04 - INVITE FOR ${title}` + (nDays > 1 ? ` - Day ${dayIdx + 1} of ${nDays}` : "");
@@ -1761,10 +1770,19 @@ export default function App({ session }) {
       if (a.delayed && todayUnit > le) le = todayUnit;
       s = 0; e = Math.min(cols - 1, Math.max(0, le));
     }
+    // A failed invite whose planned span sits left of the window carries as a hatched ghost from the
+    // window edge to its outcome date (frozen; it never grows). Once the window is past the outcome
+    // date, inWin drops it entirely.
+    const outU = failedInv && a.outcomeOff != null ? (grain === "day" ? a.outcomeOff : Math.floor(a.outcomeOff / 7)) : null;
+    const failCarried = !rz && failedInv && eU(a) < 0 && outU != null && outU >= 0;
+    if (failCarried) { s = 0; e = Math.min(cols - 1, outU); }
+    // The frozen failure tail (planned card in-window, outcome date beyond it) is drawn by FailTail;
+    // when it draws, the X badge moves to the tail end, the failure point, so the card suppresses its own.
+    const tailFail = failedInv && !failCarried && outU != null && outU > eU(a) && eU(a) >= 0;
     // A bar wholly left of the window that is not carried has nothing to draw. Without this guard
     // e + 2 goes negative and CSS grid counts the end line from the right edge, painting a phantom
     // bar whose width scales with the visibility window.
-    if (!carried && e < s) return null;
+    if (!carried && !failCarried && e < s) return null;
     const carriedHatch = a.delayed
       ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
       : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
@@ -1774,7 +1792,7 @@ export default function App({ session }) {
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "") + (failedInv ? " ghostfail" : "")}
         style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : lv.color), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
         draggable={movable && !rz && !failedInv} onDragStart={() => movable && !failedInv && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={failedInv ? `Witness failed${a.outcomeAt ? " " + a.outcomeAt : ""}${a.outcomeReason ? " \u00b7 " + a.outcomeReason : ""} \u00b7 ${tipOf(a)}` : carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
-        <div className="desc">{carried && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{a.desc || "Untitled activity"}</div>
+        <div className="desc">{(carried || failCarried) && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{a.desc || "Untitled activity"}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
           {a.committed && <span className="lk-chip commit">will</span>}
@@ -1785,7 +1803,7 @@ export default function App({ session }) {
           {a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
-        {failedInv && <div className="lk-failx" title="Witness failed">{"\u2715"}</div>}
+        {failedInv && !tailFail && <div className="lk-failx" title="Witness failed">{"\u2715"}</div>}
         {grain === "day" && resizable(a) && !failedInv && <><div className="lk-rsz l" title="Drag to change the start" onMouseDown={(ev) => startResize(ev, a, "l")} /><div className="lk-rsz r" title="Drag to change the finish" onMouseDown={(ev) => startResize(ev, a, "r")} /></>}
       </div>);
   };
@@ -1831,13 +1849,34 @@ export default function App({ session }) {
     return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", border: "1px solid var(--line)", borderLeft: 0, borderRadius: "0 12px 12px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 8px", zIndex: 0, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap", textShadow: dark ? "0 1px 2px rgba(0,0,0,.6)" : "none" }}>{badge}</span></div>;
   };
 
+  // Frozen failure tail: a failed witness invite whose outcome date lies beyond the planned finish
+  // gets a red hatched tail from the card to the failure point, X badge at the end. It is anchored
+  // to the recorded outcome date, so unlike the overdue tail it never grows. Reads: planned here,
+  // failed there. When the planned span is left of the window, Ticket's fail-carried bar covers the
+  // span instead, so this draws nothing.
+  const FailTail = ({ a, row }) => {
+    if (a.isMilestone || !isFailedInvite(a) || a.outcomeOff == null) return null;
+    const pe = eU(a);
+    if (pe < 0) return null;
+    const oe = grain === "day" ? a.outcomeOff : Math.floor(a.outcomeOff / 7);
+    if (oe <= pe || oe < 0 || pe + 1 >= cols) return null;
+    const s = Math.max(0, pe + 1), e = Math.min(cols - 1, oe);
+    if (e < s) return null;
+    const clipped = oe > cols - 1;   // outcome date beyond the right edge: badge sits at the edge, tail keeps its flat end
+    return <div title={`Witness failed ${a.outcomeAt}${a.outcomeReason ? " \u00b7 " + a.outcomeReason : ""} \u00b7 planned ${fmtISO(addDays(parseD(a.start), a.duration - 1))}`}
+      style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", position: "relative", border: "1px solid rgba(192,57,58,.45)", borderLeft: 0, borderRadius: clipped ? 0 : "0 12px 12px 0", background: "repeating-linear-gradient(135deg,rgba(192,57,58,.22) 0 6px,rgba(192,57,58,.05) 6px 12px)", zIndex: 0, pointerEvents: "none", overflow: "visible" }}>
+      <div className="lk-failx" title="Witness failed">{"\u2715"}</div>
+    </div>;
+  };
+
   // Dashed amber connector from a failed attempt to its retest. Drawn on the retest's row,
   // only when both sit on the same lane row (the row-packing puts sequential bars there anyway).
   const RetestLink = ({ a, row }) => {
     if (!a.retestOf) return null;
     const p = visible.find((x) => x.id === a.retestOf);
     if (!p || !p.inWin || p._row !== row) return null;
-    const from = eU(p) + 1, to = sU(a) - 1;
+    const pTail = isFailedInvite(p) && p.outcomeOff != null ? (grain === "day" ? p.outcomeOff : Math.floor(p.outcomeOff / 7)) : -Infinity;
+    const from = Math.max(eU(p), pTail) + 1, to = sU(a) - 1;
     if (to < from) return null;
     const gs = Math.max(0, from), ge = Math.min(cols - 1, to);
     if (ge < gs) return null;
@@ -1995,7 +2034,7 @@ export default function App({ session }) {
         {S.view === "swimlane" && lanesList.map((lane) => {
           const la = visible.filter((a) => a.inWin && laneOf(a) === lane && boardMatch(a)).sort((a, b) => a.startOff - b.startOff);
           if (la.length === 0 && (S.laneBy !== "level" || boardQl)) return null;
-          const effEndU = (a) => { let e = eU(a); if (a.status === "complete" || isFailedInvite(a)) return e; if (!a.excuse && (a.delayed || a.totalShift > 0)) { let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7); if (a.delayed && todayUnit > ee) ee = todayUnit; if (ee > e) e = ee; } return e; };
+          const effEndU = (a) => { let e = eU(a); if (isFailedInvite(a)) { if (a.outcomeOff != null) { const fo = grain === "day" ? a.outcomeOff : Math.floor(a.outcomeOff / 7); if (fo > e) e = fo; } return e; } if (a.status === "complete") return e; if (!a.excuse && (a.delayed || a.totalShift > 0)) { let ee = grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7); if (a.delayed && todayUnit > ee) ee = todayUnit; if (ee > e) e = ee; } return e; };
           const rows = []; la.forEach((a) => { const su = sU(a), eu = effEndU(a); let r = rows.findIndex((end) => end < su); if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu; a._row = r; a._step = 0; a._stepMax = 0; });
           const msByRow = {}; la.forEach((a) => { if (a.isMilestone) (msByRow[a._row] = msByRow[a._row] || []).push(a); });
           Object.keys(msByRow).forEach((k) => { const ms = msByRow[k].sort((x, y) => sU(x) - sU(y)); let prev = -99, lvl = 0, mx = 0; ms.forEach((a) => { const su = sU(a); lvl = (su - prev <= 3) ? (lvl + 1) % 4 : 0; a._step = lvl; if (lvl > mx) mx = lvl; prev = su; }); ms.forEach((a) => { a._stepMax = mx; }); });
@@ -2009,7 +2048,7 @@ export default function App({ session }) {
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={lane} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: (rows.length ? rows : [0]).map((_, r) => { const mx = la.reduce((m, a) => (a._row === r && a._stepMax > m ? a._stepMax : m), 0); return `minmax(${48 + mx * MS_STEP}px,auto)`; }).join(" ") }}>
-                  {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}                  {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
+                  {la.map((a) => <Forecast key={"fc" + a.id} a={a} row={a._row} />)}                  {la.map((a) => <FailTail key={"ft" + a.id} a={a} row={a._row} />)}                  {la.map((a) => <RescheduleTrail key={"rt" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <RetestLink key={"rl" + a.id} a={a} row={a._row} />)}
                   {la.map((a) => <Ticket key={a.id} a={a} row={a._row} />)}
                   {la.map((a) => <ActualBar key={"ab" + a.id} a={a} row={a._row} />)}
@@ -2027,7 +2066,7 @@ export default function App({ session }) {
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={null} />
                 <div className="lk-tk" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: "minmax(48px,auto)" }}>
-                  <Forecast a={a} row={0} />                  <RescheduleTrail a={a} row={0} />
+                  <Forecast a={a} row={0} />                  <FailTail a={a} row={0} />                  <RescheduleTrail a={a} row={0} />
                   <Ticket a={a} row={0} />
                   <ActualBar a={a} row={0} />
                 </div>
@@ -2170,7 +2209,7 @@ export default function App({ session }) {
                   list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt);
                     return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: isClientViewer ? "118px 1fr auto" : undefined }}>
                       <div className="wsch-when">
-                        <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d.getTime() + (n - 1) * 86400000); return f(d) + " - " + f(ed2); })()}</span>
+                        <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d); ed2.setDate(ed2.getDate() + (n - 1)); return f(d) + " - " + f(ed2); })()}</span>
                         <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
                         <span className="wsch-durpill">{durLabel(a.witnessDurationMin)}{Math.max(1, a.witnessDays || 1) > 1 ? " x " + (a.witnessDays || 1) + " days" : ""}</span>
                       </div>
@@ -2453,7 +2492,18 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => { if (planLocked) return; set("witnessInvite", !a.witnessInvite); }}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
             <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={disPlan} onChange={(e) => set("witnessAt", e.target.value)} />
-            {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}</div>}
+            {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}
+            {a.witnessAt && a.start && (() => {
+              // The witness date and the planned span are deliberately separate fields, but a witness
+              // sitting outside the plan almost always means the event moved and the plan was not
+              // rescheduled, which is how failures end up recorded weeks away from their card.
+              const ws = (a.witnessAt || "").slice(0, 10);
+              const we = (() => { const d = new Date(a.witnessAt); d.setDate(d.getDate() + Math.max(1, a.witnessDays || 1) - 1); return fmtISO(d); })();
+              const pf = fmtISO(addDays(parseD(a.start), Math.max(1, a.duration || 1) - 1));
+              if (ws >= a.start && we <= pf) return null;
+              const early = ws < a.start;
+              return <span style={{ fontSize: 11, color: "#E0A106", fontWeight: 600 }}>{early ? `The witness date is before the planned start (${a.start}).` : `The witness ${Math.max(1, a.witnessDays || 1) > 1 ? "sessions run" : "date falls"} past the planned finish (${pf}).`} If the event moved, Reschedule the activity on the Schedule tab so the plan matches reality.</span>;
+            })()}</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness duration <span style={{ color: "#C0392B" }}>*</span></label>
             <select className="lk-select" value={a.witnessDurationMin || 60} disabled={disPlan} onChange={(e) => set("witnessDurationMin", parseInt(e.target.value, 10))}>
               <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option><option value={240}>Half day (4 h)</option><option value={480}>Full day (8 h)</option>
@@ -2468,7 +2518,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
               </div>
               <span style={{ fontSize: 11, color: "var(--muted)" }}>Consecutive daily sessions. 1 = a single-day event, as before.</span>
             </div>
-            {(a.witnessDays || 1) > 1 && a.witnessAt && (() => { const n = a.witnessDays || 1; const sd = new Date(a.witnessAt); const ed = new Date(sd.getTime() + (n - 1) * 86400000); const f = (d) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); return <div style={{ border: "1px dashed var(--line)", borderRadius: 8, background: "rgba(107,155,242,.06)", padding: "8px 10px", fontSize: 12, color: "var(--accent)", marginTop: 6 }}>{n} daily sessions, {f(sd)} to {f(ed)}. One invite is sent per day so each session blocks the witnesses' calendars.</div>; })()}
+            {(a.witnessDays || 1) > 1 && a.witnessAt && (() => { const n = a.witnessDays || 1; const sd = new Date(a.witnessAt); const ed = new Date(sd); ed.setDate(ed.getDate() + (n - 1)); const f = (d) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); return <div style={{ border: "1px dashed var(--line)", borderRadius: 8, background: "rgba(107,155,242,.06)", padding: "8px 10px", fontSize: 12, color: "var(--accent)", marginTop: 6 }}>{n} daily sessions, {f(sd)} to {f(ed)}. One invite is sent per day so each session blocks the witnesses' calendars.</div>; })()}
             {(a.witnessDays || 1) > Math.max(1, a.duration || 1) && <span style={{ fontSize: 11, color: "#E0A106", fontWeight: 600 }}>Witness days exceed the activity's own duration ({Math.max(1, a.duration || 1)}d). Check one of them.</span>}
           </div>}
           {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = witnessRecipients(a.discipline); return (
