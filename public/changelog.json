@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV100",
+  "date": "2026-07-03",
+  "items": [
+   "New Admin Update Emails card at the top of Reports (admins only): shows when the daily and weekly digests last went out and to how many recipients, plus your Outlook connection, with Send Weekly Update Now and Send Daily Update Now buttons. Manual sends go to all admins from your own connected Outlook, target the most recent boundary with its correct fixed window, complete a stuck claim if one exists, and ask before re-sending a digest that already went out",
+   "Scheduler liveness fix: a digest claim orphaned in the sending state (for example a reload killing the tab mid-send) used to block that boundary silently and forever; the scheduler now adopts claims stuck for over ten minutes and finishes them. The digest content assembly is now one shared path for the scheduler and the manual buttons, so the two can never drift apart"
+  ]
+ },
+ {
   "rev": "REV99",
   "date": "2026-07-03",
   "items": [
