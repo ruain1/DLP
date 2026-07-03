@@ -165,14 +165,15 @@ export const b64utf8 = (str) => {
 // Send an email from the signed-in account (delegated Mail.Send). Single-request sendMail:
 // the whole message is one JSON body with a 4 MB ceiling, so keep attachments under ~3 MB
 // of binary (base64 inflates by a third). Callers guard the size before attaching.
-export async function sendMailMessage({ subject, html, to, cc, attachment }) {
+export async function sendMailMessage({ subject, html, to, cc, attachment, attachments }) {
   const message = {
     subject,
     body: { contentType: "HTML", content: html },
     toRecipients: (to || []).map((r) => ({ emailAddress: { address: r.email, name: r.name || r.email } })),
   };
   if (cc && cc.length) message.ccRecipients = cc.map((r) => ({ emailAddress: { address: r.email, name: r.name || r.email } }));
-  if (attachment) message.attachments = [{ "@odata.type": "#microsoft.graph.fileAttachment", name: attachment.name, contentType: attachment.contentType || "text/html", contentBytes: attachment.contentBytes }];
+  const atts = attachments || (attachment ? [attachment] : []);
+  if (atts.length) message.attachments = atts.map((x) => ({ "@odata.type": "#microsoft.graph.fileAttachment", name: x.name, contentType: x.contentType || "text/html", contentBytes: x.contentBytes }));
   await graph("/me/sendMail", "POST", { message, saveToSentItems: true });
 }
 
@@ -212,29 +213,46 @@ export function buildInviteBodyHtml(p) {
     + `</table>`;
 }
 
-// p: { periodLabel, by, summary, tiles: [{ v, l, color }], tooBig }
+// Approved Option A (REV92). p: { periodLabel, by, summary, tiles: [{v,l,color}],
+// attached: { mode: "both" | "light" | "none", light: filename, dark: filename } }
 export function buildReportEmailHtml(p) {
   const paras = String(p.summary || "").trim().split(/\n{2,}/).filter(Boolean)
-    .map((x) => `<p style="margin:0 0 10px;line-height:1.6;font-size:13.5px;color:${TPL.ink};${FSTACK}">${eH(x).replace(/\n/g, "<br/>")}</p>`).join("")
-    || `<p style="margin:0 0 10px;font-size:13.5px;color:${TPL.ink};${FSTACK}">Weekly DLP report for the period.</p>`;
-  const w = p.tiles && p.tiles.length ? Math.floor(100 / p.tiles.length) : 0;
+    .map((x) => `<p style="margin:6px 0 10px;line-height:1.6;font-size:13.5px;color:${TPL.ink};${FSTACK}">${eH(x).replace(/\n/g, "<br/>")}</p>`).join("")
+    || `<p style="margin:6px 0 10px;font-size:13.5px;color:${TPL.ink};${FSTACK}">Weekly DLP report for the period.</p>`;
+  const tile = (t) => `<td width="25%" align="center" style="padding:10px 6px 8px 6px;border-top:3px solid ${t.color || TPL.blue};background-color:#F8FAFD;"><span style="font-size:22px;font-weight:bold;color:${t.color === "#111827" || !t.color ? TPL.ink : t.color};${FSTACK}">${eH(t.v)}</span><br><span style="font-size:10px;color:${TPL.mut};text-transform:uppercase;letter-spacing:0.5px;${FSTACK}">${eH(t.l)}</span></td>`;
+  const gap = `<td width="8" style="font-size:0;line-height:0;">&nbsp;</td>`;
   const strip = p.tiles && p.tiles.length
-    ? `<tr><td style="padding:16px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr>`
-      + p.tiles.map((t) => `<td width="${w}%" align="center" style="padding:10px 6px;border:1px solid ${TPL.line};"><span style="font-size:20px;font-weight:bold;color:${t.color || TPL.ink};${FSTACK}">${eH(t.v)}</span><br><span style="font-size:10px;color:${TPL.mut};text-transform:uppercase;letter-spacing:0.4px;${FSTACK}">${eH(t.l)}</span></td>`).join("")
-      + `</tr></table></td></tr>`
+    ? `<tr><td style="padding:16px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr>` + p.tiles.map(tile).join(gap) + `</tr></table></td></tr>`
     : "";
-  const note = p.tooBig
-    ? "The full report exceeded the email attachment limit; open DLP for the complete sections and charts."
-    : "The full report is attached as an HTML file. Open it in any browser for the complete sections, breakdowns and the schedule snapshot.";
+  const a = p.attached || { mode: "none" };
+  const fileRow = (dot, name, note) => `<tr><td width="16" style="padding:4px 8px 4px 0;font-size:13px;color:${dot};font-weight:bold;">&#9679;</td><td style="padding:4px 0;font-size:12.5px;color:${TPL.ink};${FSTACK}">${eH(name)} <span style="color:${TPL.mut};">&#183; ${eH(note)}</span></td></tr>`;
+  let attachedBlock;
+  if (a.mode === "both") {
+    attachedBlock = `<tr><td style="padding:6px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">`
+      + `<tr><td colspan="2" style="padding:0 0 6px 0;font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Attached</td></tr>`
+      + fileRow(TPL.blue, a.light, "for printing and bright rooms")
+      + fileRow("#0d1422", a.dark, "for screens")
+      + `<tr><td colspan="2" style="padding:4px 0 0 0;font-size:11.5px;color:${TPL.mut};${FSTACK}">Open either in any browser for the complete sections, breakdowns and schedule snapshot.</td></tr>`
+      + `</table></td></tr>`;
+  } else if (a.mode === "light") {
+    attachedBlock = `<tr><td style="padding:6px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">`
+      + `<tr><td colspan="2" style="padding:0 0 6px 0;font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Attached</td></tr>`
+      + fileRow(TPL.blue, a.light, "opens in any browser")
+      + `<tr><td colspan="2" style="padding:4px 0 0 0;font-size:11.5px;color:${TPL.mut};${FSTACK}">The dark version exceeded the email size limit and was left off this send.</td></tr>`
+      + `</table></td></tr>`;
+  } else {
+    attachedBlock = `<tr><td style="padding:6px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${TPL.blue};background-color:${TPL.blueSoft};padding:9px 14px;font-size:12px;color:${TPL.blueInk};${FSTACK}">The full report exceeded the email attachment limit; open DLP for the complete sections and charts.</td></tr></table></td></tr>`;
+  }
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
-    + `<tr><td style="padding:0;background-color:${TPL.blue};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
-    + `<td style="padding:14px 20px;font-size:17px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 Weekly DLP Report</td>`
-    + `<td align="right" style="padding:14px 20px;font-size:11.5px;color:#cfe0f7;${FSTACK}">${eH(p.periodLabel)}</td>`
-    + `</tr></table></td></tr>`
+    + `<tr><td style="padding:0;background-color:${TPL.blue};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">`
+    + `<tr><td style="padding:14px 20px 2px 20px;font-size:17px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 Weekly DLP Report</td></tr>`
+    + `<tr><td style="padding:0 20px 12px 20px;font-size:11.5px;color:#cfe0f7;${FSTACK}">${eH(p.periodLabel)} &#183; generated by ${eH(p.by || "")}</td></tr>`
+    + `</table></td></tr>`
     + strip
-    + `<tr><td style="padding:14px 20px 4px 20px;"><span style="font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.5px;${FSTACK}">Executive Summary</span><br>${paras}</td></tr>`
-    + `<tr><td style="padding:14px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${TPL.blue};background-color:${TPL.blueSoft};padding:9px 14px;font-size:12px;color:${TPL.blueInk};${FSTACK}">${note}</td></tr></table></td></tr>`
-    + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Generated from DLP by ${eH(p.by || "")} &#183; FIN04 &#183; atnorth Koski &#183; CSN Commissioning</td></tr>`
+    + `<tr><td style="padding:16px 20px 4px 20px;"><span style="font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Executive Summary</span>${paras}</td></tr>`
+    + attachedBlock
+    + `<tr><td style="padding:14px 20px 16px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;font-size:12.5px;font-weight:bold;${FSTACK}"><a href="https://dlp-pi.vercel.app" style="color:#ffffff;text-decoration:none;">Open DLP</a></td></tr></table></td></tr>`
+    + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">FIN04 &#183; atnorth Koski &#183; CSN Commissioning</td></tr>`
     + `</table>`;
 }
 
@@ -246,7 +264,8 @@ export function buildReportEmailHtml(p) {
 // already lives.
 const wrap76 = (b64) => b64.replace(/(.{76})/g, "$1\r\n");
 const hdrWord = (s) => (/[^\x20-\x7e]/.test(s) ? "=?utf-8?B?" + b64utf8(s) + "?=" : s);
-export function buildReportEml({ subject, to, bodyHtml, attachment }) {
+export function buildReportEml({ subject, to, bodyHtml, attachment, attachments }) {
+  const atts = attachments || (attachment ? [attachment] : []);
   const boundary = "----=_DLP_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
   const addr = (r) => {
     const n = (r.name || "").trim();
@@ -265,12 +284,14 @@ export function buildReportEml({ subject, to, bodyHtml, attachment }) {
     "Content-Transfer-Encoding: base64",
     "",
     wrap76(b64utf8(bodyHtml)),
-    "--" + boundary,
-    'Content-Type: text/html; charset="utf-8"; name="' + attachment.name + '"',
-    'Content-Disposition: attachment; filename="' + attachment.name + '"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    wrap76(b64utf8(attachment.html)),
+    ...atts.flatMap((x) => [
+      "--" + boundary,
+      'Content-Type: text/html; charset="utf-8"; name="' + x.name + '"',
+      'Content-Disposition: attachment; filename="' + x.name + '"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      wrap76(b64utf8(x.html)),
+    ]),
     "--" + boundary + "--",
     "",
   ].filter((l) => l !== null);

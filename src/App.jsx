@@ -694,6 +694,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV92", date: "2026-07-03", items: ["Report email body rebuilt to the approved Option A design: two-line branded header, accent-topped KPI tiles, the executive summary, a truthful Attached block, an Open DLP button (bulletproof table-cell pattern) and a clean footer, all in the email-safe subset", "Every report email and every classic Outlook draft now carries both themes as attachments, FIN04-weekly-report-<date>-light.html for printing and -dark.html for screens; the Appearance toggle now governs only the on-screen Generate Report", "The size guard works on the pair: dark is dropped first if the send would breach Graph's single-request ceiling, and the email body and the result line state exactly which files attached"] },
   { rev: "REV91", date: "2026-07-03", items: ["Root cause of the persisting Connect Outlook button found and fixed: msal-browser 5.x changed handleRedirectPromise to take an options object, so the captured sign-in response was being passed as a bare string, silently ignored, and MSAL fell back to the live URL hash that the app's boot had already rewritten away. The captured hash is now passed as { hash }, per the 5.16 type contract, and the redirect return connects the account", "Sign-in return diagnostics: the outlook module now records the outcome of every redirect return, and if the account fails to arrive, the Witness Schedule bar and the report window print the exact error code and message (the raw error also goes to the browser console) instead of silently showing Connect Outlook again"] },
   { rev: "REV90", date: "2026-07-03", items: ["Connect Outlook is now redirect-first: the popup sign-in is retired after colliding with three separate failure modes in this deployment (popup blockers and enterprise policy, the opener's popup monitoring being timer-throttled while the app booting inside the popup stripped the auth response, and a reported msal-browser 5.x regression where the popup redirects to the app instead of closing). Sign-in is a quick full-page Microsoft redirect that returns to DLP already connected", "New auth landing guard, Microsoft's documented pattern: when the page loads as the sign-in popup or as MSAL's hidden token-renewal iframe, the app no longer boots there (booting stripped the auth response from the URL); a static completing-sign-in line shows and the parent window reads the response. This also makes future silent token renewals reliable, which previously loaded the entire app inside a hidden iframe", "Token refresh is silent-only; if it cannot refresh it asks you to press Connect Outlook rather than opening interactive windows mid-operation"] },
   { rev: "REV89", date: "2026-07-03", items: ["Fixed the redirect sign-in landing signed out: the app's boot rewrites the URL with history.replaceState the moment it restores your project, which erased Microsoft's auth response from the hash before the Outlook module could read it. The response is now captured synchronously at page evaluation and handed to MSAL explicitly, so the account connects regardless of what boot does to the URL; MSAL also no longer performs a second navigation after sign-in", "New Open In Outlook (Draft) in the report window: downloads a pre-addressed .eml carrying X-Unsent: 1 with the styled summary body and the full report attached; opening the file launches classic Outlook in compose mode for review and Send from your own mailbox. Pure client-side, works without Connect Outlook. Classic Outlook only; new Outlook handles these drafts unreliably and may drop the attachment"] },
@@ -5480,31 +5481,32 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
     catch (err) { setRepMsg({ ok: false, text: (err && err.message) || String(err) }); }
   };
   // One assembly for every outbound shape: Graph send, test send, and the classic Outlook draft.
-  const composeReport = (ol, organiserLabel, tooBig) => {
+  // Both themes are always generated; the Appearance toggle governs only the on-screen Generate.
+  const composeParts = (ol, organiserLabel) => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const full = buildWeeklyReportHTML({ r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
+    const mk = (th) => buildWeeklyReportHTML({ r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
     const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "#C0392B" });
     if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "#0E9384" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "#E0A106" });
-    const bodyHtml = ol.buildReportEmailHtml({ periodLabel: lbl, by: organiserLabel, summary: summaryVal, tiles, tooBig });
-    return { full, lbl, bodyHtml };
+    const base = "FIN04-weekly-report-" + fmtISO(start);
+    return { fullLight: mk("light"), fullDark: mk("dark"), lbl, tiles, organiserLabel, names: { light: base + "-light.html", dark: base + "-dark.html" }, emlName: base + ".eml" };
   };
   // Classic Outlook draft: downloads an .eml (X-Unsent: 1) that opens in classic Outlook as an
-  // editable, pre-addressed draft with the report attached. Pure client-side, no sign-in needed.
+  // editable, pre-addressed draft with both report themes attached. Pure client-side.
   const emlReport = async () => {
     if (!rData) return;
     setRepMsg(null);
     try {
       const ol = await import("./outlook");
-      const { full, lbl, bodyHtml } = composeReport(ol, by, false);
-      const fname = "FIN04-weekly-report-" + fmtISO(start) + (theme === "dark" ? "-dark" : "");
-      const eml = ol.buildReportEml({ subject: "FIN04 Weekly DLP Report, " + lbl, to: recips.filter((r) => r.email), bodyHtml, attachment: { name: fname + ".html", html: full } });
+      const p = composeParts(ol, by);
+      const bodyHtml = ol.buildReportEmailHtml({ periodLabel: p.lbl, by, summary: summaryVal, tiles: p.tiles, attached: { mode: "both", light: p.names.light, dark: p.names.dark } });
+      const eml = ol.buildReportEml({ subject: "FIN04 Weekly DLP Report, " + p.lbl, to: recips.filter((r) => r.email), bodyHtml, attachments: [{ name: p.names.light, html: p.fullLight }, { name: p.names.dark, html: p.fullDark }] });
       const url = URL.createObjectURL(new Blob([eml], { type: "message/rfc822" }));
-      const a2 = document.createElement("a"); a2.href = url; a2.download = fname + ".eml"; a2.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setRepMsg({ ok: true, text: "Draft downloaded" + (recips.length ? ", addressed to " + recips.length + " recipient" + (recips.length === 1 ? "" : "s") : "") + ". Open the .eml file: classic Outlook opens it as an editable draft with the report attached; review and press Send. Classic Outlook only; new Outlook may drop the attachment." });
+      const a2 = document.createElement("a"); a2.href = url; a2.download = p.emlName; a2.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setRepMsg({ ok: true, text: "Draft downloaded" + (recips.length ? ", addressed to " + recips.length + " recipient" + (recips.length === 1 ? "" : "s") : "") + ", both report versions attached. Open the .eml file: classic Outlook opens it as an editable draft; review and press Send. Classic Outlook only; new Outlook may drop the attachments." });
     } catch (err) { setRepMsg({ ok: false, text: (err && err.message) || String(err) }); }
   };
   // Sends the report from the signed-in account. Body: email-safe summary (Outlook desktop
@@ -5519,17 +5521,23 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
       if (!acct) throw new Error("Outlook is not connected.");
       const to = testOnly ? [{ name: by || acct.username, email: acct.username }] : recips.filter((r) => r.email);
       if (!to.length) throw new Error("The distribution list is empty.");
-      let { full, lbl, bodyHtml } = composeReport(ol, by || acct.username, false);
-      const contentBytes = ol.b64utf8(full);
-      const tooBig = contentBytes.length > 3400000;   // ~2.5 MB binary once base64 bloat is counted; sendMail single-request ceiling is 4 MB total
-      if (tooBig) ({ bodyHtml } = composeReport(ol, by || acct.username, true));
+      const p = composeParts(ol, by || acct.username);
+      const bL = ol.b64utf8(p.fullLight), bD = ol.b64utf8(p.fullDark);
+      const LIMIT = 3400000;   // sendMail is one JSON request with a 4 MB ceiling; guard the pair
+      const attMode = bL.length + bD.length <= LIMIT ? "both" : (bL.length <= LIMIT ? "light" : "none");
+      const lbl = p.lbl;
+      const bodyHtml = ol.buildReportEmailHtml({ periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles: p.tiles, attached: { mode: attMode, light: p.names.light, dark: p.names.dark } });
+      const attachments = attMode === "both"
+        ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }, { name: p.names.dark, contentType: "text/html", contentBytes: bD }]
+        : attMode === "light" ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }] : [];
       await ol.sendMailMessage({
         subject: (testOnly ? "[TEST] " : "") + "FIN04 Weekly DLP Report, " + lbl,
         html: bodyHtml,
         to,
-        attachment: tooBig ? null : { name: "FIN04-weekly-report-" + fmtISO(start) + (theme === "dark" ? "-dark" : "") + ".html", contentType: "text/html", contentBytes },
+        attachments,
       });
-      setRepMsg({ ok: true, text: (testOnly ? "Test sent to " + acct.username + "." : "Report emailed to " + to.length + " recipient" + (to.length === 1 ? "" : "s") + " from " + acct.username + ".") + (tooBig ? " Summary only; the report was too large to attach." : " Full report attached.") + " A copy is in your Sent Items." });
+      const attNote = attMode === "both" ? " Light and dark reports attached." : attMode === "light" ? " Light report attached; the dark version exceeded the size limit." : " Summary only; the report was too large to attach.";
+      setRepMsg({ ok: true, text: (testOnly ? "Test sent to " + acct.username + "." : "Report emailed to " + to.length + " recipient" + (to.length === 1 ? "" : "s") + " from " + acct.username + ".") + attNote + " A copy is in your Sent Items." });
     } catch (err) {
       setRepMsg({ ok: false, text: (err && err.message) || String(err) });
     }
