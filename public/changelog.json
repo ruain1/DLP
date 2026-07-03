@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV98",
+  "date": "2026-07-03",
+  "items": [
+   "Critical fix: invitation emails from the bulk Email All Created Invites, the credentials card's Email Invite, the set-password link flow, the approve auto-send and the scheduled admin digests were all failing at the transport layer (recipient addresses were being serialised without the address field, so Outlook rejected every send), while the bulk screen wrongly reported success. The transport now accepts both address shapes and refuses addressless sends with a readable error",
+   "The bulk results now tell the truth: each row shows Emailed or Email failed (hover a failed row for the reason) and the completion message reports exact counts, for example Invitations emailed: 4 of 5, instead of announcing success unconditionally. The Weekly Report emails were unaffected throughout"
+  ]
+ },
+ {
   "rev": "REV97",
   "date": "2026-07-03",
   "items": [
