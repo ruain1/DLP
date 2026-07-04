@@ -88,7 +88,7 @@ const css = `
 .lk-metric.clickable{cursor:pointer;transition:background .12s}
 .lk-metric.clickable:hover{background:var(--hover)}
 .lk-board{flex:1;overflow:auto;position:relative}
-.lk-boardpage{height:calc(100vh - 54px);display:flex;flex-direction:column;overflow:hidden}
+.lk-boardpage{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .lk-head{display:grid;position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
 .lk-wk{border-right:1px solid var(--line);padding:6px 9px 3px;font-size:10.5px;font-weight:700;letter-spacing:.04em;border-bottom:1px solid var(--line)}
 .lk-wk .wc{color:var(--muted);font-weight:500;margin-left:5px}
@@ -267,7 +267,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-audwhen{color:var(--muted);font-size:11px;white-space:nowrap}
 .lk-audit{font-size:11.5px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line);padding:7px 0}
 .lk-audit .a{font-weight:600}.lk-audit .m{color:var(--muted);font-size:10.5px}
-.lk-shell{display:flex;min-height:100vh;padding-left:56px;transition:padding-left .14s ease}
+.lk-shell{display:flex;height:100vh;height:100dvh;overflow:hidden;padding-left:56px;transition:padding-left .14s ease}
 .lk-shell.navopen{padding-left:212px}
 .lk-rail{position:fixed;left:0;top:0;bottom:0;width:56px;background:#1d2530;z-index:50;display:flex;flex-direction:column;padding:14px 0;transition:width .14s ease}
 .lk-rail.open{width:212px}
@@ -301,11 +301,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 @media print{
   body.rep-print .lk-rail,body.rep-print .lk-foot,body.rep-print .lk-rep-filters{display:none!important}
   body.rep-print .lk-bar button,body.rep-print .lk-bar .lk-who,body.rep-print .lk-bar .lk-barright{display:none!important}
-  body.rep-print .lk-shell{padding-left:0!important}
+  body.rep-print .lk-shell{padding-left:0!important;height:auto!important;overflow:visible!important}
+  body.rep-print .lk-page{height:auto!important;overflow:visible!important}
+  body.rep-print .lk-scroll{overflow:visible!important;flex:none!important}
   body.rep-print .lk-rep{max-width:none!important;padding:6px 12px!important}
   body.rep-print .lk-rep-sec,body.rep-print .lk-rep-card,body.rep-print .lk-rep-2col{break-inside:avoid}
 }
-.lk-page{flex:1;min-width:0;display:flex;flex-direction:column}
+.lk-page{flex:1;min-width:0;min-height:0;height:100%;display:flex;flex-direction:column;overflow:hidden}
+.lk-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
 .lk-rep{padding:18px 22px;max-width:1400px}
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
 .lk-adminwrap .lk-db{padding:14px 0 0}
@@ -319,7 +322,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
 .lk-subbody{flex:1;min-width:0;max-width:760px}
 .lk-subbody.wide{max-width:1320px}.lk-subbody.full{max-width:none}
-.lk-userwrap .lk-ufilter{position:sticky;top:54px;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.lk-userwrap .lk-ufilter{position:sticky;top:0;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
 .cal-head h3{font-size:15px;color:var(--ink)}
@@ -399,7 +402,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-help{flex:1;min-height:0}
 .lk-userwrap{display:flex;gap:18px;align-items:flex-start}
 .lk-usermain{flex:1;min-width:0}
-.lk-userside{width:300px;flex-shrink:0;position:sticky;top:74px}
+.lk-userside{width:300px;flex-shrink:0;position:sticky;top:20px}
 .lk-online{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}
 .lk-online-h{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px;color:var(--ink)}
 .lk-online-now{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#54d6c6;background:rgba(31,182,166,.13);padding:3px 9px;border-radius:999px;text-transform:none;letter-spacing:0}
@@ -427,7 +430,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 @keyframes lkpulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}70%{box-shadow:0 0 0 6px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
 @media (max-width:900px){.lk-userwrap{flex-direction:column}.lk-userside{width:100%;position:static}}
 .lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
-.lk-helppage{height:calc(100vh - 54px);display:flex;flex-direction:column;overflow:hidden;background:var(--paper)}
+.lk-helppage{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--paper)}
 .lk-helphero{flex:0 0 auto;margin:14px 18px 4px;border-radius:16px;padding:15px 22px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(135deg,#1E1B4B 0%,#312E81 58%,#4338CA 100%);position:relative;overflow:hidden;box-shadow:0 14px 34px -20px rgba(49,46,129,.7)}
 .lk-helphero::after{content:"";position:absolute;inset:0;background:radial-gradient(150px 150px at 92% -30%,rgba(255,255,255,.16),transparent 70%),repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 56px);pointer-events:none}
 .lk-helphero .hh{position:relative;z-index:1}
@@ -457,7 +460,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-ufilter{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:6px}
 .lk-rep h2{font-size:17px;font-weight:700;margin:0 0 2px}
 .lk-rep .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
-.lk-rep-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 -22px 14px;position:sticky;top:54px;z-index:20;background:var(--card);padding:10px 22px;border-bottom:1px solid var(--line)}
+.lk-rep-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 -22px 14px;position:sticky;top:0;z-index:20;background:var(--card);padding:10px 22px;border-bottom:1px solid var(--line)}
 .lk-rep-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px;margin-bottom:22px}
 .lk-rep-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
 .lk-rep-card .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
@@ -490,8 +493,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
-.lk-tblwrap{width:100%;height:calc(100vh - 54px);min-height:0;display:flex;flex-direction:column}
-.lk-sch{width:100%;display:flex;flex-direction:column;height:calc(100vh - 110px)}
+.lk-tblwrap{width:100%;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.lk-sch{width:100%;display:flex;flex-direction:column;flex:1;min-height:0}
 .lk-sch-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
 .lk-sch-bar .grp{display:flex;flex-direction:column;gap:4px}
 .lk-sch-bar .grp>label{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
@@ -2436,10 +2439,10 @@ export default function App({ session }) {
       </div>}
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} can={can} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} />}
-      {page === "cx" && <CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} />}
+      {page === "constraints" && <div className="lk-scroll"><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
+      {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
+      {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
+      {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>

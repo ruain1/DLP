@@ -6,9 +6,9 @@ import { supabase } from "./supabaseClient";
 
 /* ---------- constants ---------- */
 const TAGC = { red: "#E2564E", yellow: "#E0A106", green: "#18B69B", blue: "#4F8DF9", white: "#C9D3E0" };
-const CARD_KEYS = ["kpi", "scurve", "bytype", "issues", "irl", "docs", "milestones", "risks", "attendance"];
+const CARD_KEYS = ["kpi", "scurve", "funnel", "bytype", "issues", "irl", "docs", "milestones", "risks", "attendance"];
 const CARD_LABEL = {
-  kpi: "KPI tiles", scurve: "Programme S-curve", bytype: "Red tag by equipment type",
+  kpi: "KPI tiles", scurve: "Programme S-curve", funnel: "Tag attainment funnel", bytype: "Red tag by equipment type",
   issues: "Open issues by type", irl: "IRL workflow", docs: "Documentation register", milestones: "Milestones",
   risks: "Risk register", attendance: "Vendor attendance",
 };
@@ -19,8 +19,6 @@ const DEFAULT_CONFIG = {
   sla: { critical: 1, high: 2, medium: 7, low: 14 },
   rag: { amber: 5, red: 10 },
   baselineAgreed: false,
-  stallWeeks: 2,
-  targetDate: "",
 };
 
 /* ---------- small helpers ---------- */
@@ -252,7 +250,7 @@ async function parseWorkbook(file) {
         const row = m[r] || []; const txt = row[cR < 0 ? 0 : cR]; if (!txt || typeof txt !== "string") continue;
         const dueRaw = row[cDue]; const dueD = dueRaw instanceof Date ? dueRaw : (dueRaw ? new Date(dueRaw) : null);
         const overdue = dueD && !isNaN(dueD) ? dueD < we : false;
-        risks.push([txt, String(row[cResp] || ""), dueRaw && row[cRaised] instanceof Date ? fmtDay(row[cRaised]) : String(row[cRaised] || ""), dueD && !isNaN(dueD) ? fmtDay(dueD) : String(dueRaw || ""), String(row[cPri] || ""), overdue, dueD && !isNaN(dueD) ? isoDate(dueD) : null]);
+        risks.push([txt, String(row[cResp] || ""), dueRaw && row[cRaised] instanceof Date ? fmtDay(row[cRaised]) : String(row[cRaised] || ""), dueD && !isNaN(dueD) ? fmtDay(dueD) : String(dueRaw || ""), String(row[cPri] || ""), overdue]);
       }
       D.risks = risks;
     }
@@ -315,143 +313,6 @@ function svgDonut(parts) {
 }
 
 /* =====================================================================
-   INSIGHT LAYER (REV107)
-   Pure computations over stored snapshots; the page already loads every
-   imported week in full, so week-on-week intelligence needs no schema change.
-   ===================================================================== */
-const MONTHS3 = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
-// Risk due dates are stored as year-less display strings on existing snapshots; parse at render
-// with year inference from the reporting week so already-saved weeks work. New imports also carry
-// an ISO date at r[6], which wins when present.
-const riskDueDate = (r, weISO) => {
-  if (r[6]) { const d = new Date(r[6]); if (!isNaN(d)) return d; }
-  const m = /^(\d{1,2})\s+([A-Za-z]{3})/.exec(String(r[3] || "").trim());
-  if (!m) return null;
-  const we = new Date(weISO); if (isNaN(we)) return null;
-  const mo = MONTHS3[m[2].toLowerCase()]; if (mo == null) return null;
-  let d = new Date(we.getFullYear(), mo, Number(m[1]));
-  const HALF = 183 * 864e5;
-  if (d - we > HALF) d = new Date(we.getFullYear() - 1, mo, Number(m[1]));
-  else if (we - d > HALF) d = new Date(we.getFullYear() + 1, mo, Number(m[1]));
-  return d;
-};
-const riskDaysOver = (r, weISO) => { const d = riskDueDate(r, weISO); if (!d) return null; const n = Math.floor((new Date(weISO) - d) / 864e5); return n > 0 ? n : null; };
-const RAGRANK = { g: 2, a: 1, r: 0 };
-const docLiveRows = (dd) => { const all = (dd && dd.rows) || []; const cut = all.findIndex((r) => /^documentation health|^cx level$/i.test(String((r && r[0]) || "").trim())); return cut >= 0 ? all.slice(0, cut) : all; };
-const docScore = (dd) => { const rows = docLiveRows(dd); let got = 0, max = 0; rows.forEach((r) => (r[1] || []).forEach((g) => { const k = String(g || "").toLowerCase(); if (k in RAGRANK) { got += RAGRANK[k]; max += 2; } })); return max ? Math.round((got / max) * 100) : null; };
-const docRedVendors = (dd) => docLiveRows(dd).filter((r) => (r[1] || []).some((g) => String(g).toLowerCase() === "r")).map((r) => String(r[0]));
-const docRegressions = (dd, prevDd) => { if (!prevDd) return null; const pm = {}; docLiveRows(prevDd).forEach((r) => { pm[String(r[0]).toLowerCase()] = r[1] || []; }); let n = 0; docLiveRows(dd).forEach((r) => { const p = pm[String(r[0]).toLowerCase()]; if (!p) return; (r[1] || []).forEach((g, i) => { const a = RAGRANK[String(g || "").toLowerCase()], b = RAGRANK[String(p[i] || "").toLowerCase()]; if (a != null && b != null && a < b) n++; }); }); return n; };
-const typeRedN = (r) => (r[3] != null ? r[3] : Math.round(((r[1] || 0) / 100) * (r[2] || 0)));
-const typeStallStreak = (weeksDesc, snapIdx, typeName) => {
-  let streak = 0;
-  for (let i = snapIdx; i + 1 < weeksDesc.length; i++) {
-    const cur = (((weeksDesc[i] || {}).detail || {}).byType || []).find((x) => x[0] === typeName);
-    const prv = (((weeksDesc[i + 1] || {}).detail || {}).byType || []).find((x) => x[0] === typeName);
-    if (!cur || !prv) break;
-    if (typeRedN(cur) - typeRedN(prv) === 0) streak++; else break;
-  }
-  return streak;
-};
-const prevOf = (list, snap) => { if (!snap) return null; const i = list.findIndex((w) => w.week_ending === snap.week_ending); return i >= 0 ? list[i + 1] || null : null; };
-const targetDateOf = (cfg, snap) => {
-  if (cfg && cfg.targetDate) { const d = new Date(cfg.targetDate); if (!isNaN(d)) return d; }
-  const ms = (((snap || {}).detail || {}).milestones || []).find((r) => /complete/i.test(String(r[0] || "")));
-  if (ms && ms[1]) { const d = new Date(ms[1]); if (!isNaN(d)) return d; }
-  return null;
-};
-function buildSignals(snap, prev, weeksDesc, cfg) {
-  const S = []; const push = (sev, text, pop, pin) => S.push({ sev, text, pop, pin: !!pin });
-  if (!snap) return S;
-  const H = snap, D = snap.detail || {}, we = new Date(snap.week_ending);
-  const A = H.assets || 0, redN = H.red_n || 0;
-  const idx = weeksDesc.findIndex((w) => w.week_ending === snap.week_ending);
-  // 1. pace vs required
-  const target = targetDateOf(cfg, snap);
-  const rate = H.new_red_7d != null ? H.new_red_7d : (prev && prev.red_n != null ? Math.max(0, redN - prev.red_n) : null);
-  if (A && target && rate != null && redN < A) {
-    const remaining = A - redN, weeksTo = (target - we) / 6048e5;
-    if (weeksTo > 0) {
-      const req = remaining / weeksTo;
-      let projTxt = "";
-      if (rate > 0) {
-        const proj = new Date(we); proj.setDate(proj.getDate() + Math.ceil((remaining / rate) * 7));
-        projTxt = " 100% L1 projects to ~" + fmtDay(proj) + ".";
-        if (prev && prev.new_red_7d > 0 && prev.red_n != null && prev.red_n < A) {
-          const pp = new Date(prev.week_ending); pp.setDate(pp.getDate() + Math.ceil(((A - prev.red_n) / prev.new_red_7d) * 7));
-          const mv = Math.round((proj - pp) / 864e5);
-          if (mv) projTxt = projTxt.slice(0, -1) + ", " + Math.abs(mv) + "d " + (mv < 0 ? "earlier" : "later") + " than last week's projection.";
-        }
-      }
-      const popd = { t: "Tagging pace", b: "Required pace is remaining assets divided by weeks to the target date. Set the target in Configure; it falls back to the milestone named Complete.", calc: rate + " per week vs " + Math.ceil(req) + " required (" + remaining + " remaining, " + Math.floor(weeksTo) + " weeks to " + fmtDay(target) + ")", src: "Week on Week / Configure target", dt: pnote("Projection assumes the current 7-day rate holds. It moves week to week; a projection sliding later is the earliest warning this page can give.") };
-      if (rate >= req) push("green", "L1 tagging is ahead of required pace: " + rate + " earned in 7 days vs ~" + Math.ceil(req) + " per week needed for 100% by " + fmtDay(target) + "." + projTxt, popd, true);
-      else push(rate < req / 2 ? "red" : "amber", "L1 tagging is behind required pace: " + rate + " earned in 7 days vs ~" + Math.ceil(req) + " per week needed for 100% by " + fmtDay(target) + "." + projTxt, popd, true);
-    }
-  }
-  // 2. graduation stall
-  if (redN >= 20 && (H.new_yellow_7d || 0) === 0) {
-    let streak = 1;
-    for (let i = idx + 1; i >= 0 && i < weeksDesc.length; i++) { if ((weeksDesc[i].new_yellow_7d || 0) === 0) streak++; else break; }
-    if (streak >= ((cfg && cfg.stallWeeks) || 2)) push("red", "Nothing is graduating from L1: " + redN + " assets hold red, " + (H.yellow_n || 0) + " hold yellow, and L2 conversion moved 0 for " + streak + " consecutive imports.", { t: "L1 to L2 conversion", b: "Assets are earning red but not progressing to yellow. L1 pace is worthless if nothing graduates; this is the gate to work.", calc: "New yellow tags: 0 for " + streak + " consecutive imports. " + redN + " at L1, " + (H.yellow_n || 0) + " at L2.", src: "Week on Week", dt: pnote("Streak threshold is configurable in Configure (Insights).") });
-  }
-  // 3. issue burn
-  if ((H.issues_raised_7d || 0) > 0 && (H.issues_resolved_7d || 0) === 0) {
-    let streak = 1;
-    for (let i = idx + 1; i >= 0 && i < weeksDesc.length; i++) { if ((weeksDesc[i].issues_raised_7d || 0) > 0 && (weeksDesc[i].issues_resolved_7d || 0) === 0) streak++; else break; }
-    push("red", "The issue backlog only grows: " + H.issues_raised_7d + " raised, 0 resolved; " + (H.open_issues == null ? "-" : H.open_issues) + " open." + (streak > 1 ? " Zero resolutions for " + streak + " consecutive imports." : ""), { t: "Issue burn", b: "Issues raised against issues resolved in the reporting week.", calc: "+" + H.issues_raised_7d + " raised, " + (H.issues_resolved_7d || 0) + " resolved, " + (H.open_issues == null ? "-" : H.open_issues) + " open", src: "Week on Week / IRL", dt: pnote("A backlog that only grows eventually blocks verification. Resolution throughput is the number to move.") });
-  } else if ((H.issues_raised_7d || 0) > (H.issues_resolved_7d || 0) && (H.issues_resolved_7d || 0) > 0) {
-    push("amber", "Issue backlog grew: " + H.issues_raised_7d + " raised vs " + H.issues_resolved_7d + " resolved this week; " + (H.open_issues == null ? "-" : H.open_issues) + " open.", { t: "Issue burn", calc: "+" + H.issues_raised_7d + " raised, " + H.issues_resolved_7d + " resolved", src: "Week on Week / IRL", dt: pnote("Net growth this week.") });
-  }
-  // 4. IRL stall
-  if ((H.irl_opened || 0) > 0 && (H.irl_started || 0) + (H.irl_delivered || 0) + (H.irl_verified || 0) === 0) {
-    push("amber", "IRL throughput stalled: " + H.irl_opened + " opened this week, 0 started, delivered or verified." + (H.awaiting_verification ? " " + H.awaiting_verification + " await verification." : ""), { t: "IRL workflow", b: "Weekly issue movement through Opened, Started, Delivered, Verified.", calc: H.irl_opened + " opened, 0 progressed", src: "IRL Metrics", dt: pnote("Opened issues that nobody has started are invisible work. The awaiting-verification count sits with CTS.") });
-  }
-  // 5. risks overdue
-  const rk = D.risks || [];
-  const od = rk.map((r) => ({ r, d: r[5] ? riskDaysOver(r, snap.week_ending) : null })).filter((x) => x.r[5]).sort((a, b) => (b.d || 0) - (a.d || 0));
-  if (od.length) {
-    const crit = od.filter((x) => /crit/i.test(String(x.r[4] || ""))).length;
-    const top = od[0];
-    push(crit ? "red" : "amber", od.length + " of " + rk.length + " open risks " + (od.length === 1 ? "is" : "are") + " past due" + (crit ? ", " + (crit === od.length ? "all" : crit) + " Critical" : "") + (top.d != null ? ", the oldest by " + top.d + " days (" + (top.r[1] || "unowned") + ")" : "") + ".", { t: "Overdue risks", b: "Open risks whose due date has passed as at the reporting week.", calc: od.length + " overdue of " + rk.length + " open", src: "Risk Register", dt: ptable(["Risk", "Responsible", "Due", "Days over"], od.map((x) => [esc(x.r[0]), esc(x.r[1] || "-"), esc(x.r[3] || "-"), x.d != null ? x.d + "d" : "-"])) });
-  }
-  // 6. milestone slip growth
-  const slipSum = (d) => (((d || {}).milestones) || []).reduce((t, r) => t + (r[3] > 0 ? r[3] : 0), 0);
-  if (prev) {
-    const g = slipSum(D) - slipSum(prev.detail);
-    if (g > 0) {
-      const worst = (D.milestones || []).filter((r) => r[3] > 0).sort((a, b) => b[3] - a[3])[0];
-      push("amber", "Aggregate milestone slip grew by " + g + " days this week" + (worst ? "; worst is " + esc(String(worst[0])) + " at +" + worst[3] + "d" : "") + ".", { t: "Milestone slip", calc: "Total slip " + slipSum(D) + "d, was " + slipSum(prev.detail) + "d last week", src: "Programme milestones", dt: pnote("Sum of positive slip days across the milestone table, week on week. Provisional until the baseline is agreed.") });
-    }
-  }
-  // 7. docs chase list and regressions
-  const reds = docRedVendors(D.docs);
-  const regs = prev ? docRegressions(D.docs, (prev.detail || {}).docs) : null;
-  if (reds.length || (regs || 0) > 0) {
-    push("amber", "Documentation chase list: " + (reds.length ? reds.slice(0, 3).map((v) => esc(v)).join(", ") + (reds.length > 3 ? " and " + (reds.length - 3) + " more" : "") + " carry red cells" : "no red vendors") + ((regs || 0) > 0 ? "; " + regs + " cell" + (regs === 1 ? "" : "s") + " regressed since last week" : "") + ".", { t: "Documentation register", b: "Vendors with red cells block tagging on their assets.", calc: reds.length + " red vendor" + (reds.length === 1 ? "" : "s") + ((regs || 0) > 0 ? ", " + regs + " regression" + (regs === 1 ? "" : "s") : ""), src: "Document Register", dt: reds.length ? ptable(["Vendor"], reds.map((v) => [esc(v)])) : pnote("No red vendors this week.") });
-  }
-  // 8. ACC staleness
-  if (snap.acc_refreshed) {
-    const st = Math.floor((we - new Date(snap.acc_refreshed)) / 864e5);
-    if (st > 7) push("amber", "ACC data is stale: the register was last refreshed " + st + " days before this reporting week; tag figures may lag the field.", { t: "ACC refresh", calc: "Refreshed " + fmtFull(snap.acc_refreshed) + ", reporting week ends " + fmtFull(snap.week_ending), src: "Import metadata", dt: pnote("Refresh the ACC extract before importing the weekly pack.") });
-  }
-  // 9. attendance slope
-  const att = attRecorded(D.attendance);
-  const rts = att.filter((a) => a.rate != null).map((a) => a.rate);
-  if (rts.length >= 3) {
-    const l3 = rts.slice(-3);
-    if (l3[0] > l3[1] && l3[1] > l3[2]) push("amber", "Vendor attendance has fallen 3 straight weeks (" + rts.slice(-4).join("%, ") + "%).", { t: "Vendor attendance", calc: "Last weeks: " + rts.slice(-4).join("%, ") + "%", src: "Vendor Attendance", dt: pnote("Three consecutive falling weekly rates. Click the attendance bars for who was absent.") });
-  }
-  // 10. import gap
-  if (prev) {
-    const gap = Math.round((we - new Date(prev.week_ending)) / 864e5);
-    if (gap > 8) push("amber", "Import gap: " + gap + " days between this pack and the previous one; week-on-week movements span the gap.", { t: "Import gap", calc: gap + " days between imports", src: "Import metadata", dt: pnote("Weekly deltas assume weekly imports. A gap makes 7-day figures span more than 7 days.") });
-  }
-  // The pace signal is the headline metric: pinned to the top so the severity cap can never
-  // silently drop it (or the week's only good news) behind six reds and ambers.
-  const W = { red: 0, amber: 1, green: 2 };
-  return S.sort((a, b) => (b.pin - a.pin) || (W[a.sev] - W[b.sev])).slice(0, 6);
-}
-
-/* =====================================================================
    DRILL CONTENT BUILDER (returns {t,b,calc,src,dt})
    ===================================================================== */
 function ptable(cols, rows) {
@@ -462,20 +323,20 @@ function buildDrill(key, ds, data) {
   const H = data || {}, D = (data && data.detail) || {};
   const k = key;
   if (k === "ty") { const r = (D.byType || [])[+ds.i]; if (!r) return null; const red = r[3] != null ? r[3] : Math.round(r[1] / 100 * r[2]);
-    return { t: esc(r[0]) + "  -  Red tag " + r[1] + "%", b: `<b>${red}</b> of ${r[2]} ${esc(r[0])} assets have earned the Red (L1) tag, ${r[2] - red} still to clear L1.`, calc: `${red} / ${r[2]} = ${r[1]}%`, src: "Tag Attainment", dt: ptable(["Metric", "Value"], [["Assets", r[2]], ["Red-tagged", red], ["Remaining", r[2] - red], ["Attainment", r[1] + "%"]]) }; }
-  if (k.indexOf("is-") === 0) { const c = k.slice(3); const n = (D.issuesByType || {})[c] || 0; const rows = (D.issues || []).filter((x) => x[4] === c).map((x) => [esc(x[0]), esc(x[1]), esc(x[2] || "-"), esc(x[3])]);
-    return { t: esc(c) + " issues  -  " + n + " open", b: `In-scope open issues in the ${esc(c)} category (status Open or In progress).`, calc: n + " open", src: "IRL (ACC Issues)", dt: rows.length ? ptable(["ID", "Title", "Company", "Status"], rows) : pnote("Row detail for this category was not in the import.") }; }
+    return { t: r[0] + "  -  Red tag " + r[1] + "%", b: `<b>${red}</b> of ${r[2]} ${esc(r[0])} assets have earned the Red (L1) tag, ${r[2] - red} still to clear L1.`, calc: `${red} / ${r[2]} = ${r[1]}%`, src: "Tag Attainment", dt: ptable(["Metric", "Value"], [["Assets", r[2]], ["Red-tagged", red], ["Remaining", r[2] - red], ["Attainment", r[1] + "%"]]) }; }
+  if (k.indexOf("is-") === 0) { const c = k.slice(3); const n = (D.issuesByType || {})[c] || 0; const rows = (D.issues || []).filter((x) => x[4] === c).map((x) => [x[0], esc(x[1]), esc(x[2] || "-"), x[3]]);
+    return { t: c + " issues  -  " + n + " open", b: `In-scope open issues in the ${esc(c)} category (status Open or In progress).`, calc: n + " open", src: "IRL (ACC Issues)", dt: rows.length ? ptable(["ID", "Title", "Company", "Status"], rows) : pnote("Row detail for this category was not in the import.") }; }
   if (k === "doc") { const r = (D.docs && D.docs.rows || [])[+ds.vi]; if (!r) return null; const cols = (D.docs && D.docs.cols) || []; const ci = +ds.ci; const rag = r[1][ci];
-    return { t: esc(r[0]) + "  -  " + esc(cols[ci]), b: `<b>${ragWord[rag]}</b>. ${esc(r[2] || "")}${r[3] ? " Contact " + esc(r[3]) + "." : ""}`, calc: esc(cols[ci]) + " status: " + ragWord[rag], src: "Document Register", dt: ptable(["Level", "Status"], cols.map((cc, i) => [esc(cc), ragWord[r[1][i]]])) }; }
+    return { t: r[0] + "  -  " + cols[ci], b: `<b>${ragWord[rag]}</b>. ${esc(r[2] || "")}${r[3] ? " Contact " + esc(r[3]) + "." : ""}`, calc: cols[ci] + " status: " + ragWord[rag], src: "Document Register", dt: ptable(["Level", "Status"], cols.map((cc, i) => [cc, ragWord[r[1][i]]])) }; }
   if (k === "sc") { const s = (D.scurve || [])[+ds.i]; if (!s) return null; const plan = s[1], act = s[2]; const av = act == null ? "no data yet" : act + "%"; const vr = act == null ? "-" : ((act - plan >= 0 ? "+" : "") + (act - plan).toFixed(1) + " pts");
     const base = (data.config && data.config.baselineAgreed); const rng = []; const all = D.scurve || []; const i = +ds.i; for (let j = Math.max(0, i - 2); j <= Math.min(all.length - 1, i + 2); j++) rng.push([fmtFull(all[j][0]), base ? all[j][1] + "%" : "pending", all[j][2] == null ? "-" : all[j][2] + "%"]);
     return { t: "Week ending " + fmtFull(s[0]), b: base ? "Planned is the agreed baseline; Actual is recorded L1-L3 tag attainment over the mapped assets." : "Actual is recorded L1-L3 tag attainment. Planned is dormant until the schedule baseline is agreed and instructed.", calc: base ? `Planned ${plan}%   |   Actual ${av}   |   Variance ${vr}` : `Actual ${av}   |   Baseline pending`, src: "Programme", dt: ptable(["Week", "Planned", "Actual"], rng) }; }
   if (k.indexOf("att-") === 0) { const a = attRecorded(D.attendance)[+k.replace("att-", "")]; if (!a) return null;
     if (a.rate == null) return { t: a.wk + "  -  in progress", b: "Attendance for this week has not been marked yet.", calc: "Attended / Invited = pending", src: "Vendor Attendance", dt: pnote("No marks recorded for this week.") };
     const inv = a.present.length + a.absent.length;
-    return { t: esc(a.wk) + "  -  " + a.rate + "%", b: `<b>Present:</b> ${esc(a.present.join(", ")) || "-"}.<br><b>Absent:</b> ${esc(a.absent.join(", ")) || "-"}.`, calc: a.present.length + " of " + inv + " invited = " + a.rate + "%", src: "Vendor Attendance", dt: ptable(["Vendor", "Attended"], a.present.map((p) => [esc(p), "Y"]).concat(a.absent.map((p) => [esc(p), "N"]))) }; }
+    return { t: a.wk + "  -  " + a.rate + "%", b: `<b>Present:</b> ${esc(a.present.join(", ")) || "-"}.<br><b>Absent:</b> ${esc(a.absent.join(", ")) || "-"}.`, calc: a.present.length + " of " + inv + " invited = " + a.rate + "%", src: "Vendor Attendance", dt: ptable(["Vendor", "Attended"], a.present.map((p) => [esc(p), "Y"]).concat(a.absent.map((p) => [esc(p), "N"]))) }; }
   if (k.indexOf("ms-") === 0) { const r = (D.milestones || [])[+k.replace("ms-", "")]; if (!r) return null;
-    return { t: esc(r[0]), b: "Programme milestone (provisional until the baseline is agreed).", calc: `Baseline ${r[5] ? fmtFull(r[5]) : "-"}  -  Forecast ${fmtFull(r[1])}  -  Slip ${r[3] == null ? "-" : "+" + r[3] + "d"}  -  ${esc(r[2])}`, src: "Programme", dt: ptable(["Field", "Value"], [["Baseline", r[5] ? fmtFull(r[5]) : "-"], ["Forecast", fmtFull(r[1])], ["Actual", r[6] ? fmtFull(r[6]) : "not set"], ["Slip", r[3] == null ? "-" : "+" + r[3] + " days"], ["Status", esc(r[2])], ["RAG", ragWord[r[4]]]]) }; }
+    return { t: esc(r[0]), b: "Programme milestone (provisional until the baseline is agreed).", calc: `Baseline ${r[5] ? fmtFull(r[5]) : "-"}  -  Forecast ${fmtFull(r[1])}  -  Slip ${r[3] == null ? "-" : "+" + r[3] + "d"}  -  ${r[2]}`, src: "Programme", dt: ptable(["Field", "Value"], [["Baseline", r[5] ? fmtFull(r[5]) : "-"], ["Forecast", fmtFull(r[1])], ["Actual", r[6] ? fmtFull(r[6]) : "not set"], ["Slip", r[3] == null ? "-" : "+" + r[3] + " days"], ["Status", r[2]], ["RAG", ragWord[r[4]]]]) }; }
   if (k === "rk") { const r = (D.risks || [])[+ds.ri]; if (!r) return null;
     return { t: "Risk (" + esc(r[4] || "-") + ")", b: `<b>${esc(r[0])}</b><br>Owner ${esc(r[1] || "-")}. Raised ${esc(r[2] || "-")}, due ${esc(r[3] || "-")}.${r[5] ? ' <span style="color:var(--red);font-weight:700">Overdue.</span>' : ""}`, calc: "Priority " + esc(r[4] || "-") + (r[5] ? "  -  Overdue" : ""), src: "Risk Register", dt: ptable(["Field", "Value"], [["Risk", esc(r[0])], ["Responsible", esc(r[1])], ["Raised", esc(r[2])], ["Due", r[5] ? `<span style="color:var(--red)">${esc(r[3])}</span>` : esc(r[3])], ["Priority", esc(r[4])], ["Overdue", r[5] ? "Yes" : "No"]]) }; }
   // KPI + funnel + irl static-ish keys
@@ -486,8 +347,13 @@ function buildDrill(key, ds, data) {
     "kpi-red": { t: "Red tag (L1)", b: "Earned when all L1 activities read YES. " + (H.new_red_7d || 0) + " earned in the last 7 days.", calc: (H.red_n || 0) + " / " + A + " = " + (H.red_pct || 0) + "%", src: "Asset Cx Register / Tag Attainment", dt: ptable(["Type", "Assets", "Red #", "Red %"], typeT()) },
     "kpi-yellow": { t: "Yellow tag (L2)", b: "Earned when all L2 activities read YES.", calc: (H.yellow_n || 0) + " / " + A + " = " + (H.yellow_pct || 0) + "%", src: "Asset Cx Register", dt: pnote((H.yellow_n || 0) + " assets at L2.") },
     "kpi-green": { t: "Green tag (L3)", b: "Earned when all L3 activities read YES.", calc: (H.green_n || 0) + " / " + A + " = " + (H.green_pct || 0) + "%", src: "Asset Cx Register", dt: pnote((H.green_n || 0) + " assets at L3.") },
-    "kpi-issues": { t: "Open Issues (Q+C)", b: "Open or In progress issues in scope (Quality, Commissioning, Snag).", calc: "Open issues = " + (H.open_issues == null ? "-" : H.open_issues), src: "IRL (ACC Issues)", dt: (D.issues || []).length ? ptable(["ID", "Title", "Company", "Status"], (D.issues || []).slice(0, 12).map((x) => [esc(x[0]), esc(x[1]), esc(x[2] || "-"), esc(x[3])])) : pnote("No issue rows in this import.") },
+    "kpi-issues": { t: "Open Issues (Q+C)", b: "Open or In progress issues in scope (Quality, Commissioning, Snag).", calc: "Open issues = " + (H.open_issues == null ? "-" : H.open_issues), src: "IRL (ACC Issues)", dt: (D.issues || []).length ? ptable(["ID", "Title", "Company", "Status"], (D.issues || []).slice(0, 12).map((x) => [x[0], esc(x[1]), esc(x[2] || "-"), x[3]])) : pnote("No issue rows in this import.") },
     "kpi-verify": { t: "Awaiting verification", b: "Completed by the contractor, not yet Closed by CTS.", calc: "Awaiting verification = " + (H.awaiting_verification == null ? "-" : H.awaiting_verification), src: "IRL (ACC Issues)", dt: pnote((H.awaiting_verification || 0) + " issues Completed and awaiting CTS close.") },
+    "fn-red": { t: "L1 Red", b: "Assets that have earned the L1 tag, broken down by type.", calc: (H.red_n || 0) + " of " + A + " = " + (H.red_pct || 0) + "%", src: "Tag Attainment", dt: ptable(["Type", "Assets", "Red #", "Red %"], typeT()) },
+    "fn-yellow": { t: "L2 Yellow", b: "Assets that have cleared L2.", calc: (H.yellow_n || 0) + " of " + A, src: "Asset Cx Register", dt: pnote((H.yellow_n || 0) + " assets at L2.") },
+    "fn-green": { t: "L3 Green", b: "Assets at L3.", calc: (H.green_n || 0) + " of " + A, src: "Asset Cx Register", dt: pnote((H.green_n || 0) + " assets at L3.") },
+    "fn-blue": { t: "L4 Blue", b: "Assets at L4 (FPT). Manual entry.", calc: "0 of " + A, src: "Asset Cx Register", dt: pnote("No assets at L4 yet.") },
+    "fn-white": { t: "L5 White", b: "Assets at L5 (handover). Manual entry.", calc: "0 of " + A, src: "Asset Cx Register", dt: pnote("No assets at L5 yet.") },
     "irl-opened": { t: "Issues opened", b: "In-scope issues created since the cutoff.", calc: "Opened = " + ((D.irl && D.irl.opened) ?? "-"), src: "IRL Metrics", dt: pnote("New in-scope issues this week.") },
     "irl-started": { t: "Work started", b: "Issues moved Open to In progress.", calc: "Started = " + ((D.irl && D.irl.started) ?? "-"), src: "IRL Metrics", dt: pnote("Issues that moved to In progress.") },
     "irl-delivered": { t: "Contractor delivered", b: "Issues advanced to Completed this week.", calc: "Delivered = " + ((D.irl && D.irl.delivered) ?? "-"), src: "IRL Metrics", dt: pnote("Issues advanced to Completed.") },
@@ -511,8 +377,6 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
   const [pop, setPop] = useState(null);            // {t,b,calc,src,dt}
   const [popTab, setPopTab] = useState(0);
   const [cfgOpen, setCfgOpen] = useState(false);
-  const [insightsOn, setInsightsOn] = useState(() => { try { return localStorage.getItem("dlp-cx-insights") !== "0"; } catch (e) { return true; } });
-  const setInsights = (v) => { setInsightsOn(v); try { localStorage.setItem("dlp-cx-insights", v ? "1" : "0"); } catch (e) { /* private mode */ } };
   const fileRef = useRef(null);
 
   const loadWeeks = useCallback(async (selectWeek) => {
@@ -592,8 +456,6 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
 
       {err && <div className="cxp-err">{err}</div>}
       {info && <div className="cxp-ok">{info}</div>}
-
-      {!loading && snap && isAdmin && <SignalsBar snap={snap} prev={prevOf(weeks, snap)} weeks={weeks} cfg={cfg} on={insightsOn} setOn={setInsights} openPop={(p) => { setPop(p); setPopTab(0); }} />}
       {loading && <div className="cxp-empty">Loading\u2026</div>}
 
       {!loading && !snap && (
@@ -606,12 +468,14 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
 
       {!loading && snap && order.map((key) => {
         if (!show(key)) return null;
-        if (key === "kpi") return <KPIs key="kpi" s={snap} prev={prevOf(weeks, snap)} />;
-        if (key === "scurve") {
+        if (key === "kpi") return <KPIs key="kpi" s={snap} />;
+        if (key === "scurve" || key === "funnel") {
+          if (key === "funnel") return null;
           const scSeries = snap.detail.scurve || [];
           return (
-            <div key="row1" style={{ marginBottom: 14 }}>
-              <Panel title="Programme S-curve, planned vs actual (L1-L3)" right={<Legend />}>{cfg.baselineAgreed ? scVar(scSeries, cfg.baselineAgreed, snap.week_ending) : <div className="cxp-advisory"><span className="cxp-advico">i</span>Provisional. KPI variance and the planned curve are placeholders and will update automatically once a delivery schedule is linked.</div>}<div dangerouslySetInnerHTML={{ __html: svgScurve(scSeries, cfg.baselineAgreed, snap.week_ending) }} /></Panel>
+            <div className="cxp-grid" key="row1">
+              {show("scurve") && <Panel title="Programme S-curve, planned vs actual (L1-L3)" right={<Legend />}>{cfg.baselineAgreed ? scVar(scSeries, cfg.baselineAgreed, snap.week_ending) : <div className="cxp-advisory"><span className="cxp-advico">i</span>Provisional. KPI variance and the planned curve are placeholders and will update automatically once a delivery schedule is linked.</div>}<div dangerouslySetInnerHTML={{ __html: svgScurve(scSeries, cfg.baselineAgreed, snap.week_ending) }} /></Panel>}
+              {show("funnel") && <Funnel s={snap} />}
             </div>
           );
         }
@@ -619,7 +483,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
           if (key !== "bytype") return null;
           return (
             <div className="cxp-grid3" key="row2">
-              {show("bytype") && <ByType s={snap} weeks={weeks} cfg={cfg} />}
+              {show("bytype") && <ByType s={snap} />}
               {show("issues") && <Issues s={snap} />}
               {show("irl") && <IRL s={snap} />}
             </div>
@@ -629,7 +493,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
           if (key !== "docs") return null;
           return (
             <div className="cxp-grid" key="row3">
-              {show("docs") && <Docs s={snap} weeks={weeks} />}
+              {show("docs") && <Docs s={snap} />}
               {show("milestones") && <Milestones s={snap} />}
             </div>
           );
@@ -675,62 +539,32 @@ function Panel({ title, right, children }) {
 }
 function Legend() { return <div className="cxp-legend"><span><i style={{ background: "var(--accent)" }} />Planned</span><span><i style={{ background: "var(--green)" }} />Actual</span></div>; }
 
-function KPIs({ s, prev }) {
-  const d1 = (v) => Math.round(v * 10) / 10;
-  const sep = " \u00B7 ";
-  // goodUp: whether an increase is good news, which decides the arrow colour
-  const wow = (delta, unit, goodUp) => {
-    if (delta == null) return <span className="cxp-flat">first import</span>;
-    if (delta === 0) return <span className="cxp-flat">{"\u25AC"} no change</span>;
-    const up = delta > 0;
-    return <span className={(up === goodUp ? "cxp-up" : "cxp-dn")}>{(up ? "\u25B2 +" : "\u25BC \u2212") + d1(Math.abs(delta)) + unit}</span>;
-  };
-  const pts = (k) => (prev && prev[k] != null && s[k] != null ? d1((s[k] || 0) - (prev[k] || 0)) : null);
-  const cnt = (k) => (prev && prev[k] != null && s[k] != null ? (s[k] || 0) - (prev[k] || 0) : null);
-  const burn = s.issues_raised_7d != null ? <span className={(s.issues_resolved_7d || 0) === 0 && s.issues_raised_7d > 0 ? "cxp-dn" : ""}>{"+" + s.issues_raised_7d + " raised / " + (s.issues_resolved_7d || 0) + " resolved"}</span> : null;
+function KPIs({ s }) {
   const tiles = [
-    ["kpi-assets", "Cx Assets", (s.assets || 0).toLocaleString(), "var(--accent)", <>{(s.mapped_assets || 0) + " mapped"}{sep}{wow(cnt("assets"), " assets", true)}</>, null],
-    ["kpi-red", "Red tag (L1)", (s.red_pct || 0) + "%", TAGC.red, <>{wow(pts("red_pct"), "pts", true)}{s.new_red_7d ? sep + "+" + s.new_red_7d + " assets 7d" : ""}</>, s.red_pct || 0],
-    ["kpi-yellow", "Yellow tag (L2)", (s.yellow_pct || 0) + "%", TAGC.yellow, <>{wow(pts("yellow_pct"), "pts", true)}{sep}{(s.yellow_n || 0) + " of " + (s.assets || 0)}</>, s.yellow_pct || 0],
-    ["kpi-green", "Green tag (L3)", (s.green_pct || 0) + "%", TAGC.green, <>{wow(pts("green_pct"), "pts", true)}{sep}{"L3 SAT"}</>, s.green_pct || 0],
-    ["kpi-issues", "Open Issues (Q+C)", s.open_issues == null ? "-" : s.open_issues, "var(--accent)", <>{wow(cnt("open_issues"), " open", false)}{burn ? <>{sep}{burn}</> : null}</>, null],
-    ["kpi-verify", "Awaiting verification", s.awaiting_verification == null ? "-" : s.awaiting_verification, TAGC.yellow, <>{wow(cnt("awaiting_verification"), "", false)}{sep}{"contractor done, CTS to close"}</>, null],
+    ["kpi-assets", "Cx Assets", (s.assets || 0).toLocaleString(), "var(--accent)", (s.mapped_assets || 0) + " mapped to programme", null],
+    ["kpi-red", "Red tag (L1)", (s.red_pct || 0) + "%", TAGC.red, (s.new_red_7d ? "+" + s.new_red_7d + " in last 7d" : "L1 attainment"), s.red_pct || 0],
+    ["kpi-yellow", "Yellow tag (L2)", (s.yellow_pct || 0) + "%", TAGC.yellow, (s.yellow_n || 0) + " of " + (s.assets || 0), s.yellow_pct || 0],
+    ["kpi-green", "Green tag (L3)", (s.green_pct || 0) + "%", TAGC.green, "L3 SAT", s.green_pct || 0],
+    ["kpi-issues", "Open Issues (Q+C)", s.open_issues == null ? "-" : s.open_issues, "var(--accent)", (s.issues_raised_7d != null ? "+" + s.issues_raised_7d + " raised / " + (s.issues_resolved_7d || 0) + " resolved" : ""), null],
+    ["kpi-verify", "Awaiting verification", s.awaiting_verification == null ? "-" : s.awaiting_verification, TAGC.yellow, "contractor done, CTS to close", null],
   ];
   return <div className="cxp-kpis">{tiles.map(([k, lab, val, col, sub, prog]) => (
     <div className="cxp-kpi" data-pop={k} key={k}><span className="cxp-ab" style={{ background: col }} /><div className="cxp-lab">{lab}</div><div className="cxp-val" style={{ color: col }}>{val}</div>{prog != null && <div className="cxp-prog"><i style={{ width: Math.max(1.5, prog) + "%", background: col }} /></div>}<div className="cxp-sub">{sub}</div></div>
   ))}</div>;
 }
-function SignalsBar({ snap, prev, weeks, cfg, on, setOn, openPop }) {
-  const sigs = on ? buildSignals(snap, prev, weeks, cfg) : [];
-  const IC = { red: ["!", "cxp-si-red"], amber: ["!", "cxp-si-amb"], green: ["\u2713", "cxp-si-grn"] };
-  return <div className="cxp-panel cxp-sigs">
-    <div className="cxp-sigtop">
-      <span className={"cxp-tgl" + (on ? " on" : "")} onClick={() => setOn(!on)} role="switch" aria-checked={on}><i /></span>
-      <b>Insights</b><span className="cxp-adminpill">Admins only</span>
-      <span className="cxp-sigmeta">computed from this import vs last; click a line for the detail and calculation</span>
-    </div>
-    {on && (sigs.length === 0 ? <div className="cxp-note">Nothing to flag this week.</div> : <div className="cxp-siglist">{sigs.map((x, i) => (
-      <div className="cxp-sig" key={i} onClick={() => x.pop && openPop({ src: "Insights", ...x.pop })}><span className={"cxp-sic " + IC[x.sev][1]}>{IC[x.sev][0]}</span><span className="cxp-sigtx">{x.text}</span></div>
-    ))}</div>)}
-  </div>;
+function Funnel({ s }) {
+  const A = s.assets || 0; const rows = [["red", "L1 Red", s.red_n, s.red_pct], ["yellow", "L2 Yellow", s.yellow_n, s.yellow_pct], ["green", "L3 Green", s.green_n, s.green_pct], ["blue", "L4 Blue", s.blue_n || 0, s.blue_pct || 0], ["white", "L5 White", s.white_n || 0, s.white_pct || 0]];
+  return <div className="cxp-panel"><div className="cxp-phead"><h3>Tag attainment funnel</h3><div className="cxp-meta">of {A.toLocaleString()} assets</div></div>
+    <div className="cxp-funnel">{rows.map(([k, nm, n, p]) => (
+      <div className="cxp-frow" data-pop={"fn-" + k} key={k}><div className="cxp-fnm">{nm}</div><div className="cxp-bar"><i style={{ width: Math.max(1.5, p || 0) + "%", background: TAGC[k] }} /><span className="cxp-pc">{p || 0}%</span></div><div className="cxp-tn">{n || 0}</div></div>
+    ))}</div>
+    <div className="cxp-note">A tag is earned when every activity for that level reads YES across the asset.</div></div>;
 }
-function ByType({ s, weeks, cfg }) {
+function ByType({ s }) {
   const by = (s.detail.byType || []).slice(0, 9);
-  const idx = (weeks || []).findIndex((w) => w.week_ending === s.week_ending);
-  const prevBy = idx >= 0 && weeks[idx + 1] ? (((weeks[idx + 1] || {}).detail || {}).byType || []) : null;
-  const mv = (r) => {
-    if (!prevBy) return null;
-    const p = prevBy.find((x) => x[0] === r[0]); if (!p) return null;
-    const d = typeRedN(r) - typeRedN(p);
-    if (d > 0) return <span className="cxp-up">{"+" + d + " this wk"}</span>;
-    if ((r[1] || 0) >= 100) return <span className="cxp-flat">done</span>;
-    const st = typeStallStreak(weeks, idx, r[0]);
-    if (st >= ((cfg && cfg.stallWeeks) || 2)) return <span className="cxp-dn">{"stalled " + st + "wks"}</span>;
-    return <span className="cxp-flat">0 this wk</span>;
-  };
-  return <div className="cxp-panel"><div className="cxp-phead"><h3>Red tag by equipment type</h3><div className="cxp-meta">movers and stalled</div></div>
+  return <div className="cxp-panel"><div className="cxp-phead"><h3>Red tag by equipment type</h3><div className="cxp-meta">top movers</div></div>
     {by.length === 0 ? <div className="cxp-note">No tag-by-type data.</div> : by.map((r, i) => (
-      <div className="cxp-tbar" data-pop="ty" data-i={i} key={r[0]}><div className="cxp-fnm">{r[0]}</div><div className="cxp-track"><i style={{ width: (r[1] || 0) + "%" }} /></div><div className="cxp-tm">{r[1]}% &middot; {r[2]} assets{mv(r) ? <> &middot; {mv(r)}</> : null}</div></div>
+      <div className="cxp-tbar" data-pop="ty" data-i={i} key={r[0]}><div className="cxp-fnm">{r[0]}</div><div className="cxp-track"><i style={{ width: (r[1] || 0) + "%" }} /></div><div className="cxp-tm">{r[1]}% &middot; {r[2]} assets</div></div>
     ))}</div>;
 }
 function Issues({ s }) {
@@ -748,17 +582,12 @@ function IRL({ s }) {
     ))}</div>
     <div className="cxp-note">Opened to In progress to Completed (contractor) to Closed (CTS verified).</div></div>;
 }
-function Docs({ s, weeks }) {
+function Docs({ s }) {
   const dd = s.detail.docs || { cols: [], rows: [] };
-  const d = { cols: dd.cols || [], rows: docLiveRows(dd) };
-  const idx = (weeks || []).findIndex((w) => w.week_ending === s.week_ending);
-  const prev = idx >= 0 ? weeks[idx + 1] : null;
-  const score = docScore(dd);
-  const pScore = prev ? docScore((prev.detail || {}).docs) : null;
-  const regs = prev ? docRegressions(dd, (prev.detail || {}).docs) : null;
-  const reds = docRedVendors(dd).length;
-  const meta = score == null ? "RAG by vendor and level" : <>readiness <b>{score}%</b>{pScore != null && score !== pScore ? <span className={score > pScore ? "cxp-up" : "cxp-dn"}>{" "}{score > pScore ? "\u25B2 +" : "\u25BC \u2212"}{Math.abs(score - pScore)}pts</span> : null}{" \u00B7 " + reds + " red vendor" + (reds === 1 ? "" : "s")}{(regs || 0) > 0 ? " \u00B7 " + regs + " regression" + (regs === 1 ? "" : "s") : ""}</>;
-  return <div className="cxp-panel"><div className="cxp-phead"><h3>Documentation register</h3><div className="cxp-meta">{meta}</div></div>
+  const all = dd.rows || [];
+  const cut = all.findIndex((r) => /^documentation health|^cx level$/i.test(String((r && r[0]) || "").trim()));
+  const d = { cols: dd.cols || [], rows: cut >= 0 ? all.slice(0, cut) : all };
+  return <div className="cxp-panel"><div className="cxp-phead"><h3>Documentation register</h3><div className="cxp-meta">RAG by vendor and level</div></div>
     {d.rows.length === 0 ? <div className="cxp-note">No document register data.</div> :
       <table className="cxp-matrix"><tbody><tr><th style={{ textAlign: "left" }}>Vendor</th>{d.cols.map((c) => <th key={c}>{c}</th>)}</tr>
         {d.rows.map((r, vi) => <tr key={vi}><td className="cxp-nm">{r[0]}</td>{r[1].map((rag, ci) => <td key={ci}><span className={"cxp-cell c-" + (rag || "x").toLowerCase()} data-pop="doc" data-vi={vi} data-ci={ci}>{rag}</span></td>)}</tr>)}</tbody></table>}</div>;
@@ -773,15 +602,11 @@ function Milestones({ s }) {
 }
 function Risks({ s }) {
   const rk = s.detail.risks || []; const overdue = rk.filter((r) => r[5]).length;
-  // days overdue is computed at render against the reporting week (year inferred for old
-  // snapshots whose due dates were stored without a year); overdue rows sort first, oldest first
-  const rows = rk.map((r, i) => ({ r, i, od: r[5] ? riskDaysOver(r, s.week_ending) : null }));
-  rows.sort((a, b) => ((b.od != null ? b.od : b.r[5] ? 0 : -1) - (a.od != null ? a.od : a.r[5] ? 0 : -1)) || a.i - b.i);
-  return <div className="cxp-panel"><div className="cxp-phead"><h3>Risk register</h3><div className="cxp-meta">{rk.length} open{overdue ? " \u00B7 " + overdue + " overdue \u00B7 sorted by days overdue" : ""}</div></div>
+  return <div className="cxp-panel"><div className="cxp-phead"><h3>Risk register</h3><div className="cxp-meta">{rk.length} open{overdue ? " \u00B7 " + overdue + " overdue" : ""}</div></div>
     {rk.length === 0 ? <div className="cxp-note">No Risks sheet in the import. Add a sheet named Risks with columns Risk, Responsible, Raised, Due, Priority.</div> :
-      <table className="cxp-rtable"><tbody><tr><th>Risk</th><th>Responsible</th><th>Raised</th><th>Due</th><th>Overdue</th><th>Priority</th></tr>
-        {rows.map(({ r, i, od }) => (
-          <tr data-pop="rk" data-ri={i} key={i}><td className="cxp-rk">{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td className={r[5] ? "cxp-od" : ""}>{r[3]}</td><td className={r[5] ? "cxp-od" : ""}>{od != null ? od + "d" : r[5] ? "yes" : "-"}</td><td><span className={"cxp-tag t-" + (/crit/i.test(r[4]) ? "r" : /high/i.test(r[4]) ? "a" : "g")}>{r[4] || "-"}</span></td></tr>
+      <table className="cxp-rtable"><tbody><tr><th>Risk</th><th>Responsible</th><th>Raised</th><th>Due</th><th>Priority</th></tr>
+        {rk.map((r, i) => (
+          <tr data-pop="rk" data-ri={i} key={i}><td className="cxp-rk">{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td className={r[5] ? "cxp-od" : ""}>{r[3]}</td><td><span className={"cxp-tag t-" + (/crit/i.test(r[4]) ? "r" : /high/i.test(r[4]) ? "a" : "g")}>{r[4] || "-"}</span></td></tr>
         ))}</tbody></table>}</div>;
 }
 function Attendance({ s }) {
@@ -816,10 +641,6 @@ function Configure({ cfg, weeks, cur, onWeek, onSave, onClose }) {
           {["red", "yellow", "green"].map((k) => <div className="cxp-ci" key={k}><span className="cxp-cnm" style={{ textTransform: "capitalize" }}>{k} target</span><input type="number" value={c.targets[k]} onChange={(e) => setNum("targets." + k, e.target.value)} /></div>)}</div>
         <div className="cxp-grp"><div className="cxp-grphd">Issue SLA target (days)</div>
           {["critical", "high", "medium", "low"].map((k) => <div className="cxp-ci" key={k}><span className="cxp-cnm" style={{ textTransform: "capitalize" }}>{k}</span><input type="number" value={c.sla[k]} onChange={(e) => setNum("sla." + k, e.target.value)} /></div>)}</div>
-        <div className="cxp-grp"><div className="cxp-grphd">Insights</div>
-          <div className="cxp-ci"><span className="cxp-cnm">Stalled after (imports)</span><input type="number" min="1" value={c.stallWeeks == null ? 2 : c.stallWeeks} onChange={(e) => setNum("stallWeeks", e.target.value)} /></div>
-          <div className="cxp-ci"><span className="cxp-cnm">Target 100% date</span><input type="date" value={c.targetDate || ""} onChange={(e) => setC({ ...c, targetDate: e.target.value })} /></div>
-          <div className="cxp-cnote">The pace signal measures tagging velocity against this date; blank falls back to the milestone named Complete. Stalled flags a type after this many imports with zero movement.</div></div>
         <div className="cxp-grp"><div className="cxp-grphd">RAG thresholds (variance pts)</div>
           <div className="cxp-ci"><span className="cxp-cnm">Amber if behind by</span><input type="number" value={c.rag.amber} onChange={(e) => setNum("rag.amber", e.target.value)} /></div>
           <div className="cxp-ci"><span className="cxp-cnm">Red if behind by</span><input type="number" value={c.rag.red} onChange={(e) => setNum("rag.red", e.target.value)} /></div></div>
@@ -832,29 +653,9 @@ function Configure({ cfg, weeks, cur, onWeek, onSave, onClose }) {
 
 /* ---------- scoped styles (use the app's theme variables) ---------- */
 const CXP_CSS = `
-.cxp-up{color:#18b69b;font-weight:700}
-.cxp-dn{color:#e2564e;font-weight:700}
-.cxp-flat{color:var(--faint);font-weight:600}
-.cxp-sigs{margin-bottom:14px}
-.cxp-sigtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.cxp-sigtop b{font-size:13px}
-.cxp-sigmeta{margin-left:auto;font-size:11px;color:var(--muted)}
-.cxp-adminpill{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:1px 9px;opacity:.85}
-.cxp-tgl{position:relative;display:inline-block;width:38px;height:21px;background:var(--chipbg);border:1px solid var(--line2);border-radius:999px;cursor:pointer;transition:background .15s;flex:none}
-.cxp-tgl.on{background:var(--accent);border-color:var(--accent)}
-.cxp-tgl i{position:absolute;top:2px;left:2px;width:15px;height:15px;background:#fff;border-radius:50%;transition:left .15s}
-.cxp-tgl.on i{left:19px}
-.cxp-siglist{display:flex;flex-direction:column;gap:7px;margin-top:10px}
-.cxp-sig{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;padding:7px 10px;border-radius:8px;background:var(--card2);border:1px solid var(--line);cursor:pointer;color:var(--muted);line-height:1.5}
-.cxp-sig:hover{border-color:var(--line2);background:var(--hover)}
-.cxp-sic{width:18px;height:18px;border-radius:5px;flex:none;display:grid;place-items:center;font-size:11px;font-weight:800;margin-top:1px}
-.cxp-si-red{background:rgba(226,86,78,.14);color:var(--red)}
-.cxp-si-amb{background:rgba(224,161,6,.14);color:var(--amber)}
-.cxp-si-grn{background:rgba(24,182,155,.14);color:var(--green)}
-` + `
 .cxp{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#ffffff;--card:#ffffff;--surface:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--line2:#d6dde6;--chipbg:#f7f9fc;--hover:#eef3f9;--cxsh:0 1px 2px rgba(16,32,48,.06),0 10px 24px rgba(16,32,48,.07);--head:#2563EB;--headtint:rgba(37,99,235,.09);max-width:1500px;margin:0 auto;padding:0 22px 44px;color:var(--ink);font-family:var(--body)}
 body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#141d29;--card:#141d29;--surface:#101822;--card2:#0f1722;--line:#22303f;--line2:#2c3a4b;--chipbg:#0f1722;--hover:#1b2735;--cxsh:0 1px 0 rgba(255,255,255,.02),0 8px 28px rgba(0,0,0,.35);--head:#7FB0FF;--headtint:rgba(127,176,255,.14)}
-.cxp-top{position:sticky;top:54px;z-index:20;display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin:0 -22px 16px;padding:14px 22px 13px;background:var(--card);border-bottom:1px solid var(--line)}
+.cxp-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin:0 -22px 16px;padding:14px 22px 13px;background:var(--card);border-bottom:1px solid var(--line)}
 .cxp-title{font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--head)}
 .cxp-title small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:2px}
 .cxp-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
@@ -893,7 +694,9 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-legend span{display:inline-flex;align-items:center;gap:6px}
 .cxp-legend i{width:11px;height:3px;border-radius:2px}
 .cxp-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5}
-.cxp-tbar:hover .cxp-track{outline:1px solid var(--accent);outline-offset:2px}
+.cxp-funnel{display:flex;flex-direction:column;gap:10px}
+.cxp-frow{display:grid;grid-template-columns:72px 1fr 56px;align-items:center;gap:10px;cursor:pointer}
+.cxp-frow:hover .cxp-bar,.cxp-tbar:hover .cxp-track{outline:1px solid var(--accent);outline-offset:2px}
 .cxp-fnm{font-size:11.5px;font-weight:600}
 .cxp-tn{font-size:11.5px;color:var(--muted);text-align:right}
 .cxp-bar{height:22px;border-radius:8px;background:var(--chipbg);position:relative;overflow:hidden;border:1px solid var(--line)}
