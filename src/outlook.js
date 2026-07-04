@@ -116,9 +116,6 @@ const eventBody = (p) => {
       ...(p.optional || []).map((address) => ({ emailAddress: { address }, type: "optional" })),
     ],
   };
-  // Vendor logo as a CID inline attachment, deep-inserted with the creation call so the
-  // invitation email attendees receive already carries it. Never sent on PATCH.
-  if (p.inlineLogo) b.attachments = [{ "@odata.type": "#microsoft.graph.fileAttachment", name: p.inlineLogo.name || "vendor-logo.png", contentType: p.inlineLogo.contentType || "image/png", contentBytes: p.inlineLogo.contentBytes, contentId: "vendorlogo", isInline: true }];
   return b;
 };
 
@@ -127,16 +124,41 @@ const eventBody = (p) => {
 // not explicitly documented, so on rejection the send retries without the logo (body swapped
 // to the logoless variant) rather than failing the invite.
 export async function sendWitnessEvent(p) {
-  try {
+  if (!p.inlineLogo) {
     const r = await graph("/me/events", "POST", eventBody(p));
-    return { id: r.id, logo: !!p.inlineLogo };
+    return { id: r.id, logo: false };
+  }
+  // Step 1: create silently. With no attendees on the event, Exchange sends nothing yet.
+  const created = await graph("/me/events", "POST", eventBody({ ...p, required: [], optional: [] }));
+  const id = created.id;
+  // Step 2: attach the logo through the supported endpoint and believe only the response.
+  let logoOk = false;
+  try {
+    await graph("/me/events/" + encodeURIComponent(id) + "/attachments", "POST", {
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: p.inlineLogo.name || "vendor-logo.png",
+      contentType: p.inlineLogo.contentType || "image/png",
+      contentBytes: p.inlineLogo.contentBytes,
+      contentId: "vendorlogo",
+      isInline: true,
+    });
+    logoOk = true;
   } catch (e) {
-    if (p.inlineLogo && p.bodyHtmlNoLogo) {
-      const r = await graph("/me/events", "POST", eventBody({ ...p, inlineLogo: null, bodyHtml: p.bodyHtmlNoLogo }));
-      return { id: r.id, logo: false };
+    if (p.bodyHtmlNoLogo) {
+      try { await graph("/me/events/" + encodeURIComponent(id), "PATCH", { body: { contentType: "HTML", content: p.bodyHtmlNoLogo } }); } catch (e2) { /* body downgrade best-effort; worst case is the old broken image, not a lost invite */ }
     }
+  }
+  // Step 3: inviting the attendees is what sends the meeting requests, logo aboard.
+  try {
+    await graph("/me/events/" + encodeURIComponent(id), "PATCH", { attendees: [
+      ...(p.required || []).map((address) => ({ emailAddress: { address }, type: "required" })),
+      ...(p.optional || []).map((address) => ({ emailAddress: { address }, type: "optional" })),
+    ] });
+  } catch (e) {
+    try { await graph("/me/events/" + encodeURIComponent(id), "DELETE"); } catch (e2) { /* orphan cleanup best-effort */ }
     throw e;
   }
+  return { id, logo: logoOk };
 }
 
 // PATCH the event; Exchange sends meeting updates to the attendees. Attachments are never
