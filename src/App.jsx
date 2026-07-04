@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -860,7 +860,7 @@ const PORTAL_CSS = `
 .qp .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;height:74px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
 .qp .brandmark{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:-.01em;font-family:var(--display)}
 .qp .brandmark .glyphimg{height:52px;width:auto;display:block}
-.qp .pvbar{display:flex;align-items:center;gap:14px;padding:10px 22px;background:var(--backdrop);border-bottom:1px solid var(--line)}
+.qp .pvbar{position:sticky;top:74px;z-index:29;display:flex;align-items:center;gap:14px;padding:10px 22px;background:var(--backdrop);border-bottom:1px solid var(--line)}
 .qp .pvt{display:flex;gap:4px;background:var(--chip);border:1px solid var(--line);padding:3px;border-radius:10px}
 .qp .pvt button{font-family:var(--body);font-size:13px;font-weight:600;border:0;background:transparent;color:var(--muted);padding:8px 15px;border-radius:7px;cursor:pointer}
 .qp .pvt button:hover{color:var(--ink)}
@@ -1028,8 +1028,64 @@ const PORTAL_CSS = `
 .qp .err{color:var(--red);font-size:12.5px;margin:10px 0}
 .qp .empty{color:var(--muted);text-align:center;padding:30px}
 @media (max-width:900px){.qp .tiles{grid-template-columns:repeat(2,1fr)}.qp .pgrid{grid-template-columns:1fr 1fr}.qp .frow2{grid-template-columns:1fr}}
+/* REV114: per-project snapshots on Inside a project */
+.qp .snapwrap{display:flex;flex-direction:column;gap:16px}
+.qp .snap{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.qp .snap .sh{display:flex;align-items:center;gap:12px;color:#fff;padding:13px 16px;cursor:pointer}
+.qp .snap .sh .lg{width:38px;height:38px;border-radius:9px;background:#ffffff22;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+.qp .snap .sh h3{font-family:var(--display);font-size:16px;font-weight:600;margin:0;line-height:1.15}
+.qp .snap .sh .m{font-size:11.5px;opacity:.88;margin-top:2px}
+.qp .snap .sh .kpis{margin-left:auto;display:flex;gap:16px;font-size:11px;opacity:.95;text-align:left}
+.qp .snap .sh .kpis b{display:block;font-size:15px;font-family:var(--display)}
+.qp .snap .sh .obtn{background:#fff;color:#10243f;border:0;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;flex:none}
+.qp .snap .sh .chev{font-size:15px;opacity:.85;flex:none;transition:transform .15s}
+.qp .snap.closed .chev{transform:rotate(-90deg)}
+.qp .snap.closed .sb{display:none}
+/* REV114: projects table edit + archived */
+.qp .editbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink-2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+.qp .editbtn:hover{border-color:var(--signal);color:var(--signal)}
+.qp .ptable .row.archived{opacity:.55}
+.qp .archchip{font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chip);border:1px solid var(--line);color:var(--muted)}
+.qp .archtgl{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
+/* REV114: edit project modal */
+.qp .pedit{width:640px;max-width:100%;max-height:88vh;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.4)}
+.qp .pedit .mh{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.qp .pedit .mh b{flex:1;font-size:15px;color:var(--signal)}
+.qp .pedit .mh button{border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}
+.qp .pedit .mb{padding:18px 20px}
+.qp .pedit .mf{display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line)}
+.qp .sync{display:flex;gap:9px;align-items:flex-start;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:12.5px;margin-bottom:15px}
+.qp .sync input{margin-top:2px}
+/* REV114: portfolio analytics */
+.qp .pvt button .newb{font-size:8.5px;font-weight:800;letter-spacing:.05em;background:var(--signal);color:#fff;border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:2px}
+.qp .antable{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.qp .antable .hd,.qp .antable .row{display:grid;grid-template-columns:1.9fr .7fr 1fr .9fr .7fr .9fr 1fr auto;gap:12px;align-items:center;padding:12px 18px}
+.qp .antable .hd{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--chip)}
+.qp .antable .row{border-top:1px solid var(--line);cursor:pointer}
+.qp .antable .row:hover{background:var(--chip)}
+.qp .hbadge{font-size:10px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.qp .hbadge.ok{background:#0E938422;color:var(--green)}
+.qp .hbadge.watch{background:#E0A33A22;color:var(--amber)}
+.qp .hbadge.risk{background:#C0392B22;color:var(--red)}
+.qp .hbadge.zero{background:var(--chip);color:var(--muted)}
+.qp .angrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.qp .ancard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.qp .ancard h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--signal);font-weight:800;margin:0 0 14px;font-family:var(--body)}
+.qp .mixrow{display:flex;align-items:center;gap:12px;margin-bottom:11px}
+.qp .mixrow .nm{width:120px;flex:none;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp .mix{flex:1;display:flex;height:16px;border-radius:5px;overflow:hidden;background:var(--ring-track)}
+.qp .mix i{display:block;height:100%}
+.qp .mixn{width:40px;flex:none;text-align:right;font-size:11px;color:var(--muted);font-weight:700}
+.qp .anleg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:14px}
+.qp .anleg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.qp .parow{display:flex;align-items:center;gap:12px;margin-bottom:11px}
+.qp .parow .nm{width:120px;flex:none;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp .parow .bar{flex:1}
+.qp .parow .n{width:76px;flex:none;text-align:right;font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap}
+.qp .exbar{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap}
+@media (max-width:900px){.qp .angrid{grid-template-columns:1fr}}
 `;
-function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter, onNew, onSignOut, onLoadOverview }) {
+function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter, onNew, onSignOut, onLoadOverview, onUpdateProject, onOpenAnalytics }) {
   const [theme, setTheme] = useState(theme0 || "light");
   const [scene, setScene] = useState("home");
   const [swOpen, setSwOpen] = useState(false);
@@ -1037,7 +1093,15 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const [nf, setNf] = useState({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [ov, setOv] = useState(null);
+  const [ovMap, setOvMap] = useState({});   // project id -> overview rows | undefined while loading
+  const [collapsed, setCollapsed] = useState(() => { try { return JSON.parse(localStorage.getItem("fin04_snapfold") || "{}"); } catch { return {}; } });
+  const [showArch, setShowArch] = useState(false);
+  const [edit, setEdit] = useState(null);          // project being edited, or null
+  const [ef, setEf] = useState({});                // edit form fields
+  const [editBusy, setEditBusy] = useState(false);
+  const [editErr, setEditErr] = useState("");
+  const [ana, setAna] = useState(null);            // portfolio analytics { perProj, companies } | "loading" | { error }
+  const [anaSel, setAnaSel] = useState(null);      // analytics drill { title, sub, rows }
   const [ovGroup, setOvGroup] = useState("company");
   const [ovView, setOvView] = useState("swimlane");
   const [ovGran, setOvGran] = useState("day");
@@ -1056,36 +1120,67 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   const dstr = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const tot = projects.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete, inProgress: a.inProgress + (p.stats.inProgress || 0) }), { total: 0, overdue: 0, complete: 0, inProgress: 0 });
+  const homeSet = projects.filter((p) => (p.status || "active") !== "archived");
+  const tot = homeSet.reduce((a, p) => ({ total: a.total + p.stats.total, overdue: a.overdue + p.stats.overdue, complete: a.complete + p.stats.complete, inProgress: a.inProgress + (p.stats.inProgress || 0) }), { total: 0, overdue: 0, complete: 0, inProgress: 0 });
   const pcomplete = tot.total ? Math.round(tot.complete / tot.total * 100) : 0;
-  const clients = new Set(projects.map((p) => p.client).filter(Boolean)).size;
+  const clients = new Set(homeSet.map((p) => p.client).filter(Boolean)).size;
   const tileData = (() => {
     if (!tileSel) return null;
-    if (tileSel === "active") return { title: "Active projects", sub: projects.length + " project" + (projects.length === 1 ? "" : "s") + (clients ? " across " + clients + " client" + (clients === 1 ? "" : "s") : ""), rows: projects.map((p) => ({ id: p.id, name: p.name, sub: (p.code || "") + (p.client ? " \u00B7 " + p.client : ""), chip: p.stats.total + " act", color: "var(--muted)" })) };
-    if (tileSel === "progress") return { title: "Activities in progress", sub: tot.inProgress + " in progress portfolio-wide", rows: projects.filter((p) => (p.stats.inProgress || 0) > 0).sort((a, b) => (b.stats.inProgress || 0) - (a.stats.inProgress || 0)).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: (p.stats.inProgress || 0) + " in progress", color: "var(--accent)" })) };
-    if (tileSel === "complete") return { title: "Complete", sub: pcomplete + "% \u00B7 " + tot.complete + " of " + tot.total + " activities complete", rows: projects.map((p) => { const pc = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return { id: p.id, name: p.name, sub: p.stats.complete + " of " + p.stats.total + " complete", chip: pc + "%", color: "#1FB6A6", bar: pc }; }) };
-    if (tileSel === "overdue") return { title: "Overdue", sub: tot.overdue + " activit" + (tot.overdue === 1 ? "y" : "ies") + " need attention", rows: projects.filter((p) => p.stats.overdue > 0).sort((a, b) => b.stats.overdue - a.stats.overdue).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: p.stats.overdue + " overdue", color: "#C0392B" })) };
+    if (tileSel === "active") return { title: "Active projects", sub: homeSet.length + " project" + (homeSet.length === 1 ? "" : "s") + (clients ? " across " + clients + " client" + (clients === 1 ? "" : "s") : ""), rows: homeSet.map((p) => ({ id: p.id, name: p.name, sub: (p.code || "") + (p.client ? " \u00B7 " + p.client : ""), chip: p.stats.total + " act", color: "var(--muted)" })) };
+    if (tileSel === "progress") return { title: "Activities in progress", sub: tot.inProgress + " in progress portfolio-wide", rows: homeSet.filter((p) => (p.stats.inProgress || 0) > 0).sort((a, b) => (b.stats.inProgress || 0) - (a.stats.inProgress || 0)).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: (p.stats.inProgress || 0) + " in progress", color: "var(--accent)" })) };
+    if (tileSel === "complete") return { title: "Complete", sub: pcomplete + "% \u00B7 " + tot.complete + " of " + tot.total + " activities complete", rows: homeSet.map((p) => { const pc = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return { id: p.id, name: p.name, sub: p.stats.complete + " of " + p.stats.total + " complete", chip: pc + "%", color: "#1FB6A6", bar: pc }; }) };
+    if (tileSel === "overdue") return { title: "Overdue", sub: tot.overdue + " activit" + (tot.overdue === 1 ? "y" : "ies") + " need attention", rows: homeSet.filter((p) => p.stats.overdue > 0).sort((a, b) => b.stats.overdue - a.stats.overdue).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: p.stats.overdue + " overdue", color: "#C0392B" })) };
     return null;
   })();
   const fmtAgo = (ts) => { if (!ts) return ""; const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const d = Math.floor(h / 24); if (d === 1) return "yesterday"; if (d < 7) return d + " days ago"; return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
   const ringEl = (pct, accent) => { const r = 22, c = 2 * Math.PI * r, off = c * (1 - pct / 100); return (<div className="ring"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r={r} fill="none" stroke="var(--ring-track)" strokeWidth="5" /><circle cx="26" cy="26" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} /></svg><div className="lbl">{pct}<small>%</small></div></div>); };
+  // REV114: archived projects vanish from every hub surface except the Projects
+  // list (greyed, behind Show Archived). vis is the working set everywhere else.
+  const vis = projects.filter((p) => (p.status || "active") !== "archived");
   const ql = q.trim().toLowerCase();
-  const filtered = ql ? projects.filter((p) => (p.name + " " + p.code + " " + p.location + " " + p.client).toLowerCase().includes(ql)) : projects;
+  const filtered = (showArch ? projects : vis).filter((p) => !ql || (p.name + " " + p.code + " " + p.location + " " + p.client).toLowerCase().includes(ql));
   const lastId = (() => { try { return localStorage.getItem("fin04_lastproj"); } catch { return null; } })();
-  const ip = projects.find((p) => p.id === lastId) || projects[0];
+  // Snapshot order: last-visited project first so the most relevant board paints
+  // immediately, the rest stream in behind it.
+  const snapOrder = (() => { const a = vis.slice(); const i = a.findIndex((p) => p.id === lastId); if (i > 0) { const [x] = a.splice(i, 1); a.unshift(x); } return a; })();
+  const EAGER_CAP = 8;   // beyond this, collapsed snapshots load on expand, not up front
+  const loadSnap = (pid) => {
+    if (!onLoadOverview || ovMap[pid] !== undefined) return Promise.resolve();
+    return onLoadOverview(pid).then((rows) => setOvMap((m) => ({ ...m, [pid]: rows || [] }))).catch(() => setOvMap((m) => ({ ...m, [pid]: [] })));
+  };
   useEffect(() => {
-    if (scene !== "inside" || !ip || !onLoadOverview) return;
-    let live = true; setOv(null); setOvAnchor(null);
-    onLoadOverview(ip.id).then((rows) => { if (live) setOv(rows || []); }).catch(() => { if (live) setOv([]); });
+    if (scene !== "inside" || !onLoadOverview) return;
+    let live = true;
+    (async () => {
+      for (let i = 0; i < snapOrder.length; i++) {
+        if (!live) return;
+        const p = snapOrder[i];
+        if (i >= EAGER_CAP && collapsed[p.id]) continue;   // lazy: load on expand
+        await loadSnap(p.id);
+      }
+    })();
     return () => { live = false; };
-  }, [scene, ip && ip.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scene, vis.map((p) => p.id).join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleFold = (pid) => setCollapsed((c) => { const n = { ...c, [pid]: !c[pid] }; try { localStorage.setItem("fin04_snapfold", JSON.stringify(n)); } catch (e) {} if (!n[pid]) loadSnap(pid); return n; });
+  // Portfolio analytics loads once on first visit to the scene.
+  useEffect(() => {
+    if (scene !== "analytics" || !isSuper || ana) return;
+    let live = true; setAna("loading");
+    loadPortfolioAnalytics().then((d) => { if (live) setAna(d); }).catch((e) => { if (live) setAna({ error: e.message || String(e) }); });
+    return () => { live = false; };
+  }, [scene]); // eslint-disable-line react-hooks/exhaustive-deps
   const DAY = 86400000;
   const addDays = (iso, n) => { const d = new Date(iso); d.setDate(d.getDate() + n); return d; };
   const mondayMs = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
   const today0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
-  const ovWindow = (() => {
-    const dated = (ov || []).filter((a) => a.start);
+  // REV114: all the snapshot maths is parameterised by a project's rows so one
+  // toolbar (view, granularity, grouping, span, pan) drives every project's
+  // section. With no explicit anchor, each project auto-anchors: this Monday if
+  // it has activity near today, otherwise its own earliest activity, so a
+  // future-dated project still shows something useful in the shared window.
+  const windowFor = (rows) => {
+    const dated = (rows || []).filter((a) => a.start);
     let allMin = Infinity, allMax = -Infinity;
     dated.forEach((a) => { const s = new Date(a.start).getTime(); const e = addDays(a.start, Math.max(0, a.dur - 1)).getTime(); if (s < allMin) allMin = s; if (e > allMax) allMax = e; });
     if (!isFinite(allMin)) { allMin = today0; allMax = today0 + 28 * DAY; }
@@ -1095,23 +1190,23 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     if (ovAnchor != null) anchor = ovAnchor;
     else { const tm = mondayMs(today0); const hit = dated.some((a) => { const s = new Date(a.start).getTime(); const e = addDays(a.start, Math.max(0, a.dur - 1)).getTime(); return s < tm + winLen && e >= tm; }); anchor = hit ? tm : mondayMs(allMin); }
     return { min: anchor, max: anchor + winLen, anchored: true, anchor };
-  })();
-  const inWin = (ov || []).filter((a) => { if (!a.start) return ovWeeks === 0; const s = new Date(a.start).getTime(); const e = addDays(a.start, Math.max(0, a.dur - 1)).getTime(); return s < ovWindow.max && e >= ovWindow.min; });
-  const ovLanes = (() => {
+  };
+  const inWindow = (rows, win) => (rows || []).filter((a) => { if (!a.start) return ovWeeks === 0; const s = new Date(a.start).getTime(); const e = addDays(a.start, Math.max(0, a.dur - 1)).getTime(); return s < win.max && e >= win.min; });
+  const lanesFor = (rows, win) => {
     const groups = new Map();
-    inWin.forEach((a) => { const k = a[ovGroup] || "Unassigned"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
+    rows.forEach((a) => { const k = a[ovGroup] || "Unassigned"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
     const lanes = Array.from(groups.entries()).map(([name, acts]) => ({ name, acts }));
     lanes.sort((x, y) => y.acts.length - x.acts.length || x.name.localeCompare(y.name));
-    return { lanes, minMs: ovWindow.min, span: Math.max(DAY, ovWindow.max - ovWindow.min), today: today0 };
-  })();
-  const panWin = (dir) => { const cur = ovWindow.anchor != null ? ovWindow.anchor : ovWindow.min; setOvAnchor(cur + dir * ovWeeks * 7 * DAY); };
+    return { lanes, minMs: win.min, span: Math.max(DAY, win.max - win.min), today: today0 };
+  };
+  const panWin = (dir) => setOvAnchor((prev) => (prev != null ? prev : mondayMs(today0)) + dir * ovWeeks * 7 * DAY);
   const fmtShort = (ms) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-  const barFor = (a) => {
-    const start = a.start ? new Date(a.start).getTime() : ovLanes.minMs;
+  const barFor = (a, geo) => {
+    const start = a.start ? new Date(a.start).getTime() : geo.minMs;
     const finish = a.start ? addDays(a.start, Math.max(0, a.dur - 1)).getTime() : start + a.dur * DAY;
-    const left = Math.max(0, Math.min(98, (start - ovLanes.minMs) / ovLanes.span * 100));
-    let width = Math.max(5, (a.dur * DAY) / ovLanes.span * 100); if (left + width > 100) width = 100 - left;
-    const overdue = a.status !== "complete" && a.start && finish < ovLanes.today;
+    const left = Math.max(0, Math.min(98, (start - geo.minMs) / geo.span * 100));
+    let width = Math.max(5, (a.dur * DAY) / geo.span * 100); if (left + width > 100) width = 100 - left;
+    const overdue = a.status !== "complete" && a.start && finish < geo.today;
     let bg = "var(--chip)", fg = "var(--muted)", border = "1px solid var(--line)";
     if (a.status === "complete") { bg = "#1FB6A6"; fg = "#06231f"; border = "0"; }
     else if (overdue) { bg = "repeating-linear-gradient(135deg,#C0392B 0 7px,#8C2A22 7px 14px)"; fg = "#fff"; border = "0"; }
@@ -1119,8 +1214,8 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     else if (a.committed) { bg = "#E6A435"; fg = "#241803"; border = "0"; }
     return { left, width, bg, fg, border };
   };
-  const packRows = (acts) => {
-    const items = acts.map((a) => ({ a, b: barFor(a) })).sort((p, q) => p.b.left - q.b.left);
+  const packRows = (acts, geo) => {
+    const items = acts.map((a) => ({ a, b: barFor(a, geo) })).sort((p, q) => p.b.left - q.b.left);
     const rows = [];
     for (const it of items) {
       let placed = false;
@@ -1136,8 +1231,8 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     ft.setUTCDate(ft.getUTCDate() - ((ft.getUTCDay() + 6) % 7) + 3);
     return 1 + Math.round((d - ft) / (7 * 86400000));
   };
-  const ovTicks = (() => {
-    const minMs = ovLanes.minMs, maxMs = ovLanes.minMs + ovLanes.span, sp = Math.max(1, maxMs - minMs);
+  const ticksFor = (geo) => {
+    const minMs = geo.minMs, maxMs = geo.minMs + geo.span, sp = Math.max(1, maxMs - minMs);
     const out = []; let g = 0;
     let d = new Date(minMs); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     while (d.getTime() <= maxMs && g++ < 130) {
@@ -1148,17 +1243,56 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     const cap = ovGran === "week" ? 18 : 13;
     if (out.length > cap) { const step = Math.ceil(out.length / cap); return out.filter((_, i) => i % step === 0); }
     return out;
-  })();
-  const gridEls = () => {
-    const els = ovTicks.map((t, i) => <i key={"gl" + i} className="gl" style={{ left: t.pos + "%" }} />);
-    const tp = (ovLanes.today - ovLanes.minMs) / ovLanes.span * 100;
+  };
+  const gridEls = (geo, ticks) => {
+    const els = ticks.map((t, i) => <i key={"gl" + i} className="gl" style={{ left: t.pos + "%" }} />);
+    const tp = (geo.today - geo.minMs) / geo.span * 100;
     if (tp >= 0 && tp <= 100) els.push(<i key="today" className="gl today" style={{ left: tp + "%" }} />);
     return els;
   };
-  const ovFlat = inWin.slice().sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999") || a.label.localeCompare(b.label));
-  const statusLabel = (a) => { if (a.status === "complete") return "Complete"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "Overdue"; if (a.status === "in_progress") return "In progress"; if (a.committed) return "Committed"; return "Planned"; };
-  const statusDot = (a) => { if (a.status === "complete") return "#1FB6A6"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < ovLanes.today) return "#C0392B"; if (a.status === "in_progress") return "var(--accent)"; if (a.committed) return "#E6A435"; return "var(--muted)"; };
+  const statusLabel = (a) => { if (a.status === "complete") return "Complete"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < today0) return "Overdue"; if (a.status === "in_progress") return "In progress"; if (a.committed) return "Committed"; return "Planned"; };
+  const statusDot = (a) => { if (a.status === "complete") return "#1FB6A6"; if (a.start && a.status !== "complete" && addDays(a.start, Math.max(0, a.dur - 1)).getTime() < today0) return "#C0392B"; if (a.status === "in_progress") return "var(--accent)"; if (a.committed) return "#E6A435"; return "var(--muted)"; };
   const openNew = () => { setNf({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" }); setErr(""); setScene("newproj"); };
+  // REV114: Edit Project (owner / super). The modal is the single authoritative
+  // place to rename a project on the hub; the sync box keeps the in-app branding
+  // name aligned so the two names can never silently drift again.
+  const openEdit = (p) => { setEf({ name: p.name || "", code: p.code || "", client: p.client || "", location: p.location || "", startDate: p.startDate || "", targetDate: p.targetDate || "", accent: p.accent || "#1E63D6", status: p.status || "active", syncBrand: true }); setEditErr(""); setEdit(p); };
+  const saveEdit = async () => {
+    if (!ef.name.trim() || !ef.code.trim()) { setEditErr("Project name and code are required."); return; }
+    setEditBusy(true); setEditErr("");
+    try { await onUpdateProject(edit.id, ef); setEdit(null); setAna(null); }
+    catch (e) { setEditErr(e.message || String(e)); }
+    finally { setEditBusy(false); }
+  };
+  // Health thresholds (approved): overdue share of open activities.
+  const healthOf = (m) => {
+    const open = m.total - m.complete;
+    if (!m.total) return { cls: "zero", label: "Not Started" };
+    if (!open) return { cls: "ok", label: "On Track" };
+    const r = m.overdue / open;
+    if (r < 0.05) return { cls: "ok", label: "On Track" };
+    if (r < 0.15) return { cls: "watch", label: "Watch" };
+    return { cls: "risk", label: "At Risk" };
+  };
+  const anaExcel = async () => {
+    if (!ana || ana === "loading" || ana.error) return;
+    try {
+      const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      const pf = wb.addWorksheet("Portfolio");
+      pf.columns = [{ header: "Project", key: "n", width: 26 }, { header: "Code", key: "c", width: 10 }, { header: "Client", key: "cl", width: 14 }, { header: "PPC %", key: "ppc", width: 8 }, { header: "Total", key: "t", width: 8 }, { header: "Complete", key: "co", width: 10 }, { header: "Complete %", key: "cp", width: 11 }, { header: "In progress", key: "ip", width: 11 }, { header: "Overdue", key: "ov", width: 9 }, { header: "Committed open", key: "cm", width: 14 }, { header: "Health", key: "h", width: 12 }];
+      pf.getRow(1).font = { bold: true };
+      vis.forEach((p) => { const m = ana.perProj[p.id] || { total: 0, complete: 0, inProgress: 0, overdue: 0, committedOpen: 0, ppc: null }; pf.addRow({ n: p.name, c: p.code, cl: p.client, ppc: m.ppc == null ? "" : m.ppc, t: m.total, co: m.complete, cp: m.total ? Math.round(m.complete / m.total * 100) : 0, ip: m.inProgress, ov: m.overdue, cm: m.committedOpen, h: healthOf(m).label }); });
+      const co = wb.addWorksheet("By Company");
+      co.columns = [{ header: "Company", key: "n", width: 24 }, { header: "Activities", key: "t", width: 11 }, { header: "Complete", key: "c", width: 10 }, { header: "Done %", key: "p", width: 8 }];
+      co.getRow(1).font = { bold: true };
+      (ana.companies || []).forEach((c) => co.addRow({ n: c.name, t: c.total, c: c.complete, p: c.total ? Math.round(c.complete / c.total * 100) : 0 }));
+      const buf = await wb.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const a = document.createElement("a"); a.href = url; a.download = "DLP-portfolio-" + new Date().toISOString().slice(0, 10) + ".xlsx"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); }
+  };
   const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Project name and code are required."); return; } setBusy(true); setErr(""); try { await onNew(nf); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
   const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
   const cardEl = (p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
@@ -1171,6 +1305,68 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
       </div>
       <div className="foot"><span>{p.startDate ? fmtDate(p.startDate) + (p.targetDate ? " \u2192 " + fmtDate(p.targetDate) : "") : (p.client || "\u00A0")}</span><span className="enter">Enter<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m9 18 6-6-6-6" /></svg></span></div>
     </div>); };
+  // REV114: one collapsible live snapshot per project on Inside A Project.
+  const snapEl = (p) => {
+    const rows = ovMap[p.id];
+    const fold = !!collapsed[p.id];
+    const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0;
+    const ac = p.accent || "#2F6BFF";
+    let body = null;
+    if (!fold) {
+      if (rows === undefined) body = <div className="ip-empty">Loading overview{"\u2026"}</div>;
+      else if (rows.length === 0) body = <div className="ip-empty">No activities in this project yet.</div>;
+      else {
+        const win = windowFor(rows);
+        const inw = inWindow(rows, win);
+        const geo = lanesFor(inw, win);
+        const ticks = ticksFor(geo);
+        const flat = inw.slice().sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999") || a.label.localeCompare(b.label));
+        body = geo.lanes.length === 0
+          ? <div className="ip-empty">No activities in this window. Widen the span or page with the arrows.</div>
+          : <>
+            <div className="ip-axis"><div className="axsp" /><div className="axtrack">{ticks.map((t, i) => <span key={i} style={{ left: t.pos + "%" }}>{t.label}</span>)}</div></div>
+            {ovView === "swimlane"
+              ? geo.lanes.map((ln) => (
+                <div className="lane" key={ln.name}>
+                  <div className="lh"><b>{ln.name}</b><div className="s">{ln.acts.length} {ln.acts.length === 1 ? "activity" : "activities"}</div></div>
+                  <div className="tracks">
+                    {packRows(ln.acts, geo).map((row, ri) => (
+                      <div className="track" key={ri}>
+                        {gridEls(geo, ticks)}
+                        {row.map(({ a, b }) => a.milestone
+                          ? <div className="ms" key={a.id} style={{ left: b.left + "%" }} title={a.label} onClick={() => setOvSel({ a, proj: p })}><span className="dia" style={{ background: ac }} /><span className="mslabel">{a.label}</span></div>
+                          : <div className="blk" key={a.id} style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }} title={a.label} onClick={() => setOvSel({ a, proj: p })}>{a.label}</div>)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+              : <div className="gantt">{flat.map((a) => { const b = barFor(a, geo); return (
+                <div className="grow" key={a.id} onClick={() => setOvSel({ a, proj: p })}>
+                  <div className="glh" title={a.label}>{a.label}</div>
+                  <div className="track">
+                    {gridEls(geo, ticks)}
+                    {a.milestone
+                      ? <div className="ms" style={{ left: b.left + "%" }}><span className="dia" style={{ background: ac }} /></div>
+                      : <div className="blk" style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }}>{a.label}</div>}
+                  </div>
+                </div>); })}</div>}
+          </>;
+      }
+    }
+    return (
+      <div className={"snap" + (fold ? " closed" : "")} key={p.id}>
+        <div className="sh" style={{ background: "linear-gradient(135deg, " + ac + ", " + ac + "99)" }} onClick={() => toggleFold(p.id)}>
+          <span className="lg">{(p.code || "").slice(0, 3).toUpperCase()}</span>
+          <div><h3>{p.name}</h3><div className="m">{p.location ? p.location + " \u00B7 " : ""}you are {p.role === "admin" ? "Admin" : "Member"}</div></div>
+          <div className="kpis"><span>Activities<b>{p.stats.total}</b></span><span>Complete<b>{pct}%</b></span><span>Overdue<b>{p.stats.overdue}</b></span></div>
+          <button className="obtn" onClick={(e) => { e.stopPropagation(); onEnter(p.id); }}>Open planning board</button>
+          <span className="chev">{"\u25BC"}</span>
+        </div>
+        <div className="sb">{body}</div>
+      </div>
+    );
+  };
   return (
     <div className="qp" style={portalVars(theme)}><style>{PORTAL_CSS}</style>
       <div className="top">
@@ -1181,7 +1377,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           {swOpen && <div className="swmenu">
             <div className="it all" onClick={() => { setSwOpen(false); setScene("home"); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>All projects</div>
             <div className="sep" />
-            {projects.map((p) => <div key={p.id} className="it" onClick={() => { setSwOpen(false); onEnter(p.id); }}><span className="ac" style={{ background: p.accent }} /><div style={{ flex: 1 }}><div>{p.name}</div><div className="mt">{p.code} &middot; {p.role === "admin" ? "Admin" : "Member"}</div></div></div>)}
+            {vis.map((p) => <div key={p.id} className="it" onClick={() => { setSwOpen(false); onEnter(p.id); }}><span className="ac" style={{ background: p.accent }} /><div style={{ flex: 1 }}><div>{p.name}</div><div className="mt">{p.code} &middot; {p.role === "admin" ? "Admin" : "Member"}</div></div></div>)}
           </div>}
         </div>
         <div className="spacer" />
@@ -1196,6 +1392,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           <button className={scene === "projects" ? "on" : ""} onClick={() => setScene("projects")}>Projects</button>
           {isSuper && <button className={scene === "newproj" ? "on" : ""} onClick={openNew}>New project</button>}
           <button className={scene === "inside" ? "on" : ""} onClick={() => setScene("inside")}>Inside a project</button>
+          {isSuper && <button className={scene === "analytics" ? "on" : ""} onClick={() => setScene("analytics")}>Analytics</button>}
         </div>
       </div>
 
@@ -1211,9 +1408,9 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           </div>
           <div className="sech"><h2>Your projects</h2><span className="lk" onClick={() => setScene("projects")}>View all</span></div>
           <div className="pgrid">
-            {projects.map(cardEl)}
+            {vis.map(cardEl)}
             {isSuper && <div className="newcard" onClick={openNew}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>New project</div>}
-            {projects.length === 0 && !isSuper && <div className="empty">You are not a member of any project yet.</div>}
+            {vis.length === 0 && !isSuper && <div className="empty">You are not a member of any project yet.</div>}
           </div>
           {activity && activity.length > 0 && <>
             <div className="sech"><h2>Recent activity</h2></div>
@@ -1226,17 +1423,18 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
         <div className={"scene" + (scene === "projects" ? " on" : "")}>
           <div className="hello">Your projects</div>
           <div className="subhello">{isSuper ? "Every project on the platform." : "You see only the projects you have been granted access to."}</div>
-          <div className="searchbar"><input placeholder="Search projects by name, code or location\u2026" value={q} onChange={(e) => setQ(e.target.value)} />{isSuper && <button className="btn sm" onClick={openNew}>+ New project</button>}</div>
+          <div className="searchbar"><input placeholder="Search projects by name, code or location\u2026" value={q} onChange={(e) => setQ(e.target.value)} />{isSuper && <label className="archtgl"><input type="checkbox" checked={showArch} onChange={(e) => setShowArch(e.target.checked)} />Show Archived</label>}{isSuper && <button className="btn sm" onClick={openNew}>+ New project</button>}</div>
           <div className="ptable">
-            <div className="hd"><div>Project</div><div>Location</div><div>Your role</div><div>Status</div><div>Overdue</div><div>Dates</div><div></div></div>
-            {filtered.map((p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
-              <div key={p.id} className="row" onClick={() => onEnter(p.id)}>
+            <div className="hd" style={isSuper ? { gridTemplateColumns: "2.2fr 1.2fr .9fr 1.1fr .7fr 1.2fr auto auto" } : undefined}><div>Project</div><div>Location</div><div>Your role</div><div>Status</div><div>Overdue</div><div>Dates</div>{isSuper && <div></div>}<div></div></div>
+            {filtered.map((p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; const arch = (p.status || "active") === "archived"; return (
+              <div key={p.id} className={"row" + (arch ? " archived" : "")} style={isSuper ? { gridTemplateColumns: "2.2fr 1.2fr .9fr 1.1fr .7fr 1.2fr auto auto" } : undefined} onClick={() => onEnter(p.id)}>
                 <div><div className="pn">{p.name}</div><div className="pc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
                 <div style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{p.location || "\u2014"}</div>
                 <div><span className={"rolechip" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
-                <div><div className="bar"><i style={{ width: pct + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pct}%</div></div>
+                <div>{arch ? <span className="archchip">Archived</span> : p.status === "on_hold" ? <span className="archchip">On Hold</span> : <><div className="bar"><i style={{ width: pct + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pct}%</div></>}</div>
                 <div className="mono" style={{ color: p.stats.overdue ? "var(--red)" : "var(--muted)", fontWeight: 700 }}>{p.stats.overdue}</div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{fmtDate(p.startDate)}{p.targetDate ? <><br />{fmtDate(p.targetDate)}</> : ""}</div>
+                {isSuper && <div className="editbtn" title="Edit project" onClick={(e) => { e.stopPropagation(); openEdit(p); }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg></div>}
                 <div className="enter">Enter<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m9 18 6-6-6-6" /></svg></div>
               </div>); })}
             {filtered.length === 0 && <div className="empty">No projects match.</div>}
@@ -1270,15 +1468,11 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
         </div>
 
         <div className={"scene" + (scene === "inside" ? " on" : "")}>
-          {ip ? <>
-            <div className="ip-top" style={{ background: "linear-gradient(135deg, " + (ip.accent || "#2F6BFF") + ", " + (ip.accent || "#2F6BFF") + "99)" }}>
-              <div className="lg">{(ip.code || "").slice(0, 3).toUpperCase()}</div>
-              <div style={{ flex: 1 }}><h2>{ip.name}</h2><div className="m">{ip.location ? ip.location + " \u00B7 " : ""}you are {ip.role === "admin" ? "Admin" : "Member"} on this project</div></div>
-              <button className="btn ipboard" onClick={() => onEnter(ip.id)}>Open planning board</button>
-              <button className="btn ghost sm ipleave" onClick={() => setScene("home")}>Leave project</button>
-            </div>
-            <div className="ip-board">
-              <div className="ip-toolbar">
+          {vis.length === 0 ? <div className="empty">You are not a member of any project yet.</div> : <>
+            <div className="hello">Inside a project</div>
+            <div className="subhello">A live snapshot of every project you can see, one section each. The toolbar drives all of them at once; click a header to collapse a project, or open its planning board to work in it.</div>
+            <div className="ip-board" style={{ margin: "16px 0", background: "var(--card)" }}>
+              <div className="ip-toolbar" style={{ borderBottom: 0 }}>
                 <div className="seg">
                   <span className={ovView === "swimlane" ? "on" : ""} onClick={() => setOvView("swimlane")}>Swimlane</span>
                   <span className={ovView === "gantt" ? "on" : ""} onClick={() => setOvView("gantt")}>Gantt</span>
@@ -1293,75 +1487,164 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                   <span className={ovGroup === "zone" ? "on" : ""} onClick={() => ovView === "swimlane" && setOvGroup("zone")}>Zone</span>
                 </div>
                 <div className="seg">
-                  {[["2w", 2], ["4w", 4], ["8w", 8], ["All", 0]].map(([lbl, w]) => <span key={w} className={ovWeeks === w ? "on" : ""} onClick={() => setOvWeeks(w)}>{lbl}</span>)}
+                  {[["2w", 2], ["4w", 4], ["8w", 8], ["All", 0]].map(([lbl, w]) => <span key={w} className={ovWeeks === w ? "on" : ""} onClick={() => { setOvWeeks(w); }}>{lbl}</span>)}
                 </div>
                 <div className="ipnav">
                   <button disabled={ovWeeks === 0} onClick={() => panWin(-1)} aria-label="Earlier">{"\u2039"}</button>
-                  <span className="iprange">{ovWeeks === 0 ? "All dates" : (fmtShort(ovWindow.min) + " \u2013 " + fmtShort(ovWindow.max - DAY))}</span>
+                  <span className="iprange">{ovWeeks === 0 ? "All dates" : ovAnchor == null ? "Auto (around today)" : (fmtShort(ovAnchor) + " - " + fmtShort(ovAnchor + ovWeeks * 7 * DAY - DAY))}</span>
                   <button disabled={ovWeeks === 0} onClick={() => panWin(1)} aria-label="Later">{"\u203A"}</button>
-                  <button className="todaybtn" disabled={ovWeeks === 0} onClick={() => setOvAnchor(mondayMs(today0))}>Today</button>
+                  <button className="todaybtn" disabled={ovWeeks === 0} onClick={() => setOvAnchor(null)}>Today</button>
                 </div>
               </div>
-              {ov === null
-                ? <div className="ip-empty">Loading overview\u2026</div>
-                : ov.length === 0
-                  ? <div className="ip-empty">No activities in this project yet.</div>
-                  : <>
-                    <div className="ip-axis"><div className="axsp" /><div className="axtrack">{ovTicks.map((t, i) => <span key={i} style={{ left: t.pos + "%" }}>{t.label}</span>)}</div></div>
-                    {ovLanes.lanes.length === 0
-                      ? <div className="ip-empty">No activities in this window. Widen the span or page with the arrows.</div>
-                      : ovView === "swimlane"
-                      ? ovLanes.lanes.map((ln) => (
-                        <div className="lane" key={ln.name}>
-                          <div className="lh"><b>{ln.name}</b><div className="s">{ln.acts.length} {ln.acts.length === 1 ? "activity" : "activities"}</div></div>
-                          <div className="tracks">
-                            {packRows(ln.acts).map((row, ri) => (
-                              <div className="track" key={ri}>
-                                {gridEls()}
-                                {row.map(({ a, b }) => a.milestone
-                                  ? <div className="ms" key={a.id} style={{ left: b.left + "%" }} title={a.label} onClick={() => setOvSel(a)}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /><span className="mslabel">{a.label}</span></div>
-                                  : <div className="blk" key={a.id} style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }} title={a.label} onClick={() => setOvSel(a)}>{a.label}</div>)}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                      : <div className="gantt">{ovFlat.map((a) => { const b = barFor(a); return (
-                        <div className="grow" key={a.id} onClick={() => setOvSel(a)}>
-                          <div className="glh" title={a.label}>{a.label}</div>
-                          <div className="track">
-                            {gridEls()}
-                            {a.milestone
-                              ? <div className="ms" style={{ left: b.left + "%" }}><span className="dia" style={{ background: ip.accent || "#2F6BFF" }} /></div>
-                              : <div className="blk" style={{ left: b.left + "%", width: b.width + "%", background: b.bg, color: b.fg, border: b.border }}>{a.label}</div>}
-                          </div>
-                        </div>
-                      ); })}</div>}
-                  </>}
             </div>
-            <div className="ip-foot">Live snapshot of {ip.name}, scoped to this project. Click any activity for detail; open the planning board to edit, drag and manage constraints.</div>
+            <div className="snapwrap">{snapOrder.map(snapEl)}</div>
+            <div className="ip-foot">Live snapshots, each scoped to its project by the same access rules as its board. Auto anchoring shows each project around today, or its own earliest work if nothing is near today; paging with the arrows locks every section to one shared window, and Today releases it back to auto.</div>
             {ovSel && (
               <div className="ovsel-back" onClick={() => setOvSel(null)}>
                 <div className="ovsel" onClick={(e) => e.stopPropagation()}>
-                  <div className="ovsel-h"><b>{ovSel.label}</b><button onClick={() => setOvSel(null)} aria-label="Close">{"\u00D7"}</button></div>
+                  <div className="ovsel-h"><b>{ovSel.a.label}</b><button onClick={() => setOvSel(null)} aria-label="Close">{"\u00D7"}</button></div>
                   <div className="ovsel-b">
-                    <div className="r"><span>Status</span><b><i className="dot" style={{ background: statusDot(ovSel) }} />{statusLabel(ovSel)}</b></div>
-                    <div className="r"><span>Company</span><b>{ovSel.company}</b></div>
-                    <div className="r"><span>Level</span><b>{ovSel.level}</b></div>
-                    <div className="r"><span>Zone</span><b>{ovSel.zone}</b></div>
-                    <div className="r"><span>Start</span><b>{fmtDate(ovSel.start)}</b></div>
-                    <div className="r"><span>Finish</span><b>{ovSel.start ? fmtDate(addDays(ovSel.start, Math.max(0, ovSel.dur - 1))) : "\u2014"}</b></div>
-                    <div className="r"><span>Duration</span><b>{ovSel.dur} {ovSel.dur === 1 ? "day" : "days"}</b></div>
-                    {ovSel.committed && <div className="r"><span>Committed</span><b>Yes</b></div>}
-                    {ovSel.milestone && <div className="r"><span>Type</span><b>Milestone</b></div>}
+                    <div className="r"><span>Project</span><b>{ovSel.proj.name}</b></div>
+                    <div className="r"><span>Status</span><b><i className="dot" style={{ background: statusDot(ovSel.a) }} />{statusLabel(ovSel.a)}</b></div>
+                    <div className="r"><span>Company</span><b>{ovSel.a.company}</b></div>
+                    <div className="r"><span>Level</span><b>{ovSel.a.level}</b></div>
+                    <div className="r"><span>Zone</span><b>{ovSel.a.zone}</b></div>
+                    <div className="r"><span>Start</span><b>{fmtDate(ovSel.a.start)}</b></div>
+                    <div className="r"><span>Finish</span><b>{ovSel.a.start ? fmtDate(addDays(ovSel.a.start, Math.max(0, ovSel.a.dur - 1))) : "\u2014"}</b></div>
+                    <div className="r"><span>Duration</span><b>{ovSel.a.dur} {ovSel.a.dur === 1 ? "day" : "days"}</b></div>
+                    {ovSel.a.committed && <div className="r"><span>Committed</span><b>Yes</b></div>}
+                    {ovSel.a.milestone && <div className="r"><span>Type</span><b>Milestone</b></div>}
                   </div>
-                  <div className="ovsel-f"><button className="btn sm" onClick={() => onEnter(ip.id)}>Open in board</button></div>
+                  <div className="ovsel-f"><button className="btn sm" onClick={() => onEnter(ovSel.proj.id, ovSel.a.id)}>Open in board</button></div>
                 </div>
               </div>
             )}
-          </> : <div className="empty">You are not a member of any project yet.</div>}
+          </>}
+        </div>
+
+        <div className={"scene" + (scene === "analytics" ? " on" : "")}>
+          {!isSuper ? <div className="empty">Portfolio analytics is available to the owner and platform supers only.</div> : <>
+            <div className="hello">Portfolio analytics</div>
+            <div className="subhello">Key metrics from every project side by side. Each row links into that project's full Analytics page for the deep reporting.</div>
+            {ana === "loading" || !ana ? <div className="ip-empty" style={{ padding: 40 }}>Loading portfolio metrics{"\u2026"}</div>
+              : ana.error ? <div className="err" style={{ marginTop: 20 }}>Could not load portfolio metrics: {ana.error}</div>
+                : (() => {
+                  const rowsA = vis.map((p) => ({ p, m: ana.perProj[p.id] || { total: 0, complete: 0, inProgress: 0, overdue: 0, open: 0, committedOpen: 0, ppc: null, ppcNum: 0, ppcDen: 0 } }));
+                  const den = rowsA.reduce((s, r) => s + r.m.ppcDen, 0), num = rowsA.reduce((s, r) => s + r.m.ppcNum, 0);
+                  const pfPpc = den ? Math.round(num / den * 100) : null;
+                  const T = rowsA.reduce((s, r) => s + r.m.total, 0), C = rowsA.reduce((s, r) => s + r.m.complete, 0), O = rowsA.reduce((s, r) => s + r.m.overdue, 0), CM = rowsA.reduce((s, r) => s + r.m.committedOpen, 0);
+                  const maxOv = Math.max(1, ...rowsA.map((r) => r.m.overdue));
+                  const maxCo = Math.max(1, ...(ana.companies || []).map((c) => c.total));
+                  const drillRows = (pick, chip, color) => rowsA.filter((r) => pick(r.m) > 0).sort((x, y) => pick(y.m) - pick(x.m)).map((r) => ({ id: r.p.id, name: r.p.name, sub: r.p.code || "", chip: chip(r.m), color }));
+                  return <>
+                    <div className="tiles" style={{ marginTop: 20 }}>
+                      <div className="tile" onClick={() => setAnaSel({ title: "Portfolio PPC", sub: pfPpc == null ? "No committed work has come due yet" : num + " of " + den + " committed promises kept, on time, portfolio-wide", rows: drillRows((m) => m.ppcDen, (m) => (m.ppc == null ? "n/a" : m.ppc + "%"), "var(--signal)") })}><div className="k">Portfolio PPC</div><div className="v mono">{pfPpc == null ? "\u2014" : pfPpc + "%"}</div><div className="d">committed work due to date, weighted</div></div>
+                      <div className="tile" onClick={() => setAnaSel({ title: "Complete", sub: C + " of " + T + " activities complete portfolio-wide", rows: drillRows((m) => m.complete, (m) => (m.total ? Math.round(m.complete / m.total * 100) : 0) + "%", "#1FB6A6") })}><div className="k">Complete</div><div className="v mono" style={{ color: "var(--green)" }}>{T ? Math.round(C / T * 100) : 0}%</div><div className="d">{C} of {T} activities</div></div>
+                      <div className="tile" onClick={() => setAnaSel({ title: "Overdue", sub: O + " past their promised finish and not complete", rows: drillRows((m) => m.overdue, (m) => m.overdue + " overdue", "#C0392B") })}><div className="k">Overdue</div><div className="v mono" style={{ color: "var(--red)" }}>{O}</div><div className="d">need attention</div></div>
+                      <div className="tile" onClick={() => setAnaSel({ title: "Committed, open", sub: CM + " open committed activities portfolio-wide", rows: drillRows((m) => m.committedOpen, (m) => m.committedOpen + " committed", "#E6A435") })}><div className="k">Committed, open</div><div className="v mono" style={{ color: "var(--amber)" }}>{CM}</div><div className="d">promises still in play</div></div>
+                    </div>
+                    <div className="sech"><h2>Project comparison</h2></div>
+                    <div className="antable">
+                      <div className="hd"><div>Project</div><div>PPC</div><div>Complete</div><div>In progress</div><div>Overdue</div><div>Committed</div><div>Health</div><div></div></div>
+                      {rowsA.map(({ p, m }) => { const pc = m.total ? Math.round(m.complete / m.total * 100) : 0; const h = healthOf(m); return (
+                        <div className="row" key={p.id} onClick={() => onOpenAnalytics(p.id)}>
+                          <div><div className="pn">{p.name}</div><div className="pc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
+                          <div className="mono" style={{ fontWeight: 800, color: m.ppc == null ? "var(--muted)" : "var(--ink)" }}>{m.ppc == null ? "\u2014" : m.ppc + "%"}</div>
+                          <div><div className="bar"><i style={{ width: pc + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pc}% {"\u00B7"} {m.complete}/{m.total}</div></div>
+                          <div className="mono">{m.inProgress}</div>
+                          <div className="mono" style={{ color: m.overdue ? "var(--red)" : "var(--muted)", fontWeight: 800 }}>{m.overdue}</div>
+                          <div className="mono">{m.committedOpen}</div>
+                          <div><span className={"hbadge " + h.cls}>{h.label}</span></div>
+                          <div className="enter">Full analytics<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m9 18 6-6-6-6" /></svg></div>
+                        </div>); })}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Health: On Track when overdue is under 5% of open activities, Watch under 15%, At Risk above. Not Started when a project has no activities.</div>
+                    <div className="angrid">
+                      <div className="ancard">
+                        <h3>Status Mix By Project</h3>
+                        {rowsA.map(({ p, m }) => (
+                          <div className="mixrow" key={p.id}>
+                            <span className="nm" title={p.name}>{p.name}</span>
+                            <div className="mix">
+                              {m.total > 0 && <>
+                                <i style={{ width: (m.complete / m.total * 100) + "%", background: "var(--green)" }} title={"Complete " + m.complete} />
+                                <i style={{ width: (m.inProgress / m.total * 100) + "%", background: "var(--signal)" }} title={"In progress " + m.inProgress} />
+                                <i style={{ width: (m.open / m.total * 100) + "%", background: "var(--amber)" }} title={"Open (planned or committed) " + m.open} />
+                                <i style={{ width: (m.overdue / m.total * 100) + "%", background: "var(--red)" }} title={"Overdue " + m.overdue} />
+                              </>}
+                            </div>
+                            <span className="mixn">{m.total}</span>
+                          </div>
+                        ))}
+                        <div className="anleg"><span><i style={{ background: "var(--green)" }} />Complete</span><span><i style={{ background: "var(--signal)" }} />In progress</span><span><i style={{ background: "var(--amber)" }} />Open</span><span><i style={{ background: "var(--red)" }} />Overdue</span></div>
+                      </div>
+                      <div className="ancard">
+                        <h3>Overdue By Project</h3>
+                        {rowsA.slice().sort((x, y) => y.m.overdue - x.m.overdue).map(({ p, m }) => (
+                          <div className="parow" key={p.id}><span className="nm" title={p.name}>{p.name}</span><div className="bar"><i style={{ width: (m.overdue / maxOv * 100) + "%", background: "var(--red)" }} /></div><span className="n" style={{ color: m.overdue ? "var(--red)" : "var(--muted)", fontWeight: 800 }}>{m.overdue}</span></div>
+                        ))}
+                        <h3 style={{ marginTop: 22 }}>Activity By Company, Portfolio-Wide</h3>
+                        {(ana.companies || []).slice(0, 8).map((c) => (
+                          <div className="parow" key={c.name}><span className="nm" title={c.name}>{c.name}</span><div className="bar"><i style={{ width: (c.total / maxCo * 100) + "%", background: "var(--signal)" }} /></div><span className="n">{c.total} {"\u00B7"} {c.total ? Math.round(c.complete / c.total * 100) : 0}% done</span></div>
+                        ))}
+                        {(ana.companies || []).length === 0 && <div className="ip-empty" style={{ padding: 12 }}>No company-assigned activities yet.</div>}
+                      </div>
+                    </div>
+                    <div className="exbar">
+                      <button className="btn sm" onClick={anaExcel}>Download Excel</button>
+                      <button className="btn ghost sm" onClick={() => { setAna(null); }}>Refresh</button>
+                      <span style={{ fontSize: 11.5, color: "var(--muted)" }}>Archived projects are excluded. The Excel carries the comparison table and the company rows.</span>
+                    </div>
+                  </>;
+                })()}
+            {anaSel && (
+              <div className="ovsel-back" onClick={() => setAnaSel(null)}>
+                <div className="ovsel wide" onClick={(e) => e.stopPropagation()}>
+                  <div className="ovsel-h"><div style={{ flex: 1, minWidth: 0 }}><b>{anaSel.title}</b><div className="ovsel-sub">{anaSel.sub}</div></div><button onClick={() => setAnaSel(null)} aria-label="Close">{"\u00D7"}</button></div>
+                  <div className="drillb">
+                    {anaSel.rows.length === 0
+                      ? <div className="ip-empty" style={{ padding: 18 }}>Nothing to show here.</div>
+                      : anaSel.rows.map((r) => (
+                        <div className="drow" key={r.id} onClick={() => { setAnaSel(null); onOpenAnalytics(r.id); }}>
+                          <div className="drow-m"><b>{r.name}</b><span>{r.sub}</span></div>
+                          <span className="drow-chip" style={{ color: r.color, borderColor: r.color }}>{r.chip}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>}
         </div>
       </div>
+      {edit && (
+        <div className="ovsel-back" onClick={() => { if (!editBusy) setEdit(null); }}>
+          <div className="pedit" onClick={(e) => e.stopPropagation()}>
+            <div className="mh"><b>Edit Project</b><button onClick={() => setEdit(null)} disabled={editBusy} aria-label="Close">{"\u00D7"}</button></div>
+            <div className="mb">
+              <div className="frow2">
+                <div className="f"><label>Project Name</label><input value={ef.name} onChange={(e) => setEf({ ...ef, name: e.target.value })} /><div className="hint">The name the hub shows everywhere: cards, table, switcher, feed and analytics.</div></div>
+                <div className="f"><label>Project Code</label><input value={ef.code} onChange={(e) => setEf({ ...ef, code: e.target.value })} /></div>
+              </div>
+              <div className="frow2">
+                <div className="f"><label>Client / Owner</label><input value={ef.client} onChange={(e) => setEf({ ...ef, client: e.target.value })} /></div>
+                <div className="f"><label>Location</label><input value={ef.location} onChange={(e) => setEf({ ...ef, location: e.target.value })} /></div>
+              </div>
+              <div className="frow2">
+                <div className="f"><label>Start Date</label><input type="date" value={ef.startDate || ""} onChange={(e) => setEf({ ...ef, startDate: e.target.value })} /></div>
+                <div className="f"><label>Target Completion</label><input type="date" value={ef.targetDate || ""} onChange={(e) => setEf({ ...ef, targetDate: e.target.value })} /></div>
+              </div>
+              <div className="frow2">
+                <div className="f"><label>Accent Colour</label><div className="swatches">{SW.map((c) => <div key={c} className={"swatch" + (ef.accent === c ? " sel" : "")} style={{ background: c }} onClick={() => setEf({ ...ef, accent: c })} />)}</div></div>
+                <div className="f"><label>Status</label><select value={ef.status} onChange={(e) => setEf({ ...ef, status: e.target.value })}><option value="active">Active</option><option value="on_hold">On Hold</option><option value="archived">Archived</option></select><div className="hint">Archived projects disappear from Home, the switcher, snapshots and Analytics, and sit greyed out here under Show Archived. Nothing is deleted, and direct entry still works.</div></div>
+              </div>
+              <div className="sync"><input type="checkbox" checked={!!ef.syncBrand} onChange={(e) => setEf({ ...ef, syncBrand: e.target.checked })} /><div><b>Also update the in-app branding name to match the code</b><div style={{ color: "var(--muted)", marginTop: 2 }}>The project's Admin &gt; Branding name is a separate field used inside the app: the tab title, the location-code prefix and report headers. Ticked, it is set to the Project Code above so the two names cannot drift. Untick only if this project deliberately brands itself differently inside the app.</div></div></div>
+              {editErr && <div className="err">{editErr}</div>}
+            </div>
+            <div className="mf"><button className="btn ghost sm" disabled={editBusy} onClick={() => setEdit(null)}>Cancel</button><button className="btn sm" disabled={editBusy} onClick={saveEdit}>{editBusy ? "Saving\u2026" : "Save Changes"}</button></div>
+          </div>
+        </div>
+      )}
       {tileData && (
         <div className="ovsel-back" onClick={() => setTileSel(null)}>
           <div className="ovsel wide" onClick={(e) => e.stopPropagation()}>
@@ -1459,7 +1742,7 @@ export default function App({ session }) {
 
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
 
-  const enterProject = async (projectId, projList, focusActId) => {
+  const enterProject = async (projectId, projList, focusActId, initialPage) => {
     const list = projList || projectsRef.current;
     const proj = list.find((x) => x.id === projectId);
     setSelProj(projectId);
@@ -1469,6 +1752,7 @@ export default function App({ session }) {
       const data = await loadAll(session, projectId, proj?.name);
       const p = prefs();
       setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company", hideDone: !!p.hideDone });
+      if (initialPage) setPage(initialPage);
     } catch (e) { console.error("Load failed:", e); }
   };
   const goPortal = () => { setSelProj(null); setS(null); setSwOpen(false); try { history.replaceState(null, "", location.pathname); } catch (e) {} boot(); };
@@ -1596,7 +1880,7 @@ export default function App({ session }) {
   }, [S, anchor, DAYS]);
 
   if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
-  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id, focus) => enterProject(id, undefined, focus)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid, (projects.find((p) => p.id === pid) || {}).name)} />;
+  if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id, focus) => enterProject(id, undefined, focus)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid, (projects.find((p) => p.id === pid) || {}).name)} onUpdateProject={async (id, fields) => { await updateProject(id, fields); if (fields.syncBrand) { try { await updateBranding({ project_name: fields.code.trim() }, id); } catch (e) { console.error("Branding sync failed:", e); } } await boot(); }} onOpenAnalytics={(id) => enterProject(id, undefined, undefined, "reports")} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
   const LV = S.levels || DEFAULT_LEVELS;
@@ -2284,7 +2568,7 @@ export default function App({ session }) {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>All projects
             </button>
             <div className="lk-switchsep" />
-            {projects.map((p) => <button key={p.id} className={"lk-switchitem" + (p.id === selProj ? " on" : "")} onClick={() => { setSwOpen(false); if (p.id !== selProj) enterProject(p.id); }}>
+            {projects.filter((p) => (p.status || "active") !== "archived" || p.id === selProj).map((p) => <button key={p.id} className={"lk-switchitem" + (p.id === selProj ? " on" : "")} onClick={() => { setSwOpen(false); if (p.id !== selProj) enterProject(p.id); }}>
               <span className="lk-switchdot" style={{ background: p.accent }} /><span>{p.code}</span><span className="lk-switchsub">{p.name}</span>
             </button>)}
           </div>}

@@ -103,6 +103,7 @@ export async function loadProjects(session) {
     accent: p.accent || "#1E63D6", logoUrl: p.logo_url || "", logoDark: p.logo_url_dark || "",
     tagline: p.tagline || "", appName: p.app_name || "DLP",
     startDate: p.start_date || null, targetDate: p.target_date || null,
+    status: p.status || "active",
     role: isSuper ? "admin" : (roleByProj[p.id] || "member"),
     stats: stat[p.id] || { total: 0, complete: 0, overdue: 0, inProgress: 0 },
   }));
@@ -398,9 +399,77 @@ export async function fetchBranding() {
 const FIN04_PROJECT = "f1040000-0000-4000-a000-000000000001";
 
 // Admin: save name / tagline for a project. patch keys are db column names.
+// REV114: previously a plain .update(), which matched zero rows on any project whose
+// branding row was never seeded (every project created through the hub) and reported
+// no error, so the save silently did nothing. Now: update, and if nothing matched,
+// insert the row with the patch aboard. The hub-REV114 migration backfills existing
+// projects and seeds future ones by trigger, so the insert here is a safety net.
 export async function updateBranding(patch, projectId) {
-  const { error } = await supabase.from("branding").update(patch).eq("project_id", projectId || FIN04_PROJECT);
+  const pid = projectId || FIN04_PROJECT;
+  const { data, error } = await supabase.from("branding").update(patch).eq("project_id", pid).select("project_id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    const row = { project_id: pid, project_name: patch.project_name || "Project", app_name: patch.app_name || "DLP", ...patch };
+    const ins = await supabase.from("branding").insert(row);
+    if (ins.error) throw ins.error;
+  }
+}
+
+// Super / owner: edit a project's hub details. fields uses the portal's camelCase names.
+export async function updateProject(id, fields) {
+  const patch = {};
+  if (fields.name != null) patch.name = fields.name.trim();
+  if (fields.code != null) patch.code = fields.code.trim();
+  if (fields.client !== undefined) patch.client = fields.client || null;
+  if (fields.location !== undefined) patch.location = fields.location || null;
+  if (fields.accent != null) patch.accent = fields.accent;
+  if (fields.startDate !== undefined) patch.start_date = fields.startDate || null;
+  if (fields.targetDate !== undefined) patch.target_date = fields.targetDate || null;
+  if (fields.status != null) patch.status = fields.status;
+  const { data, error } = await supabase.from("projects").update(patch).eq("id", id).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("Nothing was saved. Your account may not have permission to edit projects (owner and platform supers only), or the hub-REV114 SQL migration has not been run.");
+}
+
+// Portfolio analytics (owner / super hub page). One pass over every visible activity.
+// PPC per project mirrors the in-app sidebar formula exactly (REV106 semantics):
+// denominator = committed activities whose promised finish (start + duration - 1) is
+// before today; numerator = those complete with actual finish on or before the promise.
+// Status buckets are disjoint: complete, overdue, in progress, then open (planned or
+// committed, not yet due). Company rows use the shared global directory.
+export async function loadPortfolioAnalytics() {
+  const [actRes, coRes] = await Promise.all([
+    supabase.from("activities").select("project_id, status, committed, start_date, duration, actual_finish, company_id"),
+    supabase.from("companies").select("id, name"),
+  ]);
+  if (actRes.error) throw actRes.error;
+  const coNames = {}; (coRes.data || []).forEach((c) => { coNames[c.id] = c.name; });
+  const t = new Date(); t.setHours(0, 0, 0, 0); const today = t.getTime();
+  const finOf = (a) => { if (!a.start_date) return null; const d = new Date(a.start_date); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + Math.max(0, (a.duration || 1) - 1)); return d.getTime(); };
+  const perProj = {}; const perCo = {};
+  (actRes.data || []).forEach((a) => {
+    const p = perProj[a.project_id] || (perProj[a.project_id] = { total: 0, complete: 0, inProgress: 0, overdue: 0, open: 0, committedOpen: 0, ppcDen: 0, ppcNum: 0 });
+    p.total++;
+    const fin = finOf(a);
+    const done = a.status === "complete";
+    if (done) p.complete++;
+    else if (fin != null && fin < today) p.overdue++;
+    else if (a.status === "in_progress") p.inProgress++;
+    else p.open++;
+    if (!done && a.committed) p.committedOpen++;
+    if (a.committed && a.start_date && fin != null && fin < today) {
+      p.ppcDen++;
+      const af = a.actual_finish ? (() => { const d = new Date(a.actual_finish); d.setHours(0, 0, 0, 0); return d.getTime(); })() : null;
+      if (done && (af == null || af <= fin)) p.ppcNum++;
+    }
+    if (a.company_id) {
+      const c = perCo[a.company_id] || (perCo[a.company_id] = { name: coNames[a.company_id] || "Unknown", total: 0, complete: 0 });
+      c.total++; if (done) c.complete++;
+    }
+  });
+  Object.values(perProj).forEach((p) => { p.ppc = p.ppcDen ? Math.round(p.ppcNum / p.ppcDen * 100) : null; });
+  const companies = Object.values(perCo).sort((x, y) => y.total - x.total || x.name.localeCompare(y.name));
+  return { perProj, companies };
 }
 
 // Admin: upload a customer logo file, return its public URL, and store it (light or dark slot).
