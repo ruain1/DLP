@@ -1,5 +1,19 @@
 [
  {
+  "rev": "REV107",
+  "date": "2026-07-04",
+  "items": [
+   "Weekly Cx Progress gains an Insights strip: an admin-only, toggleable panel that reads the page for you. Rule-generated lines cover tagging pace against the target date with a projected 100% date and its week-on-week movement, the L1 to L2 graduation stall, issue backlog growth with zero-resolution streaks, IRL throughput stalls, overdue risks with the oldest and its owner, aggregate milestone slip growth, the documentation chase list with regressions, stale ACC refreshes, falling vendor attendance, and import gaps. Priority ordered, capped at six, every line clickable to its detail and calculation. Members never see the strip or its toggle",
+   "Every KPI tile now carries its week-on-week movement against the previous import: percentage-point moves on the tag tiles, count moves on assets, open issues and awaiting verification, with raised-versus-resolved shown in red when nothing was resolved. First imports read first import instead of breaking",
+   "The Tag Attainment Funnel card is removed: it duplicated the tag tiles above it, and the parser has always hardcoded its L4 and L5 rows to zero, so the bottom of the funnel was never live data. The Weekly Report keeps its funnel section for now",
+   "Red Tag By Equipment Type now distinguishes movers from stalled: each type shows its weekly gain, and any type under 100% with no movement across consecutive imports flags as stalled with the streak length. The threshold is configurable under Configure, Insights",
+   "The Risk Register computes days overdue against the reporting week and sorts overdue rows first, oldest first, with a new Overdue column. Due dates on previously imported snapshots are parsed at render time with the year inferred from the reporting week, and new imports also store the full date",
+   "The Documentation Register header gains a readiness score (green 2, amber 1, red 0 across all cells), its week-on-week movement, the red-vendor count and the regression count; the matrix itself is unchanged",
+   "Configure gains an Insights group: the stalled-after threshold and the Target 100% date the pace signal measures against, falling back to the milestone named Complete when blank",
+   "Security: the stored XSS finding from the QC audit is remediated; every workbook-derived string is now escaped at the popup title, body and detail-table boundaries, so a hostile workbook cell renders as text instead of executing"
+  ]
+ },
+ {
   "rev": "REV106",
   "date": "2026-07-04",
   "items": [
