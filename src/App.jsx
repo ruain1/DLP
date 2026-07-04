@@ -1884,7 +1884,10 @@ export default function App({ session }) {
   const committedWk = visible.filter((a) => a.committed && a.startOff >= 0 && a.startOff < 7);
   const delayedList = inWindow.filter((a) => a.delayed);
   const atRiskList = inWindow.filter((a) => a.knockOn > 0 && a.status !== "complete" && !a.delayed);
-  const ppcAll = (() => { const c = S.activities.filter((a) => a.committed); return c.length ? Math.round(c.filter((a) => a.status === "complete").length / c.length * 100) : null; })();
+  // Sidebar PPC uses the same on-time definition as the Analytics gauge, the Weekly Report and
+  // the admin digests: complete AND actual finish on or before promised finish (start + duration - 1).
+  // Previously it counted any completion including late ones, so the two numbers disagreed.
+  const ppcAll = (() => { const c = S.activities.filter((a) => a.committed); if (!c.length) return null; const onTime = (a) => a.status === "complete" && (!a.actualFinish || !a.start || parseD(a.actualFinish) <= addDays(parseD(a.start), (a.duration || 1) - 1)); return Math.round(c.filter(onTime).length / c.length * 100); })();
   // Board search: same fields as the Activity Table search (description, company, system),
   // plus asset and location code since both are printed on the cards. Filters only what the
   // board draws; visible, the KPI tiles and exportActivities are deliberately untouched so a
@@ -2238,7 +2241,7 @@ export default function App({ session }) {
         <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n="checkcircle" s={20} /><span className="lbl">Weekly Cx Progress</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
-        <div className="lk-railppc" title="Open Analytics" onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
+        <div className="lk-railppc" title={"PPC \u00B7 Committed activities finished on or before their promised date \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
         </div>
