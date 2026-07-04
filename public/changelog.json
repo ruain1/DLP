@@ -1,5 +1,15 @@
 [
  {
+  "rev": "REV108",
+  "date": "2026-07-04",
+  "items": [
+   "The double scrollbar is gone. Every page sized itself to the viewport minus the header but not minus the footer, so the window always overflowed by exactly the footer height and the outer scrollbar existed only to reveal it. The app shell is now locked to the viewport: the QMC footer is always visible, and each page has exactly one scroll container",
+   "Board, Activity Table, Schedule and Help now fill the space between the header and the footer instead of computing viewport arithmetic; their internal scrolling is unchanged",
+   "Analytics, Admin, Constraints Log and Weekly Cx Progress, which previously relied on the page-level scrollbar, now scroll inside a single shared container with the footer pinned below; sticky filter bars and side panels keep their behaviour with offsets corrected for the new scroll origin",
+   "Printing the Weekly Report is unaffected: print mode releases the viewport lock so the document flows across pages as before"
+  ]
+ },
+ {
   "rev": "REV107",
   "date": "2026-07-04",
   "items": [
