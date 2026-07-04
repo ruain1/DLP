@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV112",
+  "date": "2026-07-04",
+  "items": [
+   "Fix: the owner account was being treated as a client viewer, hiding the Witness Schedule's admin action column (Send, Update, Cancel, Test To Me) behind Request Invite buttons and hiding the drawer's new Test Invite To Me field. Root cause: the REV104 privilege resolver's owner blanket granted every key including Request Invites, which is not an elevated privilege but the client-viewer mode flag; combined with a company set on the owner's profile, the owner's session flipped into client-viewer mode. The owner now receives every elevated privilege and is never a client viewer; admins, supers, members and genuine client-company viewers are unchanged"
+  ]
+ },
+ {
   "rev": "REV111",
   "date": "2026-07-04",
   "items": [
