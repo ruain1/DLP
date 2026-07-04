@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV109",
+  "date": "2026-07-04",
+  "items": [
+   "Recovery: the REV107 Weekly Cx Progress changes never reached the live site (the changelog was pushed without the page file, and REV108 then shipped a copy built on the stale base). This REV re-delivers the full REV107 content: the admin-only Insights strip, KPI movement, movers and stalled equipment types, the Risk Register Overdue column with days computed and overdue-first sorting, the documentation readiness score, the funnel removal, the Configure Insights group, and the stored-XSS remediation, together with the REV108 sticky-header rebase",
+   "KPI tile movement indicators no longer wait for a second imported week: when no prior import exists, the coloured arrows derive from the pack's own Week on Week 7-day figures (new red, yellow and green tags over total assets; issues raised versus resolved), exactly matching the approved mockup from the first import onward. Once a second week is imported, the true week-on-week diff takes over automatically",
+   "Green tag reads not started while at 0% with no movement; assets and awaiting verification show no change and unchanged until a prior week exists to diff against"
+  ]
+ },
+ {
   "rev": "REV108",
   "date": "2026-07-04",
   "items": [
