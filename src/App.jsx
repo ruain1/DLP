@@ -318,7 +318,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-subnav button:hover{background:var(--hover)}
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
 .lk-subbody{flex:1;min-width:0;max-width:760px}
-.lk-subbody.wide{max-width:1320px}
+.lk-subbody.wide{max-width:1320px}.lk-subbody.full{max-width:none}
 .lk-userwrap .lk-ufilter{position:sticky;top:54px;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
@@ -3559,7 +3559,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         <div className="lk-subnav">
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
-        <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "")}><div className="lk-db">
+        <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "") + (tab === "privileges" ? " wide full" : "")}><div className="lk-db">
           {tab === "privileges" && <PrivilegesTab S={S} cu={cu} isOwner={isOwner} projClient={projClient} />}
           {tab === "systems" && <>
             <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
