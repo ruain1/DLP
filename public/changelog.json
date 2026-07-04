@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV113",
+  "date": "2026-07-04",
+  "items": [
+   "Fix: the vendor logo on witness invitations rendered as a broken image box. Two faults compounded: the logo was embedded as an attachment inside the event creation payload, which Graph silently discards (attachments on events are only supported through their own endpoint), so the body's inline reference pointed at nothing; and even a late attachment could never fix the email, because Exchange dispatches the invitations the moment an event is created with attendees. The send is now the Microsoft-documented three-step order: create the event silently with no attendees, attach the logo through the supported endpoint, then add the attendees, which is the step that sends the meeting requests with the logo aboard",
+   "The Test To Me logo verdict now tells the truth: it previously reported embedded whenever the creation call succeeded, which is exactly how a broken logo shipped unnoticed; it now reports embedded only when the attachment call itself succeeded. If the attachment is refused, the body is downgraded to the name-only variant before anyone is invited, so an inline reference can never again point at a missing attachment; if inviting the attendees fails, the orphan calendar entry is deleted and the error surfaces, leaving nothing behind",
+   "Events without a vendor logo keep the original single-call send. Meeting updates and cancellations are unchanged, and the digest emails were never affected: mail sends embed inline attachments in one supported call"
+  ]
+ },
+ {
   "rev": "REV112",
   "date": "2026-07-04",
   "items": [
