@@ -1,5 +1,18 @@
 [
  {
+  "rev": "REV114",
+  "date": "2026-07-04",
+  "items": [
+   "Platform hub: the header and the Home / Projects / Inside A Project navigation bar are now frozen, staying in view however far you scroll",
+   "Inside A Project is now a live snapshot of every project you can see, one collapsible section per project with its accent band, activity, completion and overdue counts, and an Open Planning Board button. One toolbar (Swimlane or Gantt, Day or Week, grouping, span and paging) drives all sections at once; collapse states are remembered, the most recently visited project loads first, and beyond eight projects collapsed sections load only when expanded",
+   "New Edit Project on the Projects page (owner and platform supers): pencil on each row opens a modal for name, code, client, location, dates, accent colour and status. This is the authoritative rename for the hub, fixing renames that previously never took root: projects created through the hub had no branding row, so the in-app rename silently updated nothing. Branding rows are now backfilled for every project, seeded automatically for future projects, and the branding save itself inserts the row if it is somehow still missing",
+   "A sync option on Edit Project keeps the in-app branding name (tab title, location-code prefix, report headers) aligned to the project code, so the hub name and the in-app name cannot drift apart again; untick it for a project that deliberately brands itself differently inside the app",
+   "Projects can now be archived (or put on hold) from Edit Project: archived projects disappear from Home, the switcher, the snapshots and Analytics, and sit greyed out on the Projects page behind a Show Archived toggle. Nothing is deleted and direct entry still works",
+   "New Analytics tab on the hub for the owner and platform supers: portfolio KPI tiles (weighted PPC over committed work due to date, using exactly the sidebar PPC formula per project; completion; overdue; open commitments), a project comparison table with a health badge (On Track, Watch, At Risk from the overdue share of open work), Status Mix and Overdue charts per project, portfolio-wide activity by company, and a multi-sheet Excel download. Every tile drills to the projects behind the number, and every row deep-links straight into that project's full Analytics page",
+   "Project edits are recorded in the audit log (who, what, when), and project creation now writes an audit row too"
+  ]
+ },
+ {
   "rev": "REV113",
   "date": "2026-07-04",
   "items": [
