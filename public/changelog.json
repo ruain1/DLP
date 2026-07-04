@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV110",
+  "date": "2026-07-04",
+  "items": [
+   "Admin update emails work again for owner and super accounts. The digest claim table and several older policies were guarded by the legacy is_admin() database helper, which only recognised the old profile role; the REV104 owner/super rework moved accounts to the new role model and the helper started refusing them, blocking sends and hiding the send history (both lines read never sent). A one-file SQL migration redefines the helper as a strict superset: legacy profile admins keep access, and platform supers, the owner and per-project admins are recognised. This also repairs the audit log read the digest content is assembled from, and every other legacy policy referencing the helper",
+   "Digest recipients now honour the full role model: legacy profile admins, platform supers, the owner, and per-project admins on the current project, deduplicated. Previously an account moved to the new model silently dropped off its own digest",
+   "The claim error message is now actionable: a row-level security refusal names the migration to run instead of printing a raw database error"
+  ]
+ },
+ {
   "rev": "REV109",
   "date": "2026-07-04",
   "items": [
