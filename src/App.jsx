@@ -1831,9 +1831,9 @@ export default function App({ session }) {
         inlineLogo: logo || null };
       const r = await ol.sendWitnessEvent(payload);
       const nD = Math.max(1, a.witnessDays || 1);
-      setOlMsg({ ok: true, text: `Test event created in your calendar${nD > 1 ? " (day 1 of " + nD + " only)" : ""}${logo ? (r.logo ? ", vendor logo embedded" : ", vendor logo was rejected by Graph so the name-only fallback fired") : ", no logo on file for " + (co ? co.name : "this company") + " so the name shows as text"}. No witnesses were invited and nothing was stamped; delete it from your calendar when done.` });
-    } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); }
-    setOlBusy(null);
+      const m = { ok: true, text: `Test event created in your calendar${nD > 1 ? " (day 1 of " + nD + " only)" : ""}${logo ? (r.logo ? ", vendor logo embedded" : ", vendor logo was rejected by Graph so the name-only fallback fired") : ", no logo on file for " + (co ? co.name : "this company") + " so the name shows as text"}. No witnesses were invited and nothing was stamped; delete it from your calendar when done.` };
+      setOlMsg(m); setOlBusy(null); return m;
+    } catch (err) { const m = { ok: false, text: (err && err.message) || String(err) }; setOlMsg(m); setOlBusy(null); return m; }
   };
   const connectOl = async () => { try { const m = await import("./outlook"); const acct = await m.connectOutlook(); if (acct) { setOlAcct(acct.username); setOlMsg(null); } } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); } };
   const disconnectOl = async () => { try { const m = await import("./outlook"); await m.disconnectOutlook(); } catch (e) { } setOlAcct(null); };
@@ -2449,7 +2449,7 @@ export default function App({ session }) {
       </div>
 
       {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "rgba(14,147,132,.14)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "#0E9384" : "#C0392B"), color: digestNote.ok ? "#0E9384" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -2645,8 +2645,10 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete, hasLiveInvite, onCancelInvite }) {
+function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete, hasLiveInvite, onCancelInvite, onTestInvite, olConnected }) {
   const [a, setA] = useState(act);
+  const [twBusy, setTwBusy] = useState(false);   // Test Invite To Me in-flight
+  const [twNote, setTwNote] = useState(null);    // its result line, local to this drawer
   const [rtOpen, setRtOpen] = useState(false);
   const [rtName, setRtName] = useState("");
   const [rtStart, setRtStart] = useState("");
@@ -2904,6 +2906,16 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
             </div>
             {(a.witnessDays || 1) > 1 && a.witnessAt && (() => { const n = a.witnessDays || 1; const sd = new Date(a.witnessAt); const ed = new Date(sd); ed.setDate(ed.getDate() + (n - 1)); const f = (d) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); return <div style={{ border: "1px dashed var(--line)", borderRadius: 8, background: "rgba(107,155,242,.06)", padding: "8px 10px", fontSize: 12, color: "var(--accent)", marginTop: 6 }}>{n} daily sessions, {f(sd)} to {f(ed)}. One invite is sent per day so each session blocks the witnesses' calendars.</div>; })()}
             {(a.witnessDays || 1) > Math.max(1, a.duration || 1) && <span style={{ fontSize: 11, color: "#E0A106", fontWeight: 600 }}>Witness days exceed the activity's own duration ({Math.max(1, a.duration || 1)}d). Check one of them.</span>}
+          </div>}
+          {a.witnessInvite && isAdmin && !clientViewer && <div className="lk-f"><label>Test Invite</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <button className="lk-btn" style={{ fontSize: 12 }} disabled={!olConnected || !a.witnessAt || twBusy}
+                title={!olConnected ? "Connect Outlook from the Witness Schedule first" : !a.witnessAt ? "Set the witness date and time first" : "Creates this event in your calendar only, with the real template and vendor logo, using the values currently in this drawer including unsaved changes. No witnesses are invited, nothing is stamped, no status changes; delete it from your calendar after checking."}
+                onClick={async () => { if (!onTestInvite) return; setTwBusy(true); setTwNote(null); const m = await onTestInvite({ ...a }); setTwNote(m); setTwBusy(false); }}>
+                {twBusy ? "Sending..." : "Test Invite To Me"}</button>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Self only. Tests exactly what this drawer currently shows, including unsaved changes.</span>
+            </div>
+            {twNote && <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 8, border: "1px solid " + (twNote.ok ? "rgba(14,147,132,.5)" : "rgba(192,57,58,.5)"), color: twNote.ok ? "#0E9384" : "#C0392B", background: twNote.ok ? "rgba(14,147,132,.07)" : "rgba(192,57,58,.07)" }}>{twNote.text}</div>}
           </div>}
           {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = witnessRecipients(a.discipline); return (
             <div className="lk-f"><label>Invite recipients <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(set by discipline)</span></label>
