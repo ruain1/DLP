@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV111",
+  "date": "2026-07-04",
+  "items": [
+   "Test Invite To Me is now available in the activity drawer itself: any admin, super or the owner opening a witness activity finds it on the Readiness tab under Witness Days, in every activity status, on any date, whatever the invite state. It creates the real event with the real template and vendor logo in your own calendar only, invites nobody, stamps nothing, and reports the result inline in the drawer",
+   "The drawer test deliberately uses the values currently on screen, including unsaved changes, so you can preview an edit before saving or sending anything; the button says so. It is also deliberately independent of the plan lock and of the invites privilege, because a self-only test changes nothing: the option is always there for admins and the owner, which is the point",
+   "The Witness Schedule's own Test To Me is unchanged and already appears in every invite state; the drawer covers the cases the schedule cannot, such as activities outside the selected period"
+  ]
+ },
+ {
   "rev": "REV110",
   "date": "2026-07-04",
   "items": [
