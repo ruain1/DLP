@@ -1,5 +1,17 @@
 [
  {
+  "rev": "REV106",
+  "date": "2026-07-04",
+  "items": [
+   "PPC now measures only promises that have come due. The gauge and the sidebar figure previously divided kept promises by all committed activities, including commitments whose promised finish is still in the future, which cannot be kept yet; those are now excluded until their promised date passes, matching the Reasons panel and the trend. The headline number rises as a result, not because performance changed but because open promises are no longer counted as broken. The gauge caption states how many commitments are awaiting their date",
+   "Status Mix now answers the next question for each slice: Planned splits into ready to run and need make-ready, In progress splits into running late and constrained, Complete splits into on time and finished late, each with its percentage of the project and every count clickable to its activities",
+   "Activities By Company is now a contractor performance panel: each bar keeps its length as volume but segments into Complete, In progress and Planned, with new PPC and Open Constraints columns. PPC is promises due to date kept, colour-coded green from 80, amber from 50, red below, n/a until a company has committed work due; hover shows the kept-of-due count",
+   "By Cx Stage now reads as commissioning progression: stage colours stay on the labels, bars segment by status, and new Done and Open Constraints columns show how far through each stage the project is and what is blocking it",
+   "The Metrics Excel export carries all of the above: By company gains Complete, In progress, PPC %, PPC kept, PPC due and Open constraints; By Cx stage gains Complete, Complete % and Open constraints; Status mix gains Share % and the sub-split rows; the Summary sheet separates committed due to date from committed not yet due",
+   "Housekeeping: records the User Privileges width fix that shipped without a changelog entry; the privileges matrix page uses the full viewport width instead of the settings column"
+  ]
+ },
+ {
   "rev": "REV105",
   "date": "2026-07-04",
   "items": [
