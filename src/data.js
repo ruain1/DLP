@@ -591,7 +591,11 @@ const MEMBER_BASE = new Set(["create", "editOwn", "del", "witnessReq", "witnessO
 // One resolver for the whole client. ctx: { platformRole, projRole, isClientCompany, overrides }
 // overrides: plain object { key: boolean } for ONE user in ONE project.
 export function resolvePriv(ctx, key) {
-  if (ctx.platformRole === "owner") return true;
+  // The owner blanket grants every ELEVATED privilege, but requestInv is not one: it is the
+  // client-viewer mode flag (member of the client company), and App.jsx derives isClientViewer
+  // from it. Granting it to the owner flipped the owner's UI into client-viewer mode, hiding
+  // the admin action column and the drawer's Test Invite (the REV111 owner-account report).
+  if (ctx.platformRole === "owner") return key !== "requestInv";
   if (key === "privs") return false;
   const ov = ctx.overrides || {};
   if (key in ov) return !!ov[key];
