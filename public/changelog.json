@@ -1,5 +1,15 @@
 [
  {
+  "rev": "REV104",
+  "date": "2026-07-04",
+  "items": [
+   "New Owner role above the platform team: exactly one owner account, seeded in the database, which no admin, super or API call can demote or delete",
+   "New Admin page, Access -> User Privileges: a per-person matrix of rights for this project. Everyone starts from their role baseline (Member or Admin); the owner can grant or withdraw individual rights per person, with an amber dot marking any switch that differs from the baseline, a per-row Reset To Role Defaults, group filters, and a pending-changes save bar. Admins and supers see the page read-only; every change is written to the audit log and takes effect live",
+   "Request Invites is now a managed privilege with the same behaviour as before: on by default only for members whose company matches the project client, off for everyone else, and grantable or withdrawable per person",
+   "Rights are now enforced in the database as well as the app: creating, editing, deleting, committing and editing committed work are checked by row-level security and a commit-transition guard, so a withdrawn right holds even outside the app. Baselines mirror existing behaviour exactly, so nobody's effective rights change on day one"
+  ]
+ },
+ {
   "rev": "REV103",
   "date": "2026-07-04",
   "items": [
