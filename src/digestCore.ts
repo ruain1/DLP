@@ -96,16 +96,15 @@ export function classify(action: string): BucketKey {
 
 // ---------- helpers ----------
 export const esc = (s: unknown) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" } as Record<string, string>)[c]);
-const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd() + "\u2026" : s);
 export type AuditRow = { ts: string; user: string; action: string; detail: string; entity: string; entityId: string | null };
 export type ActRef = { code: number | null; desc: string; companyId: string | null };
 export function refName(row: AuditRow, acts: Map<string, ActRef>): string {
   if (row.entity === "activity" && row.entityId && acts.has(row.entityId)) {
     const a = acts.get(row.entityId)!;
-    return (a.code != null ? "#" + a.code + " " : "") + trunc(a.desc || "activity", 40);
+    return (a.code != null ? "#" + a.code + " " : "") + (a.desc || "activity");
   }
   const d = (row.detail || row.action || "").split(/[\n;]/)[0];
-  return trunc(d, 40);
+  return d;
 }
 const normT = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 // Detail fragments that merely echo the activity name add nothing and read as stutter
@@ -118,7 +117,7 @@ const detailFrag = (row: AuditRow, ref?: string) => {
     const nd = normT(d);
     if (nd && (nd === normT(ref) || nd === normT(ref.replace(/^#\d+\s*/, "")))) return "";
   }
-  return " (" + trunc(d, 60) + ")";
+  return " (" + d + ")";
 };
 // Duplicate references within a verb group collapse to one entry with a count, and the caps
 // and "+n more" maths run on the deduped list so the numbers stay honest.
@@ -226,11 +225,17 @@ export type ChangeEntry = { rev: string; date: string; items: string[] };
 export function changelogRows(entries: ChangeEntry[], startDate: string, endDate: string, kind: "daily" | "weekly") {
   const inWin = entries.filter((e) => e.date >= startDate && e.date <= endDate).sort((a, b) => a.rev.localeCompare(b.rev, undefined, { numeric: true }));
   if (!inWin.length) return [] as { head: string; text: string }[];
-  const condense = (e: ChangeEntry, cap: number) => trunc(e.items.map((i) => i.split(/[.;:]/)[0]).join("; "), cap);
-  if (kind === "weekly" && inWin.length > 2) {
-    return [{ head: `${inWin[0].rev} to ${inWin[inWin.length - 1].rev}`, text: trunc(inWin.map((e) => e.items[0].split(/[.;:]/)[0]).join("; "), 420) }];
+  // First sentence of each item, joined; never truncated mid-word. Every word that appears is
+  // whole; busy-week volume is handled structurally (the latest three revisions itemised, the
+  // remainder counted with a pointer to DLP) rather than by clipping.
+  const first = (s: string) => (s || "").split(/[.;:]/)[0].trim();
+  const condense = (e: ChangeEntry) => e.items.map(first).filter(Boolean).join("; ");
+  if (kind === "weekly" && inWin.length > 3) {
+    const latest = inWin.slice(-3);
+    const earlier = inWin.length - 3;
+    return [{ head: `${inWin[0].rev} to ${inWin[inWin.length - 1].rev}`, text: latest.map((e) => first(e.items[0])).join("; ") + `; plus ${earlier} earlier revision${earlier === 1 ? "" : "s"} this week, full changelog in DLP.` }];
   }
-  return inWin.map((e) => ({ head: e.rev, text: condense(e, 300) }));
+  return inWin.map((e) => ({ head: e.rev, text: condense(e) }));
 }
 
 // ---------- workflow palette ----------
