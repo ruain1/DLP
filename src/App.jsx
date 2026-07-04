@@ -1788,7 +1788,7 @@ export default function App({ session }) {
               const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("kind", b.kind).eq("run_date", runDate).maybeSingle();
               if (ex.data && ex.data.status === "sending" && (Date.now() - new Date(ex.data.sent_at).getTime()) > 600000) claimId = ex.data.id;
               else continue;
-            } else { setDigestNote({ ok: false, text: "Digest claim failed: " + ins.error.message }); return; }
+            } else { setDigestNote({ ok: false, text: "Digest claim failed: " + digestErrText(ins.error.message) }); return; }
           } else claimId = ins.data.id;
         }
         try {
@@ -6021,12 +6021,28 @@ async function fetchLogoAsset(url) {
   _logoAssetCache.set(url, out);
   return out;
 }
+// Translate a raw database refusal into its cure. The row-level security message on
+// report_runs means the legacy is_admin() helper predates the owner/super role model;
+// the fix is a one-file SQL migration, not a retry.
+const digestErrText = (msg) => {
+  const m = String(msg || "");
+  if (/row-level security/i.test(m)) return m + " - the database is still using the pre-owner/super admin rule. Run supabase/is-admin-REV110.sql in the Supabase SQL editor, then retry; no app deploy is needed for the fix to take effect.";
+  return m;
+};
 async function resolveDigestRecipients(St) {
   const us = await fetchUserStatus();
-  const admins = (St.users || []).filter((p) => p.role === "admin");
+  // Admin means any of: legacy profile role, platform super, the owner, or a per-project
+  // admin on this project. The REV104 rework split adminship across these places; a digest
+  // to "all admins" must honour all of them or people silently drop off their own digest.
+  let memberAdminIds = [];
+  try {
+    if (St.projectId) memberAdminIds = (await loadProjectMembers(St.projectId)).filter((m) => m.role === "admin").map((m) => m.user_id);
+  } catch (e) { /* membership read failure must not block a digest; profile roles still apply */ }
+  const isAdminUser = (p) => p.role === "admin" || p.platformRole === "super" || p.platformRole === "owner" || memberAdminIds.includes(p.id);
+  const admins = (St.users || []).filter(isAdminUser);
   const missing = [];
   const recipients = admins.map((p) => { const em = us[p.id] && us[p.id].email; if (!em) missing.push(p.name); return em; }).filter(Boolean);
-  return { recipients, missing };
+  return { recipients: [...new Set(recipients)], missing };
 }
 function AdminDigestCard({ S }) {
   const [runs, setRuns] = useState(null);
@@ -6072,7 +6088,7 @@ function AdminDigestCard({ S }) {
         claimId = ex.data.id;
       } else {
         const ins = await supabase.from("report_runs").insert({ kind, run_date: runDate, status: "sending", recipients: 0 }).select("id").single();
-        if (ins.error) throw new Error("claim: " + ins.error.message);
+        if (ins.error) throw new Error("claim: " + digestErrText(ins.error.message));
         claimId = ins.data.id;
       }
       const asm = await assembleDigest(core, S, kind, due);
