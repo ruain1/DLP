@@ -1,5 +1,18 @@
 [
  {
+  "rev": "REV105",
+  "date": "2026-07-04",
+  "items": [
+   "The Weekly PPC Trend no longer plots the future as failure. Committed work due in weeks that have not happened cannot be complete, so those weeks rendered as 0% kept; the axis now ends at the current week, and the collapse-to-zero tail is gone",
+   "The current week draws as a hollow point with a dashed lead-in and a legend note, because its PPC is provisional until the week closes; work due Friday is no longer scored as broken on Tuesday",
+   "Trend point tooltips now carry the denominator, for example W26: 65% (13 of 20 kept), so a 100% week built on one activity can no longer masquerade as one built on twenty",
+   "New 4-week rolling average on the trend, amber dashed, computed over summed kept and due counts rather than averaged percentages, so tiny weeks cannot swing it",
+   "The failure-reason bars in Invitation Outcomes and Reasons For Non-Completion are now genuine Paretos: bar length is each reason's share of the total (previously bars scaled to the biggest bar, overstating minor reasons), with new Share and running-total columns and a cumulative marker on each bar",
+   "The same Pareto columns appear in the Weekly DLP Report's Why Work Slipped and Invitation Outcomes sections, and the Metrics Excel Non-completion sheet gains Share % and Cumulative % columns",
+   "Reason labels in the Analytics bar panels wrap instead of clipping with an ellipsis, completing on screen what REV102 fixed in print; this also applies to Activities By Company and By Cx Stage"
+  ]
+ },
+ {
   "rev": "REV104",
   "date": "2026-07-04",
   "items": [
