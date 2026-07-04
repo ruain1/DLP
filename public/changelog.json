@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV103",
+  "date": "2026-07-04",
+  "items": [
+   "Sidebar PPC now agrees with the Analytics gauge. It previously counted every completed committed activity, including those finished late, while the gauge, the Weekly Report and the admin digests all count only activities finished on or before their promised date. The sidebar now uses the same on-time rule, so all four surfaces show one number",
+   "The sidebar PPC tooltip now explains the metric: committed activities finished on or before their promised date, click to open Analytics"
+  ]
+ },
+ {
   "rev": "REV102",
   "date": "2026-07-03",
   "items": [
