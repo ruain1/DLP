@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV102",
+  "date": "2026-07-03",
+  "items": [
+   "Full-text fix: no printed or emailed entry is ever cut off mid-word again. In the Weekly DLP Report, the Reasons and Breakdown row names and the schedule snapshot's activity labels previously clipped with an ellipsis at fixed widths, unreadable on paper; they now wrap to as many lines as they need, with the row growing to fit and the layout otherwise unchanged",
+   "In the admin digests, activity references, detail fragments and changelog rows are no longer truncated at character caps; every word shown is whole. Busy-week changelog volume is handled structurally instead: weeks with more than three revisions itemise the latest three and state plainly how many earlier revisions the week held, with the full changelog in DLP"
+  ]
+ },
+ {
   "rev": "REV101",
   "date": "2026-07-03",
   "items": [
