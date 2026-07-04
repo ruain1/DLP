@@ -365,7 +365,8 @@ function buildDrill(key, ds, data) {
 /* =====================================================================
    PAGE
    ===================================================================== */
-export default function CxProgressPage({ projectId, isAdmin, theme, cu, reportButton }) {
+export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, reportButton }) {
+  const canv = can || (() => isAdmin);
   const [weeks, setWeeks] = useState([]);          // [{week_ending, ...headline}]
   const [snap, setSnap] = useState(null);          // current full snapshot row
   const [cfg, setCfg] = useState(DEFAULT_CONFIG);
@@ -448,9 +449,9 @@ export default function CxProgressPage({ projectId, isAdmin, theme, cu, reportBu
           {weeks.length === 0 && <option value="">No imports yet</option>}
           {weeks.map((w) => <option key={w.week_ending} value={w.week_ending}>Week ending {fmtFull(w.week_ending)}</option>)}
         </select>
-        {isAdmin && <label className="cxp-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />{busy ? "Importing\u2026" : "Import workbook"}</label>}
+        {canv("importWb") && <label className="cxp-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />{busy ? "Importing\u2026" : "Import workbook"}</label>}
         {reportButton}
-        {isAdmin && <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>}
+        {canv("cxConfig") && <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>}
       </div>
 
       {err && <div className="cxp-err">{err}</div>}

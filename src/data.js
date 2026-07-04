@@ -38,7 +38,7 @@ const fromInviteRequest = (r) => ({
 
 // ---- load everything into the client state shape ----
 export async function loadAll(session, projectId, projectName) {
-  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs] = await Promise.all([
+  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs, privRows] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("systems").select("*").eq("project_id", projectId).order("name"),
@@ -51,6 +51,7 @@ export async function loadAll(session, projectId, projectName) {
     supabase.from("sub_areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("tier3_areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("invite_requests").select("*").eq("project_id", projectId),
+    supabase.from("user_privileges").select("*").eq("project_id", projectId),
   ]);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
@@ -67,6 +68,7 @@ export async function loadAll(session, projectId, projectName) {
     subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
     tier3s: (tier3s.data || []).map((t) => ({ area: t.area, subArea: t.sub_area, name: t.name })),
     inviteRequests: (inviteReqs.data || []).map(fromInviteRequest),
+    privileges: (privRows.data || []).map((r) => ({ userId: r.user_id, key: r.priv_key, granted: !!r.granted })),
   };
 }
 
@@ -81,7 +83,8 @@ export async function loadProjects(session) {
     supabase.from("activities").select("id, project_id, status, start_date, duration"),
     supabase.from("audit_log").select("ts, user_name, action, entity, entity_id, detail").order("ts", { ascending: false }).limit(80),
   ]);
-  const isSuper = prof.data?.platform_role === "super";
+  const platformRole = prof.data?.platform_role || "user";
+  const isSuper = platformRole === "super" || platformRole === "owner";
   const userName = prof.data?.name || (session?.user?.email || "");
   const roleByProj = {};
   (memRes.data || []).forEach((m) => { roleByProj[m.project_id] = m.role; });
@@ -121,7 +124,7 @@ export async function loadProjects(session) {
     activity.push({ user: e.user_name || "Someone", verb: verb[e.action] || "updated", name: (e.detail || "").trim().slice(0, 52), code: codeByProj[actToProj[e.entity_id]] || "", ts: e.ts, projId: actToProj[e.entity_id] || null, actId: e.entity_id });
     if (activity.length >= 6) break;
   }
-  return { isSuper, userName, list, activity };
+  return { isSuper, platformRole, userName, list, activity };
 }
 
 // Read-only overview for the "Inside a project" page. Reuses loadAll so it sees
@@ -569,4 +572,52 @@ export async function saveReportRecipients(projectId, recipients) {
   const { error } = await supabase.from("report_recipients").upsert({ project_id: projectId, recipients: clean, updated_at: new Date().toISOString() }, { onConflict: "project_id" });
   if (error) throw error;
   return clean;
+}
+
+
+// ---- REV104: per-project user privileges ----
+// Keys and grouping for the User Privileges matrix. Baselines mirror live
+// behaviour as of REV103 (see has_priv in supabase/user-privileges-REV104.sql;
+// the two resolvers must stay in lockstep).
+export const PRIV_GROUPS = [
+  ["Planning Board", [["create", "Create Activities"], ["editOwn", "Edit Own Company Work"], ["editAny", "Edit Any Company Work"], ["del", "Delete Activities"], ["commit", "Commit Weekly Plan"], ["editCommitted", "Edit Committed Work"], ["delay", "Record Delays"]]],
+  ["Witnessing", [["witnessReq", "Set Witness Requirements"], ["witnessSend", "Send Witness Invitations"], ["requestInv", "Request Invites"], ["witnessOutcome", "Record Witness Outcomes"], ["retest", "Declare Retests"]]],
+  ["Progress And Reports", [["importWb", "Import Cx Workbook"], ["cxConfig", "Configure Cx Progress"], ["weekly", "Generate Weekly Report"], ["distList", "Manage Distribution List"]]],
+  ["Administration", [["users", "Manage Users"], ["approve", "Approve Access Requests"], ["auditView", "View Audit Log"], ["auditRevert", "Revert From Audit Log"], ["privs", "Manage Privileges"]]],
+];
+export const PRIV_KEYS = PRIV_GROUPS.flatMap(([, ps]) => ps.map(([k]) => k));
+const MEMBER_BASE = new Set(["create", "editOwn", "del", "witnessReq", "witnessOutcome", "retest"]);
+
+// One resolver for the whole client. ctx: { platformRole, projRole, isClientCompany, overrides }
+// overrides: plain object { key: boolean } for ONE user in ONE project.
+export function resolvePriv(ctx, key) {
+  if (ctx.platformRole === "owner") return true;
+  if (key === "privs") return false;
+  const ov = ctx.overrides || {};
+  if (key in ov) return !!ov[key];
+  const role = ctx.platformRole === "super" ? "admin" : (ctx.projRole || null);
+  if (!role) return false;
+  if (key === "requestInv") return role === "member" && !!ctx.isClientCompany;
+  if (role === "admin") return true;
+  return MEMBER_BASE.has(key);
+}
+
+export async function saveUserPrivileges(projectId, changes) {
+  // changes: [{ userId, key, value }] where value true/false stores an override
+  // and value null clears the row back to the role default.
+  const { data } = await supabase.auth.getSession();
+  const me = data?.session?.user?.id || null;
+  const ups = changes.filter((c) => c.value === true || c.value === false)
+    .map((c) => ({ project_id: projectId, user_id: c.userId, priv_key: c.key, granted: c.value, updated_by: me, updated_at: new Date().toISOString() }));
+  const dels = changes.filter((c) => c.value == null);
+  if (ups.length) {
+    const { error } = await supabase.from("user_privileges").upsert(ups, { onConflict: "project_id,user_id,priv_key" });
+    if (error) return error.message || String(error);
+  }
+  for (const d of dels) {
+    const { error } = await supabase.from("user_privileges").delete()
+      .eq("project_id", projectId).eq("user_id", d.userId).eq("priv_key", d.key);
+    if (error) return error.message || String(error);
+  }
+  return "";
 }

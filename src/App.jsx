@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -1675,7 +1675,7 @@ export default function App({ session }) {
   const persistInv = (a, witnessEvents, action, detail) => update((p) => ({ ...p, activities: p.activities.map((x) => (x.id === a.id ? { ...x, witnessEvents, witnessSentAt: witnessEvents.some((e) => e.status !== "cancelled") ? (x.witnessSentAt || new Date().toISOString()) : x.witnessSentAt } : x)) }), { action, detail });
   // mode: "send" reconciles (create missing days, update mismatched, cancel surplus); "cancel" cancels all active sessions.
   const runInv = async (a, mode) => {
-    if (!isAdmin || olBusy) return;
+    if (!can("witnessSend") || olBusy) return;
     if (mode === "cancel" && !window.confirm(`Send a cancellation to all attendees for "${a.desc || "this activity"}"?`)) return;
     setOlBusy(a.id); setOlMsg(null);
     try {
@@ -1829,14 +1829,18 @@ export default function App({ session }) {
     return out.sort((x, y) => (x.c.due || "9999").localeCompare(y.c.due || "9999"));
   })();
   const notifCount = myConstraints.length;
-  const canEdit = (a) => isAdmin || a.companyId === cu.companyId;
-  // ---- Request Invite (atnorth client viewers) ----
-  // A non-admin whose company is the project client (atnorth) can ask an admin to
-  // forward an activity's invite to them. The admin sees it in the notifications bell.
-  const inviteReqs = S.inviteRequests || [];
+  // ---- REV104: per-project privilege resolver (client mirror of has_priv in SQL) ----
+  const meProfile = (S.users || []).find((u) => u.id === cu.id) || {};
+  const isOwner = (meProfile.platformRole || "user") === "owner";
   const myCoName = (coName(cu.companyId) || "").trim().toLowerCase();
   const projClient = (((projects || []).find((p) => p.id === selProj) || {}).client || "").trim().toLowerCase();
-  const isClientViewer = !isAdmin && !!cu.companyId && (myCoName === "atnorth" || (!!projClient && myCoName === projClient));
+  const isClientCompany = !!cu.companyId && !!projClient && (myCoName === projClient || myCoName === "atnorth");
+  const myOverrides = {}; (S.privileges || []).forEach((r) => { if (r.userId === cu.id) myOverrides[r.key] = r.granted; });
+  const can = (k) => resolvePriv({ platformRole: meProfile.platformRole || (isSuper ? "super" : "user"), projRole: cu.role, isClientCompany, overrides: myOverrides }, k);
+  const canEdit = (a) => can("editAny") || (can("editOwn") && a.companyId === cu.companyId);
+  // ---- Request Invite (client-company viewers; privilege-driven from REV104) ----
+  const inviteReqs = S.inviteRequests || [];
+  const isClientViewer = can("requestInv") && !!cu.companyId;
   const myInviteFor = (actId) => inviteReqs.find((r) => r.activityId === actId && r.requesterId === cu.id) || null;
   const pendingInvites = isAdmin ? inviteReqs.filter((r) => r.status === "pending") : [];
   const notifTotal = notifCount + pendingInvites.length;
@@ -1930,8 +1934,8 @@ export default function App({ session }) {
   };
   const moveActivity = (id, dayIdx, lane) => {
     const a = S.activities.find((x) => x.id === id); if (!a || !canEdit(a)) { dragId.current = null; return; }
-    if (!isAdmin && a.committed) { dragId.current = null; return; }
-    if (!isAdmin && S.laneBy === "company" && lane != null) { const c = S.companies.find((c) => c.name === lane); if (c && c.id !== a.companyId) { dragId.current = null; return; } }
+    if (!(can("editCommitted") || can("commit")) && a.committed) { dragId.current = null; return; }
+    if (!can("editAny") && S.laneBy === "company" && lane != null) { const c = S.companies.find((c) => c.name === lane); if (c && c.id !== a.companyId) { dragId.current = null; return; } }
     update((p) => ({ ...p, activities: p.activities.map((x) => {
       if (x.id !== id) return x;
       const u = { ...x, start: fmtISO(addDays(anchor, dayIdx)) };
@@ -1940,7 +1944,7 @@ export default function App({ session }) {
     }) }), { action: "Move activity", detail: `${a.desc} to ${fmtISO(addDays(anchor, dayIdx))}` });
     dragId.current = null;
   };
-  const resizable = (a) => !a.isMilestone && canEdit(a) && (isAdmin || !a.committed);
+  const resizable = (a) => !a.isMilestone && canEdit(a) && (can("editCommitted") || can("commit") || !a.committed);
   const commitResize = (a, edge, delta) => {
     update((p) => ({ ...p, activities: p.activities.map((x) => {
       if (x.id !== a.id) return x;
@@ -1967,7 +1971,7 @@ export default function App({ session }) {
     window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
   };
   const newActivity = (lane, dayIdx) => {
-    const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: isAdmin ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
+    const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: can("editAny") ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
       start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessAt: "", witnessDurationMin: 60, witnessDays: 1, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
@@ -2000,7 +2004,7 @@ export default function App({ session }) {
     if (rz) { if (rz.edge === "l") s = Math.max(0, Math.min(e, sU(a) + rz.delta)); else e = Math.min(cols - 1, Math.max(s, eU(a) + rz.delta)); }
     const lv = lvOf(LV, a.level);
     const editable = canEdit(a);
-    const movable = isAdmin || (editable && !a.committed);
+    const movable = editable && (!a.committed || can("editCommitted") || can("commit"));
     if (a.isMilestone) {
       const late = a.delayed && !a.excuse;
       const complete = a.status === "complete";
@@ -2416,19 +2420,19 @@ export default function App({ session }) {
         <span className="it"><span style={{ height: 0, width: 18, borderTop: "1.5px dashed #E0A106", display: "inline-block" }} />retest link</span>
       </div>
       </div>}
-      {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} canEdit={canEdit} update={update} coName={coName} />}
+      {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} can={can} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
-      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} />}
-      {page === "cx" && <CxProgressPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={isAdmin} projectId={selProj} label="Weekly Report" variant="cx" />} />}
+      {page === "reports" && <ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
+      {page === "admin" && isAdmin && <AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} />}
+      {page === "cx" && <CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} />}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
       </div>
 
       {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "rgba(14,147,132,.14)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "#0E9384" : "#C0392B"), color: digestNote.ok ? "#0E9384" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -2624,7 +2628,7 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete, hasLiveInvite, onCancelInvite }) {
+function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete, hasLiveInvite, onCancelInvite }) {
   const [a, setA] = useState(act);
   const [rtOpen, setRtOpen] = useState(false);
   const [rtName, setRtName] = useState("");
@@ -2651,7 +2655,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
   // The failed lock keys off the record as opened (act), not the live edit copy, so the person
   // recording a failure can still fill the reason before saving. Admins are never locked.
   const failedOnRecord = !!(act.witnessInvite && (act.outcome || "pending") === "failed");
-  const locked = (a.status === "complete" || failedOnRecord) && !isAdmin;
+  const locked = (a.status === "complete" || failedOnRecord) && !can("editCommitted");
   const set = (k, v) => { if (!canEdit || locked) return; setA((p) => ({ ...p, [k]: v })); };
   const setOutcome = (k) => {
     if (!canEdit || locked) return;
@@ -2669,11 +2673,11 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
     if (!rtStart || !rtName.trim()) return;
     const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], witnessInvite: true, witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessDays: a.witnessDays || 1, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
     setRtOpen(false);
-    if (onSaveRetest) onSaveRetest(a, clone); else onSave(a, isNew);
+    if (onSaveRetest && can("retest")) onSaveRetest(a, clone); else onSave(a, isNew);
   };
   const setReason = (v) => { if (!canEdit) return; setA((p) => ({ ...p, slipReason: v })); };
   const isNew = !act.desc && act.constraints.length === 0;
-  const doReschedule = () => { if (!isAdmin || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
+  const doReschedule = () => { if (!can("delay") || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
   const dis = !canEdit || locked;
   // Phase 1 commit lock: the plan of a committed activity (dates, duration, scope, identity,
@@ -2681,7 +2685,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
   // Progress recording (status, actual dates, percent, slip reason, witness outcome, constraints,
   // notes) stays open. Keyed on the record as opened (act) so the lock cannot be dodged by
   // unticking Committed first. Admins are never plan-locked.
-  const planLocked = !!act.committed && !isAdmin;
+  const planLocked = !!act.committed && !(can("editCommitted") || can("commit"));
   const disPlan = dis || planLocked;
   const assetTags = parseAssetField(a.asset);
   const assetDerived = deriveFromAssets(assetTags);
@@ -2752,7 +2756,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           {!canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
           {planLocked && canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Committed promise: the plan is locked. Progress, percent, reasons for non-completion and witness outcomes can still be recorded. Ask an admin to change or delete this commitment.</div>}
           <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
-            {[["details", "Details"], ["schedule", "Schedule"], ["ready", "Readiness"]].concat(isAdmin && !isNew ? [["delay", "Delay"]] : []).map(([k, l]) => (
+            {[["details", "Details"], ["schedule", "Schedule"], ["ready", "Readiness"]].concat(can("delay") && !isNew ? [["delay", "Delay"]] : []).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)} style={{ flex: 1, fontFamily: "inherit", fontSize: 12, fontWeight: 650, padding: "8px 6px", borderRadius: "8px 8px 0 0", cursor: "pointer", borderWidth: 1, borderStyle: "solid", borderColor: tab === k ? "var(--line)" : "transparent", borderBottom: 0, background: tab === k ? "var(--card)" : "transparent", color: tab === k ? "var(--ink)" : "var(--muted)" }}>
                 {l}{k === "delay" && !a.excuse && (a.delayed || a.totalShift > 0) ? <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#F87171", marginLeft: 5, verticalAlign: "middle" }} /> : null}
               </button>))}
@@ -2761,12 +2765,12 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           <div className="lk-f"><label>What is the activity{a.code != null ? <span style={{ fontWeight: 400, color: "var(--muted)" }}> &middot; #{a.code}</span> : null}</label><input className="lk-in" value={a.desc} disabled={disPlan} placeholder="e.g. UPS module SAT" autoFocus onChange={(e) => set("desc", e.target.value)} /></div>
           <div className="lk-row">
             <div className="lk-f"><label>Company (Performing)</label>
-              <select className="lk-select" value={a.companyId || ""} disabled={dis || !isAdmin} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("company"); } else set("companyId", e.target.value); }}>
+              <select className="lk-select" value={a.companyId || ""} disabled={dis || !can("editAny")} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("company"); } else set("companyId", e.target.value); }}>
                 {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}{isAdmin && !dis && ADD_OPT}
               </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}
               {renderAdd("company", "New company name", {})}</div>
             <div className="lk-f"><label>Building</label>
-              {lockB ? roBox(a.area) : <><select className="lk-select" value={a.area} disabled={dis || !isAdmin} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
+              {lockB ? roBox(a.area) : <><select className="lk-select" value={a.area} disabled={dis || !can("editAny")} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}>
                 <option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select>
               {!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Building is fixed for the project.</span>}</>}</div>
           </div>
@@ -2852,7 +2856,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
               <button className="lk-btn primary" title="Add constraint" onClick={addC}><Icon n="plus" s={15} /></button>
             </div>}</div>
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => { if (planLocked) return; set("committed", !a.committed); }}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
-          <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => { if (planLocked) return; set("witnessInvite", !a.witnessInvite); }}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
+          <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => { if (planLocked || !can("witnessReq")) return; set("witnessInvite", !a.witnessInvite); }}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
             <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={disPlan} onChange={(e) => set("witnessAt", e.target.value)} />
             {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}
@@ -2904,7 +2908,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           <div className="lk-f"><label>Status</label><div className="lk-status">{(a.isMilestone ? [["planned", "Planned"], ["complete", "Complete"]] : [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]).map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); n.percent = 100; } else if (k === "planned") n.percent = 0; return n; })}>{l}</button>)}</div>
             {a.isMilestone && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Milestones are binary: a point event is either Planned or Complete.</span>}</div>
           {a.witnessInvite && <div className="lk-f"><label>Witness Outcome</label>
-            <div className="lk-status">{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || locked} onClick={() => setOutcome(k)}>{l}</button>)}</div>
+            <div className="lk-status">{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || locked || !can("witnessOutcome")} onClick={() => setOutcome(k)}>{l}</button>)}</div>
             <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The result of the witnessed event, separate from the schedule status above.</span></div>}
           {a.witnessInvite && (a.outcome || "pending") === "succeeded" && <div className="lk-f"><label>Outcome Date</label><input className="lk-in mono" type="date" value={a.outcomeAt || ""} disabled={dis} onChange={(e) => set("outcomeAt", e.target.value)} /></div>}
           {a.witnessInvite && (a.outcome || "pending") === "failed" && <div style={{ border: "1px solid rgba(192,57,58,.4)", background: "rgba(192,57,58,.06)", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2922,7 +2926,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
                   <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Create Linked Retest</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 9 }}>Clones this activity as a new witness invitation linked back to this record, so the attempt history stays connected and first-time-pass stays computable. You can also save without a retest and add one later.</div>
                   <button className="lk-btn primary" disabled={incomplete} onClick={openRetest} title={incomplete ? "Complete the required fields first" : "Create a linked retest"}>Create Retest</button>
-                  {isAdmin && hasLiveInvite && onCancelInvite && <button className="lk-btn" style={{ color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} onClick={() => onCancelInvite(act)} title="Send a calendar cancellation to all attendees of this witness event (deliberately manual: a failure recorded mid-session should not vaporise the meeting)">Cancel Outlook Invite</button>}
+                  {can("witnessSend") && hasLiveInvite && onCancelInvite && <button className="lk-btn" style={{ color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} onClick={() => onCancelInvite(act)} title="Send a calendar cancellation to all attendees of this witness event (deliberately manual: a failure recorded mid-session should not vaporise the meeting)">Cancel Outlook Invite</button>}
                 </div>)}
           </div>}
           {a.isMilestone
@@ -2948,7 +2952,7 @@ function Drawer({ act, S, canEdit, isAdmin, by, clientViewer, inviteForMe, onReq
           <div className="lk-f"><label>Notes / Comment</label>
             <textarea className="lk-in" value={a.notes || ""} disabled={dis} placeholder="Anything the team should know: access, sequencing, contacts, risks…" rows={3} style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }} onChange={(e) => set("notes", e.target.value)} /></div>
           </>}
-          {tab === "delay" && isAdmin && !isNew && (() => {
+          {tab === "delay" && can("delay") && !isNew && (() => {
             const ps = parseD(a.start), pf = addDays(ps, Math.max(1, a.duration || 1) - 1);
             const lateStart = a.actualStart ? Math.round((parseD(a.actualStart) - ps) / DAYMS) : 0;
             const overdue = (a.status !== "complete" && pf.getTime() < todayMid()) ? Math.round((todayMid() - pf.getTime()) / DAYMS) : 0;
@@ -3046,8 +3050,86 @@ async function readXlsxSheet(file) {
   return { headers: headers, rows: rows.slice(1) };
 }
 
-function AdminPanel({ S, cu, update, exportActivities }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+
+// ---- REV104: per-project User Privileges matrix (owner edits, admins read-only) ----
+function PrivilegesTab({ S, cu, isOwner, projClient }) {
+  const [members, setMembers] = useState(null);
+  const [pending, setPending] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [gf, setGf] = useState("");
+  useEffect(() => { let live = true; if (S.projectId) loadProjectMembers(S.projectId).then((r) => { if (live) setMembers(r || []); }).catch(() => { if (live) setMembers([]); }); return () => { live = false; }; }, [S.projectId]);
+  const uById = {}; (S.users || []).forEach((u) => { uById[u.id] = u; });
+  const coName = (id) => ((S.companies || []).find((c) => c.id === id) || {}).name || "";
+  const rows = (() => {
+    const out = []; const seen = new Set();
+    (S.users || []).filter((u) => u.platformRole === "owner").forEach((u) => { out.push({ u, projRole: "admin", tag: "OWNER" }); seen.add(u.id); });
+    (S.users || []).filter((u) => u.platformRole === "super" && !seen.has(u.id)).forEach((u) => { out.push({ u, projRole: "admin", tag: "SUPER" }); seen.add(u.id); });
+    (members || []).forEach((m) => { const u = uById[m.user_id]; if (!u || seen.has(u.id)) return; out.push({ u, projRole: m.role === "admin" ? "admin" : "member", tag: m.role === "admin" ? "ADMIN" : "MEMBER" }); seen.add(u.id); });
+    return out;
+  })();
+  const ovFor = (uid) => { const o = {}; (S.privileges || []).forEach((r) => { if (r.userId === uid) o[r.key] = r.granted; }); const pnd = pending[uid] || {}; Object.keys(pnd).forEach((k) => { if (pnd[k] == null) delete o[k]; else o[k] = pnd[k]; }); return o; };
+  const clientCo = (u) => { const n = (coName(u.companyId) || "").trim().toLowerCase(); const pc = (projClient || "").trim().toLowerCase(); return !!n && !!pc && (n === pc || n === "atnorth"); };
+  const base = (r, k) => resolvePriv({ platformRole: r.u.platformRole === "super" ? "super" : "user", projRole: r.projRole, isClientCompany: clientCo(r.u), overrides: {} }, k);
+  const eff = (r, k) => r.u.platformRole === "owner" ? true : (k === "privs" ? false : resolvePriv({ platformRole: r.u.platformRole === "super" ? "super" : "user", projRole: r.projRole, isClientCompany: clientCo(r.u), overrides: ovFor(r.u.id) }, k));
+  const isOv = (r, k) => r.u.platformRole !== "owner" && k !== "privs" && eff(r, k) !== base(r, k);
+  const toggle = (r, k) => {
+    if (!isOwner || busy || r.u.platformRole === "owner" || k === "privs") return;
+    const next = !eff(r, k); const savedOv = {}; (S.privileges || []).forEach((x) => { if (x.userId === r.u.id) savedOv[x.key] = x.granted; });
+    const saved = (k in savedOv) ? savedOv[k] : base(r, k);
+    setPending((p) => { const row = { ...(p[r.u.id] || {}) }; if (next === saved) delete row[k]; else row[k] = next; const np = { ...p, [r.u.id]: row }; if (!Object.keys(row).length) delete np[r.u.id]; return np; });
+  };
+  const resetRow = (r) => { if (!isOwner) return; setPending((p) => { const row = {}; (S.privileges || []).forEach((x) => { if (x.userId === r.u.id) row[x.key] = null; }); const np = { ...p, [r.u.id]: row }; if (!Object.keys(row).length) delete np[r.u.id]; return np; }); };
+  const pendCount = Object.values(pending).reduce((n, m) => n + Object.keys(m).length, 0);
+  const doSave = async () => {
+    if (!pendCount || busy) return; setBusy(true); setMsg("");
+    const changes = [];
+    Object.entries(pending).forEach(([uid, m]) => { const r = rows.find((x) => x.u.id === uid); Object.entries(m).forEach(([k, v]) => { if (v == null) changes.push({ userId: uid, key: k, value: null }); else changes.push({ userId: uid, key: k, value: r && v === base(r, k) ? null : v }); }); });
+    const err = await saveUserPrivileges(S.projectId, changes);
+    setBusy(false);
+    if (err) { setMsg("Save failed: " + err); return; }
+    setPending({}); setMsg("Saved. Changes are live for affected users and recorded in the audit log.");
+  };
+  const groups = gf ? PRIV_GROUPS.filter(([g]) => g === gf) : PRIV_GROUPS;
+  const badge = (t) => <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: .6, padding: "2px 7px", borderRadius: 999, background: t === "OWNER" ? "#7c3aed" : t === "SUPER" ? "#0E9384" : t === "ADMIN" ? "var(--accent)" : "var(--line)", color: t === "MEMBER" ? "var(--muted)" : "#fff" }}>{t}</span>;
+  const tg = (on, locked) => <span style={{ display: "inline-block", width: 32, height: 18, borderRadius: 999, position: "relative", background: locked ? (on ? "#7c3aed" : "var(--line)") : (on ? "var(--accent)" : "var(--line)"), opacity: locked ? .55 : 1, verticalAlign: "middle" }}><span style={{ position: "absolute", top: 2, left: on ? 16 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .12s" }} /></span>;
+  return <>
+    <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>User Privileges {!isOwner && <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>Read-only. Only the owner can change privileges.</span>}</h2>
+    <div className="lk-hint" style={{ maxWidth: 780 }}>Each person starts from their role baseline; a switch that differs from that baseline carries an amber dot. Request Invites defaults on only for members of the project client company{projClient ? " (" + projClient + ")" : ""}. Manage Privileges is locked to the owner. Changes apply on Save, take effect live, and are written to the audit log.</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0" }}>
+      {["", ...PRIV_GROUPS.map(([g]) => g)].map((g) => <button key={g || "all"} className={"lk-btn" + (gf === g ? " primary" : "")} style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setGf(g)}>{g || "All Groups"}</button>)}
+    </div>
+    {members == null ? <div className="lk-hint">Loading project team...</div> : <div style={{ overflow: "auto", border: "1px solid var(--line)", borderRadius: 12, maxHeight: "62vh" }}>
+      <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "max-content", minWidth: "100%" }}>
+        <thead>
+          <tr>{[<th key="u" style={{ position: "sticky", left: 0, top: 0, zIndex: 4, background: "var(--card)", textAlign: "left", padding: "8px 12px", minWidth: 210, borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>User</th>].concat(groups.map(([g, ps]) => <th key={g} colSpan={ps.length} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--card)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", padding: "7px 6px", borderLeft: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>{g}</th>))}</tr>
+          <tr>{[<th key="u2" style={{ position: "sticky", left: 0, top: 31, zIndex: 4, background: "var(--card)", borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />].concat(groups.flatMap(([, ps]) => ps.map(([k, label]) => <th key={k} style={{ position: "sticky", top: 31, zIndex: 3, background: "var(--card)", minWidth: 84, maxWidth: 84, padding: "8px 5px", fontSize: 10.5, fontWeight: 600, lineHeight: 1.25, whiteSpace: "normal", verticalAlign: "bottom", borderLeft: "1px dashed var(--line)", borderBottom: "1px solid var(--line)", color: k === "privs" ? "var(--muted)" : "var(--ink)" }}>{label}</th>)))}</tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => { const hasOv = PRIV_GROUPS.some(([, ps]) => ps.some(([k]) => isOv(r, k))); return <tr key={r.u.id} style={r.tag === "OWNER" ? { background: "rgba(124,58,237,.06)" } : undefined}>
+            <td style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--card)", padding: "8px 12px", borderRight: "1px solid var(--line)", borderTop: "1px solid var(--line)" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 650, display: "flex", alignItems: "center", gap: 7 }}>{r.u.name || "(no name)"} {badge(r.tag)}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 3, alignItems: "center" }}><span style={{ fontSize: 10, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 7px" }}>{coName(r.u.companyId) || "No company"}</span>
+                {isOwner && hasOv && r.tag !== "OWNER" && <span style={{ fontSize: 10.5, color: "#E0A106", cursor: "pointer", fontWeight: 600 }} onClick={() => resetRow(r)}>Reset To Role Defaults</span>}</div>
+            </td>
+            {groups.flatMap(([, ps]) => ps.map(([k]) => { const on = eff(r, k); const locked = r.tag === "OWNER" || k === "privs" || !isOwner; return <td key={k} style={{ textAlign: "center", padding: "7px 0", borderLeft: "1px dashed var(--line)", borderTop: "1px solid var(--line)", cursor: locked ? "default" : "pointer" }} onClick={() => toggle(r, k)} title={locked ? (k === "privs" ? "Owner only" : "") : "Click to toggle"}>
+              <span style={{ position: "relative", display: "inline-block" }}>{tg(on, r.tag === "OWNER" || k === "privs")}{isOv(r, k) && <span style={{ position: "absolute", top: -3, right: -6, width: 8, height: 8, borderRadius: "50%", background: "#E0A106" }} />}</span>
+            </td>; }))}
+          </tr>; })}
+        </tbody>
+      </table>
+    </div>}
+    {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.startsWith("Save failed") ? "#C0392B" : "#0E9384" }}>{msg}</div>}
+    {isOwner && pendCount > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+      <span style={{ fontSize: 12.5, fontWeight: 650 }}><span style={{ color: "#E0A106" }}>{pendCount}</span> change{pendCount === 1 ? "" : "s"} pending</span>
+      <button className="lk-btn" onClick={() => setPending({})} disabled={busy}>Discard</button>
+      <button className="lk-btn primary" onClick={doSave} disabled={busy}>{busy ? "Saving..." : "Save Changes"}</button>
+    </div>}
+  </>;
+}
+
+function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient }) {
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
@@ -3463,19 +3545,22 @@ function AdminPanel({ S, cu, update, exportActivities }) {
     } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); }
     e.target.value = "";
   };
+  const canv = can || (() => true);
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"], ["baseline", "P6 Baseline"]]],
-    ["User management", [["users", "Global Contacts"], ["members", "Project Team"], ["requests", "Access requests"]]],
-    ["Audit log", [["audit", "Audit"]]],
+    ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
+    ["Access", [["privileges", "User Privileges"]]],
+    ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
     ["Advanced", [["data", "Import / Export"]]],
     ["About", [["changelog", "Changelog"]]],
-  ];
+  ].filter(([, items]) => items.length);
   return (
     <div className="lk-adminwrap2" style={cssVars(S.theme)}><style>{css}</style>
         <div className="lk-subnav">
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
         <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "")}><div className="lk-db">
+          {tab === "privileges" && <PrivilegesTab S={S} cu={cu} isOwner={isOwner} projClient={projClient} />}
           {tab === "systems" && <>
             <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
               <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
@@ -4086,7 +4171,7 @@ function AdminPanel({ S, cu, update, exportActivities }) {
                         <span className="m">{e.user} {"\u00b7"} {new Date(e.ts).toLocaleString("en-GB")}</span>
                       </div>
                       {aff && aff.tag && <span style={tagSt(aff.done)}>{aff.tag}</span>}
-                      {aff && aff.btn && <button className="lk-btn" style={{ ...btnSt(aff.mode), flex: "none" }} onClick={() => { setRvErr(""); setRv({ e, snap: aff.snap, mode: aff.mode, laterN: aff.laterN }); }}>{aff.btn}</button>}
+                      {aff && aff.btn && canv("auditRevert") && <button className="lk-btn" style={{ ...btnSt(aff.mode), flex: "none" }} onClick={() => { setRvErr(""); setRv({ e, snap: aff.snap, mode: aff.mode, laterN: aff.laterN }); }}>{aff.btn}</button>}
                     </div>; })}</div>)}
               </>; })()}
           </>}
@@ -4777,7 +4862,7 @@ function WorkloadView({ S, coName, onDrill }) {
 
 const TBL_COLS = [["code", "#"], ["company", "Company"], ["building", "Building"], ["level", "Level"], ["zone", "Zone / Room"], ["system", "System"], ["cx", "Cx"], ["start", "Start"], ["days", "Days"], ["committed", "Committed"], ["status", "Status"], ["witness", "Witness"], ["witnessat", "Witness time"], ["notes", "Notes"]];
 const TBL_DEFAULT_COLS = Object.fromEntries(TBL_COLS.map(([k]) => [k, k !== "witness" && k !== "witnessat"]));
-function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
+function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   const savedView = (() => { try { return JSON.parse(localStorage.getItem("fin04_tblview") || "null") || {}; } catch (e) { return {}; } })();
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -4810,7 +4895,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
   const setSelStatus = () => { if (!sel.size || !bulkStatus) return; const ids = sel; const n = ids.size; const today = fmtISO(new Date()); update((p) => ({ ...p, activities: p.activities.map((x) => { if (!ids.has(x.id)) return x; const nn = { ...x, status: bulkStatus }; if (bulkStatus === "in_progress" && !nn.actualStart) nn.actualStart = today; if (bulkStatus === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish) nn.actualFinish = today; } return nn; }) }), { action: "Bulk set status (table)", detail: `${n} activit${n === 1 ? "y" : "ies"} -> ${bulkStatus.replace("_", " ")}` }); setSavedMsg(`Set ${n} activit${n === 1 ? "y" : "ies"} to ${bulkStatus.replace("_", " ")}`); setTimeout(() => setSavedMsg(""), 3000); setSel(new Set()); setBulkStatus(""); };
   const [cols, setCols] = useState(() => ({ ...TBL_DEFAULT_COLS, ...(savedView.cols || {}) }));
   const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
-  const rowEditable = (a) => a.status === "complete" ? isAdmin : (isAdmin || (canEdit(a) && !a.committed));
+  const rowEditable = (a) => a.status === "complete" ? can("editCommitted") : (canEdit(a) && (!a.committed || can("editCommitted") || can("commit")));
   const begin = (a) => { setEditId(a.id); setDraft({ ...a }); };
   const cancel = () => { setEditId(null); setDraft(null); };
   const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
@@ -4876,7 +4961,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
         <div className="lk-f" style={{ minWidth: 124 }}><label>Start From</label><input className="lk-in mono" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} /></div>
         <div className="lk-f" style={{ minWidth: 124 }}><label>Start To</label><input className="lk-in mono" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} /></div>
         <div style={{ position: "relative" }}>
-          {isAdmin && <button className={"lk-btn" + (frOpen ? " on" : "")} style={{ marginRight: 8 }} onClick={() => setFrOpen((v) => !v)}>Find &amp; replace</button>}
+          {can("editAny") && <button className={"lk-btn" + (frOpen ? " on" : "")} style={{ marginRight: 8 }} onClick={() => setFrOpen((v) => !v)}>Find &amp; replace</button>}
           <button className={"lk-btn" + (colsOpen ? " on" : "")} onClick={() => setColsOpen((v) => !v)}><Icon n="grid" s={14} />Columns</button>
           {colsOpen && <><div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={() => setColsOpen(false)} />
             <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 31, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 6px", minWidth: 190, boxShadow: "0 10px 30px rgba(0,0,0,.18)" }}>
@@ -4893,7 +4978,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
         </div>
       </div>
       {savedMsg && <div style={{ padding: "4px 16px 0", fontSize: 11.5, color: "var(--muted)" }}>{savedMsg}</div>}
-      {isAdmin && frOpen && <div style={{ margin: "8px 16px 0", padding: "12px 14px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
+      {can("editAny") && frOpen && <div style={{ margin: "8px 16px 0", padding: "12px 14px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
           <div className="lk-f" style={{ minWidth: 140 }}><label>In</label><select className="lk-select" value={frField} onChange={(e) => { const f = e.target.value; const t = (FR_FIELDS.find((x) => x[0] === f) || [])[2] || "text"; setFrField(f); setFrConfirm(false); if (t === "text") { setFrFind(""); setFrRepl(""); } else { setFrFind("__any__"); const o = frOptsFor(f); setFrRepl(o.length ? o[0][0] : ""); } }}>{FR_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
           {frIsText
@@ -4915,7 +5000,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
             : <><button className="lk-btn primary" disabled={frMatched.length === 0 || (frIsText && !frFind)} onClick={() => setFrConfirm(true)}>{frIsText ? "Replace" : "Apply"}</button><button className="lk-btn" onClick={() => { setFrOpen(false); setFrConfirm(false); }}>Close</button></>}
         </div>
       </div>}
-      {isAdmin && sel.size > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", margin: "8px 16px 0", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
+      {can("editAny") && sel.size > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", margin: "8px 16px 0", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600 }}>{sel.size} selected</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><select className="lk-select" style={{ fontSize: 12, padding: "5px 8px" }} value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Set status to…</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select><button className="lk-btn" disabled={!bulkStatus} onClick={setSelStatus}>Apply</button></span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><select className="lk-select" style={{ fontSize: 12, padding: "5px 8px" }} value={bulkCommitted} onChange={(e) => setBulkCommitted(e.target.value)}><option value="">Set committed to…</option><option value="yes">Yes</option><option value="no">No</option></select><button className="lk-btn" disabled={!bulkCommitted} onClick={() => setSelCommitted(bulkCommitted === "yes")}>Apply</button></span>
@@ -4926,19 +5011,19 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
       <div className="lk-tblscroll">
         <table className="lk-grid">
           <thead><tr>
-            <th style={{ width: isAdmin ? 74 : 56 }}>{isAdmin && <input type="checkbox" checked={allSel} ref={(el) => { if (el) el.indeterminate = someSel; }} onChange={toggleAll} title="Select all / none" />}</th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("witness") && <th>Witness</th>}{C("witnessat") && <th>Witness time</th>}{C("notes") && <th style={{ width: 320 }}>Notes</th>}
+            <th style={{ width: can("editAny") ? 74 : 56 }}>{can("editAny") && <input type="checkbox" checked={allSel} ref={(el) => { if (el) el.indeterminate = someSel; }} onChange={toggleAll} title="Select all / none" />}</th>{C("code") && <th>#</th>}<th>Activity</th>{C("company") && <th>Company</th>}{C("building") && <th>Building</th>}{C("level") && <th>Level</th>}{C("zone") && <th>Zone / Room</th>}{C("system") && <th>System</th>}{C("cx") && <th>Cx</th>}{C("start") && <th>Start</th>}{C("days") && <th>Days</th>}{C("committed") && <th>Committed</th>}{C("status") && <th>Status</th>}{C("witness") && <th>Witness</th>}{C("witnessat") && <th>Witness time</th>}{C("notes") && <th style={{ width: 320 }}>Notes</th>}
           </tr></thead>
           <tbody>
             {list.length === 0 && <tr><td colSpan={visCount} style={{ padding: 14, color: "var(--muted)", fontSize: 12 }}>No activities match these filters.</td></tr>}
             {list.map((a, idx) => {
-              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete" && !isAdmin; const plk = lk || (ed && !!a.committed && !isAdmin);
+              const ed = editId === a.id; const d = ed ? draft : a; const canRow = rowEditable(a); const lk = ed && d.status === "complete" && !can("editCommitted"); const plk = lk || (ed && !!a.committed && !isAdmin);
               return <tr key={a.id} className={ed ? "ed" : ""}>
                 <td>{ed
                   ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={save}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancel}><Icon n="x" s={14} /></button></span>
-                  : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{isAdmin && <input type="checkbox" checked={sel.has(a.id)} onClick={(e) => clickRow(e, idx, a.id)} onChange={() => {}} title="Select; Shift-click to select a range" />}<button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button></span>}</td>
+                  : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{can("editAny") && <input type="checkbox" checked={sel.has(a.id)} onClick={(e) => clickRow(e, idx, a.id)} onChange={() => {}} title="Select; Shift-click to select a range" />}<button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button></span>}</td>
                 {C("code") && <td className="mono">#{a.code ?? "?"}</td>}
                 <td>{ed ? <input className="lk-in" style={cell} value={d.desc} disabled={plk} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
-                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!isAdmin || plk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
+                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!can("editAny") || plk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
                 {C("building") && <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} disabled={plk} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>}
                 {C("level") && <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area || plk} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>}
                 {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea || plk} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
@@ -4948,7 +5033,7 @@ function TablePage({ S, cu, isAdmin, canEdit, update, coName }) {
                 {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} disabled={plk} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
                 {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} disabled={plk} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
                 {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>}
-                {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={plk} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
+                {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={plk || !can("witnessReq")} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
                 {C("witnessat") && <td>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={plk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
                 {C("notes") && <td style={{ width: 320, maxWidth: 320 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <div style={{ maxWidth: 320, whiteSpace: "normal", overflowWrap: "break-word", color: "var(--muted)" }}>{a.notes || ""}</div>}</td>}
               </tr>;
@@ -5538,7 +5623,7 @@ const rptNumTokens = (s) => (String(s||"").match(/\d[\d,.]*%?/g) || []).map((t)=
 const rptNumbersOk = (draft, out) => { const D = new Set(rptNumTokens(draft)); return rptNumTokens(out).every((t)=>D.has(t)); };
 
 // Shared Weekly Report launcher: identical button + config window used on both Analytics and Weekly Cx Progress.
-function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, variant }){
+function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, label, variant }){
   const defWeek = useMemo(() => { const t = new Date(todayMid()); const dow = t.getDay(); const back = (dow - 5 + 7) % 7; const fri = addDays(t, -back); const mon = mondayOf(fri); return { start: mon, end: addDays(mon, 6) }; }, []);
   const prefKey = "dlp_report_sections_" + (projectId||"x");
   const loadPref = () => { try { const j = JSON.parse(localStorage.getItem(prefKey)||"null"); if (j && j.plan && j.cx) return { plan: { ...RPT_PLAN_DEFAULT, ...j.plan }, cx: { ...RPT_CX_DEFAULT, ...j.cx } }; } catch(e){} return { plan:{...RPT_PLAN_DEFAULT}, cx:{...RPT_CX_DEFAULT} }; };
@@ -5736,13 +5821,13 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, projectId, label, va
           <div className="rep-fld" style={{ marginTop: 14 }}><label>Appearance</label>
             <div className="rep-seg"><button className={theme==="light"?"on":""} onClick={() => setTheme("light")}>Light</button><button className={theme==="dark"?"on":""} onClick={() => setTheme("dark")}>Dark</button></div>
           </div>
-          <div className="rep-fld" style={{ marginTop: 14 }}><label>Distribution List</label>
+          {canDist !== false && <div className="rep-fld" style={{ marginTop: 14 }}><label>Distribution List</label>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               <span className="rep-mut" style={{ fontSize:12 }}>{recips.length} recipient{recips.length===1?"":"s"} saved</span>
               <button type="button" className="lk-btn" style={{ padding:"4px 10px", fontSize:11.5 }} onClick={() => { setRecipMsg(""); setRecipOpen(true); }}>Manage recipients</button>
             </div>
             <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>Email Report sends directly from your connected Outlook account: an email-safe summary in the body with the full report attached as an HTML file. Send Test To Me delivers only to you first.</div>
-          </div>
+          </div>}
         </div>
         {repMsg && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: repMsg.ok ? "#0E9384" : "#C0392B" }}>{repMsg.text}</div>}
         {!repOl && repDiag && (!repDiag.ok || (repDiag.hadHash && !repDiag.account)) && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: "#C0392B" }}>Sign-in return: {repDiag.ok ? "response processed but no account arrived" : (repDiag.code || "error") + ": " + repDiag.message}</div>}
@@ -5937,7 +6022,7 @@ function AdminDigestCard({ S }) {
     {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.ok ? "#0E9384" : "#C0392B" }}>{msg.text}</div>}
   </div>;
 }
-function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, by, projectId }) {
+function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
@@ -6064,7 +6149,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, by, pro
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>From</label><input className="lk-in mono" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>}
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>}
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
-        <WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={isAdmin} projectId={projectId} label="Weekly Report" />
+        <WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={canWeekly} canDist={canDist} projectId={projectId} label="Weekly Report" />
         <button className="lk-btn" onClick={exportMetrics}><Icon n="download" s={14} />Metrics (Excel)</button>
         <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>
       </div>
