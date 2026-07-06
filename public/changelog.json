@@ -1,5 +1,17 @@
 [
   {
+    "rev": "REV122",
+    "date": "2026-07-06",
+    "items": [
+      "Fix: per-project admins could not reset passwords, resend set-password links or see live team statuses; the admin-users edge function only accepted legacy profile admins, supers and the owner as callers, so project admins got Admins Only from every menu. The function now admits per-project admins with strict scoping: they reach only people who share a project where they are admin, never the owner, never a super, and cannot delete platform accounts. Apply the three anchored edits in admin-users-REV122-patch.txt to the LIVE function source and deploy BEFORE pushing the app files; never paste the stale repo copy",
+      "Hardening shipped with the same patch: a super account can now only be managed by a super or the owner (previously any legacy admin could reset a super password through auth.admin, which database triggers never see), and only supers can change platform roles through the update op",
+      "The Project Team manage window now carries Reset Password and Resend Set-Password Link directly, beside the existing edit and remove actions; the credential card appears on Global Contacts and the window takes you there",
+      "Fix: Connect SharePoint could permanently fail in a tab with interaction_in_progress after an abandoned or failed sign-in redirect (for example picking a cs-nordics account against the Quantum MC single-tenant registration and landing on a Microsoft error page). Both Connect SharePoint and Connect Outlook now detect the stale sign-in flag, clear it and retry once; a SharePoint sign-in return is also processed at boot rather than waiting for the Asset Status page to open, so the account lands and the flag clears wherever the redirect returns. Immediate workaround before this ships: close the stuck tab and connect in a fresh one",
+      "New Admin > Connections tab (Outlook & SharePoint): both integrations as status cards showing the connected account or Not Connected, with Connect / Reconnect running the same redirect flows as the Witness Schedule, report window and Asset Status sync window, which all keep their buttons",
+      "Asset Status layout rebuilt on the single-scroller pattern (the REV108 cure): the page leaves the outer page scroller, the title, KPI, tag pipeline, filter and focus rows are fixed, and the matrix is the one scroll region, keeping its sticky band headers, column headers and pinned asset column; the hardcoded viewport-height guess that caused the double scrollbar is deleted. The footer stays pinned by the shell"
+    ]
+  },
+  {
     "rev": "REV121",
     "date": "2026-07-06",
     "items": [
