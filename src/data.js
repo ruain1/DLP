@@ -652,6 +652,10 @@ export const PRIV_GROUPS = [
   ["Planning Board", [["create", "Create Activities"], ["editOwn", "Edit Own Company Work"], ["editAny", "Edit Any Company Work"], ["del", "Delete Activities"], ["commit", "Commit Weekly Plan"], ["editCommitted", "Edit Committed Work"], ["delay", "Record Delays"]]],
   ["Witnessing", [["witnessReq", "Set Witness Requirements"], ["witnessSend", "Send Witness Invitations"], ["requestInv", "Request Invites"], ["witnessOutcome", "Record Witness Outcomes"], ["retest", "Declare Retests"]]],
   ["Progress And Reports", [["importWb", "Import Cx Workbook"], ["cxConfig", "Configure Cx Progress"], ["weekly", "Generate Weekly Report"], ["distList", "Manage Distribution List"]]],
+  // REV132: Asset Status editing. editAsset is the broad Edit Mode (admin baseline);
+  // editEE is the narrow Velox lane, off by default and granted per user. can_edit_ee
+  // in SQL reads the same editEE grant, so client and RLS stay in lockstep.
+  ["Assets", [["editAsset", "Edit Asset Status"], ["editEE", "Mark Equipment Energised (EE)"]]],
   ["Administration", [["users", "Manage Users"], ["approve", "Approve Access Requests"], ["auditView", "View Audit Log"], ["auditRevert", "Revert From Audit Log"], ["privs", "Manage Privileges"]]],
 ];
 export const PRIV_KEYS = PRIV_GROUPS.flatMap(([, ps]) => ps.map(([k]) => k));
@@ -804,4 +808,80 @@ export async function saveAssetStatusConfig(projectId, cfg) {
     updated_at: new Date().toISOString(),
   }, { onConflict: "project_id" });
   return error ? (error.message || String(error)) : "";
+}
+
+/* ---------- REV132: Asset energisation (overrides, events, sync conflicts) ---------- */
+// Manual overrides live in asset_override, separate from the register mirror, so a
+// SharePoint re-import never wipes them. Events (asset_event) are the persisted
+// ready-for-energisation feed. RLS and triggers do the enforcement; these are the
+// thin client accessors plus the pure conflict resolver the sync gate uses.
+
+async function currentUserId() {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.user?.id || null;
+}
+
+export async function loadAssetOverrides(projectId) {
+  const { data, error } = await supabase.from("asset_override")
+    .select("asset_tag, step_key, value, set_by, set_at, note").eq("project_id", projectId);
+  if (error) return { overrides: [], error: error.message || String(error) };
+  return { overrides: data || [], error: "" };
+}
+
+export async function saveAssetOverride(projectId, assetTag, stepKey, value, note) {
+  const me = await currentUserId();
+  const { error } = await supabase.from("asset_override").upsert({
+    project_id: projectId, asset_tag: assetTag, step_key: stepKey,
+    value, set_by: me, set_at: new Date().toISOString(), note: note || null,
+  }, { onConflict: "project_id,asset_tag,step_key" });
+  return error ? (error.message || String(error)) : "";
+}
+
+export async function deleteAssetOverride(projectId, assetTag, stepKey) {
+  const { error } = await supabase.from("asset_override").delete()
+    .eq("project_id", projectId).eq("asset_tag", assetTag).eq("step_key", stepKey);
+  return error ? (error.message || String(error)) : "";
+}
+
+export async function loadAssetEvents(projectId) {
+  const { data, error } = await supabase.from("asset_event")
+    .select("*").eq("project_id", projectId).eq("type", "ready_for_energisation")
+    .order("created_at", { ascending: false });
+  if (error) return { events: [], error: error.message || String(error) };
+  return { events: data || [], error: "" };
+}
+
+// state: 'rffe_sent' | 'energised' | 'retracted' | 'new'. The triggers also move
+// state on their own (energised on EE complete, retracted on yellow cleared); this
+// is for the app-driven transition, mainly marking rffe_sent after a send.
+export async function setAssetEventState(eventId, state) {
+  const me = await currentUserId();
+  const patch = { state };
+  if (state === "rffe_sent") { patch.rffe_sent_at = new Date().toISOString(); patch.rffe_sent_by = me; }
+  if (state === "energised") { patch.energised_at = new Date().toISOString(); patch.energised_by = me; }
+  const { error } = await supabase.from("asset_event").update(patch).eq("id", eventId);
+  return error ? (error.message || String(error)) : "";
+}
+
+// Pure resolver for the sync gate (no I/O, unit-testable). Given the manual
+// overrides and the freshly parsed incoming rows, return only the cells where a
+// manual value clashes with what the import wants. Non-conflicting import changes
+// are not returned; the caller applies those as it does today.
+//   overrides:   [{ asset_tag, step_key, value }]
+//   incomingRows:[{ tag, name, steps: { step_key: 0|1|2 } }]
+// returns:       [{ tag, name, step_key, mine, incoming }]
+export function computeSyncConflicts(overrides, incomingRows) {
+  const byTag = {};
+  (incomingRows || []).forEach((r) => { byTag[r.tag] = r; });
+  const out = [];
+  (overrides || []).forEach((o) => {
+    const row = byTag[o.asset_tag];
+    if (!row) return;                                   // asset gone from register; leave override alone
+    const inc = (row.steps || {})[o.step_key];
+    if (inc === undefined) return;                      // column not in this import
+    if (Number(inc) !== Number(o.value)) {
+      out.push({ tag: o.asset_tag, name: row.name || o.asset_tag, step_key: o.step_key, mine: o.value, incoming: Number(inc) });
+    }
+  });
+  return out;
 }

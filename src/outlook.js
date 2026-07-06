@@ -426,3 +426,37 @@ export function buildUserInviteEmailHtml(p) {
     + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Sent by ${eH(p.sentByName)} &#183; FIN04 &#183; atnorth Koski &#183; CSN Commissioning</td></tr>`
     + `</table>`;
 }
+
+// REV132: RFFE cover-note email in the house style (matches buildInviteBodyHtml).
+// p: { assets:[{name,tag}], organiser, appUrl }. appUrl deep-links into DLP; the
+// caller derives it from window.location.origin, so no origin is hardcoded here.
+export function buildRffeEmailHtml(p) {
+  const a = p.assets || [];
+  if (!a.length) return "";
+  const multi = a.length > 1;
+  const P = (html, padTop) => `<tr><td style="padding:${padTop || "2px"} 20px 0 20px;font-size:13.5px;line-height:1.6;color:${TPL.ink};${FSTACK}">${html}</td></tr>`;
+  const bAsset = (x) => `<b style="color:${TPL.ink};">${eH(x.name)}</b> <span style="color:${TPL.mut};font-size:12px;">(${eH(x.tag)})</span>`;
+  let assetBlock;
+  if (multi) {
+    const rows = a.map((x) => `<tr><td width="14" style="padding:3px 8px 3px 0;font-size:12px;color:${TPL.amberEdge};vertical-align:top;line-height:1.6;">&#9679;</td><td style="padding:3px 0;font-size:13px;color:${TPL.ink};line-height:1.6;${FSTACK}">${bAsset(x)}</td></tr>`).join("");
+    assetBlock = P("See attached RFFE for the following assets:") + `<tr><td style="padding:9px 20px 2px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${rows}</table></td></tr>`;
+  } else {
+    assetBlock = P(`See attached RFFE for ${bAsset(a[0])}.`);
+  }
+  const eeTarget = multi ? "each asset listed above" : `<b>${eH(a[0].name)}</b>`;
+  const linkRow = p.appUrl
+    ? `<tr><td style="padding:14px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;"><a href="${eH(p.appUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">Open ${multi ? "These Assets" : "This Asset"} In DLP</a></td></tr></table></td></tr>`
+    : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
+    + `<tr><td style="padding:0;background-color:${TPL.blue};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="padding:12px 18px;font-size:15px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 Request For Energisation</td><td align="right" style="padding:12px 18px;font-size:11px;color:#cfe0f7;${FSTACK}">Yellow Tag approved</td></tr></table></td></tr>`
+    + P("Hi all,", "14px")
+    + assetBlock
+    + P(`${multi ? "These assets have" : "This asset has"} now been approved for Yellow Tag by the Cx team.`, "11px")
+    + P(`Please proceed to energise. Once energised, please mark the <b>EE</b> column for ${eeTarget} as complete.`, "10px")
+    + linkRow
+    + `<tr><td style="padding:15px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${TPL.amberEdge};background-color:${TPL.amberBg};padding:9px 12px;font-size:12px;color:${TPL.amberInk};${FSTACK}">Attached: Registration Form For Energisation (PDF). Please action at least 48 hours before the required slot.</td></tr></table></td></tr>`
+    + P("Kind regards,<br>CSN Cx Team", "15px")
+    + `<tr><td style="height:10px;line-height:10px;font-size:0;">&nbsp;</td></tr>`
+    + `<tr><td style="padding:10px 18px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Issued from DLP by ${eH(p.organiser || "CSN Cx Team")} &#183; CSN Commissioning &#183; RFFE attached as PDF</td></tr>`
+    + `</table>`;
+}
