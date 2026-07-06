@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV123",
+    "date": "2026-07-06",
+    "items": [
+      "New witness-failure reconciliation line under Percent Plan Complete on Analytics: when any witness failures are in the filtered scope, one line states the total and splits it into clickable buckets that always sum to it: on-time kept promises (the quality gap that Quality-Adjusted PPC subtracts), late (already broken promises inside PPC's misses, not subtracted twice), not yet due (a promise finishing today is due tomorrow), and not committed (outside PPC entirely). Each count drills to its exact activities, zero buckets are omitted, and the line follows the page filters. This makes the board's ghost count reconcile against the gauge on screen instead of in your head; the calculation itself was verified correct against an independent SQL recomputation of live data",
+      "Fix: the blank strip below the KPI cards in the Plan Reliability row is gone. The row's height is set by the taller gauge card, and the card grid previously top-aligned and stopped; the eight cards now stretch to share the full column height with equal rows. Scoped to that row only; print output and every other card grid are unchanged"
+    ]
+  },
+  {
     "rev": "REV122",
     "date": "2026-07-06",
     "items": [
