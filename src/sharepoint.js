@@ -50,11 +50,18 @@ const app = () => {
   return msal;
 };
 
+// MSAL's account cache is shared across client instances on the same origin, so
+// getAllAccounts also returns the Outlook (CS Nordics) sign-in. Only an account
+// whose tenantId matches the file's tenant can mint a Files.Read.All token here,
+// so the picker filters hard on tenant.
+const tenantAccount = (m) => (m.getAllAccounts() || []).find((a) => a.tenantId === ids.tenantId) || null;
+
 export async function sharePointAccount() {
   const m = app(); await ready;
-  const accts = m.getAllAccounts();
-  return accts.length ? accts[0] : null;
+  return tenantAccount(m);
 }
+
+export function requiredTenant() { return ids.tenantId; }
 
 export async function connectSharePoint() {
   const m = app(); await ready;
@@ -67,8 +74,8 @@ export async function connectSharePoint() {
 
 async function token() {
   const m = app(); await ready;
-  const account = m.getActiveAccount() || m.getAllAccounts()[0];
-  if (!account) throw new Error("SharePoint is not connected. Press Connect SharePoint to sign in to the Quantum MC tenant.");
+  const account = tenantAccount(m);
+  if (!account) throw new Error("SharePoint is not connected with a Quantum MC tenant account. Press Connect SharePoint and sign in with your account in that tenant (the one that can open the Cx Master in the browser).");
   try {
     const r = await m.acquireTokenSilent({ scopes: SCOPES, account });
     return r.accessToken;

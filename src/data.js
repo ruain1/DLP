@@ -727,7 +727,7 @@ export async function saveAssetRegister(projectId, assets, stepDefs, source) {
     if (error) return { error: error.message || String(error) };
   }
   if (stepDefs && stepDefs.length) {
-    const sRows = stepDefs.map((s) => ({ project_id: projectId, step_key: s.step_key, stage: s.stage, sort_order: s.sort_order, is_tag: s.is_tag, updated_at: now }));
+    const sRows = stepDefs.map((s) => ({ project_id: projectId, step_key: s.step_key, stage: s.stage, sort_order: s.sort_order, is_tag: s.is_tag, in_register: true, updated_at: now }));
     const { error } = await supabase.from("cx_step_reference").upsert(sRows, { onConflict: "project_id,step_key" });
     if (error) return { error: error.message || String(error) };
   }

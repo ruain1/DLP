@@ -158,9 +158,10 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
   useEffect(() => { reload(); }, [projectId]);
 
   const stepsSorted = useMemo(() => stepDefs.slice().sort((a, b) => a.sort_order - b.sort_order), [stepDefs]);
-  const bands = useMemo(() => STAGE_ORDER.map((st) => ({ stage: st, name: STAGE_NAME[st], color: TAGC[st], steps: stepsSorted.filter((s) => s.stage === st) })).filter((b) => b.steps.length), [stepsSorted]);
-  const tagStepByStage = useMemo(() => { const o = {}; stepsSorted.forEach((s) => { if (s.is_tag) o[s.stage] = s.step_key; }); return o; }, [stepsSorted]);
-  const enriched = useMemo(() => enrichAssets(assets, stepsSorted), [assets, stepsSorted]);
+  const regSteps = useMemo(() => stepsSorted.filter((s) => s.in_register !== false), [stepsSorted]);
+  const bands = useMemo(() => STAGE_ORDER.map((st) => ({ stage: st, name: STAGE_NAME[st], color: TAGC[st], steps: regSteps.filter((s) => s.stage === st) })).filter((b) => b.steps.length), [regSteps]);
+  const tagStepByStage = useMemo(() => { const o = {}; regSteps.forEach((s) => { if (s.is_tag) o[s.stage] = s.step_key; }); return o; }, [regSteps]);
+  const enriched = useMemo(() => enrichAssets(assets, regSteps), [assets, regSteps]);
 
   const halls = useMemo(() => [...new Set(enriched.map((a) => a.hall))].sort(), [enriched]);
   const lvls = useMemo(() => [...new Set(enriched.map((a) => a.level).filter(Boolean))].sort(), [enriched]);
@@ -261,13 +262,13 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Asset Status");
       const cols = [{ header: "Asset Tag", key: "tag", width: 30 }, { header: "Equipment", key: "name", width: 30 }, { header: "Type", key: "type", width: 12 }, { header: "M/E", key: "me", width: 6 }, { header: "Level", key: "lvl", width: 7 }, { header: "Hall", key: "hall", width: 10 }];
-      stepsSorted.forEach((s) => cols.push({ header: s.step_key, key: s.step_key, width: 10 }));
+      regSteps.forEach((s) => cols.push({ header: s.step_key, key: s.step_key, width: 10 }));
       cols.push({ header: "Progress %", key: "pct", width: 11 }, { header: "Overdue Stages", key: "ov", width: 16 });
       ws.columns = cols;
       ws.getRow(1).font = { bold: true };
       list.forEach((a) => {
         const row = { tag: a.tag, name: a.name, type: a.type, me: a.discipline, lvl: a.level, hall: a.hall, pct: a.pct, ov: a.overdue.map((s) => STAGE_NAME[s]).join(", ") };
-        stepsSorted.forEach((s) => { const v = (a.steps || {})[s.step_key] || 0; row[s.step_key] = v === 2 ? "YES" : v === 1 ? "NO" : ""; });
+        regSteps.forEach((s) => { const v = (a.steps || {})[s.step_key] || 0; row[s.step_key] = v === 2 ? "YES" : v === 1 ? "NO" : ""; });
         ws.addRow(row);
       });
       const buf = await wb.xlsx.writeBuffer();
@@ -293,7 +294,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
 
   const drawerRows = (a) => {
     const rows = [];
-    stepsSorted.filter((s) => s.is_tag).forEach((s) => {
+    regSteps.filter((s) => s.is_tag).forEach((s) => {
       const pk = plannedKeyFor(s.step_key, a.dates), ak = actualKeyFor(s.step_key, a.dates);
       rows.push({ name: s.step_key, planned: pk ? a.dates[pk] : "", actual: ak ? a.dates[ak] : "", done: (a.steps || {})[s.step_key] === 2 });
     });
@@ -321,6 +322,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
         <div style={{ flex: 1 }} />
         {isAdmin && <label className="ast-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onUpload(f); }} />{busy ? "Working\u2026" : "Import Workbook"}</label>}
         {isAdmin && <button className="ast-btn admin" onClick={() => setSyncOpen(true)}>{"\u21BB"} Sync From SharePoint</button>}
+        {isAdmin && <button className="ast-btn" onClick={() => setCfgOpen(true)}>Sync Settings</button>}
         <button className="ast-btn" onClick={onExport} disabled={empty}>Export</button>
       </div>
 
@@ -370,7 +372,6 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
         </div>
         <div className="ast-f"><span>&nbsp;</span><button className={"ast-btn" + (hideDone ? " on" : "")} onClick={() => setHideDone(!hideDone)}>Hide Complete</button></div>
         <div className="ast-f"><span>&nbsp;</span><button className="ast-btn" onClick={() => { const anyOpen = groups.some((g) => !closed[g.key]); const c = {}; groups.forEach((g) => { c[g.key] = anyOpen; }); setClosed(c); }}>{groups.some((g) => !closed[g.key]) ? "Collapse All" : "Expand All"}</button></div>
-        {isAdmin && <div className="ast-f"><span>&nbsp;</span><button className="ast-btn" onClick={() => setCfgOpen(true)}>Sync Settings</button></div>}
       </div>
 
       {focus && focusStats && <div className="ast-focus">
@@ -461,19 +462,29 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
         <div className="ast-modal wide">
           <div className="mhead"><h3>Cx Step Reference</h3><button className="dclose stat" onClick={() => { setRefOpen(false); setRefEdit(null); }}>{"\u2715"}</button></div>
           <div className="mbody">
-            {isAdmin && <div className="notebox">Click a row to edit its definition, executing party, and sign-off authority. Imports refresh the structure but never touch this content.</div>}
-            <table className="reftbl"><thead><tr><th>Step</th><th>Stage</th><th>What It Is</th><th>Executed By</th><th>Signed Off By</th></tr></thead><tbody>
-              {stepsSorted.map((s) => refEdit && refEdit.step_key === s.step_key ? (
-                <tr key={s.step_key} className="editing"><td><span className="stcell"><span className="dot" style={{ background: TAGC[s.stage] }} />{s.step_key}</span></td><td>{s.stage} {STAGE_NAME[s.stage]}</td>
-                  <td><textarea value={refEdit.definition} onChange={(e) => setRefEdit({ ...refEdit, definition: e.target.value })} rows={2} /></td>
-                  <td><input value={refEdit.executed_by} onChange={(e) => setRefEdit({ ...refEdit, executed_by: e.target.value })} /></td>
-                  <td><input value={refEdit.signed_off_by} onChange={(e) => setRefEdit({ ...refEdit, signed_off_by: e.target.value })} />
-                    <div className="editbtns"><button className="ast-btn on" onClick={async () => { const m = await saveStepReference(projectId, s.step_key, refEdit); if (m) setErr("Save failed: " + m); else { setStepDefs(stepDefs.map((x) => x.step_key === s.step_key ? { ...x, ...refEdit } : x)); setRefEdit(null); } }}>Save</button><button className="ast-btn" onClick={() => setRefEdit(null)}>Cancel</button></div></td></tr>
-              ) : (
-                <tr key={s.step_key} className={isAdmin ? "clickable" : ""} onClick={() => { if (isAdmin) setRefEdit({ step_key: s.step_key, definition: s.definition || "", executed_by: s.executed_by || "", signed_off_by: s.signed_off_by || "" }); }}>
-                  <td><span className="stcell"><span className="dot" style={{ background: TAGC[s.stage] }} />{s.step_key}</span></td><td>{s.stage} {STAGE_NAME[s.stage]}</td>
-                  <td>{s.definition || <span className="pend">Definition to follow</span>}</td><td>{s.executed_by || <span className="pend">To follow</span>}</td><td>{s.signed_off_by || <span className="pend">To follow</span>}</td>
-                </tr>
+            {isAdmin && <div className="notebox">Click a row to edit. Register imports refresh the structure but never touch this content. Steps marked legend-only appear here but not as matrix columns.</div>}
+            <table className="reftbl"><thead><tr><th>Step</th><th>Pre-Req</th><th>Description</th><th>Purpose</th><th>OFCI/CFCI</th><th>Executed By</th><th>Signed Off By</th><th>Notes</th></tr></thead><tbody>
+              {stepsSorted.map((st) => (
+                <React.Fragment key={st.step_key}>
+                  <tr className={isAdmin ? "clickable" : ""} onClick={() => { if (isAdmin) setRefEdit(refEdit && refEdit.step_key === st.step_key ? null : { step_key: st.step_key, definition: st.definition || "", purpose: st.purpose || "", prereq: st.prereq || "", ofci_cfci: st.ofci_cfci || "", executed_by: st.executed_by || "", signed_off_by: st.signed_off_by || "", notes: st.notes || "" }); }}>
+                    <td><span className="stcell"><span className="dot" style={{ background: TAGC[st.stage] }} />{st.step_no ? st.step_no + " " : ""}{st.step_key}{st.in_register === false && <span className="legchip">legend only</span>}</span></td>
+                    <td className="mono">{st.prereq || "-"}</td>
+                    <td>{st.definition || <span className="pend">To follow</span>}</td>
+                    <td>{st.purpose || <span className="pend">To follow</span>}</td>
+                    <td className="mono">{st.ofci_cfci || "-"}</td>
+                    <td>{st.executed_by || <span className="pend">To follow</span>}</td>
+                    <td>{st.signed_off_by || <span className="pend">To follow</span>}</td>
+                    <td className="notecell">{st.notes || ""}</td>
+                  </tr>
+                  {refEdit && refEdit.step_key === st.step_key && <tr className="editing"><td colSpan={8}>
+                    <div className="editgrid">
+                      {[["definition", "Description"], ["purpose", "Purpose"], ["prereq", "Pre-Req"], ["ofci_cfci", "OFCI/CFCI"], ["executed_by", "Executed By"], ["signed_off_by", "Signed Off By"], ["notes", "Notes"]].map(([k, label]) => (
+                        <label key={k}><span>{label}</span><textarea rows={k === "definition" || k === "purpose" || k === "notes" ? 2 : 1} value={refEdit[k]} onChange={(e) => setRefEdit({ ...refEdit, [k]: e.target.value })} /></label>
+                      ))}
+                    </div>
+                    <div className="editbtns"><button className="ast-btn on" onClick={async () => { const m = await saveStepReference(projectId, st.step_key, refEdit); if (m) setErr("Save failed: " + m); else { setStepDefs(stepDefs.map((x) => x.step_key === st.step_key ? { ...x, ...refEdit } : x)); setRefEdit(null); } }}>Save</button><button className="ast-btn" onClick={() => setRefEdit(null)}>Cancel</button></div>
+                  </td></tr>}
+                </React.Fragment>
               ))}
             </tbody></table>
           </div>
@@ -484,8 +495,9 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
         <div className="ast-modal">
           <div className="mhead"><h3>Sync From SharePoint</h3><button className="dclose stat" onClick={() => setSyncOpen(false)}>{"\u2715"}</button></div>
           <div className="mbody">
-            <div className="notebox">Reads the Asset Cx Register directly from the Cx Master on SharePoint (Quantum MC tenant) and updates this page. Connection: {spAcct ? <b>connected as {spAcct}</b> : <b>not connected</b>}.</div>
-            {!spAcct && <p className="ast-p">The sync runs as your Quantum MC identity, separate from the Outlook connection. Press Connect SharePoint for a quick full-page sign-in redirect, then reopen this window and run the sync.</p>}
+            <div className="notebox">Reads the Asset Cx Register directly from the Cx Master on SharePoint (Quantum MC tenant) and updates this page. Connection: {spAcct ? <b>connected as {spAcct}</b> : <b>no Quantum MC tenant account connected</b>}.</div>
+            {!spAcct && <p className="ast-p">The sync needs an account in the Quantum MC tenant (the one that can open the Cx Master in the browser). Your Outlook connection stays on cs-nordics and is untouched; the two sign-ins live side by side. Press Connect SharePoint for a quick full-page sign-in redirect, pick or add your quantum-mc account, then reopen this window and run the sync.</p>}
+            {config && config.file_url ? <p className="ast-p">Target: <b>{decodeURIComponent((config.file_url.match(/file=([^&]+)/) || [])[1] || config.file_url).slice(0, 80)}</b>, worksheet <b>{config.sheet_name}</b>.</p> : <p className="ast-p" style={{ color: "var(--red)", fontWeight: 700 }}>No SharePoint file URL is configured. <button className="ast-btn" onClick={() => { setSyncOpen(false); setCfgOpen(true); }}>Open Sync Settings</button></p>}
             <div className="modalbtns">
               {!spAcct && <button className="ast-btn admin" onClick={onConnectSp}>Connect SharePoint</button>}
               <button className="ast-btn" onClick={() => setSyncOpen(false)}>Cancel</button>
@@ -659,7 +671,13 @@ tr.arow:hover .idcell{background:var(--hover)}
 .ovchip{background:var(--red);color:#fff;border-radius:5px;font-size:9.5px;font-weight:800;padding:2px 5px;margin-left:5px;font-family:inherit}
 .okchip{background:var(--green);color:#fff;border-radius:5px;font-size:9.5px;font-weight:800;padding:2px 5px;margin-left:5px;font-family:inherit}
 .ast-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.3);z-index:62;max-width:560px;width:94vw;max-height:86vh;overflow:auto}
-.ast-modal.wide{max-width:900px}
+.ast-modal.wide{max-width:1240px}
+.legchip{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 5px;margin-left:6px}
+.reftbl td.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;white-space:nowrap}
+.reftbl td.notecell{font-size:11px;color:var(--muted)}
+.editgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 14px;padding:4px 0}
+.editgrid label{display:flex;flex-direction:column;gap:3px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.editgrid textarea{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:5px 7px;font-size:12px;font-family:inherit;resize:vertical}
 .mhead{padding:15px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);display:flex;align-items:center;gap:10px;z-index:2}
 .mhead h3{margin:0;font-size:15px;color:var(--head)}
 .mbody{padding:16px 20px}
