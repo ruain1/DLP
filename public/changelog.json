@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV127",
+    "date": "2026-07-06",
+    "items": [
+      "Help gains three interactive Try It simulators, completing the REV126 rebuild: Reading the gauge (drag PPC and the target, watch the colour bands and the marker), The reconciliation line (toggle witness failures between buckets, watch the line recompute and the Quality-Adjusted PPC figure move only for on-time kept promises), and the Asset Status matrix (click a stage card to filter by tag or a column header to focus a checkpoint). All three reuse the real gauge and reconciliation builders",
+      "Five reference pages rewritten to full depth for what shipped since REV80: Analytics (the semicircular gauge, Quality-Adjusted PPC, the reconciliation line, the genuine Paretos and Status Mix sub-splits), Admin (Connections, Lookahead and Targets, the privileges matrix, hub project management), the Planning Board (Hide Complete, the failed-witness and retest behaviour), Sign in and scope (the multi-project hub, roles), and Markers and chips (the failure tail, retest chips, PASSED and FAILED, invite type and the deep link)",
+      "Fix: the in-app Help iframe served a stale cached help.html across deploys, so a help update could appear not to land until a hard refresh. The iframe now carries a version token (HELP_VERSION) bumped whenever the help file changes, so browsers always fetch the current help"
+    ]
+  },
+  {
     "rev": "REV126",
     "date": "2026-07-06",
     "items": [
