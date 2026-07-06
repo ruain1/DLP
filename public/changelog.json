@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV136",
+    "date": "2026-07-06",
+    "items": [
+      "Fixed: the RFFE email and subject now lead with the asset code, matching the PDF, instead of the friendly name. The code (for example FIN04.01.L0.LB01.AC101) is bold and primary; the name (for example Air Curtain) sits in grey parentheses as context. Velox SAP identify assets by code, and a type name like Air Curtain is not unique, so the code belongs up front. The EE completion line references the code, and the single asset PDF filename uses the code too.",
+      "The Open This Asset In DLP link in the RFFE email now lands where it should: it opens the Asset Status page and, for a single asset send, opens that asset's overview drawer (checkpoint status by stage, planned versus actual, overall progress). A combined send opens the Asset Status page. The link is captured before boot rewrites the URL, so it survives the redirect, and the URL is tidied to the project afterward.",
+      "Closing the loop: when the EE column is marked complete (by the Velox SAP team, who cannot send email themselves), DLP now sends an automatic confirmation to the admins, Karolina, Ruain, Damian and Mark, that the asset or assets are Equipment Energised. It is a green house-style email, code primary, with a link straight to the asset overview. It is sent from the designated DLP session and deduplicated by a one-time claim, so it goes exactly once even with several tabs open; if several assets are energised close together they are combined into one email. This needs the small REV136 SQL migration applied first."
+    ]
+  },
+  {
     "rev": "REV135",
     "date": "2026-07-06",
     "items": [
