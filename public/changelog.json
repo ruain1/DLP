@@ -3,10 +3,9 @@
     "rev": "REV120",
     "date": "2026-07-06",
     "items": [
-      "Fix: every SharePoint sync reported 96 assets added and 1000 updated even when nothing changed, and the page itself showed only 1000 of 1096 assets. Root cause: Supabase caps any single read at 1000 rows, truncating both the page load and the sync's previous-state fetch, so the 96 alphabetically-last assets always looked new. All register reads now paginate",
-      "Fix: identical re-syncs marked every asset as changed because the change signature compared raw JSON text, and Postgres returns jsonb keys in its own order. Signatures now use canonically sorted keys, so an identical sync reports everything unchanged",
-      "The sync and import summary is now a comparison against the previous status: assets added, removed, changed, and unchanged; tag movement per stage (Red +12 style chips, gains green, losses red); checkpoint completions gained and lost with a regression warning when completions disappear; and the count of planned or actual date changes. Counts only, never asset lists. Assets that vanish from the register are now removed from DLP too, keeping the page faithful to the Master, and reported as Removed",
-      "The Columns popover is tidied: the filter-input styling (200px width, borders) was bleeding onto its checkboxes and radios, wrapping the labels and drawing the radio as a wide pill. Controls now align left with their labels on one line"
+      "Witness invitation emails now carry an Open This Activity In DLP button linking straight to the activity: the link opens DLP, enters the right project and opens that activity's editor. Recipients without a DLP account land on the sign-in screen; project members (including client viewers) go straight through after signing in",
+      "The link is built from the address the invite was sent from, so it follows the app.qmc.cx domain migration automatically with nothing hardcoded; invites sent before the migration keep working as long as the old address remains a redirect",
+      "Opening a deep link to an activity that has since been deleted lands on the board without an error"
     ]
   },
   {
