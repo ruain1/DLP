@@ -1,924 +1,936 @@
 [
- {
-  "rev": "REV114",
-  "date": "2026-07-04",
-  "items": [
-   "Platform hub: the header and the Home / Projects / Inside A Project navigation bar are now frozen, staying in view however far you scroll",
-   "Inside A Project is now a live snapshot of every project you can see, one collapsible section per project with its accent band, activity, completion and overdue counts, and an Open Planning Board button. One toolbar (Swimlane or Gantt, Day or Week, grouping, span and paging) drives all sections at once; collapse states are remembered, the most recently visited project loads first, and beyond eight projects collapsed sections load only when expanded",
-   "New Edit Project on the Projects page (owner and platform supers): pencil on each row opens a modal for name, code, client, location, dates, accent colour and status. This is the authoritative rename for the hub, fixing renames that previously never took root: projects created through the hub had no branding row, so the in-app rename silently updated nothing. Branding rows are now backfilled for every project, seeded automatically for future projects, and the branding save itself inserts the row if it is somehow still missing",
-   "A sync option on Edit Project keeps the in-app branding name (tab title, location-code prefix, report headers) aligned to the project code, so the hub name and the in-app name cannot drift apart again; untick it for a project that deliberately brands itself differently inside the app",
-   "Projects can now be archived (or put on hold) from Edit Project: archived projects disappear from Home, the switcher, the snapshots and Analytics, and sit greyed out on the Projects page behind a Show Archived toggle. Nothing is deleted and direct entry still works",
-   "New Analytics tab on the hub for the owner and platform supers: portfolio KPI tiles (weighted PPC over committed work due to date, using exactly the sidebar PPC formula per project; completion; overdue; open commitments), a project comparison table with a health badge (On Track, Watch, At Risk from the overdue share of open work), Status Mix and Overdue charts per project, portfolio-wide activity by company, and a multi-sheet Excel download. Every tile drills to the projects behind the number, and every row deep-links straight into that project's full Analytics page",
-   "Project edits are recorded in the audit log (who, what, when), and project creation now writes an audit row too"
-  ]
- },
- {
-  "rev": "REV113",
-  "date": "2026-07-04",
-  "items": [
-   "Fix: the vendor logo on witness invitations rendered as a broken image box. Two faults compounded: the logo was embedded as an attachment inside the event creation payload, which Graph silently discards (attachments on events are only supported through their own endpoint), so the body's inline reference pointed at nothing; and even a late attachment could never fix the email, because Exchange dispatches the invitations the moment an event is created with attendees. The send is now the Microsoft-documented three-step order: create the event silently with no attendees, attach the logo through the supported endpoint, then add the attendees, which is the step that sends the meeting requests with the logo aboard",
-   "The Test To Me logo verdict now tells the truth: it previously reported embedded whenever the creation call succeeded, which is exactly how a broken logo shipped unnoticed; it now reports embedded only when the attachment call itself succeeded. If the attachment is refused, the body is downgraded to the name-only variant before anyone is invited, so an inline reference can never again point at a missing attachment; if inviting the attendees fails, the orphan calendar entry is deleted and the error surfaces, leaving nothing behind",
-   "Events without a vendor logo keep the original single-call send. Meeting updates and cancellations are unchanged, and the digest emails were never affected: mail sends embed inline attachments in one supported call"
-  ]
- },
- {
-  "rev": "REV112",
-  "date": "2026-07-04",
-  "items": [
-   "Fix: the owner account was being treated as a client viewer, hiding the Witness Schedule's admin action column (Send, Update, Cancel, Test To Me) behind Request Invite buttons and hiding the drawer's new Test Invite To Me field. Root cause: the REV104 privilege resolver's owner blanket granted every key including Request Invites, which is not an elevated privilege but the client-viewer mode flag; combined with a company set on the owner's profile, the owner's session flipped into client-viewer mode. The owner now receives every elevated privilege and is never a client viewer; admins, supers, members and genuine client-company viewers are unchanged"
-  ]
- },
- {
-  "rev": "REV111",
-  "date": "2026-07-04",
-  "items": [
-   "Test Invite To Me is now available in the activity drawer itself: any admin, super or the owner opening a witness activity finds it on the Readiness tab under Witness Days, in every activity status, on any date, whatever the invite state. It creates the real event with the real template and vendor logo in your own calendar only, invites nobody, stamps nothing, and reports the result inline in the drawer",
-   "The drawer test deliberately uses the values currently on screen, including unsaved changes, so you can preview an edit before saving or sending anything; the button says so. It is also deliberately independent of the plan lock and of the invites privilege, because a self-only test changes nothing: the option is always there for admins and the owner, which is the point",
-   "The Witness Schedule's own Test To Me is unchanged and already appears in every invite state; the drawer covers the cases the schedule cannot, such as activities outside the selected period"
-  ]
- },
- {
-  "rev": "REV110",
-  "date": "2026-07-04",
-  "items": [
-   "Admin update emails work again for owner and super accounts. The digest claim table and several older policies were guarded by the legacy is_admin() database helper, which only recognised the old profile role; the REV104 owner/super rework moved accounts to the new role model and the helper started refusing them, blocking sends and hiding the send history (both lines read never sent). A one-file SQL migration redefines the helper as a strict superset: legacy profile admins keep access, and platform supers, the owner and per-project admins are recognised. This also repairs the audit log read the digest content is assembled from, and every other legacy policy referencing the helper",
-   "Digest recipients now honour the full role model: legacy profile admins, platform supers, the owner, and per-project admins on the current project, deduplicated. Previously an account moved to the new model silently dropped off its own digest",
-   "The claim error message is now actionable: a row-level security refusal names the migration to run instead of printing a raw database error"
-  ]
- },
- {
-  "rev": "REV109",
-  "date": "2026-07-04",
-  "items": [
-   "Recovery: the REV107 Weekly Cx Progress changes never reached the live site (the changelog was pushed without the page file, and REV108 then shipped a copy built on the stale base). This REV re-delivers the full REV107 content: the admin-only Insights strip, KPI movement, movers and stalled equipment types, the Risk Register Overdue column with days computed and overdue-first sorting, the documentation readiness score, the funnel removal, the Configure Insights group, and the stored-XSS remediation, together with the REV108 sticky-header rebase",
-   "KPI tile movement indicators no longer wait for a second imported week: when no prior import exists, the coloured arrows derive from the pack's own Week on Week 7-day figures (new red, yellow and green tags over total assets; issues raised versus resolved), exactly matching the approved mockup from the first import onward. Once a second week is imported, the true week-on-week diff takes over automatically",
-   "Green tag reads not started while at 0% with no movement; assets and awaiting verification show no change and unchanged until a prior week exists to diff against"
-  ]
- },
- {
-  "rev": "REV108",
-  "date": "2026-07-04",
-  "items": [
-   "The double scrollbar is gone. Every page sized itself to the viewport minus the header but not minus the footer, so the window always overflowed by exactly the footer height and the outer scrollbar existed only to reveal it. The app shell is now locked to the viewport: the QMC footer is always visible, and each page has exactly one scroll container",
-   "Board, Activity Table, Schedule and Help now fill the space between the header and the footer instead of computing viewport arithmetic; their internal scrolling is unchanged",
-   "Analytics, Admin, Constraints Log and Weekly Cx Progress, which previously relied on the page-level scrollbar, now scroll inside a single shared container with the footer pinned below; sticky filter bars and side panels keep their behaviour with offsets corrected for the new scroll origin",
-   "Printing the Weekly Report is unaffected: print mode releases the viewport lock so the document flows across pages as before"
-  ]
- },
- {
-  "rev": "REV107",
-  "date": "2026-07-04",
-  "items": [
-   "Weekly Cx Progress gains an Insights strip: an admin-only, toggleable panel that reads the page for you. Rule-generated lines cover tagging pace against the target date with a projected 100% date and its week-on-week movement, the L1 to L2 graduation stall, issue backlog growth with zero-resolution streaks, IRL throughput stalls, overdue risks with the oldest and its owner, aggregate milestone slip growth, the documentation chase list with regressions, stale ACC refreshes, falling vendor attendance, and import gaps. Priority ordered, capped at six, every line clickable to its detail and calculation. Members never see the strip or its toggle",
-   "Every KPI tile now carries its week-on-week movement against the previous import: percentage-point moves on the tag tiles, count moves on assets, open issues and awaiting verification, with raised-versus-resolved shown in red when nothing was resolved. First imports read first import instead of breaking",
-   "The Tag Attainment Funnel card is removed: it duplicated the tag tiles above it, and the parser has always hardcoded its L4 and L5 rows to zero, so the bottom of the funnel was never live data. The Weekly Report keeps its funnel section for now",
-   "Red Tag By Equipment Type now distinguishes movers from stalled: each type shows its weekly gain, and any type under 100% with no movement across consecutive imports flags as stalled with the streak length. The threshold is configurable under Configure, Insights",
-   "The Risk Register computes days overdue against the reporting week and sorts overdue rows first, oldest first, with a new Overdue column. Due dates on previously imported snapshots are parsed at render time with the year inferred from the reporting week, and new imports also store the full date",
-   "The Documentation Register header gains a readiness score (green 2, amber 1, red 0 across all cells), its week-on-week movement, the red-vendor count and the regression count; the matrix itself is unchanged",
-   "Configure gains an Insights group: the stalled-after threshold and the Target 100% date the pace signal measures against, falling back to the milestone named Complete when blank",
-   "Security: the stored XSS finding from the QC audit is remediated; every workbook-derived string is now escaped at the popup title, body and detail-table boundaries, so a hostile workbook cell renders as text instead of executing"
-  ]
- },
- {
-  "rev": "REV106",
-  "date": "2026-07-04",
-  "items": [
-   "PPC now measures only promises that have come due. The gauge and the sidebar figure previously divided kept promises by all committed activities, including commitments whose promised finish is still in the future, which cannot be kept yet; those are now excluded until their promised date passes, matching the Reasons panel and the trend. The headline number rises as a result, not because performance changed but because open promises are no longer counted as broken. The gauge caption states how many commitments are awaiting their date",
-   "Status Mix now answers the next question for each slice: Planned splits into ready to run and need make-ready, In progress splits into running late and constrained, Complete splits into on time and finished late, each with its percentage of the project and every count clickable to its activities",
-   "Activities By Company is now a contractor performance panel: each bar keeps its length as volume but segments into Complete, In progress and Planned, with new PPC and Open Constraints columns. PPC is promises due to date kept, colour-coded green from 80, amber from 50, red below, n/a until a company has committed work due; hover shows the kept-of-due count",
-   "By Cx Stage now reads as commissioning progression: stage colours stay on the labels, bars segment by status, and new Done and Open Constraints columns show how far through each stage the project is and what is blocking it",
-   "The Metrics Excel export carries all of the above: By company gains Complete, In progress, PPC %, PPC kept, PPC due and Open constraints; By Cx stage gains Complete, Complete % and Open constraints; Status mix gains Share % and the sub-split rows; the Summary sheet separates committed due to date from committed not yet due",
-   "Housekeeping: records the User Privileges width fix that shipped without a changelog entry; the privileges matrix page uses the full viewport width instead of the settings column"
-  ]
- },
- {
-  "rev": "REV105",
-  "date": "2026-07-04",
-  "items": [
-   "The Weekly PPC Trend no longer plots the future as failure. Committed work due in weeks that have not happened cannot be complete, so those weeks rendered as 0% kept; the axis now ends at the current week, and the collapse-to-zero tail is gone",
-   "The current week draws as a hollow point with a dashed lead-in and a legend note, because its PPC is provisional until the week closes; work due Friday is no longer scored as broken on Tuesday",
-   "Trend point tooltips now carry the denominator, for example W26: 65% (13 of 20 kept), so a 100% week built on one activity can no longer masquerade as one built on twenty",
-   "New 4-week rolling average on the trend, amber dashed, computed over summed kept and due counts rather than averaged percentages, so tiny weeks cannot swing it",
-   "The failure-reason bars in Invitation Outcomes and Reasons For Non-Completion are now genuine Paretos: bar length is each reason's share of the total (previously bars scaled to the biggest bar, overstating minor reasons), with new Share and running-total columns and a cumulative marker on each bar",
-   "The same Pareto columns appear in the Weekly DLP Report's Why Work Slipped and Invitation Outcomes sections, and the Metrics Excel Non-completion sheet gains Share % and Cumulative % columns",
-   "Reason labels in the Analytics bar panels wrap instead of clipping with an ellipsis, completing on screen what REV102 fixed in print; this also applies to Activities By Company and By Cx Stage"
-  ]
- },
- {
-  "rev": "REV104",
-  "date": "2026-07-04",
-  "items": [
-   "New Owner role above the platform team: exactly one owner account, seeded in the database, which no admin, super or API call can demote or delete",
-   "New Admin page, Access -> User Privileges: a per-person matrix of rights for this project. Everyone starts from their role baseline (Member or Admin); the owner can grant or withdraw individual rights per person, with an amber dot marking any switch that differs from the baseline, a per-row Reset To Role Defaults, group filters, and a pending-changes save bar. Admins and supers see the page read-only; every change is written to the audit log and takes effect live",
-   "Request Invites is now a managed privilege with the same behaviour as before: on by default only for members whose company matches the project client, off for everyone else, and grantable or withdrawable per person",
-   "Rights are now enforced in the database as well as the app: creating, editing, deleting, committing and editing committed work are checked by row-level security and a commit-transition guard, so a withdrawn right holds even outside the app. Baselines mirror existing behaviour exactly, so nobody's effective rights change on day one"
-  ]
- },
- {
-  "rev": "REV103",
-  "date": "2026-07-04",
-  "items": [
-   "Sidebar PPC now agrees with the Analytics gauge. It previously counted every completed committed activity, including those finished late, while the gauge, the Weekly Report and the admin digests all count only activities finished on or before their promised date. The sidebar now uses the same on-time rule, so all four surfaces show one number",
-   "The sidebar PPC tooltip now explains the metric: committed activities finished on or before their promised date, click to open Analytics"
-  ]
- },
- {
-  "rev": "REV102",
-  "date": "2026-07-03",
-  "items": [
-   "Full-text fix: no printed or emailed entry is ever cut off mid-word again. In the Weekly DLP Report, the Reasons and Breakdown row names and the schedule snapshot's activity labels previously clipped with an ellipsis at fixed widths, unreadable on paper; they now wrap to as many lines as they need, with the row growing to fit and the layout otherwise unchanged",
-   "In the admin digests, activity references, detail fragments and changelog rows are no longer truncated at character caps; every word shown is whole. Busy-week changelog volume is handled structurally instead: weeks with more than three revisions itemise the latest three and state plainly how many earlier revisions the week held, with the full changelog in DLP"
-  ]
- },
- {
-  "rev": "REV101",
-  "date": "2026-07-03",
-  "items": [
-   "Admin digest emails redesigned to the approved QMC brand: white header carrying the Quantum Mission Critical mark, the four-colour Cx workflow bar (read live from this project's L1 to L4 stage colours) under the header and echoed above the footer, and each vendor as a bordered card with a shaded band carrying its real logo, name and counts, most active person named on multi-user vendors. Vendor logos embed as inline attachments from each company's light-surface asset with a name-only fallback; the daily and weekly share the one template",
-   "Content fixes in both digests: repeated references within a verb group now collapse to one entry with a count (x2 style) and the caps count deduplicated entries; detail fragments that merely echo the activity name are suppressed; and audit entries whose author matches no current user profile now appear in their own Unattributed card pinned last, with an explanation, instead of being silently filed under CSN"
-  ]
- },
- {
-  "rev": "REV100",
-  "date": "2026-07-03",
-  "items": [
-   "New Admin Update Emails card at the top of Reports (admins only): shows when the daily and weekly digests last went out and to how many recipients, plus your Outlook connection, with Send Weekly Update Now and Send Daily Update Now buttons. Manual sends go to all admins from your own connected Outlook, target the most recent boundary with its correct fixed window, complete a stuck claim if one exists, and ask before re-sending a digest that already went out",
-   "Scheduler liveness fix: a digest claim orphaned in the sending state (for example a reload killing the tab mid-send) used to block that boundary silently and forever; the scheduler now adopts claims stuck for over ten minutes and finishes them. The digest content assembly is now one shared path for the scheduler and the manual buttons, so the two can never drift apart"
-  ]
- },
- {
-  "rev": "REV99",
-  "date": "2026-07-03",
-  "items": [
-   "Fix: Email Invite from the Resend set-password link card was sending to the person's display name instead of their address (Exchange refused to resolve it), because that flow stored the name where the other flows store the email. The card now carries the real address from the roster's status lookup, the emailer refuses a name-shaped address with plain guidance instead of an Exchange error, and the Outlook transport drops any recipient without an @ so the readable no-valid-recipients message fires first. Add, approve and bulk flows were unaffected"
-  ]
- },
- {
-  "rev": "REV98",
-  "date": "2026-07-03",
-  "items": [
-   "Critical fix: invitation emails from the bulk Email All Created Invites, the credentials card's Email Invite, the set-password link flow, the approve auto-send and the scheduled admin digests were all failing at the transport layer (recipient addresses were being serialised without the address field, so Outlook rejected every send), while the bulk screen wrongly reported success. The transport now accepts both address shapes and refuses addressless sends with a readable error",
-   "The bulk results now tell the truth: each row shows Emailed or Email failed (hover a failed row for the reason) and the completion message reports exact counts, for example Invitations emailed: 4 of 5, instead of announcing success unconditionally. The Weekly Report emails were unaffected throughout"
-  ]
- },
- {
-  "rev": "REV97",
-  "date": "2026-07-03",
-  "items": [
-   "Approve And Invite now does what it says: approving an access request also sends the invitation email (the approved guided-steps template, link only, never a password) from your connected Outlook as part of the same action, and the modal states this. If Outlook is not connected or the send fails, the message says exactly what happened and the credentials card's Email Invite button is the retry path. The Add User path deliberately stays manual: there you initiate, so nothing is emailed until you press Email Invite"
-  ]
- },
- {
-  "rev": "REV96",
-  "date": "2026-07-03",
-  "items": [
-   "New Hide Complete pill on the board toolbar (beside Make-ready and YTT): hides activities marked Complete in both the Swimlane and the Gantt so open work stands out. Failed witness events stay visible even when complete, since they remain open questions until a retest closes them; the search counter counts within the focused set; a clear empty state appears when everything in the window is complete; and the choice persists with your other board preferences",
-   "Strictly display-only, on the same scope contract as board search: KPI tiles, exports, the Weekly Report, digests and the Witness Schedule are never affected by the toggle"
-  ]
- },
- {
-  "rev": "REV95",
-  "date": "2026-07-03",
-  "items": [
-   "Scheduled admin digests, sent from inside DLP: a daily update at 17:00 and a weekly update at 16:00 on Friday (Europe/Helsinki), emailed to all admin users from Ruain's connected Outlook session whenever his DLP tab is open. Each carries the changelog entries shipped in the window and Activity By Vendor with an itemised summary per user rendered verbatim from the audit trail; the weekly opens with the KPI strip and rolls high-churn verbs into counts with the largest movements named. Quiet days still send, so silence reads as signal",
-   "Engineered guarantees: a database claim (report_runs, run the new report-runs.sql) makes duplicate sends across tabs impossible; a 72 hour catch-up sweep sends missed boundaries late instead of losing them, so a weekend away yields the digests on Monday's first open; Saturday's window starts at Friday 16:00 so no audit hour is skipped; send times are DST-proof. Accepted limits: a boundary with no DLP tab open sends late or, past 72 hours, not at all, and if the Microsoft session needs interactive refresh a toast asks for Connect Outlook and retries",
-   "The server-side sender, its cron schedule and the pending IT credential request are all retired; the app keeps zero standing Microsoft permissions"
-  ]
- },
- {
-  "rev": "REV93",
-  "date": "2026-07-03",
-  "items": [
-   "User invitations can now be emailed straight from DLP through your connected Outlook account, in the approved guided-steps design: Email Invite sits on the credentials card after adding a person or approving an access request, on the set-password link flow (as Your FIN04 DLP sign-in link), and Email All Created Invites sends the whole bulk batch one by one with per-row results. Links state their 30-day validity; temporary passwords are never emailed by design, copy remains the path for those",
-   "Retest invitations now declare their history: subject reads RETEST INVITE with the attempt number, the header chip shows the attempt (and day for multi-day retests), and a red block above the details states the failed date and the recorded reason. Sending a retest whose failed attempt still holds a live invitation offers one click to also cancel it with a cross-reference comment, so attendees' calendars close the loop themselves",
-   "Cancellation comments rewritten: a failed activity with a scheduled retest sends a comment naming the recorded reason and the retest's date and time; ordinary cancellations state plainly that the session is off and any replacement arrives separately",
-   "New Test To Me on every Witness Schedule row: creates the real event with the real template and vendor logo in your own calendar only, no witnesses invited, nothing stamped, and the result line reports whether the logo deep-insert was accepted or the name-only fallback fired",
-   "The CSV witness export and the Outlook macro path are retired: the export and Mark Sent buttons are gone from Reports and the Witness Schedule hint no longer mentions them. Invites now live entirely in the in-app Outlook flow; the SendWitnessInvites.bas macro on your machine is historical"
-  ]
- },
- {
-  "rev": "REV92",
-  "date": "2026-07-03",
-  "items": [
-   "Report email body rebuilt to the approved Option A design: two-line branded header, accent-topped KPI tiles, the executive summary, a truthful Attached block, an Open DLP button (bulletproof table-cell pattern) and a clean footer, all in the email-safe subset",
-   "Every report email and every classic Outlook draft now carries both themes as attachments, FIN04-weekly-report-<date>-light.html for printing and -dark.html for screens; the Appearance toggle now governs only the on-screen Generate Report",
-   "The size guard works on the pair: dark is dropped first if the send would breach Graph's single-request ceiling, and the email body and the result line state exactly which files attached"
-  ]
- },
- {
-  "rev": "REV91",
-  "date": "2026-07-03",
-  "items": [
-   "Root cause of the persisting Connect Outlook button found and fixed: msal-browser 5.x changed handleRedirectPromise to take an options object, so the captured sign-in response was being passed as a bare string, silently ignored, and MSAL fell back to the live URL hash that the app's boot had already rewritten away. The captured hash is now passed as { hash }, per the 5.16 type contract, and the redirect return connects the account",
-   "Sign-in return diagnostics: the outlook module now records the outcome of every redirect return, and if the account fails to arrive, the Witness Schedule bar and the report window print the exact error code and message (the raw error also goes to the browser console) instead of silently showing Connect Outlook again"
-  ]
- },
- {
-  "rev": "REV90",
-  "date": "2026-07-03",
-  "items": [
-   "Connect Outlook is now redirect-first: the popup sign-in is retired after colliding with three separate failure modes in this deployment (popup blockers and enterprise policy, the opener's popup monitoring being timer-throttled while the app booting inside the popup stripped the auth response, and a reported msal-browser 5.x regression where the popup redirects to the app instead of closing). Sign-in is a quick full-page Microsoft redirect that returns to DLP already connected",
-   "New auth landing guard, Microsoft's documented pattern: when the page loads as the sign-in popup or as MSAL's hidden token-renewal iframe, the app no longer boots there (booting stripped the auth response from the URL); a static completing-sign-in line shows and the parent window reads the response. This also makes future silent token renewals reliable, which previously loaded the entire app inside a hidden iframe",
-   "Token refresh is silent-only; if it cannot refresh it asks you to press Connect Outlook rather than opening interactive windows mid-operation"
-  ]
- },
- {
-  "rev": "REV89",
-  "date": "2026-07-03",
-  "items": [
-   "Fixed the redirect sign-in landing signed out: the app's boot rewrites the URL with history.replaceState the moment it restores your project, which erased Microsoft's auth response from the hash before the Outlook module could read it. The response is now captured synchronously at page evaluation and handed to MSAL explicitly, so the account connects regardless of what boot does to the URL; MSAL also no longer performs a second navigation after sign-in",
-   "New Open In Outlook (Draft) in the report window: downloads a pre-addressed .eml carrying X-Unsent: 1 with the styled summary body and the full report attached; opening the file launches classic Outlook in compose mode for review and Send from your own mailbox. Pure client-side, works without Connect Outlook. Classic Outlook only; new Outlook handles these drafts unreliably and may drop the attachment"
-  ]
- },
- {
-  "rev": "REV88",
-  "date": "2026-07-03",
-  "items": [
-   "Connect Outlook now survives popup blockers: when the browser refuses the Microsoft sign-in popup (the popup_window_error seen on corporate machines and under enterprise policy), the app automatically falls back to a full-page redirect sign-in and returns to DLP signed in. The redirect return is absorbed at boot, so the account is connected on the next open of the Witness Schedule or report window",
-   "A blocked popup during a token refresh mid-send deliberately does not redirect (a full-page navigation there would abandon partially-sent invites and risk duplicates); it stops with a clear instruction to press Connect Outlook and retry",
-   "Raw MSAL error strings no longer surface for this case"
-  ]
- },
- {
-  "rev": "REV87",
-  "date": "2026-07-03",
-  "items": [
-   "Witness invites and the weekly report email now wear the approved styled templates, built entirely in the email-safe subset (nested tables, inline styles) so classic Outlook's Word engine, new Outlook, OWA and Gmail all render them: branded FIN04 header bar, labelled details table, a conditional amber open-constraints callout, notes and an organiser footer on invites; header bar, a KPI strip (PPC, Delayed, Witness Passed, Make-Ready, each tile dropping with its unticked section), the executive summary and the attachment callout on the report email",
-   "The responsible vendor's logo now appears on the invite as a CID inline attachment fetched from the company's stored light-surface asset, measured at send time so Outlook receives true width and height attributes, with the company name as alt text so clients that strip images degrade to text. Deep-inserting the attachment at event creation is not explicitly documented by Graph, so a rejected send automatically retries without the logo and the invite always goes out; each session records whether its event carries the logo so later updates rebuild the matching body",
-   "Meeting updates never resend attachments; the creation-time logo persists on the event"
-  ]
- },
- {
-  "rev": "REV86",
-  "date": "2026-07-03",
-  "items": [
-   "The Weekly DLP Report now emails itself: Email Report in the report window sends from the signed-in admin's Outlook account (delegated Mail.Send, granted by CSN IT) to the saved distribution list, replacing the old mailto draft that asked for a hand-attached PDF. A copy lands in the sender's Sent Items",
-   "The email body is a deliberately email-safe rendering (title, period, the executive summary) because desktop Outlook renders HTML with the Word engine; the full report, exactly as Generate Report produces it including the chosen appearance and Cx sections, travels as an HTML attachment that opens pixel-perfect in any browser",
-   "Send Test To Me delivers the identical email to the sender alone, marked [TEST], for a safe dry run before the distribution list sees anything",
-   "A size guard keeps the send inside Graph's single-request ceiling: a report too large to attach still sends the summary and says so, rather than failing",
-   "Connect Outlook in the report window shares the same Microsoft session as the Witness Schedule; one sign-in covers invites and report emails"
-  ]
- },
- {
-  "rev": "REV85",
-  "date": "2026-07-03",
-  "items": [
-   "Witness invites can now be sent directly from the Witness Schedule (admins): Connect Outlook signs in with the CSN Microsoft account (delegated, PKCE, no secret) and the signed-in admin becomes the organiser. Creating the calendar event sends the invitations, one event per session day, in Europe/Helsinki wall-clock time so Exchange owns the DST maths",
-   "Every witness row carries a live status: Not Sent, Sent with date, Partially Sent with per-day pills for multi-day series, Details Changed when the date, time, duration, name, location or recipient routing moved after sending, and Cancellation Sent. Update Invite reconciles in one click: changed days are updated, added days sent, surplus days cancelled, and attendees receive the changes automatically",
-   "Cancel sends a proper calendar cancellation to all attendees, with confirmation first. Recording a Failed outcome deliberately does not auto-cancel; a Cancel Outlook Invite button sits in the editor beside Create Retest for when it is wanted",
-   "Send All Pending sends every unsent event in the selected period in one pass. Sending stamps the activity's Sent marker, so the CSV export and the Outlook macro (both untouched, kept as the fallback) skip anything already sent from the app",
-   "Graph event ids are stored per day on the activity (new witness_events column; run witness-events.sql before pushing). Push order: witness-events.sql in Supabase, then package.json, src/outlook.js, src/data.js, and App.jsx last"
-  ]
- },
- {
-  "rev": "REV84",
-  "date": "2026-07-03",
-  "items": [
-   "Rescheduled milestones no longer lose their trail when the origin date scrolls off the window: the red dotted line now clamps to the window edge on the origin side, wearing a chevron to say it continues off screen and, when the visible span allows, a small mono chip stating the origin date (from 26 Jun). Hover still carries the full original date. When both ends are in the window nothing changes",
-   "The same chevron and origin chip were added to the bar trail's clipped end, which already clamped to the edge but gave no cue that the line continued off screen",
-   "The chip drops automatically on spans too short to carry it, falling back to the tooltip"
-  ]
- },
- {
-  "rev": "REV83",
-  "date": "2026-07-03",
-  "items": [
-   "Retests now take priority in lane row packing: a retest claims its failed parent's row whenever that row is free from the retest's start, and wins same-day ties against ordinary activities, so an attempt chain reads as one horizontal line: card, failure tail, X, amber connector, retest. Chains of retests inherit the same row. Previously an unrelated activity starting the same day could steal the parent's row, dropping the retest to another line and losing the connector, which only draws same-row"
-  ]
- },
- {
-  "rev": "REV82",
-  "date": "2026-07-03",
-  "items": [
-   "Failed witness events now show a frozen failure tail: a red hatched tail runs from the planned card to the recorded outcome date with the X badge at the failure point, so the board reads planned here, failed there. The tail is anchored to the outcome date and never grows",
-   "A failed event whose planned week has scrolled off the window now carries as a hatched ghost from the window edge to its outcome date, and drops off only once the window is past the failure. This replaces both the REV81 hard cutoff at the planned week and the pre-REV81 unbounded carry",
-   "The retest connector now starts beyond the failure tail rather than the planned finish, and lane row packing reserves space through the tail so neighbouring bars cannot overlap it",
-   "DST fix for multi-day witness invitations: session days are now advanced with calendar arithmetic instead of adding 24-hour blocks of milliseconds, which drifted the start time by one hour across the Europe/Helsinki clock changes (25 Oct 2026, 28 Mar 2027). The invite export, the Witness Schedule date range and the editor's session summary are all corrected",
-   "The editor now warns when the witness date, or the last day of a multi-day series, falls outside the activity's planned span, and points to Reschedule, so a moved witness event can no longer silently drift away from its card on the board"
-  ]
- },
- {
-  "rev": "REV81",
-  "date": "2026-07-03",
-  "items": [
-   "Fixed a phantom overdue trail on failed witness events: a failed invite whose planned day sat left of the visibility window was still retained by the carry-forward rule, bypassed the carried-bar handling (which deliberately skips failed invites), and its off-window end produced a negative CSS grid line, painting a hatched bar from the window edge deep into the future, wider the larger the window. Failed invites are closed records and now follow the same window rule as complete activities: visible in their own week, never carried forward",
-   "The Delayed KPI and make-ready counts no longer include closed failed witness events carried into future windows",
-   "Row packing no longer reserves an overdue tail for failed invites (no tail is ever drawn for them), so lanes pack tighter around ghosted events",
-   "Defensive guard in the bar renderer: a span wholly left of the window that is not a carried item now draws nothing rather than emitting a negative grid line"
-  ]
- },
- {
-  "rev": "REV80",
-  "date": "2026-07-02",
-  "items": [
-   "Help REV 9: exhaustive rebuild of every Try It simulator against the app as it is actually built. The Add via Planning Board walkthrough now steps through the real three-tab editor (Details with company, location, discipline, system, asset and Cx stage; Schedule with start, days, predecessors, status, actuals and percent; Readiness with constraints, the Committed toggle and witness setup), and committing in the simulator states the commit lock",
-   "Simulator fidelity across the board: the toolbar replica gained the search box and Witness Schedule pill; Switch Views gained a working search that filters the simulated board; Analytics gained the Invitation Outcomes panel with the slips-versus-pass-fail separation stated; Witness Invites gained the date, duration and the new Witness Days stepper with the one-invite-per-day explanation; Mark Work Complete now states the slip-reason consequence of a late finish",
-   "The static step illustrations in the tutorials now render the same three-tab editor replica as the simulator, from one shared builder, so the help drawer can never again drift from the real one in two places",
-   "Try It badges added in the help menu for Mark Work Complete and Witness Invites, whose simulators previously existed but were not flagged"
-  ]
- },
- {
-  "rev": "REV79",
-  "date": "2026-07-02",
-  "items": [
-   "Multi-day witness invitations: a new Witness Days stepper on the Readiness tab (1 to 10, default 1) turns a witnessed event such as a multi-day SAT into consecutive daily sessions. The witness date and time becomes the daily session start and the duration the daily session length; a summary line shows the resulting span and a soft warning flags Witness Days exceeding the activity's own duration",
-   "The witness export writes one timed row per day with Day i of N in the subject and body, all sharing the activity's ID, so every session blocks the witnesses' calendars as Busy and the existing Outlook macro sends them without modification (verified against the live macro: it iterates rows independently and its Sent dedup and confirmation round trip both hold). The Witness Schedule popup shows one card per event with the date range and a days multiplier on the duration pill",
-   "Witness Days is plan-locked once committed, cloned onto retests, and included in the audit revert field comparison. Needs the witness-days.sql migration run before data.js and App.jsx"
-  ]
- },
- {
-  "rev": "REV78",
-  "date": "2026-07-02",
-  "items": [
-   "Help updated to REV 8, covering everything shipped since REV 7: the commit lock (a committed activity's plan is admin-only; progress recording stays open), witness outcomes with failure reasons, ghosted failed records and linked retests, first-time pass, the audit log revert, the board search, and the 1-week lookahead option",
-   "New reference page Slips vs Pass / Fail, spelling out the difference between a Reason for Non-Completion (the schedule verdict on a committed promise, feeding PPC) and a Witness Outcome (the quality verdict on an inspection or FOK, feeding first-time pass), and why the two are independent",
-   "TRY ME interactive demos embedded in the help: toggle the commit lock and watch the plan fields freeze, record a witness outcome and watch the card ghost, and step through the four slip-versus-outcome scenarios",
-   "Fixed: four existing help pages (Delays & Excusing, Marking Work Complete, Discipline, Assets & Auto-fill) were present in the help but missing from the in-app menu, so they could not be reached. All pages are now listed, with the admin-only ones gated"
-  ]
- },
- {
-  "rev": "REV77",
-  "date": "2026-07-02",
-  "items": [
-   "Fix: an Actual Start dated in the future produced a false green progress tail on the board (the renderer drew from today back to the card because the end of an open activity's progress bar is today, and the inverted span was silently swapped by the browser). Progress bars now never draw from a future actual date, and inverted spans are refused outright",
-   "The Schedule tab now shows an amber warning under Actual Start / Actual Finish when either is set in the future, at the moment the mistake is being made. The value is not blocked or auto-cleared; actual dates remain yours to correct, and the audit history records who set them"
-  ]
- },
- {
-  "rev": "REV76",
-  "date": "2026-07-02",
-  "items": [
-   "Planning Board: the search box moved to the far left of the toolbar, ahead of the date navigation",
-   "The lookahead window selector (board toolbar and Admin > Lookahead) gained a 1-week option, for running the board tight on the current week"
-  ]
- },
- {
-  "rev": "REV75",
-  "date": "2026-07-02",
-  "items": [
-   "Planning Board: new search box in the toolbar (beside Import), filtering the board like the Activity Table search. It matches description, company, system, asset tag and location code; matching cards stay, everything else is hidden, lanes with no matches collapse, and a live count shows how many of the window's activities match. Escape or the small cross clears it",
-   "Deliberate scope: the search filters only what the board draws. The KPI tiles, the Export CSV and the Analytics exports are untouched by the search term, so a forgotten search can never silently truncate an export or skew the metrics"
-  ]
- },
- {
-  "rev": "REV74",
-  "date": "2026-07-02",
-  "items": [
-   "Audit log revert (admin only): activity entries in Admin > Audit now carry revert controls. The most recent change to an activity within the last 24 hours gets a one-click Revert; older or superseded entries get an amber Revert Anyway with an explicit warning of how many later changes will be overwritten; deletions get Restore (the activity returns with the same id, so predecessor and retest links survive); creations get Remove",
-   "The confirmation window shows a field-by-field comparison of what each value restores to versus its current state, and refuses politely when the current state already matches the snapshot. Every revert is written to the audit log by the existing triggers, so a revert is itself revertible and nothing is silently lost",
-   "Powered by a new activity_snapshots table with its own trigger (audit-snapshots.sql). The live audit trigger is deliberately untouched. Entries from before the migration show No Snapshot and cannot be reverted, because no before-state exists for them"
-  ]
- },
- {
-  "rev": "REV73",
-  "date": "2026-07-02",
-  "items": [
-   "Commit lock (Phase 1): once an activity is Committed for this week, its plan is frozen for members in both the New / Edit Activity window and the Activity Table: description, company, building, level, zone, discipline, system, assets, Cx stage, milestone flag, planned start, duration, predecessors, witness setup, the Committed toggle itself, and Delete. A banner in the window explains the lock and directs changes to an admin",
-   "What members can still do on a committed activity, by design: set status, actual dates and percent complete, record the reason for non-completion, record the witness outcome and create a retest, manage constraints, and edit notes. Locking these would break the daily Last Planner workflow, so only the promise is protected, not the progress against it",
-   "Admins are unaffected. Drag and edge-resize of committed activities were already blocked for members; this closes the remaining routes (window edit, table edit, delete) that let a commitment be changed or removed without an admin"
-  ]
- },
- {
-  "rev": "REV72",
-  "date": "2026-07-02",
-  "items": [
-   "New / Edit Activity: the field headers inside the window (What Is The Activity, Company, Building, Level, Zone / Room, Discipline, System, Asset, Cx Stage, Notes, and every label on the Schedule and Readiness tabs) are now blue, matching the window title and the app-wide header colour. REV70 had made only the window title blue; this completes the request as intended"
-  ]
- },
- {
-  "rev": "REV71",
-  "date": "2026-07-02",
-  "items": [
-   "Weekly DLP Report: new Invitation Outcomes section, on by default in Sections To Include under Planning Board. It reports witnessed events that reached an outcome in the period (keyed on the outcome date) with passed and failed counts and a failure-reason Pareto, plus first-time pass to date (programme level, retest chains counted once at the root, since a per-week rate over a handful of events would be noise)",
-   "The auto-drafted executive summary now includes a witness outcomes sentence when events reached an outcome in the period, and drops it if the section is unticked",
-   "Saved section preferences now merge with the defaults, so sections added in future revisions appear ticked for existing users instead of silently missing"
-  ]
- },
- {
-  "rev": "REV70",
-  "date": "2026-07-02",
-  "items": [
-   "WILL and WIT chips restyled to the approved graphics everywhere they appear (board, popups, Schedule, Witness Schedule, drill lists): solid dark-blue WILL and solid purple WIT with light text. The printed Weekly Report badges use the same colours in both light and dark",
-   "Consistency pass: Analytics section headers now use the Weekly Cx Progress style (small blue capitals with letter spacing, theme-aware). In the other direction, the Weekly Cx Progress drill popup now follows the Analytics popup styling: same corner radius and shadow, normal-case title with a header divider, and the calculation block and data tables rendered as card rows with the grey left edge",
-   "New Activity / Edit Activity header text is now blue for contrast, and the same applies to every popup title on that pattern (Weekly Report window, Create Retest, and the rest) so titles read consistently across the app"
-  ]
- },
- {
-  "rev": "REV69",
-  "date": "2026-07-02",
-  "items": [
-   "Milestones are now binary: the Status control offers only Planned and Complete for milestone-flagged activities, a single Achieved Date replaces Actual Start and Finish, and Percent Complete is locked (0 while Planned, 100 on Complete). Legacy milestones saved as In Progress read as Planned",
-   "New Witness Outcome on activities marked Witness invite: Pending, Succeeded or Failed, recorded separately from schedule status. Failed requires a reason from a new witness-quality list and can create a linked retest that clones the discipline, company, location, system, assets and witness routing",
-   "Failed witness events stay on the board ghosted: hatched fill, red edge, struck-through name and a red cross badge. They no longer carry forward, take overdue treatment or accept drag, resize or edits (admins can reopen the outcome). A dashed amber link joins a failed attempt to its retest, which wears a RETEST #n chip (the first retest is attempt #2, so RETEST #1)",
-   "New Invitation Outcomes panel on Analytics beside Reasons For Non-Completion: Attempted, Succeeded, Failed, First-Time Pass (retest chains count once at the root) and a failure-reason Pareto, all clickable to drill. A footnote clarifies that a failed witness executed as committed still counts as a kept promise in PPC",
-   "Export all activities now carries Witness outcome, Failure reason, Outcome date and Retest of columns. The witness invite export is deliberately unchanged so the Outlook macro keeps working"
-  ]
- },
- {
-  "rev": "REV68",
-  "date": "2026-06-29",
-  "items": [
-   "Witness invite wording tidied: the subject and the opening line no longer wrap the activity name in quotes, the opening line reads as a normal sentence rather than capitals, each detail (Discipline, Cx Stage, Performing, Location, Planned start) sits on its own line, and the 'please forward' line now sits at the very bottom of the message"
-  ]
- },
- {
-  "rev": "REV67",
-  "date": "2026-06-29",
-  "items": [
-   "New Witness Schedule button on the board (beside Make-ready and YTT): opens a popup listing the activities marked for witness in the selected period (this week, next 2 or 4 weeks, or all upcoming), each showing the date and time, the duration, the activity name and any open constraints",
-   "Make-ready, YTT and Witness Schedule are now rounded pill buttons on the blue accent scheme, filling solid blue while their panel is open",
-   "Dark mode: the calendar icon in the Witness date & time field (and any datetime field) is now light so it shows against the dark background",
-   "The New / Edit Activity footer now warns in orange and lists exactly which required fields are still missing, rather than a quiet grey count",
-   "When Witness invite is on and a discipline is chosen, the editor now lists the resolved invite recipients (Required and CC) so you can see who will be invited before saving"
-  ]
- },
- {
-  "rev": "REV66",
-  "date": "2026-06-29",
-  "items": [
-   "New Discipline field on the activity Details tab (Mechanical, Electrical, BMS/EPMS, FLS; multi-select), required when Witness invite is on; it drives who the witness invite goes to",
-   "New Witness duration field on Readiness; the witness invite end time is now start plus this duration rather than a fixed hour",
-   "The witness export now carries the resolved Required and CC attendees, a discipline column and a Sent column, with the subject FIN04 - INVITE FOR \"activity\"",
-   "Witness invites can be bulk-sent from classic Outlook with the supplied macro; a new admin Mark sent control stamps which invites have gone out so they are not sent twice"
-  ]
- },
- {
-  "rev": "REV64",
-  "date": "2026-06-22",
-  "items": [
-   "Planning Board: the blue current-day line no longer touches the coloured left border of activity cards. It now sits a few pixels clear of the column edge so there is a clean gap between the today line and the card edge"
-  ]
- },
- {
-  "rev": "REV63",
-  "date": "2026-06-22",
-  "items": [
-   "The Assigned To You popup now uses the YTT card format: constraints are grouped under their activity, and each has a tick box so you can acknowledge (clear) it directly in the popup. Acknowledging removes it from your list and drops the badge count. You can clear a constraint assigned to you or your company even if the activity belongs to another company; admins can clear any"
-  ]
- },
- {
-  "rev": "REV62",
-  "date": "2026-06-22",
-  "items": [
-   "Dark mode: the calendar icon inside date fields was a dark glyph on a dark field and almost invisible. It is now inverted to a light icon in dark mode (and left as-is in light mode), driven by the theme so it follows the light/dark toggle"
-  ]
- },
- {
-  "rev": "REV61",
-  "date": "2026-06-22",
-  "items": [
-   "Date fields (planned start, actual start and finish, constraint need-by, report range) now open the calendar picker as soon as you click anywhere on the field, not only on the small calendar icon"
-  ]
- },
- {
-  "rev": "REV60",
-  "date": "2026-06-22",
-  "items": [
-   "Fix: the REV59 build caused a white screen on load. The notification calculations were written as React hooks placed after the app's loading guard, which violates the rules of hooks and crashed the app once data loaded. Rewritten as plain calculations; no behaviour change to the notifications feature"
-  ]
- },
- {
-  "rev": "REV59",
-  "date": "2026-06-22",
-  "items": [
-   "Constraints can now be assigned to a person or a company: in the responsible field of a constraint (activity drawer and Constraints Log), type @ to pick from a list of project members and companies",
-   "New envelope icon in the top bar, between the theme toggle and your name, with a red count badge showing how many open constraints are assigned to you or your company. Click it for a popup list; click any item to open the activity",
-   "Admins receive notifications for constraints assigned to them personally and to the CSN company"
-  ]
- },
- {
-  "rev": "REV58",
-  "date": "2026-06-22",
-  "items": [
-   "Planning Board: the actual-progress bar no longer overshoots the left edge of an activity card or cut across its coloured side border. When work started on plan, the bar now begins neatly under the readiness dot inside the card; bars whose actual start is a later day keep their exact position on the day grid"
-  ]
- },
- {
-  "rev": "REV57",
-  "date": "2026-06-22",
-  "items": [
-   "Activity duration is calendar days, weekends included. The New / Edit Activity field is now labelled Days (Calendar) and shows the resulting finish date so it is clear weekends are counted (they were never skipped; this makes it explicit)",
-   "The PPC figure at the foot of the left sidebar is now clickable and opens the Analytics page"
-  ]
- },
- {
-  "rev": "REV56",
-  "date": "2026-06-21",
-  "items": [
-   "Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it",
-   "Companies now have a short description (role & scope), editable inline in Admin > Companies. On the Planning Board grouped by Company, click a company's logo to see a popup card with that role & scope",
-   "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users",
-   "Activity Table: the Building filter only shows on projects with more than one building"
-  ]
- },
- {
-  "rev": "REV55",
-  "date": "2026-06-21",
-  "items": [
-   "Weekly DLP Report: new Light / Dark choice in the report window. Light is unchanged; Dark renders the whole report on a dark sheet. To keep the dark background when saving to PDF, tick 'Background graphics' in the browser print dialog"
-  ]
- },
- {
-  "rev": "REV54",
-  "date": "2026-06-21",
-  "items": [
-   "Planning Board (Day view): you can now drag the left or right edge of an activity to change its start or finish. Hover near an edge and the cursor becomes a resize arrow; drag in whole-day steps, minimum one day. Available to admins (and to members on their own activities that are not yet committed)"
-  ]
- },
- {
-  "rev": "REV53",
-  "date": "2026-06-21",
-  "items": [
-   "Admin > Companies: company names are now editable inline, like buildings, levels, zones and systems. Type a new name and press Enter or click away; it updates everywhere the company is shown. Activities stay linked because they reference the company, not its name"
-  ]
- },
- {
-  "rev": "REV52",
-  "date": "2026-06-21",
-  "items": [
-   "Changed atNorth to atnorth (lowercase) on the Help page and in the Weekly Report, to match the logo"
-  ]
- },
- {
-  "rev": "REV51",
-  "date": "2026-06-21",
-  "items": [
-   "Restored the Project and App name (from Admin settings) to the top bar on every page, set just after the customer logo with a divider: project name in bold and app name as a small accent tag. The per-page title stays gone"
-  ]
- },
- {
-  "rev": "REV50",
-  "date": "2026-06-21",
-  "items": [
-   "Constraints Log: Search now comes first, then the filters, matching the Activity Table",
-   "Removed the descriptive sub-text lines from the Analytics and Constraints pages",
-   "Title Case sweep: multi-word labels, titles and options in the popups (New/Edit Activity, Admin, Import, Weekly Report) are now capitalised consistently"
-  ]
- },
- {
-  "rev": "REV49",
-  "date": "2026-06-21",
-  "items": [
-   "Consistent chrome across pages: one slim top bar everywhere holding the logo, your name, role or company logo and Sign out, with the page title removed (the sidebar shows where you are)",
-   "Every page's filters now share one look: the board controls moved into a toolbar, and the Schedule, Analytics, Table and Users filter bars use the same card background, bottom border, labels and segmented-control style",
-   "Constraints Log now uses a warning-triangle icon in the sidebar"
-  ]
- },
- {
-  "rev": "REV48",
-  "date": "2026-06-21",
-  "items": [
-   "Delete confirmation now applies across Admin too. Deleting a company, building, level, zone, system, Cx stage or user asks 'Are you sure?' with Yes and No first. Cx stage still tells you how many activities will be moved"
-  ]
- },
- {
-  "rev": "REV47",
-  "date": "2026-06-21",
-  "items": [
-   "New / Edit Activity: clicking the dimmed area outside the window no longer discards what you typed. The window stays put until you Save, Cancel, or close it with the X",
-   "Deleting an activity now asks 'Delete this activity?' with Yes and No before removing it"
-  ]
- },
- {
-  "rev": "REV46",
-  "date": "2026-06-21",
-  "items": [
-   "Schedule Gantt: clicking a bar or milestone now opens the activity card popup (like the Calendar and Workload views) instead of jumping straight to the Planning Board. Open the card to go to the board"
-  ]
- },
- {
-  "rev": "REV45",
-  "date": "2026-06-21",
-  "items": [
-   "Fix: blank page on load introduced in REV44. The theme-aware customer logo was being read before data finished loading, which threw on first render. Now guarded"
-  ]
- },
- {
-  "rev": "REV44",
-  "date": "2026-06-21",
-  "items": [
-   "Logos now support separate light-mode and dark-mode versions, for both the customer logo and each company logo. The board, headers and lane labels show the right one for the current theme. If you upload only one, it is used in both modes. Admin upload boxes preview the dark version on a dark background"
-  ]
- },
- {
-  "rev": "REV43",
-  "date": "2026-06-21",
-  "items": [
-   "Planning Board: when grouped by Company, each swimlane label now shows the company logo (if uploaded) with the company name underneath"
-  ]
- },
- {
-  "rev": "REV42",
-  "date": "2026-06-21",
-  "items": [
-   "Admin can upload a logo per company (Project setup, Companies). The logo replaces the company name text in the header beside each user's name, between the name and Sign out. Remove the logo to fall back to the text"
-  ]
- },
- {
-  "rev": "REV41",
-  "date": "2026-06-21",
-  "items": [
-   "Planning Board swimlane grouping now offers Level and Zone instead of Building (Building only appears when a project has more than one building); dragging a card between Level or Zone lanes re-tags its Level or Zone",
-   "Import window: the title bar now stays fixed to the top of the popup and only the content below it scrolls, instead of the banner sticking to the browser window"
-  ]
- },
- {
-  "rev": "REV40",
-  "date": "2026-06-21",
-  "items": [
-   "Admin Users: new Invite filter (All, Pending, Accepted) to quickly find who still has not accepted their invite"
-  ]
- },
- {
-  "rev": "REV39",
-  "date": "2026-06-21",
-  "items": [
-   "Light/dark theme toggle now sits next to your name on every page, not just the Planning Board",
-   "Admin: the Project setup submenu Settings is now called Lookahead (lookahead length and make-ready window)"
-  ]
- },
- {
-  "rev": "REV38",
-  "date": "2026-06-20",
-  "items": [
-   "New admin-only Weekly DLP Report on the Analytics page: one click opens a styled, print-ready report (PPC and promise reliability, open constraints with owners and need-by dates, non-completion reasons, by contractor, by Cx stage, committed next week, milestones) built from live data, ready to Save as PDF",
-   "Report config window: defaults to the week just ended, optional custom date range, an auto-drafted editable executive summary, and an optional 4 week schedule snapshot"
-  ]
- },
- {
-  "rev": "REV37",
-  "date": "2026-06-20",
-  "items": [
-   "Schedule Calendar and Workload now open the same drill-down popup as Analytics: click a calendar day or a workload bar (or a company segment) to list those activities, then click one to open it",
-   "Workload bars and segments are now interactive"
-  ]
- },
- {
-  "rev": "REV36",
-  "date": "2026-06-20",
-  "items": [
-   "Per-activity audit history now records what actually changed on each edit (field by field, old value to new value) instead of a generic Edit activity; needs the activity-audit-detail.sql migration"
-  ]
- },
- {
-  "rev": "REV35",
-  "date": "2026-06-20",
-  "items": [
-   "Milestone diamonds now sit centred in their day column instead of on the left gridline, so they read on the correct day",
-   "Board metric numbers use the same font as Analytics (no more slashed zeros)"
-  ]
- },
- {
-  "rev": "REV34",
-  "date": "2026-06-20",
-  "items": [
-   "Hardened predecessor logic: a link only orders work and can push a successor later if needed; it can never pull a successor earlier than its own planned start, and the card always sits on its planned date"
-  ]
- },
- {
-  "rev": "REV33",
-  "date": "2026-06-20",
-  "items": [
-   "Planning board activity cards restyled to match the Analytics cards: same rounded corners, flat resting card, roomier padding and text scale, keeping the coloured Cx-stage edge"
-  ]
- },
- {
-  "rev": "REV32",
-  "date": "2026-06-20",
-  "items": [
-   "Analytics is now interactive: click any KPI card, the PPC gauge, a trend point, a reason, a status segment, a company or a Cx stage to open a drill-down listing the exact activities behind that number; click an activity there to jump into it"
-  ]
- },
- {
-  "rev": "REV31",
-  "date": "2026-06-20",
-  "items": [
-   "Analytics gained download options: a multi-sheet Excel of the metrics behind every chart (PPC, KPIs, weekly trend, reasons, by company, by Cx stage, status mix) and a Print to PDF of the dashboard, both honouring the active filters"
-  ]
- },
- {
-  "rev": "REV30",
-  "date": "2026-06-20",
-  "items": [
-   "Sidebar PPC now left-aligns when the menu is expanded",
-   "The Activity button stays pinned to the right of the board bar instead of wrapping to the left"
-  ]
- },
- {
-  "rev": "REV29",
-  "date": "2026-06-20",
-  "items": [
-   "Sidebar now shows section labels beside each icon and collapses back to icons only, remembered across refreshes",
-   "Order changed so Constraints Log sits above Schedule; Reports relabelled Analytics; Schedule tooltip no longer mentions Gantt"
-  ]
- },
- {
-  "rev": "REV28",
-  "date": "2026-06-20",
-  "items": [
-   "Admin-only audit history on each activity: a collapsible section under Notes in the editor showing who created, edited or touched that activity and when"
-  ]
- },
- {
-  "rev": "REV27",
-  "date": "2026-06-20",
-  "items": [
-   "Add-constraint button restyled to the blue primary look matching Save",
-   "Activity editor titles set in Title Case (New Activity, Edit Activity)"
-  ]
- },
- {
-  "rev": "REV26",
-  "date": "2026-06-20",
-  "items": [
-   "Building is now locked for members in the activity editor (fixed for the project); admins can still change it",
-   "Admins can create a new Level, Zone, System or Company inline from the activity editor without leaving the popout"
-  ]
- },
- {
-  "rev": "REV25",
-  "date": "2026-06-20",
-  "items": [
-   "User management rows aligned onto a fixed grid so name, role, company, status and actions line up column to column"
-  ]
- },
- {
-  "rev": "REV24",
-  "date": "2026-06-20",
-  "items": [
-   "YTT stand-up panel renamed YTT Focus",
-   "Clearing a constraint from YTT Focus is now admin-only"
-  ]
- },
- {
-  "rev": "REV23",
-  "date": "2026-06-20",
-  "items": [
-   "Reports gained a Period filter: all time or a custom date range, scoping every metric, card and chart; the weekly trend clips to the range"
-  ]
- },
- {
-  "rev": "REV22",
-  "date": "2026-06-20",
-  "items": [
-   "New YTT Focus button on the board: a yesterday/today/tomorrow stand-up panel listing each day's activities with their open constraints, ticked off in place; yesterday flags missed commitments"
-  ]
- },
- {
-  "rev": "REV21",
-  "date": "2026-06-20",
-  "items": [
-   "Schedule page is now a suite with a view switcher",
-   "New Calendar (month) view",
-   "New Workload view: activities per week stacked by company to spot over-commitment"
-  ]
- },
- {
-  "rev": "REV20",
-  "date": "2026-06-20",
-  "items": [
-   "User management tables widened and the user search and filters stay frozen while scrolling",
-   "Reports laid out as a two-column dashboard to fill the page"
-  ]
- },
- {
-  "rev": "REV19",
-  "date": "2026-06-20",
-  "items": [
-   "Constraints log now uses the full page width",
-   "Page titles enlarged and set in Title Case"
-  ]
- },
- {
-  "rev": "REV18",
-  "date": "2026-06-20",
-  "items": [
-   "A page refresh keeps you on the current view instead of dropping back to the board"
-  ]
- },
- {
-  "rev": "REV17",
-  "date": "2026-06-20",
-  "items": [
-   "Latest online: a live presence panel in admin showing who is online now and everyone's last-online time, driven by a lightweight heartbeat"
-  ]
- },
- {
-  "rev": "REV16",
-  "date": "2026-06-19",
-  "items": [
-   "The footer is a proper full-width bar on every page rather than a floating badge that overlapped content"
-  ]
- },
- {
-  "rev": "REV15",
-  "date": "2026-06-19",
-  "items": [
-   "Refreshed, wider in-app Help page that follows light and dark mode"
-  ]
- },
- {
-  "rev": "REV14",
-  "date": "2026-06-19",
-  "items": [
-   "Constraints log date and owner columns widened so they no longer wrap",
-   "Admin Changelog added under a new About section"
-  ]
- },
- {
-  "rev": "REV13",
-  "date": "2026-06-19",
-  "items": [
-   "JSON project import now opens a review screen: overwrite, ignore or clone each clashing item, with a global default and per-section bulk actions",
-   "Company references and predecessor links from the file are remapped on import; cloned Cx stages carry their activities onto the new key",
-   "Override import still replaces the whole project wholesale"
-  ]
- },
- {
-  "rev": "REV12",
-  "date": "2026-06-19",
-  "items": [
-   "Admin Import / Export got its own importer, separate from the member one: set Company per row to load work for every contractor at once",
-   "Admin Excel template with dropdowns that allow new values, which are created on import; admin importer now reads .xlsx directly",
-   "Witness date and time now import from CSV and Excel"
-  ]
- },
- {
-  "rev": "REV11",
-  "date": "2026-06-19",
-  "items": [
-   "Reason for non-completion stays editable on a late-but-complete activity, the one exception to the complete-lock"
-  ]
- },
- {
-  "rev": "REV10",
-  "date": "2026-06-19",
-  "items": [
-   "Completed activities lock on every field except status; an admin reopens by setting status back",
-   "Witness and Witness time added as table columns; column choice plus filters can be saved as your default view",
-   "Cx stages are now add and delete, not just rename; systems are renamable and migrate their activities",
-   "Audit log gained a search box; help page dark mode fixed for the sample card and chips"
-  ]
- },
- {
-  "rev": "REV9",
-  "date": "2026-06-19",
-  "items": [
-   "Constraints log gained inline editing of wording, owner and need-by",
-   "Activity table gained show/hide columns and Building and Cx Stage filters",
-   "Schedule and Help now follow dark mode"
-  ]
- },
- {
-  "rev": "REV8",
-  "date": "2026-06-19",
-  "items": [
-   "Reasons for non-completion captured on misses and charted as a Pareto in Reports",
-   "PPC tightened to on-time completion across the gauge and weekly trend",
-   "Activity short-codes (#N) now assigned by a database sequence and immutable, removing collision risk"
-  ]
- },
- {
-  "rev": "REV7",
-  "date": "2026-06-19",
-  "items": [
-   "Schedule fixes: dependency arrows draw over group headers (dashed across groups), collapsed groups show a rollup summary bar, responsible label no longer clashes with link arrows, routing handles reordered rows"
-  ]
- },
- {
-  "rev": "REV6",
-  "date": "2026-06-19",
-  "items": [
-   "New P6-style Schedule (Gantt) view: day/week/month zoom, grouping, colour-by, dependency arrows, forecast tail, responsible labels",
-   "Exports to PNG, JPG, PDF and Excel"
-  ]
- },
- {
-  "rev": "REV5",
-  "date": "2026-06-19",
-  "items": [
-   "Constraint owner and need-by date added throughout, with overdue highlighting",
-   "At-risk metric tile for predecessor knock-on"
-  ]
- },
- {
-  "rev": "REV4",
-  "date": "2026-06-19",
-  "items": [
-   "Predecessors and non-destructive forecast: a slip upstream shows a dashed knock-on overlay without moving the baseline",
-   "Activity short-codes, prepopulated single building, foldable audit log",
-   "Settings reorganised into a left sub-navigation; users show accepted/pending and last-seen with a jump to their audit trail",
-   "New Activity table (spreadsheet) view with per-row inline editing"
-  ]
- },
- {
-  "rev": "REV1-REV3",
-  "date": "2026-06-19",
-  "items": [
-   "Day-by-day four-week Last Planner board with swimlanes, make-ready readiness, committed promises and witness flags",
-   "Admin-configurable branding, Cx stages, systems, three-tier locations and companies",
-   "User management: direct create, bulk CSV with set-password links, resets; Supabase auth, RLS, realtime and a secured admin edge function",
-   "CSV and JSON import/export with downloadable templates; database-written, tamper-proof audit log"
-  ]
- }
+  {
+    "rev": "REV115",
+    "date": "2026-07-06",
+    "items": [
+      "New Asset Status page: an equipment commissioning matrix built from the Asset Cx Register. 1096 assets render under coloured L1-L5 stage bands with per-step status dots (complete, outstanding, not applicable), collapsible groups (by Type, Hall, Level, or Discipline) with per-stage rollup bars, sticky headers and identity column, per-asset progress, search, discipline / hall / level / type / status filters, Hide Complete, density-safe layout, and an Excel export of the current view",
+      "Tag pipeline and step focus: clicking a stage card at the top reduces the matrix to assets holding that tag; clicking any step header opens a focus view defaulting to Outstanding with Complete / All one click away and honest counts (complete, outstanding, not applicable) in a banner. Both stack with all other filters",
+      "Cx Step Reference: the info button beside the step headers opens a reference matrix (step, stage, definition, executed by, signed off by). Admins edit the content in place; register imports refresh the structure but never touch admin-authored text",
+      "SharePoint sync (admin): Sync From SharePoint reads the Asset Cx Register directly from the live Cx Master in the Quantum MC tenant through a dedicated app registration (PKCE, Files.Read.All, no client secret), addressed by the file's pasted browser URL via the Graph shares endpoint, so no folder path is ever configured. The workbook upload path remains as the fallback and both routes share one parser",
+      "The register parser maps columns by header name under the workbook's own stage bands, never by position: between W25 and W26 the register dropped SFAT and W3 and renamed FAT/DOF, QC and CYT to FAT, W1 and IVC, which would have silently corrupted a positional import. Every import and sync reports rows read, added, updated, and unchanged, plus any skipped columns",
+      "Overdue vs plan surfaced throughout: assets past a planned tag date without the tag get a red ring on the tag cell, an OVERDUE chip in the drawer's Planned vs Actual table, and a clickable KPI tile filtering the matrix to them"
+    ]
+  },
+  {
+    "rev": "REV114",
+    "date": "2026-07-04",
+    "items": [
+      "Platform hub: the header and the Home / Projects / Inside A Project navigation bar are now frozen, staying in view however far you scroll",
+      "Inside A Project is now a live snapshot of every project you can see, one collapsible section per project with its accent band, activity, completion and overdue counts, and an Open Planning Board button. One toolbar (Swimlane or Gantt, Day or Week, grouping, span and paging) drives all sections at once; collapse states are remembered, the most recently visited project loads first, and beyond eight projects collapsed sections load only when expanded",
+      "New Edit Project on the Projects page (owner and platform supers): pencil on each row opens a modal for name, code, client, location, dates, accent colour and status. This is the authoritative rename for the hub, fixing renames that previously never took root: projects created through the hub had no branding row, so the in-app rename silently updated nothing. Branding rows are now backfilled for every project, seeded automatically for future projects, and the branding save itself inserts the row if it is somehow still missing",
+      "A sync option on Edit Project keeps the in-app branding name (tab title, location-code prefix, report headers) aligned to the project code, so the hub name and the in-app name cannot drift apart again; untick it for a project that deliberately brands itself differently inside the app",
+      "Projects can now be archived (or put on hold) from Edit Project: archived projects disappear from Home, the switcher, the snapshots and Analytics, and sit greyed out on the Projects page behind a Show Archived toggle. Nothing is deleted and direct entry still works",
+      "New Analytics tab on the hub for the owner and platform supers: portfolio KPI tiles (weighted PPC over committed work due to date, using exactly the sidebar PPC formula per project; completion; overdue; open commitments), a project comparison table with a health badge (On Track, Watch, At Risk from the overdue share of open work), Status Mix and Overdue charts per project, portfolio-wide activity by company, and a multi-sheet Excel download. Every tile drills to the projects behind the number, and every row deep-links straight into that project's full Analytics page",
+      "Project edits are recorded in the audit log (who, what, when), and project creation now writes an audit row too"
+    ]
+  },
+  {
+    "rev": "REV113",
+    "date": "2026-07-04",
+    "items": [
+      "Fix: the vendor logo on witness invitations rendered as a broken image box. Two faults compounded: the logo was embedded as an attachment inside the event creation payload, which Graph silently discards (attachments on events are only supported through their own endpoint), so the body's inline reference pointed at nothing; and even a late attachment could never fix the email, because Exchange dispatches the invitations the moment an event is created with attendees. The send is now the Microsoft-documented three-step order: create the event silently with no attendees, attach the logo through the supported endpoint, then add the attendees, which is the step that sends the meeting requests with the logo aboard",
+      "The Test To Me logo verdict now tells the truth: it previously reported embedded whenever the creation call succeeded, which is exactly how a broken logo shipped unnoticed; it now reports embedded only when the attachment call itself succeeded. If the attachment is refused, the body is downgraded to the name-only variant before anyone is invited, so an inline reference can never again point at a missing attachment; if inviting the attendees fails, the orphan calendar entry is deleted and the error surfaces, leaving nothing behind",
+      "Events without a vendor logo keep the original single-call send. Meeting updates and cancellations are unchanged, and the digest emails were never affected: mail sends embed inline attachments in one supported call"
+    ]
+  },
+  {
+    "rev": "REV112",
+    "date": "2026-07-04",
+    "items": [
+      "Fix: the owner account was being treated as a client viewer, hiding the Witness Schedule's admin action column (Send, Update, Cancel, Test To Me) behind Request Invite buttons and hiding the drawer's new Test Invite To Me field. Root cause: the REV104 privilege resolver's owner blanket granted every key including Request Invites, which is not an elevated privilege but the client-viewer mode flag; combined with a company set on the owner's profile, the owner's session flipped into client-viewer mode. The owner now receives every elevated privilege and is never a client viewer; admins, supers, members and genuine client-company viewers are unchanged"
+    ]
+  },
+  {
+    "rev": "REV111",
+    "date": "2026-07-04",
+    "items": [
+      "Test Invite To Me is now available in the activity drawer itself: any admin, super or the owner opening a witness activity finds it on the Readiness tab under Witness Days, in every activity status, on any date, whatever the invite state. It creates the real event with the real template and vendor logo in your own calendar only, invites nobody, stamps nothing, and reports the result inline in the drawer",
+      "The drawer test deliberately uses the values currently on screen, including unsaved changes, so you can preview an edit before saving or sending anything; the button says so. It is also deliberately independent of the plan lock and of the invites privilege, because a self-only test changes nothing: the option is always there for admins and the owner, which is the point",
+      "The Witness Schedule's own Test To Me is unchanged and already appears in every invite state; the drawer covers the cases the schedule cannot, such as activities outside the selected period"
+    ]
+  },
+  {
+    "rev": "REV110",
+    "date": "2026-07-04",
+    "items": [
+      "Admin update emails work again for owner and super accounts. The digest claim table and several older policies were guarded by the legacy is_admin() database helper, which only recognised the old profile role; the REV104 owner/super rework moved accounts to the new role model and the helper started refusing them, blocking sends and hiding the send history (both lines read never sent). A one-file SQL migration redefines the helper as a strict superset: legacy profile admins keep access, and platform supers, the owner and per-project admins are recognised. This also repairs the audit log read the digest content is assembled from, and every other legacy policy referencing the helper",
+      "Digest recipients now honour the full role model: legacy profile admins, platform supers, the owner, and per-project admins on the current project, deduplicated. Previously an account moved to the new model silently dropped off its own digest",
+      "The claim error message is now actionable: a row-level security refusal names the migration to run instead of printing a raw database error"
+    ]
+  },
+  {
+    "rev": "REV109",
+    "date": "2026-07-04",
+    "items": [
+      "Recovery: the REV107 Weekly Cx Progress changes never reached the live site (the changelog was pushed without the page file, and REV108 then shipped a copy built on the stale base). This REV re-delivers the full REV107 content: the admin-only Insights strip, KPI movement, movers and stalled equipment types, the Risk Register Overdue column with days computed and overdue-first sorting, the documentation readiness score, the funnel removal, the Configure Insights group, and the stored-XSS remediation, together with the REV108 sticky-header rebase",
+      "KPI tile movement indicators no longer wait for a second imported week: when no prior import exists, the coloured arrows derive from the pack's own Week on Week 7-day figures (new red, yellow and green tags over total assets; issues raised versus resolved), exactly matching the approved mockup from the first import onward. Once a second week is imported, the true week-on-week diff takes over automatically",
+      "Green tag reads not started while at 0% with no movement; assets and awaiting verification show no change and unchanged until a prior week exists to diff against"
+    ]
+  },
+  {
+    "rev": "REV108",
+    "date": "2026-07-04",
+    "items": [
+      "The double scrollbar is gone. Every page sized itself to the viewport minus the header but not minus the footer, so the window always overflowed by exactly the footer height and the outer scrollbar existed only to reveal it. The app shell is now locked to the viewport: the QMC footer is always visible, and each page has exactly one scroll container",
+      "Board, Activity Table, Schedule and Help now fill the space between the header and the footer instead of computing viewport arithmetic; their internal scrolling is unchanged",
+      "Analytics, Admin, Constraints Log and Weekly Cx Progress, which previously relied on the page-level scrollbar, now scroll inside a single shared container with the footer pinned below; sticky filter bars and side panels keep their behaviour with offsets corrected for the new scroll origin",
+      "Printing the Weekly Report is unaffected: print mode releases the viewport lock so the document flows across pages as before"
+    ]
+  },
+  {
+    "rev": "REV107",
+    "date": "2026-07-04",
+    "items": [
+      "Weekly Cx Progress gains an Insights strip: an admin-only, toggleable panel that reads the page for you. Rule-generated lines cover tagging pace against the target date with a projected 100% date and its week-on-week movement, the L1 to L2 graduation stall, issue backlog growth with zero-resolution streaks, IRL throughput stalls, overdue risks with the oldest and its owner, aggregate milestone slip growth, the documentation chase list with regressions, stale ACC refreshes, falling vendor attendance, and import gaps. Priority ordered, capped at six, every line clickable to its detail and calculation. Members never see the strip or its toggle",
+      "Every KPI tile now carries its week-on-week movement against the previous import: percentage-point moves on the tag tiles, count moves on assets, open issues and awaiting verification, with raised-versus-resolved shown in red when nothing was resolved. First imports read first import instead of breaking",
+      "The Tag Attainment Funnel card is removed: it duplicated the tag tiles above it, and the parser has always hardcoded its L4 and L5 rows to zero, so the bottom of the funnel was never live data. The Weekly Report keeps its funnel section for now",
+      "Red Tag By Equipment Type now distinguishes movers from stalled: each type shows its weekly gain, and any type under 100% with no movement across consecutive imports flags as stalled with the streak length. The threshold is configurable under Configure, Insights",
+      "The Risk Register computes days overdue against the reporting week and sorts overdue rows first, oldest first, with a new Overdue column. Due dates on previously imported snapshots are parsed at render time with the year inferred from the reporting week, and new imports also store the full date",
+      "The Documentation Register header gains a readiness score (green 2, amber 1, red 0 across all cells), its week-on-week movement, the red-vendor count and the regression count; the matrix itself is unchanged",
+      "Configure gains an Insights group: the stalled-after threshold and the Target 100% date the pace signal measures against, falling back to the milestone named Complete when blank",
+      "Security: the stored XSS finding from the QC audit is remediated; every workbook-derived string is now escaped at the popup title, body and detail-table boundaries, so a hostile workbook cell renders as text instead of executing"
+    ]
+  },
+  {
+    "rev": "REV106",
+    "date": "2026-07-04",
+    "items": [
+      "PPC now measures only promises that have come due. The gauge and the sidebar figure previously divided kept promises by all committed activities, including commitments whose promised finish is still in the future, which cannot be kept yet; those are now excluded until their promised date passes, matching the Reasons panel and the trend. The headline number rises as a result, not because performance changed but because open promises are no longer counted as broken. The gauge caption states how many commitments are awaiting their date",
+      "Status Mix now answers the next question for each slice: Planned splits into ready to run and need make-ready, In progress splits into running late and constrained, Complete splits into on time and finished late, each with its percentage of the project and every count clickable to its activities",
+      "Activities By Company is now a contractor performance panel: each bar keeps its length as volume but segments into Complete, In progress and Planned, with new PPC and Open Constraints columns. PPC is promises due to date kept, colour-coded green from 80, amber from 50, red below, n/a until a company has committed work due; hover shows the kept-of-due count",
+      "By Cx Stage now reads as commissioning progression: stage colours stay on the labels, bars segment by status, and new Done and Open Constraints columns show how far through each stage the project is and what is blocking it",
+      "The Metrics Excel export carries all of the above: By company gains Complete, In progress, PPC %, PPC kept, PPC due and Open constraints; By Cx stage gains Complete, Complete % and Open constraints; Status mix gains Share % and the sub-split rows; the Summary sheet separates committed due to date from committed not yet due",
+      "Housekeeping: records the User Privileges width fix that shipped without a changelog entry; the privileges matrix page uses the full viewport width instead of the settings column"
+    ]
+  },
+  {
+    "rev": "REV105",
+    "date": "2026-07-04",
+    "items": [
+      "The Weekly PPC Trend no longer plots the future as failure. Committed work due in weeks that have not happened cannot be complete, so those weeks rendered as 0% kept; the axis now ends at the current week, and the collapse-to-zero tail is gone",
+      "The current week draws as a hollow point with a dashed lead-in and a legend note, because its PPC is provisional until the week closes; work due Friday is no longer scored as broken on Tuesday",
+      "Trend point tooltips now carry the denominator, for example W26: 65% (13 of 20 kept), so a 100% week built on one activity can no longer masquerade as one built on twenty",
+      "New 4-week rolling average on the trend, amber dashed, computed over summed kept and due counts rather than averaged percentages, so tiny weeks cannot swing it",
+      "The failure-reason bars in Invitation Outcomes and Reasons For Non-Completion are now genuine Paretos: bar length is each reason's share of the total (previously bars scaled to the biggest bar, overstating minor reasons), with new Share and running-total columns and a cumulative marker on each bar",
+      "The same Pareto columns appear in the Weekly DLP Report's Why Work Slipped and Invitation Outcomes sections, and the Metrics Excel Non-completion sheet gains Share % and Cumulative % columns",
+      "Reason labels in the Analytics bar panels wrap instead of clipping with an ellipsis, completing on screen what REV102 fixed in print; this also applies to Activities By Company and By Cx Stage"
+    ]
+  },
+  {
+    "rev": "REV104",
+    "date": "2026-07-04",
+    "items": [
+      "New Owner role above the platform team: exactly one owner account, seeded in the database, which no admin, super or API call can demote or delete",
+      "New Admin page, Access -> User Privileges: a per-person matrix of rights for this project. Everyone starts from their role baseline (Member or Admin); the owner can grant or withdraw individual rights per person, with an amber dot marking any switch that differs from the baseline, a per-row Reset To Role Defaults, group filters, and a pending-changes save bar. Admins and supers see the page read-only; every change is written to the audit log and takes effect live",
+      "Request Invites is now a managed privilege with the same behaviour as before: on by default only for members whose company matches the project client, off for everyone else, and grantable or withdrawable per person",
+      "Rights are now enforced in the database as well as the app: creating, editing, deleting, committing and editing committed work are checked by row-level security and a commit-transition guard, so a withdrawn right holds even outside the app. Baselines mirror existing behaviour exactly, so nobody's effective rights change on day one"
+    ]
+  },
+  {
+    "rev": "REV103",
+    "date": "2026-07-04",
+    "items": [
+      "Sidebar PPC now agrees with the Analytics gauge. It previously counted every completed committed activity, including those finished late, while the gauge, the Weekly Report and the admin digests all count only activities finished on or before their promised date. The sidebar now uses the same on-time rule, so all four surfaces show one number",
+      "The sidebar PPC tooltip now explains the metric: committed activities finished on or before their promised date, click to open Analytics"
+    ]
+  },
+  {
+    "rev": "REV102",
+    "date": "2026-07-03",
+    "items": [
+      "Full-text fix: no printed or emailed entry is ever cut off mid-word again. In the Weekly DLP Report, the Reasons and Breakdown row names and the schedule snapshot's activity labels previously clipped with an ellipsis at fixed widths, unreadable on paper; they now wrap to as many lines as they need, with the row growing to fit and the layout otherwise unchanged",
+      "In the admin digests, activity references, detail fragments and changelog rows are no longer truncated at character caps; every word shown is whole. Busy-week changelog volume is handled structurally instead: weeks with more than three revisions itemise the latest three and state plainly how many earlier revisions the week held, with the full changelog in DLP"
+    ]
+  },
+  {
+    "rev": "REV101",
+    "date": "2026-07-03",
+    "items": [
+      "Admin digest emails redesigned to the approved QMC brand: white header carrying the Quantum Mission Critical mark, the four-colour Cx workflow bar (read live from this project's L1 to L4 stage colours) under the header and echoed above the footer, and each vendor as a bordered card with a shaded band carrying its real logo, name and counts, most active person named on multi-user vendors. Vendor logos embed as inline attachments from each company's light-surface asset with a name-only fallback; the daily and weekly share the one template",
+      "Content fixes in both digests: repeated references within a verb group now collapse to one entry with a count (x2 style) and the caps count deduplicated entries; detail fragments that merely echo the activity name are suppressed; and audit entries whose author matches no current user profile now appear in their own Unattributed card pinned last, with an explanation, instead of being silently filed under CSN"
+    ]
+  },
+  {
+    "rev": "REV100",
+    "date": "2026-07-03",
+    "items": [
+      "New Admin Update Emails card at the top of Reports (admins only): shows when the daily and weekly digests last went out and to how many recipients, plus your Outlook connection, with Send Weekly Update Now and Send Daily Update Now buttons. Manual sends go to all admins from your own connected Outlook, target the most recent boundary with its correct fixed window, complete a stuck claim if one exists, and ask before re-sending a digest that already went out",
+      "Scheduler liveness fix: a digest claim orphaned in the sending state (for example a reload killing the tab mid-send) used to block that boundary silently and forever; the scheduler now adopts claims stuck for over ten minutes and finishes them. The digest content assembly is now one shared path for the scheduler and the manual buttons, so the two can never drift apart"
+    ]
+  },
+  {
+    "rev": "REV99",
+    "date": "2026-07-03",
+    "items": [
+      "Fix: Email Invite from the Resend set-password link card was sending to the person's display name instead of their address (Exchange refused to resolve it), because that flow stored the name where the other flows store the email. The card now carries the real address from the roster's status lookup, the emailer refuses a name-shaped address with plain guidance instead of an Exchange error, and the Outlook transport drops any recipient without an @ so the readable no-valid-recipients message fires first. Add, approve and bulk flows were unaffected"
+    ]
+  },
+  {
+    "rev": "REV98",
+    "date": "2026-07-03",
+    "items": [
+      "Critical fix: invitation emails from the bulk Email All Created Invites, the credentials card's Email Invite, the set-password link flow, the approve auto-send and the scheduled admin digests were all failing at the transport layer (recipient addresses were being serialised without the address field, so Outlook rejected every send), while the bulk screen wrongly reported success. The transport now accepts both address shapes and refuses addressless sends with a readable error",
+      "The bulk results now tell the truth: each row shows Emailed or Email failed (hover a failed row for the reason) and the completion message reports exact counts, for example Invitations emailed: 4 of 5, instead of announcing success unconditionally. The Weekly Report emails were unaffected throughout"
+    ]
+  },
+  {
+    "rev": "REV97",
+    "date": "2026-07-03",
+    "items": [
+      "Approve And Invite now does what it says: approving an access request also sends the invitation email (the approved guided-steps template, link only, never a password) from your connected Outlook as part of the same action, and the modal states this. If Outlook is not connected or the send fails, the message says exactly what happened and the credentials card's Email Invite button is the retry path. The Add User path deliberately stays manual: there you initiate, so nothing is emailed until you press Email Invite"
+    ]
+  },
+  {
+    "rev": "REV96",
+    "date": "2026-07-03",
+    "items": [
+      "New Hide Complete pill on the board toolbar (beside Make-ready and YTT): hides activities marked Complete in both the Swimlane and the Gantt so open work stands out. Failed witness events stay visible even when complete, since they remain open questions until a retest closes them; the search counter counts within the focused set; a clear empty state appears when everything in the window is complete; and the choice persists with your other board preferences",
+      "Strictly display-only, on the same scope contract as board search: KPI tiles, exports, the Weekly Report, digests and the Witness Schedule are never affected by the toggle"
+    ]
+  },
+  {
+    "rev": "REV95",
+    "date": "2026-07-03",
+    "items": [
+      "Scheduled admin digests, sent from inside DLP: a daily update at 17:00 and a weekly update at 16:00 on Friday (Europe/Helsinki), emailed to all admin users from Ruain's connected Outlook session whenever his DLP tab is open. Each carries the changelog entries shipped in the window and Activity By Vendor with an itemised summary per user rendered verbatim from the audit trail; the weekly opens with the KPI strip and rolls high-churn verbs into counts with the largest movements named. Quiet days still send, so silence reads as signal",
+      "Engineered guarantees: a database claim (report_runs, run the new report-runs.sql) makes duplicate sends across tabs impossible; a 72 hour catch-up sweep sends missed boundaries late instead of losing them, so a weekend away yields the digests on Monday's first open; Saturday's window starts at Friday 16:00 so no audit hour is skipped; send times are DST-proof. Accepted limits: a boundary with no DLP tab open sends late or, past 72 hours, not at all, and if the Microsoft session needs interactive refresh a toast asks for Connect Outlook and retries",
+      "The server-side sender, its cron schedule and the pending IT credential request are all retired; the app keeps zero standing Microsoft permissions"
+    ]
+  },
+  {
+    "rev": "REV93",
+    "date": "2026-07-03",
+    "items": [
+      "User invitations can now be emailed straight from DLP through your connected Outlook account, in the approved guided-steps design: Email Invite sits on the credentials card after adding a person or approving an access request, on the set-password link flow (as Your FIN04 DLP sign-in link), and Email All Created Invites sends the whole bulk batch one by one with per-row results. Links state their 30-day validity; temporary passwords are never emailed by design, copy remains the path for those",
+      "Retest invitations now declare their history: subject reads RETEST INVITE with the attempt number, the header chip shows the attempt (and day for multi-day retests), and a red block above the details states the failed date and the recorded reason. Sending a retest whose failed attempt still holds a live invitation offers one click to also cancel it with a cross-reference comment, so attendees' calendars close the loop themselves",
+      "Cancellation comments rewritten: a failed activity with a scheduled retest sends a comment naming the recorded reason and the retest's date and time; ordinary cancellations state plainly that the session is off and any replacement arrives separately",
+      "New Test To Me on every Witness Schedule row: creates the real event with the real template and vendor logo in your own calendar only, no witnesses invited, nothing stamped, and the result line reports whether the logo deep-insert was accepted or the name-only fallback fired",
+      "The CSV witness export and the Outlook macro path are retired: the export and Mark Sent buttons are gone from Reports and the Witness Schedule hint no longer mentions them. Invites now live entirely in the in-app Outlook flow; the SendWitnessInvites.bas macro on your machine is historical"
+    ]
+  },
+  {
+    "rev": "REV92",
+    "date": "2026-07-03",
+    "items": [
+      "Report email body rebuilt to the approved Option A design: two-line branded header, accent-topped KPI tiles, the executive summary, a truthful Attached block, an Open DLP button (bulletproof table-cell pattern) and a clean footer, all in the email-safe subset",
+      "Every report email and every classic Outlook draft now carries both themes as attachments, FIN04-weekly-report-<date>-light.html for printing and -dark.html for screens; the Appearance toggle now governs only the on-screen Generate Report",
+      "The size guard works on the pair: dark is dropped first if the send would breach Graph's single-request ceiling, and the email body and the result line state exactly which files attached"
+    ]
+  },
+  {
+    "rev": "REV91",
+    "date": "2026-07-03",
+    "items": [
+      "Root cause of the persisting Connect Outlook button found and fixed: msal-browser 5.x changed handleRedirectPromise to take an options object, so the captured sign-in response was being passed as a bare string, silently ignored, and MSAL fell back to the live URL hash that the app's boot had already rewritten away. The captured hash is now passed as { hash }, per the 5.16 type contract, and the redirect return connects the account",
+      "Sign-in return diagnostics: the outlook module now records the outcome of every redirect return, and if the account fails to arrive, the Witness Schedule bar and the report window print the exact error code and message (the raw error also goes to the browser console) instead of silently showing Connect Outlook again"
+    ]
+  },
+  {
+    "rev": "REV90",
+    "date": "2026-07-03",
+    "items": [
+      "Connect Outlook is now redirect-first: the popup sign-in is retired after colliding with three separate failure modes in this deployment (popup blockers and enterprise policy, the opener's popup monitoring being timer-throttled while the app booting inside the popup stripped the auth response, and a reported msal-browser 5.x regression where the popup redirects to the app instead of closing). Sign-in is a quick full-page Microsoft redirect that returns to DLP already connected",
+      "New auth landing guard, Microsoft's documented pattern: when the page loads as the sign-in popup or as MSAL's hidden token-renewal iframe, the app no longer boots there (booting stripped the auth response from the URL); a static completing-sign-in line shows and the parent window reads the response. This also makes future silent token renewals reliable, which previously loaded the entire app inside a hidden iframe",
+      "Token refresh is silent-only; if it cannot refresh it asks you to press Connect Outlook rather than opening interactive windows mid-operation"
+    ]
+  },
+  {
+    "rev": "REV89",
+    "date": "2026-07-03",
+    "items": [
+      "Fixed the redirect sign-in landing signed out: the app's boot rewrites the URL with history.replaceState the moment it restores your project, which erased Microsoft's auth response from the hash before the Outlook module could read it. The response is now captured synchronously at page evaluation and handed to MSAL explicitly, so the account connects regardless of what boot does to the URL; MSAL also no longer performs a second navigation after sign-in",
+      "New Open In Outlook (Draft) in the report window: downloads a pre-addressed .eml carrying X-Unsent: 1 with the styled summary body and the full report attached; opening the file launches classic Outlook in compose mode for review and Send from your own mailbox. Pure client-side, works without Connect Outlook. Classic Outlook only; new Outlook handles these drafts unreliably and may drop the attachment"
+    ]
+  },
+  {
+    "rev": "REV88",
+    "date": "2026-07-03",
+    "items": [
+      "Connect Outlook now survives popup blockers: when the browser refuses the Microsoft sign-in popup (the popup_window_error seen on corporate machines and under enterprise policy), the app automatically falls back to a full-page redirect sign-in and returns to DLP signed in. The redirect return is absorbed at boot, so the account is connected on the next open of the Witness Schedule or report window",
+      "A blocked popup during a token refresh mid-send deliberately does not redirect (a full-page navigation there would abandon partially-sent invites and risk duplicates); it stops with a clear instruction to press Connect Outlook and retry",
+      "Raw MSAL error strings no longer surface for this case"
+    ]
+  },
+  {
+    "rev": "REV87",
+    "date": "2026-07-03",
+    "items": [
+      "Witness invites and the weekly report email now wear the approved styled templates, built entirely in the email-safe subset (nested tables, inline styles) so classic Outlook's Word engine, new Outlook, OWA and Gmail all render them: branded FIN04 header bar, labelled details table, a conditional amber open-constraints callout, notes and an organiser footer on invites; header bar, a KPI strip (PPC, Delayed, Witness Passed, Make-Ready, each tile dropping with its unticked section), the executive summary and the attachment callout on the report email",
+      "The responsible vendor's logo now appears on the invite as a CID inline attachment fetched from the company's stored light-surface asset, measured at send time so Outlook receives true width and height attributes, with the company name as alt text so clients that strip images degrade to text. Deep-inserting the attachment at event creation is not explicitly documented by Graph, so a rejected send automatically retries without the logo and the invite always goes out; each session records whether its event carries the logo so later updates rebuild the matching body",
+      "Meeting updates never resend attachments; the creation-time logo persists on the event"
+    ]
+  },
+  {
+    "rev": "REV86",
+    "date": "2026-07-03",
+    "items": [
+      "The Weekly DLP Report now emails itself: Email Report in the report window sends from the signed-in admin's Outlook account (delegated Mail.Send, granted by CSN IT) to the saved distribution list, replacing the old mailto draft that asked for a hand-attached PDF. A copy lands in the sender's Sent Items",
+      "The email body is a deliberately email-safe rendering (title, period, the executive summary) because desktop Outlook renders HTML with the Word engine; the full report, exactly as Generate Report produces it including the chosen appearance and Cx sections, travels as an HTML attachment that opens pixel-perfect in any browser",
+      "Send Test To Me delivers the identical email to the sender alone, marked [TEST], for a safe dry run before the distribution list sees anything",
+      "A size guard keeps the send inside Graph's single-request ceiling: a report too large to attach still sends the summary and says so, rather than failing",
+      "Connect Outlook in the report window shares the same Microsoft session as the Witness Schedule; one sign-in covers invites and report emails"
+    ]
+  },
+  {
+    "rev": "REV85",
+    "date": "2026-07-03",
+    "items": [
+      "Witness invites can now be sent directly from the Witness Schedule (admins): Connect Outlook signs in with the CSN Microsoft account (delegated, PKCE, no secret) and the signed-in admin becomes the organiser. Creating the calendar event sends the invitations, one event per session day, in Europe/Helsinki wall-clock time so Exchange owns the DST maths",
+      "Every witness row carries a live status: Not Sent, Sent with date, Partially Sent with per-day pills for multi-day series, Details Changed when the date, time, duration, name, location or recipient routing moved after sending, and Cancellation Sent. Update Invite reconciles in one click: changed days are updated, added days sent, surplus days cancelled, and attendees receive the changes automatically",
+      "Cancel sends a proper calendar cancellation to all attendees, with confirmation first. Recording a Failed outcome deliberately does not auto-cancel; a Cancel Outlook Invite button sits in the editor beside Create Retest for when it is wanted",
+      "Send All Pending sends every unsent event in the selected period in one pass. Sending stamps the activity's Sent marker, so the CSV export and the Outlook macro (both untouched, kept as the fallback) skip anything already sent from the app",
+      "Graph event ids are stored per day on the activity (new witness_events column; run witness-events.sql before pushing). Push order: witness-events.sql in Supabase, then package.json, src/outlook.js, src/data.js, and App.jsx last"
+    ]
+  },
+  {
+    "rev": "REV84",
+    "date": "2026-07-03",
+    "items": [
+      "Rescheduled milestones no longer lose their trail when the origin date scrolls off the window: the red dotted line now clamps to the window edge on the origin side, wearing a chevron to say it continues off screen and, when the visible span allows, a small mono chip stating the origin date (from 26 Jun). Hover still carries the full original date. When both ends are in the window nothing changes",
+      "The same chevron and origin chip were added to the bar trail's clipped end, which already clamped to the edge but gave no cue that the line continued off screen",
+      "The chip drops automatically on spans too short to carry it, falling back to the tooltip"
+    ]
+  },
+  {
+    "rev": "REV83",
+    "date": "2026-07-03",
+    "items": [
+      "Retests now take priority in lane row packing: a retest claims its failed parent's row whenever that row is free from the retest's start, and wins same-day ties against ordinary activities, so an attempt chain reads as one horizontal line: card, failure tail, X, amber connector, retest. Chains of retests inherit the same row. Previously an unrelated activity starting the same day could steal the parent's row, dropping the retest to another line and losing the connector, which only draws same-row"
+    ]
+  },
+  {
+    "rev": "REV82",
+    "date": "2026-07-03",
+    "items": [
+      "Failed witness events now show a frozen failure tail: a red hatched tail runs from the planned card to the recorded outcome date with the X badge at the failure point, so the board reads planned here, failed there. The tail is anchored to the outcome date and never grows",
+      "A failed event whose planned week has scrolled off the window now carries as a hatched ghost from the window edge to its outcome date, and drops off only once the window is past the failure. This replaces both the REV81 hard cutoff at the planned week and the pre-REV81 unbounded carry",
+      "The retest connector now starts beyond the failure tail rather than the planned finish, and lane row packing reserves space through the tail so neighbouring bars cannot overlap it",
+      "DST fix for multi-day witness invitations: session days are now advanced with calendar arithmetic instead of adding 24-hour blocks of milliseconds, which drifted the start time by one hour across the Europe/Helsinki clock changes (25 Oct 2026, 28 Mar 2027). The invite export, the Witness Schedule date range and the editor's session summary are all corrected",
+      "The editor now warns when the witness date, or the last day of a multi-day series, falls outside the activity's planned span, and points to Reschedule, so a moved witness event can no longer silently drift away from its card on the board"
+    ]
+  },
+  {
+    "rev": "REV81",
+    "date": "2026-07-03",
+    "items": [
+      "Fixed a phantom overdue trail on failed witness events: a failed invite whose planned day sat left of the visibility window was still retained by the carry-forward rule, bypassed the carried-bar handling (which deliberately skips failed invites), and its off-window end produced a negative CSS grid line, painting a hatched bar from the window edge deep into the future, wider the larger the window. Failed invites are closed records and now follow the same window rule as complete activities: visible in their own week, never carried forward",
+      "The Delayed KPI and make-ready counts no longer include closed failed witness events carried into future windows",
+      "Row packing no longer reserves an overdue tail for failed invites (no tail is ever drawn for them), so lanes pack tighter around ghosted events",
+      "Defensive guard in the bar renderer: a span wholly left of the window that is not a carried item now draws nothing rather than emitting a negative grid line"
+    ]
+  },
+  {
+    "rev": "REV80",
+    "date": "2026-07-02",
+    "items": [
+      "Help REV 9: exhaustive rebuild of every Try It simulator against the app as it is actually built. The Add via Planning Board walkthrough now steps through the real three-tab editor (Details with company, location, discipline, system, asset and Cx stage; Schedule with start, days, predecessors, status, actuals and percent; Readiness with constraints, the Committed toggle and witness setup), and committing in the simulator states the commit lock",
+      "Simulator fidelity across the board: the toolbar replica gained the search box and Witness Schedule pill; Switch Views gained a working search that filters the simulated board; Analytics gained the Invitation Outcomes panel with the slips-versus-pass-fail separation stated; Witness Invites gained the date, duration and the new Witness Days stepper with the one-invite-per-day explanation; Mark Work Complete now states the slip-reason consequence of a late finish",
+      "The static step illustrations in the tutorials now render the same three-tab editor replica as the simulator, from one shared builder, so the help drawer can never again drift from the real one in two places",
+      "Try It badges added in the help menu for Mark Work Complete and Witness Invites, whose simulators previously existed but were not flagged"
+    ]
+  },
+  {
+    "rev": "REV79",
+    "date": "2026-07-02",
+    "items": [
+      "Multi-day witness invitations: a new Witness Days stepper on the Readiness tab (1 to 10, default 1) turns a witnessed event such as a multi-day SAT into consecutive daily sessions. The witness date and time becomes the daily session start and the duration the daily session length; a summary line shows the resulting span and a soft warning flags Witness Days exceeding the activity's own duration",
+      "The witness export writes one timed row per day with Day i of N in the subject and body, all sharing the activity's ID, so every session blocks the witnesses' calendars as Busy and the existing Outlook macro sends them without modification (verified against the live macro: it iterates rows independently and its Sent dedup and confirmation round trip both hold). The Witness Schedule popup shows one card per event with the date range and a days multiplier on the duration pill",
+      "Witness Days is plan-locked once committed, cloned onto retests, and included in the audit revert field comparison. Needs the witness-days.sql migration run before data.js and App.jsx"
+    ]
+  },
+  {
+    "rev": "REV78",
+    "date": "2026-07-02",
+    "items": [
+      "Help updated to REV 8, covering everything shipped since REV 7: the commit lock (a committed activity's plan is admin-only; progress recording stays open), witness outcomes with failure reasons, ghosted failed records and linked retests, first-time pass, the audit log revert, the board search, and the 1-week lookahead option",
+      "New reference page Slips vs Pass / Fail, spelling out the difference between a Reason for Non-Completion (the schedule verdict on a committed promise, feeding PPC) and a Witness Outcome (the quality verdict on an inspection or FOK, feeding first-time pass), and why the two are independent",
+      "TRY ME interactive demos embedded in the help: toggle the commit lock and watch the plan fields freeze, record a witness outcome and watch the card ghost, and step through the four slip-versus-outcome scenarios",
+      "Fixed: four existing help pages (Delays & Excusing, Marking Work Complete, Discipline, Assets & Auto-fill) were present in the help but missing from the in-app menu, so they could not be reached. All pages are now listed, with the admin-only ones gated"
+    ]
+  },
+  {
+    "rev": "REV77",
+    "date": "2026-07-02",
+    "items": [
+      "Fix: an Actual Start dated in the future produced a false green progress tail on the board (the renderer drew from today back to the card because the end of an open activity's progress bar is today, and the inverted span was silently swapped by the browser). Progress bars now never draw from a future actual date, and inverted spans are refused outright",
+      "The Schedule tab now shows an amber warning under Actual Start / Actual Finish when either is set in the future, at the moment the mistake is being made. The value is not blocked or auto-cleared; actual dates remain yours to correct, and the audit history records who set them"
+    ]
+  },
+  {
+    "rev": "REV76",
+    "date": "2026-07-02",
+    "items": [
+      "Planning Board: the search box moved to the far left of the toolbar, ahead of the date navigation",
+      "The lookahead window selector (board toolbar and Admin > Lookahead) gained a 1-week option, for running the board tight on the current week"
+    ]
+  },
+  {
+    "rev": "REV75",
+    "date": "2026-07-02",
+    "items": [
+      "Planning Board: new search box in the toolbar (beside Import), filtering the board like the Activity Table search. It matches description, company, system, asset tag and location code; matching cards stay, everything else is hidden, lanes with no matches collapse, and a live count shows how many of the window's activities match. Escape or the small cross clears it",
+      "Deliberate scope: the search filters only what the board draws. The KPI tiles, the Export CSV and the Analytics exports are untouched by the search term, so a forgotten search can never silently truncate an export or skew the metrics"
+    ]
+  },
+  {
+    "rev": "REV74",
+    "date": "2026-07-02",
+    "items": [
+      "Audit log revert (admin only): activity entries in Admin > Audit now carry revert controls. The most recent change to an activity within the last 24 hours gets a one-click Revert; older or superseded entries get an amber Revert Anyway with an explicit warning of how many later changes will be overwritten; deletions get Restore (the activity returns with the same id, so predecessor and retest links survive); creations get Remove",
+      "The confirmation window shows a field-by-field comparison of what each value restores to versus its current state, and refuses politely when the current state already matches the snapshot. Every revert is written to the audit log by the existing triggers, so a revert is itself revertible and nothing is silently lost",
+      "Powered by a new activity_snapshots table with its own trigger (audit-snapshots.sql). The live audit trigger is deliberately untouched. Entries from before the migration show No Snapshot and cannot be reverted, because no before-state exists for them"
+    ]
+  },
+  {
+    "rev": "REV73",
+    "date": "2026-07-02",
+    "items": [
+      "Commit lock (Phase 1): once an activity is Committed for this week, its plan is frozen for members in both the New / Edit Activity window and the Activity Table: description, company, building, level, zone, discipline, system, assets, Cx stage, milestone flag, planned start, duration, predecessors, witness setup, the Committed toggle itself, and Delete. A banner in the window explains the lock and directs changes to an admin",
+      "What members can still do on a committed activity, by design: set status, actual dates and percent complete, record the reason for non-completion, record the witness outcome and create a retest, manage constraints, and edit notes. Locking these would break the daily Last Planner workflow, so only the promise is protected, not the progress against it",
+      "Admins are unaffected. Drag and edge-resize of committed activities were already blocked for members; this closes the remaining routes (window edit, table edit, delete) that let a commitment be changed or removed without an admin"
+    ]
+  },
+  {
+    "rev": "REV72",
+    "date": "2026-07-02",
+    "items": [
+      "New / Edit Activity: the field headers inside the window (What Is The Activity, Company, Building, Level, Zone / Room, Discipline, System, Asset, Cx Stage, Notes, and every label on the Schedule and Readiness tabs) are now blue, matching the window title and the app-wide header colour. REV70 had made only the window title blue; this completes the request as intended"
+    ]
+  },
+  {
+    "rev": "REV71",
+    "date": "2026-07-02",
+    "items": [
+      "Weekly DLP Report: new Invitation Outcomes section, on by default in Sections To Include under Planning Board. It reports witnessed events that reached an outcome in the period (keyed on the outcome date) with passed and failed counts and a failure-reason Pareto, plus first-time pass to date (programme level, retest chains counted once at the root, since a per-week rate over a handful of events would be noise)",
+      "The auto-drafted executive summary now includes a witness outcomes sentence when events reached an outcome in the period, and drops it if the section is unticked",
+      "Saved section preferences now merge with the defaults, so sections added in future revisions appear ticked for existing users instead of silently missing"
+    ]
+  },
+  {
+    "rev": "REV70",
+    "date": "2026-07-02",
+    "items": [
+      "WILL and WIT chips restyled to the approved graphics everywhere they appear (board, popups, Schedule, Witness Schedule, drill lists): solid dark-blue WILL and solid purple WIT with light text. The printed Weekly Report badges use the same colours in both light and dark",
+      "Consistency pass: Analytics section headers now use the Weekly Cx Progress style (small blue capitals with letter spacing, theme-aware). In the other direction, the Weekly Cx Progress drill popup now follows the Analytics popup styling: same corner radius and shadow, normal-case title with a header divider, and the calculation block and data tables rendered as card rows with the grey left edge",
+      "New Activity / Edit Activity header text is now blue for contrast, and the same applies to every popup title on that pattern (Weekly Report window, Create Retest, and the rest) so titles read consistently across the app"
+    ]
+  },
+  {
+    "rev": "REV69",
+    "date": "2026-07-02",
+    "items": [
+      "Milestones are now binary: the Status control offers only Planned and Complete for milestone-flagged activities, a single Achieved Date replaces Actual Start and Finish, and Percent Complete is locked (0 while Planned, 100 on Complete). Legacy milestones saved as In Progress read as Planned",
+      "New Witness Outcome on activities marked Witness invite: Pending, Succeeded or Failed, recorded separately from schedule status. Failed requires a reason from a new witness-quality list and can create a linked retest that clones the discipline, company, location, system, assets and witness routing",
+      "Failed witness events stay on the board ghosted: hatched fill, red edge, struck-through name and a red cross badge. They no longer carry forward, take overdue treatment or accept drag, resize or edits (admins can reopen the outcome). A dashed amber link joins a failed attempt to its retest, which wears a RETEST #n chip (the first retest is attempt #2, so RETEST #1)",
+      "New Invitation Outcomes panel on Analytics beside Reasons For Non-Completion: Attempted, Succeeded, Failed, First-Time Pass (retest chains count once at the root) and a failure-reason Pareto, all clickable to drill. A footnote clarifies that a failed witness executed as committed still counts as a kept promise in PPC",
+      "Export all activities now carries Witness outcome, Failure reason, Outcome date and Retest of columns. The witness invite export is deliberately unchanged so the Outlook macro keeps working"
+    ]
+  },
+  {
+    "rev": "REV68",
+    "date": "2026-06-29",
+    "items": [
+      "Witness invite wording tidied: the subject and the opening line no longer wrap the activity name in quotes, the opening line reads as a normal sentence rather than capitals, each detail (Discipline, Cx Stage, Performing, Location, Planned start) sits on its own line, and the 'please forward' line now sits at the very bottom of the message"
+    ]
+  },
+  {
+    "rev": "REV67",
+    "date": "2026-06-29",
+    "items": [
+      "New Witness Schedule button on the board (beside Make-ready and YTT): opens a popup listing the activities marked for witness in the selected period (this week, next 2 or 4 weeks, or all upcoming), each showing the date and time, the duration, the activity name and any open constraints",
+      "Make-ready, YTT and Witness Schedule are now rounded pill buttons on the blue accent scheme, filling solid blue while their panel is open",
+      "Dark mode: the calendar icon in the Witness date & time field (and any datetime field) is now light so it shows against the dark background",
+      "The New / Edit Activity footer now warns in orange and lists exactly which required fields are still missing, rather than a quiet grey count",
+      "When Witness invite is on and a discipline is chosen, the editor now lists the resolved invite recipients (Required and CC) so you can see who will be invited before saving"
+    ]
+  },
+  {
+    "rev": "REV66",
+    "date": "2026-06-29",
+    "items": [
+      "New Discipline field on the activity Details tab (Mechanical, Electrical, BMS/EPMS, FLS; multi-select), required when Witness invite is on; it drives who the witness invite goes to",
+      "New Witness duration field on Readiness; the witness invite end time is now start plus this duration rather than a fixed hour",
+      "The witness export now carries the resolved Required and CC attendees, a discipline column and a Sent column, with the subject FIN04 - INVITE FOR \"activity\"",
+      "Witness invites can be bulk-sent from classic Outlook with the supplied macro; a new admin Mark sent control stamps which invites have gone out so they are not sent twice"
+    ]
+  },
+  {
+    "rev": "REV64",
+    "date": "2026-06-22",
+    "items": [
+      "Planning Board: the blue current-day line no longer touches the coloured left border of activity cards. It now sits a few pixels clear of the column edge so there is a clean gap between the today line and the card edge"
+    ]
+  },
+  {
+    "rev": "REV63",
+    "date": "2026-06-22",
+    "items": [
+      "The Assigned To You popup now uses the YTT card format: constraints are grouped under their activity, and each has a tick box so you can acknowledge (clear) it directly in the popup. Acknowledging removes it from your list and drops the badge count. You can clear a constraint assigned to you or your company even if the activity belongs to another company; admins can clear any"
+    ]
+  },
+  {
+    "rev": "REV62",
+    "date": "2026-06-22",
+    "items": [
+      "Dark mode: the calendar icon inside date fields was a dark glyph on a dark field and almost invisible. It is now inverted to a light icon in dark mode (and left as-is in light mode), driven by the theme so it follows the light/dark toggle"
+    ]
+  },
+  {
+    "rev": "REV61",
+    "date": "2026-06-22",
+    "items": [
+      "Date fields (planned start, actual start and finish, constraint need-by, report range) now open the calendar picker as soon as you click anywhere on the field, not only on the small calendar icon"
+    ]
+  },
+  {
+    "rev": "REV60",
+    "date": "2026-06-22",
+    "items": [
+      "Fix: the REV59 build caused a white screen on load. The notification calculations were written as React hooks placed after the app's loading guard, which violates the rules of hooks and crashed the app once data loaded. Rewritten as plain calculations; no behaviour change to the notifications feature"
+    ]
+  },
+  {
+    "rev": "REV59",
+    "date": "2026-06-22",
+    "items": [
+      "Constraints can now be assigned to a person or a company: in the responsible field of a constraint (activity drawer and Constraints Log), type @ to pick from a list of project members and companies",
+      "New envelope icon in the top bar, between the theme toggle and your name, with a red count badge showing how many open constraints are assigned to you or your company. Click it for a popup list; click any item to open the activity",
+      "Admins receive notifications for constraints assigned to them personally and to the CSN company"
+    ]
+  },
+  {
+    "rev": "REV58",
+    "date": "2026-06-22",
+    "items": [
+      "Planning Board: the actual-progress bar no longer overshoots the left edge of an activity card or cut across its coloured side border. When work started on plan, the bar now begins neatly under the readiness dot inside the card; bars whose actual start is a later day keep their exact position on the day grid"
+    ]
+  },
+  {
+    "rev": "REV57",
+    "date": "2026-06-22",
+    "items": [
+      "Activity duration is calendar days, weekends included. The New / Edit Activity field is now labelled Days (Calendar) and shows the resulting finish date so it is clear weekends are counted (they were never skipped; this makes it explicit)",
+      "The PPC figure at the foot of the left sidebar is now clickable and opens the Analytics page"
+    ]
+  },
+  {
+    "rev": "REV56",
+    "date": "2026-06-21",
+    "items": [
+      "Planning Board KPI tiles (In Lookahead, Ready To Run, Need Make-Ready, Committed This Week, Delayed, At Risk) are now clickable and open the same activity-list popup as the Analytics cards. Click any activity in the list to open it",
+      "Companies now have a short description (role & scope), editable inline in Admin > Companies. On the Planning Board grouped by Company, click a company's logo to see a popup card with that role & scope",
+      "Quick Reference Guide refreshed: filtering no longer references Building on single-building projects (the Table's Building filter now hides unless there is more than one building), the YTT focus is explained, and a new 'The app at a glance' section gives a short purpose for each part of the app for users",
+      "Activity Table: the Building filter only shows on projects with more than one building"
+    ]
+  },
+  {
+    "rev": "REV55",
+    "date": "2026-06-21",
+    "items": [
+      "Weekly DLP Report: new Light / Dark choice in the report window. Light is unchanged; Dark renders the whole report on a dark sheet. To keep the dark background when saving to PDF, tick 'Background graphics' in the browser print dialog"
+    ]
+  },
+  {
+    "rev": "REV54",
+    "date": "2026-06-21",
+    "items": [
+      "Planning Board (Day view): you can now drag the left or right edge of an activity to change its start or finish. Hover near an edge and the cursor becomes a resize arrow; drag in whole-day steps, minimum one day. Available to admins (and to members on their own activities that are not yet committed)"
+    ]
+  },
+  {
+    "rev": "REV53",
+    "date": "2026-06-21",
+    "items": [
+      "Admin > Companies: company names are now editable inline, like buildings, levels, zones and systems. Type a new name and press Enter or click away; it updates everywhere the company is shown. Activities stay linked because they reference the company, not its name"
+    ]
+  },
+  {
+    "rev": "REV52",
+    "date": "2026-06-21",
+    "items": [
+      "Changed atNorth to atnorth (lowercase) on the Help page and in the Weekly Report, to match the logo"
+    ]
+  },
+  {
+    "rev": "REV51",
+    "date": "2026-06-21",
+    "items": [
+      "Restored the Project and App name (from Admin settings) to the top bar on every page, set just after the customer logo with a divider: project name in bold and app name as a small accent tag. The per-page title stays gone"
+    ]
+  },
+  {
+    "rev": "REV50",
+    "date": "2026-06-21",
+    "items": [
+      "Constraints Log: Search now comes first, then the filters, matching the Activity Table",
+      "Removed the descriptive sub-text lines from the Analytics and Constraints pages",
+      "Title Case sweep: multi-word labels, titles and options in the popups (New/Edit Activity, Admin, Import, Weekly Report) are now capitalised consistently"
+    ]
+  },
+  {
+    "rev": "REV49",
+    "date": "2026-06-21",
+    "items": [
+      "Consistent chrome across pages: one slim top bar everywhere holding the logo, your name, role or company logo and Sign out, with the page title removed (the sidebar shows where you are)",
+      "Every page's filters now share one look: the board controls moved into a toolbar, and the Schedule, Analytics, Table and Users filter bars use the same card background, bottom border, labels and segmented-control style",
+      "Constraints Log now uses a warning-triangle icon in the sidebar"
+    ]
+  },
+  {
+    "rev": "REV48",
+    "date": "2026-06-21",
+    "items": [
+      "Delete confirmation now applies across Admin too. Deleting a company, building, level, zone, system, Cx stage or user asks 'Are you sure?' with Yes and No first. Cx stage still tells you how many activities will be moved"
+    ]
+  },
+  {
+    "rev": "REV47",
+    "date": "2026-06-21",
+    "items": [
+      "New / Edit Activity: clicking the dimmed area outside the window no longer discards what you typed. The window stays put until you Save, Cancel, or close it with the X",
+      "Deleting an activity now asks 'Delete this activity?' with Yes and No before removing it"
+    ]
+  },
+  {
+    "rev": "REV46",
+    "date": "2026-06-21",
+    "items": [
+      "Schedule Gantt: clicking a bar or milestone now opens the activity card popup (like the Calendar and Workload views) instead of jumping straight to the Planning Board. Open the card to go to the board"
+    ]
+  },
+  {
+    "rev": "REV45",
+    "date": "2026-06-21",
+    "items": [
+      "Fix: blank page on load introduced in REV44. The theme-aware customer logo was being read before data finished loading, which threw on first render. Now guarded"
+    ]
+  },
+  {
+    "rev": "REV44",
+    "date": "2026-06-21",
+    "items": [
+      "Logos now support separate light-mode and dark-mode versions, for both the customer logo and each company logo. The board, headers and lane labels show the right one for the current theme. If you upload only one, it is used in both modes. Admin upload boxes preview the dark version on a dark background"
+    ]
+  },
+  {
+    "rev": "REV43",
+    "date": "2026-06-21",
+    "items": [
+      "Planning Board: when grouped by Company, each swimlane label now shows the company logo (if uploaded) with the company name underneath"
+    ]
+  },
+  {
+    "rev": "REV42",
+    "date": "2026-06-21",
+    "items": [
+      "Admin can upload a logo per company (Project setup, Companies). The logo replaces the company name text in the header beside each user's name, between the name and Sign out. Remove the logo to fall back to the text"
+    ]
+  },
+  {
+    "rev": "REV41",
+    "date": "2026-06-21",
+    "items": [
+      "Planning Board swimlane grouping now offers Level and Zone instead of Building (Building only appears when a project has more than one building); dragging a card between Level or Zone lanes re-tags its Level or Zone",
+      "Import window: the title bar now stays fixed to the top of the popup and only the content below it scrolls, instead of the banner sticking to the browser window"
+    ]
+  },
+  {
+    "rev": "REV40",
+    "date": "2026-06-21",
+    "items": [
+      "Admin Users: new Invite filter (All, Pending, Accepted) to quickly find who still has not accepted their invite"
+    ]
+  },
+  {
+    "rev": "REV39",
+    "date": "2026-06-21",
+    "items": [
+      "Light/dark theme toggle now sits next to your name on every page, not just the Planning Board",
+      "Admin: the Project setup submenu Settings is now called Lookahead (lookahead length and make-ready window)"
+    ]
+  },
+  {
+    "rev": "REV38",
+    "date": "2026-06-20",
+    "items": [
+      "New admin-only Weekly DLP Report on the Analytics page: one click opens a styled, print-ready report (PPC and promise reliability, open constraints with owners and need-by dates, non-completion reasons, by contractor, by Cx stage, committed next week, milestones) built from live data, ready to Save as PDF",
+      "Report config window: defaults to the week just ended, optional custom date range, an auto-drafted editable executive summary, and an optional 4 week schedule snapshot"
+    ]
+  },
+  {
+    "rev": "REV37",
+    "date": "2026-06-20",
+    "items": [
+      "Schedule Calendar and Workload now open the same drill-down popup as Analytics: click a calendar day or a workload bar (or a company segment) to list those activities, then click one to open it",
+      "Workload bars and segments are now interactive"
+    ]
+  },
+  {
+    "rev": "REV36",
+    "date": "2026-06-20",
+    "items": [
+      "Per-activity audit history now records what actually changed on each edit (field by field, old value to new value) instead of a generic Edit activity; needs the activity-audit-detail.sql migration"
+    ]
+  },
+  {
+    "rev": "REV35",
+    "date": "2026-06-20",
+    "items": [
+      "Milestone diamonds now sit centred in their day column instead of on the left gridline, so they read on the correct day",
+      "Board metric numbers use the same font as Analytics (no more slashed zeros)"
+    ]
+  },
+  {
+    "rev": "REV34",
+    "date": "2026-06-20",
+    "items": [
+      "Hardened predecessor logic: a link only orders work and can push a successor later if needed; it can never pull a successor earlier than its own planned start, and the card always sits on its planned date"
+    ]
+  },
+  {
+    "rev": "REV33",
+    "date": "2026-06-20",
+    "items": [
+      "Planning board activity cards restyled to match the Analytics cards: same rounded corners, flat resting card, roomier padding and text scale, keeping the coloured Cx-stage edge"
+    ]
+  },
+  {
+    "rev": "REV32",
+    "date": "2026-06-20",
+    "items": [
+      "Analytics is now interactive: click any KPI card, the PPC gauge, a trend point, a reason, a status segment, a company or a Cx stage to open a drill-down listing the exact activities behind that number; click an activity there to jump into it"
+    ]
+  },
+  {
+    "rev": "REV31",
+    "date": "2026-06-20",
+    "items": [
+      "Analytics gained download options: a multi-sheet Excel of the metrics behind every chart (PPC, KPIs, weekly trend, reasons, by company, by Cx stage, status mix) and a Print to PDF of the dashboard, both honouring the active filters"
+    ]
+  },
+  {
+    "rev": "REV30",
+    "date": "2026-06-20",
+    "items": [
+      "Sidebar PPC now left-aligns when the menu is expanded",
+      "The Activity button stays pinned to the right of the board bar instead of wrapping to the left"
+    ]
+  },
+  {
+    "rev": "REV29",
+    "date": "2026-06-20",
+    "items": [
+      "Sidebar now shows section labels beside each icon and collapses back to icons only, remembered across refreshes",
+      "Order changed so Constraints Log sits above Schedule; Reports relabelled Analytics; Schedule tooltip no longer mentions Gantt"
+    ]
+  },
+  {
+    "rev": "REV28",
+    "date": "2026-06-20",
+    "items": [
+      "Admin-only audit history on each activity: a collapsible section under Notes in the editor showing who created, edited or touched that activity and when"
+    ]
+  },
+  {
+    "rev": "REV27",
+    "date": "2026-06-20",
+    "items": [
+      "Add-constraint button restyled to the blue primary look matching Save",
+      "Activity editor titles set in Title Case (New Activity, Edit Activity)"
+    ]
+  },
+  {
+    "rev": "REV26",
+    "date": "2026-06-20",
+    "items": [
+      "Building is now locked for members in the activity editor (fixed for the project); admins can still change it",
+      "Admins can create a new Level, Zone, System or Company inline from the activity editor without leaving the popout"
+    ]
+  },
+  {
+    "rev": "REV25",
+    "date": "2026-06-20",
+    "items": [
+      "User management rows aligned onto a fixed grid so name, role, company, status and actions line up column to column"
+    ]
+  },
+  {
+    "rev": "REV24",
+    "date": "2026-06-20",
+    "items": [
+      "YTT stand-up panel renamed YTT Focus",
+      "Clearing a constraint from YTT Focus is now admin-only"
+    ]
+  },
+  {
+    "rev": "REV23",
+    "date": "2026-06-20",
+    "items": [
+      "Reports gained a Period filter: all time or a custom date range, scoping every metric, card and chart; the weekly trend clips to the range"
+    ]
+  },
+  {
+    "rev": "REV22",
+    "date": "2026-06-20",
+    "items": [
+      "New YTT Focus button on the board: a yesterday/today/tomorrow stand-up panel listing each day's activities with their open constraints, ticked off in place; yesterday flags missed commitments"
+    ]
+  },
+  {
+    "rev": "REV21",
+    "date": "2026-06-20",
+    "items": [
+      "Schedule page is now a suite with a view switcher",
+      "New Calendar (month) view",
+      "New Workload view: activities per week stacked by company to spot over-commitment"
+    ]
+  },
+  {
+    "rev": "REV20",
+    "date": "2026-06-20",
+    "items": [
+      "User management tables widened and the user search and filters stay frozen while scrolling",
+      "Reports laid out as a two-column dashboard to fill the page"
+    ]
+  },
+  {
+    "rev": "REV19",
+    "date": "2026-06-20",
+    "items": [
+      "Constraints log now uses the full page width",
+      "Page titles enlarged and set in Title Case"
+    ]
+  },
+  {
+    "rev": "REV18",
+    "date": "2026-06-20",
+    "items": [
+      "A page refresh keeps you on the current view instead of dropping back to the board"
+    ]
+  },
+  {
+    "rev": "REV17",
+    "date": "2026-06-20",
+    "items": [
+      "Latest online: a live presence panel in admin showing who is online now and everyone's last-online time, driven by a lightweight heartbeat"
+    ]
+  },
+  {
+    "rev": "REV16",
+    "date": "2026-06-19",
+    "items": [
+      "The footer is a proper full-width bar on every page rather than a floating badge that overlapped content"
+    ]
+  },
+  {
+    "rev": "REV15",
+    "date": "2026-06-19",
+    "items": [
+      "Refreshed, wider in-app Help page that follows light and dark mode"
+    ]
+  },
+  {
+    "rev": "REV14",
+    "date": "2026-06-19",
+    "items": [
+      "Constraints log date and owner columns widened so they no longer wrap",
+      "Admin Changelog added under a new About section"
+    ]
+  },
+  {
+    "rev": "REV13",
+    "date": "2026-06-19",
+    "items": [
+      "JSON project import now opens a review screen: overwrite, ignore or clone each clashing item, with a global default and per-section bulk actions",
+      "Company references and predecessor links from the file are remapped on import; cloned Cx stages carry their activities onto the new key",
+      "Override import still replaces the whole project wholesale"
+    ]
+  },
+  {
+    "rev": "REV12",
+    "date": "2026-06-19",
+    "items": [
+      "Admin Import / Export got its own importer, separate from the member one: set Company per row to load work for every contractor at once",
+      "Admin Excel template with dropdowns that allow new values, which are created on import; admin importer now reads .xlsx directly",
+      "Witness date and time now import from CSV and Excel"
+    ]
+  },
+  {
+    "rev": "REV11",
+    "date": "2026-06-19",
+    "items": [
+      "Reason for non-completion stays editable on a late-but-complete activity, the one exception to the complete-lock"
+    ]
+  },
+  {
+    "rev": "REV10",
+    "date": "2026-06-19",
+    "items": [
+      "Completed activities lock on every field except status; an admin reopens by setting status back",
+      "Witness and Witness time added as table columns; column choice plus filters can be saved as your default view",
+      "Cx stages are now add and delete, not just rename; systems are renamable and migrate their activities",
+      "Audit log gained a search box; help page dark mode fixed for the sample card and chips"
+    ]
+  },
+  {
+    "rev": "REV9",
+    "date": "2026-06-19",
+    "items": [
+      "Constraints log gained inline editing of wording, owner and need-by",
+      "Activity table gained show/hide columns and Building and Cx Stage filters",
+      "Schedule and Help now follow dark mode"
+    ]
+  },
+  {
+    "rev": "REV8",
+    "date": "2026-06-19",
+    "items": [
+      "Reasons for non-completion captured on misses and charted as a Pareto in Reports",
+      "PPC tightened to on-time completion across the gauge and weekly trend",
+      "Activity short-codes (#N) now assigned by a database sequence and immutable, removing collision risk"
+    ]
+  },
+  {
+    "rev": "REV7",
+    "date": "2026-06-19",
+    "items": [
+      "Schedule fixes: dependency arrows draw over group headers (dashed across groups), collapsed groups show a rollup summary bar, responsible label no longer clashes with link arrows, routing handles reordered rows"
+    ]
+  },
+  {
+    "rev": "REV6",
+    "date": "2026-06-19",
+    "items": [
+      "New P6-style Schedule (Gantt) view: day/week/month zoom, grouping, colour-by, dependency arrows, forecast tail, responsible labels",
+      "Exports to PNG, JPG, PDF and Excel"
+    ]
+  },
+  {
+    "rev": "REV5",
+    "date": "2026-06-19",
+    "items": [
+      "Constraint owner and need-by date added throughout, with overdue highlighting",
+      "At-risk metric tile for predecessor knock-on"
+    ]
+  },
+  {
+    "rev": "REV4",
+    "date": "2026-06-19",
+    "items": [
+      "Predecessors and non-destructive forecast: a slip upstream shows a dashed knock-on overlay without moving the baseline",
+      "Activity short-codes, prepopulated single building, foldable audit log",
+      "Settings reorganised into a left sub-navigation; users show accepted/pending and last-seen with a jump to their audit trail",
+      "New Activity table (spreadsheet) view with per-row inline editing"
+    ]
+  },
+  {
+    "rev": "REV1-REV3",
+    "date": "2026-06-19",
+    "items": [
+      "Day-by-day four-week Last Planner board with swimlanes, make-ready readiness, committed promises and witness flags",
+      "Admin-configurable branding, Cx stages, systems, three-tier locations and companies",
+      "User management: direct create, bulk CSV with set-password links, resets; Supabase auth, RLS, realtime and a secured admin edge function",
+      "CSV and JSON import/export with downloadable templates; database-written, tamper-proof audit log"
+    ]
+  }
 ]
