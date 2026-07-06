@@ -53,10 +53,32 @@
 
   /* admin-style two-column shell */
   .shell{ display:flex; gap:22px; align-items:flex-start; }
-  .subnav{ flex:0 0 196px; display:flex; flex-direction:column; gap:14px; position:sticky; top:14px; }
+  .sidecol{ flex:0 0 236px; position:sticky; top:14px; align-self:flex-start; }
+  .hsearch{ position:relative; margin-bottom:10px; }
+  .hsearch input{ width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 30px 9px 30px; font-size:12.5px; color:var(--ink); font-family:inherit; }
+  .hsearch input:focus{ outline:none; border-color:var(--accent); }
+  .hsearch .hsi{ position:absolute; left:10px; top:9px; color:var(--faint); font-size:13px; pointer-events:none; }
+  .hsearch .hclr{ position:absolute; right:9px; top:6px; color:var(--faint); cursor:pointer; font-size:16px; display:none; }
+  .subnav{ display:flex; flex-direction:column; gap:3px; max-height:72vh; overflow-y:auto; }
+  .subnav .chap{ display:flex; flex-direction:column; }
+  .subnav .chaphd{ display:flex; align-items:center; gap:7px; padding:8px 9px; font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--ink); cursor:pointer; border-radius:8px; user-select:none; }
+  .subnav .chaphd:hover{ background:var(--hover); }
+  .subnav .chaphd .tw{ font-size:9px; color:var(--faint); transition:transform .15s; display:inline-block; width:9px; }
+  .subnav .chaphd.open .tw{ transform:rotate(90deg); }
+  .subnav .chaphd .cc{ margin-left:auto; font-size:9px; color:var(--faint); font-weight:700; }
+  .subnav .leaves{ overflow:hidden; max-height:0; transition:max-height .2s ease; display:flex; flex-direction:column; gap:2px; }
+  .subnav .chap.open .leaves{ max-height:640px; padding:2px 0 4px; }
+  .results{ display:flex; flex-direction:column; gap:2px; max-height:72vh; overflow-y:auto; }
+  .results .rhd{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:800; padding:6px 9px 4px; }
+  .results .ritem{ text-align:left; border:1px solid transparent; background:transparent; color:var(--ink); border-radius:7px; padding:8px 9px; cursor:pointer; font-family:inherit; }
+  .results .ritem:hover{ background:var(--hover); }
+  .results .ritem .rt{ font-size:12.5px; font-weight:600; }
+  .results .ritem .rc{ font-size:11px; color:var(--mut); margin-top:2px; line-height:1.4; }
+  .results .ritem .rc b{ color:var(--accent); }
+  .results .rnone{ font-size:12px; color:var(--faint); padding:12px 9px; }
   .subnav .grp{ display:flex; flex-direction:column; gap:2px; }
   .subnav .grphd{ font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); padding:0 8px 3px; }
-  .subnav button{ text-align:left; border:1px solid transparent; background:transparent; color:var(--ink); border-radius:7px; padding:8px 10px; font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .subnav .leaves button{ text-align:left; border:1px solid transparent; background:transparent; color:var(--mut); border-radius:7px; padding:6px 10px 6px 22px; font-size:12px; font-weight:600; display:flex; align-items:center; gap:8px; width:100%; font-family:inherit; }
   .subnav button:hover{ background:var(--hover); }
   .subnav button.sel{ background:var(--ink); color:var(--paper); }
   .subnav button .ic{ width:18px; text-align:center; opacity:.85; }
@@ -193,10 +215,14 @@
   </div>
 
   <div class="shell">
-    <nav class="subnav" id="subnav"></nav>
+    <div class="sidecol">
+      <div class="hsearch"><span class="hsi">&#9906;</span><input id="helpSearch" placeholder="Search help..." autocomplete="off"><span class="hclr" id="helpClr">&times;</span></div>
+      <nav class="subnav" id="subnav"></nav>
+      <div class="results" id="helpResults" style="display:none"></div>
+    </div>
     <div class="subbody" id="subbody"></div>
   </div>
-  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 9</footer>
+  <footer class="hfoot">Digital Last Planner System &middot; FIN04 &middot; atnorth, Koski &middot; Help REV 10</footer>
 </div>
 
 <script>
@@ -279,6 +305,23 @@ const schedToolbar=()=>`<div class="tb">
   <span class="tbtn">Responsible</span><span class="tbtn on">Links</span><span class="tbtn">Compact</span>
   <span style="flex:1"></span><span class="tbtn">PNG</span><span class="tbtn">Excel</span></div>`;
 const ring=(pct,col,sz=92)=>{const r=sz/2-9,c=2*Math.PI*r;return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="var(--surface2)" stroke-width="10"/><circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${c*pct/100} ${c}" transform="rotate(-90 ${sz/2} ${sz/2})"/><text x="${sz/2}" y="${sz/2+3}" text-anchor="middle" font-family="var(--disp)" font-weight="700" font-size="19" fill="var(--ink)">${pct}%</text><text x="${sz/2}" y="${sz/2+17}" text-anchor="middle" font-size="9" fill="var(--mut)" letter-spacing="1">PPC</text></svg>`;};
+// REV126: semicircular PPC gauge, faithful to the app (replaces the retired full ring).
+const gauge=(v,target=80,sz=170)=>{const H=Math.round(sz*0.66),r=sz/2-16,cx=sz/2,cy=H-18;
+  const t=Math.max(1,Math.min(100,target));const val=v==null?null:Math.max(0,Math.min(100,v));
+  const col=val==null?'var(--faint)':(val>=t?'#0E9384':val>=t-15?'#D97706':'#C0392B');
+  const px=q=>cx+r*Math.cos(Math.PI*(1-q/100)),py=q=>cy-r*Math.sin(Math.PI*(1-q/100));
+  const track=`M ${px(0)} ${cy} A ${r} ${r} 0 0 1 ${px(100)} ${cy}`;
+  const arc=val==null||val<=0?'':`M ${px(0)} ${cy} A ${r} ${r} 0 0 1 ${px(val).toFixed(1)} ${py(val).toFixed(1)}`;
+  const ta=Math.PI*(1-t/100);
+  const tlx=Math.max(8,Math.min(sz-8,cx+(r+20)*Math.cos(ta))),tly=cy-(r+20)*Math.sin(ta)+3;
+  return `<svg width="${sz}" height="${H}" viewBox="0 0 ${sz} ${H}"><path d="${track}" fill="none" stroke="var(--surface2)" stroke-width="13" stroke-linecap="round"/>${arc?`<path d="${arc}" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round"/>`:''}<line x1="${cx+(r-10)*Math.cos(ta)}" y1="${cy-(r-10)*Math.sin(ta)}" x2="${cx+(r+10)*Math.cos(ta)}" y2="${cy-(r+10)*Math.sin(ta)}" stroke="#C0392B" stroke-width="3" stroke-linecap="round"/><text x="${tlx}" y="${tly}" text-anchor="middle" font-size="9" font-weight="800" fill="#C0392B">${t}</text><text x="${cx}" y="${cy-13}" text-anchor="middle" font-family="var(--disp)" font-weight="700" font-size="${Math.round(sz*0.16)}" fill="var(--ink)">${val==null?'\u2014':val+'%'}</text><text x="${cx}" y="${cy}" text-anchor="middle" font-size="9.5" fill="var(--mut)" letter-spacing="1">PPC</text><text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#C0392B" letter-spacing=".5">TARGET ${t}%</text></svg>`;};
+// REV126: the witness-failure reconciliation line, faithful to Analytics.
+const reconLine=(gap=2,late=3,notdue=1,uncom=0)=>{const total=gap+late+notdue+uncom;const parts=[];
+  if(gap)parts.push(`<span style="color:var(--amber);text-decoration:underline;text-decoration-style:dotted">${gap} on-time kept promise${gap===1?'':'s'}</span> (the quality gap)`);
+  if(late)parts.push(`<span style="color:var(--late);text-decoration:underline;text-decoration-style:dotted">${late} late</span> (already broken promises in PPC)`);
+  if(notdue)parts.push(`<span style="color:var(--accent);text-decoration:underline;text-decoration-style:dotted">${notdue} not yet due</span>`);
+  if(uncom)parts.push(`<span style="color:var(--mut);text-decoration:underline;text-decoration-style:dotted">${uncom} not committed</span>`);
+  return `<div style="font-size:11.5px;color:var(--mut);border-top:1px solid var(--line);padding-top:9px;margin-top:10px;line-height:1.7"><b style="color:var(--ink)">${total} witness failure${total===1?'':'s'} in scope:</b> ${parts.join(', ')}. Every failure feeds First-Time Pass and Invitation Outcomes regardless of bucket.</div>`;};
 const realKpis=()=>`<div class="kpis">
   <div class="kpi" data-k="Ready to run · 15"><div class="v" style="color:#0E9384">15</div><div class="l">Ready to run</div></div>
   <div class="kpi" data-k="Need make-ready · 4"><div class="v" style="color:var(--amber)">4</div><div class="l">Need make-ready</div></div>
@@ -325,7 +368,7 @@ const witnessSchedulePop=()=>`<div class="ill" style="background:var(--surface)"
 const witnessExportBox=()=>`<div class="ill" style="background:var(--surface)">
   <div class="tb" style="margin-bottom:8px"><span class="tbtn">Export all activities</span><span class="tbtn on">Export witness invites</span></div>
   <div style="display:flex;gap:5px;flex-wrap:wrap">${['Subject','Start','End','Required Attendees','CC','Discipline','Sent'].map(c=>`<span class="pill" style="text-transform:none">${c}</span>`).join('')}</div>
-  <div class="cap">One row per witnessed activity, carrying the resolved Required and CC attendees, the discipline and a <b>Sent</b> stamp. Bulk-send from classic Outlook with the supplied macro; an admin uses <b>Mark sent</b> so the same invite is not sent twice.</div></div>`;
+  <div class="cap">One row per witnessed activity, carrying the resolved Required and CC attendees, the discipline and a <b>Sent</b> stamp. (Legacy export view; invites now send from inside DLP, see Witness invites &amp; schedule.)</div></div>`;
 const completeCard=(active='complete')=>`<div class="card">
   <div style="display:flex;gap:3px;margin-bottom:11px">${['Details','Schedule','Readiness'].map(t=>`<span class="tbtn ${t==='Schedule'?'on':''}" style="flex:1;text-align:center">${t}</span>`).join('')}</div>
   <div class="frow"><label>Status</label><div style="display:flex;gap:6px">${[['planned','Planned'],['in_progress','In progress'],['complete','Complete']].map(([k,l])=>`<span class="tbtn ${k===active?'on':''}" style="flex:1;text-align:center">${l}</span>`).join('')}</div></div>
@@ -410,7 +453,7 @@ const REF={
   r_constraints:{ title:"Constraints &amp; make-ready", ill:realCard(false,{constraint:true}), body:`
     <p>A constraint is anything that stops work starting: access, prerequisites, materials, permits. Add constraints on the card with an <b>Owner</b> and a <b>Need-by</b> date.</p>
     <p>While any constraint is open the readiness dot is <b>amber</b>; clear them all and it turns <b>teal</b>, ready to run. The <b>Make-ready</b> toggle fades ready work and spotlights what is still constrained inside the window, so the planning meeting drives blockers out. Assignees can clear their own constraints.</p>` },
-  r_commit:{ title:"Committing &amp; PPC", ill:`<div class="ill" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">${ring(75,'var(--amber)')}<div style="flex:1;min-width:180px;font-size:12.5px;color:var(--mut)">PPC is the share of committed activities finished on or before their promised date.</div></div>`, body:`
+  r_commit:{ title:"Committing &amp; PPC", ill:`<div class="ill" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">${gauge(92,80)}<div style="flex:1;min-width:180px;font-size:12.5px;color:var(--mut)">PPC counts only promises that have <b>come due</b>: of committed activities whose promised finish has passed, how many finished on or before it. Work not yet due gets no verdict yet. See <b>Quality-Adjusted PPC &amp; targets</b> for the gauge, the target and the quality view.</div></div>`, body:`
     <p>Committing turns a planned activity into a <b>reliable promise</b> for the week, shown as a <span class="chip will">will</span> tag. Commit only what you are confident will be done.</p>
     <p>At week end, <b>PPC</b> (Percent Plan Complete) measures how many committed activities finished on or before their promised date. It is the core Last Planner reliability metric, so an honest commitment is worth more than an optimistic one.</p>
     <p><b>The commit lock.</b> The moment an activity is committed, its <b>plan is frozen for members</b>: the description, company, location, discipline, system, assets, Cx stage, milestone flag, planned start, duration, predecessors, witness setup, the Committed toggle itself, and Delete are all locked. <b>Only an admin can change or delete a committed activity.</b> A promise that anyone could quietly rewrite or remove would make PPC meaningless, so the plan is protected while the work is measured against it.</p>
@@ -435,7 +478,7 @@ const REF={
     <p>Some activities need a <b>client or third-party witness</b> to attend an inspection. On the <b>Readiness</b> tab turn on <b>Witness invite</b>, set the <b>witness date and time</b> and a <b>Duration</b> (the invite end time is the start plus this duration). The activity then carries a <span class="chip wit">WIT</span> chip everywhere it appears.</p>
     <p>A witness invite needs a <b>Discipline</b> (set on the Details tab), because the discipline decides who is invited. Once a discipline is chosen the editor lists the resolved <b>Required</b> and <b>CC</b> recipients, so you can see exactly who will be invited before you save. You (the organiser) are never on the list.</p>
     <p>The <b>Witness Schedule</b> pill on the board toolbar (beside Make-ready and YTT) lists the witnessable work for a chosen period (this week, the next 2 or 4 weeks, or all upcoming), each with its time, duration and any open constraints, so the client can see what is coming and you can see what is not yet ready.</p>
-    <p>From <b>Analytics</b>, <b>Export witness invites</b> produces one row per witnessed activity with the resolved attendees, the discipline and a <b>Sent</b> column. The invites can be <b>bulk-sent from classic Outlook</b> with the supplied macro, and an admin uses <b>Mark sent</b> to stamp which have gone out so none is sent twice.</p>
+    <p><b>Sending the invites.</b> Invites go out from inside DLP through your own Outlook, no export and no macro. An admin presses <b>Connect Outlook</b> once (a full-page Microsoft sign-in that returns to DLP; the same session also sends the report and admin digests). Then on the <b>Witness Schedule</b> each row carries a live status: <b>Not Sent</b>, <b>Sent</b> with the date, <b>Partially Sent</b> with per-day pills for a multi-day series, or <b>Details Changed</b> when the date or attendees moved since it went out. <b>Send</b> issues one invite; <b>Send All Pending</b> issues every unsent event in the period in one pass. <b>Test To Me</b> sends the real styled invite, vendor logo and all, to you alone so you can check it first. Each invite carries its mandatory <b>Invite Type</b> (L2 FOK, W2, IVC, L3 FOK, L3 SU, L3 SAT, L4 FPT, L5 IST), the <b>itemised open constraints</b>, and an <b>Open This Activity In DLP</b> deep link. <b>Cancel</b> sends a proper calendar cancellation to all attendees.</p>
     <p><b>Recording the outcome.</b> Once the witnessed event has happened (an inspection or FOK), record its result on the <b>Schedule</b> tab: <b>Witness Outcome</b> is Pending, Succeeded or Failed. This is the pass / fail verdict of the event itself, entirely separate from whether the activity ran on its promised date: see <b>Slips vs pass / fail</b>.</p>
     <p>A <b>failed</b> outcome requires a <b>failure reason</b> (test failure, documentation incomplete, witness no-show, prerequisite unavailable, and so on). The failed record is then <b>ghosted and locked</b> on the board: hatched, struck through, marked with a red cross, and closed to further edits (an admin can reopen it by setting the outcome back to Pending). From the failed record you can <b>Create Linked Retest</b>: a fresh invitation cloned with the same discipline, company, location, system and routing, linked back to the original so the attempt history stays connected. Retests wear a <b>RETEST #</b> chip and a dashed amber link joins the attempts on the board.</p>
     <p>Analytics gains an <b>Invitation Outcomes</b> panel (attempted, succeeded, failed, first-time pass, and a failure-reason Pareto), and the Weekly DLP Report can include the same as a section. <b>First-time pass</b> counts each witness chain once, at its first attempt, so retesting your way to green never inflates the number.</p>
@@ -492,7 +535,7 @@ const REF={
     <p>One caution: once you mark your own activity <b>Complete it locks</b> for you (every field except status). So set the right <b>actual finish</b> date first if it did not finish today, then mark it complete. If you need to change a completed activity later, an admin reopens it by setting the status back.</p>` },
   r_analytics:{ title:"Analytics &amp; reports", ill:`<div class="ill">${realKpis()}</div>`, body:`
     <p>Analytics opens with the <b>PPC</b> gauge, a <b>Weekly PPC Trend</b>, a <b>Status Mix</b> donut (Planned / In progress / Complete) and eight KPI tiles: Total activities, Committed, Complete, In progress, Ready to run, Need make-ready, Delayed and Witness required.</p>
-    <p>Every number is <b>clickable</b> and drills to the activities behind it; click a row to open it on the board. Export all activities or witness invites, pull <b>Metrics</b> to Excel or <b>PDF</b>, and admins can generate the <b>Weekly Report</b>. The witness export carries the resolved attendees, the discipline and a <b>Sent</b> stamp, and an admin can <b>Mark sent</b> after a bulk send.</p>` },
+    <p>Every number is <b>clickable</b> and drills to the activities behind it; click a row to open it on the board. Export all activities or witness invites, pull <b>Metrics</b> to Excel or <b>PDF</b>, and admins can generate the <b>Weekly Report</b>. Witness invites are sent from inside DLP through a connected Outlook account (see <b>Witness invites &amp; schedule</b> and <b>Connecting Outlook &amp; SharePoint</b>), not by exporting a macro.</p>` },
   r_admin:{ title:"Admin &amp; settings", ill:adminList(), body:`
     <p>Admins get a settings area with its own sub-sidebar. <b>Project Setup</b> covers Branding, Cx Stages, Systems, Locations, Companies and the Lookahead length. <b>User management</b> covers Global Contacts, Project Team and Access requests.</p>
     <p>There is also an <b>Audit log</b>, <b>Import / Export</b>, and a <b>Changelog</b>. Most people will not see this; it is where the project is configured.</p>
@@ -516,6 +559,60 @@ const REF={
     <p>The <b>Asset</b> field on the Details tab is a searchable picker over the FIN04 equipment register. Type any part of a tag, equipment name or type (for example <span class="mono">UPS</span>, <span class="mono">CRAH</span> or <span class="mono">GY01</span>) and click to add it. You can add <b>one or several</b>, and it stays optional.</p>
     <p>Choosing a known asset fills <b>Building, Level, Zone and System</b> from its tag and locks them, marked <span class="mono">from asset</span>. With several assets selected, a field fills only where they all agree: a shared zone fills Zone, while assets in different zones still fill the shared Building and Level and leave Zone open. System fills only when every selected asset is the same type. Remove the assets to edit those fields by hand.</p>
     <p>Any older free-text asset that is not in the register is kept as a chip but does not change the location.</p>` },
+
+  r_qappc:{ title:"Quality-Adjusted PPC &amp; targets", ill:`<div class="ill" style="display:flex;flex-direction:column;gap:10px">${gauge(92,80)}${reconLine(2,3,1,0)}</div>`, body:`
+    <p><b>PPC</b> (Percent Plan Complete) is the core Last Planner reliability metric: of the committed activities whose promised finish has <b>passed</b>, how many finished on or before that date. It answers one question, is the plan reliable, and nothing else. Work not yet due gets no verdict until its promised finish passes.</p>
+    <p>The <b>gauge</b> sweeps left to right on a fixed scale. The red tick is this project's <b>PPC target</b>, set by admins in <b>Admin, Lookahead &amp; Targets</b> (FIN04 starts at 80%). The number is <b>green</b> at or above target, <b>amber</b> within 15 points below, and <b>red</b> beyond. The expanded sidebar figure keys off the same target.</p>
+    <p><b>Quality-Adjusted PPC</b> sits beside the gauge: the same calculation, except an on-time completion whose witnessed test outcome is <b>Failed</b> does not count as kept. PPC asks did we do what we promised, on time; QA-PPC asks and did the witnessed work pass. The two are equal on any period with no on-time witness failures.</p>
+    <p><b>The reconciliation line.</b> When any witness failures are in the current filter, a line under Percent Plan Complete splits them into buckets that always sum to the total, each clickable to its exact activities: <b>on-time kept promises</b> (the quality gap that QA-PPC subtracts), <b>late</b> (already broken promises inside PPC's misses, never subtracted twice), <b>not yet due</b> (a promise finishing today is due tomorrow), and <b>not committed</b> (outside PPC entirely). This exists because the board can show more ghosted failures than the gap figure subtracts, and the split shows exactly why. Every failure still feeds First-Time Pass and Invitation Outcomes regardless of its bucket.</p>
+    <p><b>Info icon.</b> The circled i beside Percent Plan Complete, and beside PPC on the expanded sidebar, opens a popup spelling out how PPC, Quality-Adjusted PPC and the target relate.</p>` },
+
+  r_failed:{ title:"Failed witnesses &amp; retests", ill:`<div class="ill"><div class="board"><div class="lane"><span class="nm">Mecwide</span><div class="track"><span class="bar" style="left:8%;width:26%;background:var(--l3);opacity:.5;text-decoration:line-through">SAT</span><span class="bar" style="left:34%;width:20%;background:repeating-linear-gradient(45deg,var(--late),var(--late) 5px,transparent 5px,transparent 10px);color:#fff">&#10006; fail tail</span><span class="dia" style="left:60%;background:var(--l3);border:2px dashed var(--amber)"></span></div></div></div><div class="cap">Ghosted failed card, a hatched failure tail to the recorded date, then a dashed link to the retest.</div></div>`, body:`
+    <p>A witnessed event recorded as <b>Failed</b> does not vanish from the board. The card <b>ghosts</b>: it greys, strikes through and locks against further edits (an admin can reopen it by setting the outcome back to Pending). A <b>red hatched failure tail</b> runs from the planned card to the date the failure was recorded, with an <b>X badge</b> at its end, so the board shows both that the work was attempted and when it failed.</p>
+    <p>If the failed event's planned week scrolls off the left of the window, it <b>carries as a hatched ghost</b> from the window edge to its outcome date, then drops off once even the outcome date passes out of view. A rescheduled milestone whose origin scrolls off keeps its red dotted trail clamped to the window edge with a chevron and origin chip, so a clipped line never looks like it simply stopped.</p>
+    <p><b>Retests.</b> From a failed record you create a <b>Linked Retest</b>: a fresh invitation cloned with the same discipline, company, location, system and routing, linked back so the attempt history stays connected. The retest wears a <b>RETEST</b> chip with its attempt number, and a dashed amber connector joins the attempts. In lane packing the retest takes priority for its failed parent's row, so the chain reads along one line where it can. The retest connector starts <b>beyond</b> the failure tail, not at the original planned finish, so the two never overlap.</p>
+    <p><b>Why it matters for metrics.</b> A failed outcome is a quality fact, tracked in Invitation Outcomes and First-Time Pass, separate from whether the promise was kept. See <b>Slips vs pass / fail</b> for the two-verdict model and <b>Quality-Adjusted PPC &amp; targets</b> for how on-time failures show as the quality gap.</p>` },
+
+  r_assets_status:{ title:"Asset Status matrix", ill:`<div class="ill"><div style="display:grid;grid-template-columns:90px repeat(4,1fr);gap:2px;font-size:9.5px"><div style="background:var(--l1);color:#fff;padding:4px;text-align:center;font-weight:800;border-radius:3px">L1</div><div style="background:var(--l2);color:#000;padding:4px;text-align:center;font-weight:800;border-radius:3px">L2</div><div style="background:var(--l3);color:#fff;padding:4px;text-align:center;font-weight:800;border-radius:3px">L3</div><div style="background:var(--l4);color:#fff;padding:4px;text-align:center;font-weight:800;border-radius:3px">L4</div><div style="background:#64748b;color:#fff;padding:4px;text-align:center;font-weight:800;border-radius:3px">L5</div>${['UPS-01','CRAH-04','CHLR-02'].map((n,i)=>`<div style="background:var(--surface);border:1px solid var(--line);padding:4px;font-weight:700">${n}</div>`+[1,1,i<2?1:0,0].map(v=>`<div style="background:var(--surface2);border:1px solid var(--line);padding:4px;text-align:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${v?'var(--l3)':'transparent'};border:1.5px solid ${v?'var(--l3)':'var(--faint)'}"></span></div>`).join('')).join('')}</div><div class="cap">Assets under coloured stage bands, a status dot per checkpoint.</div></div>`, body:`
+    <p>The <b>Asset Status</b> page renders the equipment commissioning matrix from the <b>Asset Cx Register</b>: every asset as a row under coloured <b>L1 to L5</b> stage bands, with a status dot at each checkpoint. It is a reporting surface, separate from the planning board, and reads the register rather than the activity list.</p>
+    <p><b>Tag pipeline and step focus.</b> The stage cards along the top show completion counts; click one to reduce the matrix to assets holding that tag. Click any <b>step header</b> to open a focus view of that step across all assets, defaulting to Outstanding for a regular step and to Complete when you click a tag column. The info button beside the step headers opens the full <b>Test Steps Legend</b> (step, stage, description, purpose, OFCI or CFCI, executed by, signed off by).</p>
+    <p><b>Overdue vs plan.</b> An asset past a planned tag date without the tag gets a <b>red ring</b> on that cell and an OVERDUE chip in its drawer, so slippage is visible per checkpoint, not just in aggregate.</p>
+    <p><b>Getting data in (admin).</b> Two routes: <b>Import</b> a register workbook, or <b>Sync From SharePoint</b>, which reads the live Cx Master directly from the Quantum MC tenant through its own sign-in (a separate tenant and account from the Outlook integration; see <b>Connecting Outlook &amp; SharePoint</b>). The parser maps columns by <b>header name</b> under the workbook's own stage bands, never by position, so a register that adds or renames steps between weeks still lands correctly. The sync summary reports tag movement and checkpoint gains and losses so a re-sync is observable.</p>` },
+
+  r_cxprog:{ title:"Weekly Cx Progress", ill:`<div class="ill">${realKpis()}<div class="cap" style="margin-top:8px">Asset-based attainment tiles, each with its week-on-week movement.</div></div>`, body:`
+    <p><b>Weekly Cx Progress</b> is the asset-based commissioning attainment page, a reporting source separate from the planning board. It reads an imported weekly workbook and shows tag attainment (Red, Yellow, Green), open issues, awaiting verification, a programme S-curve, and the Risk and Documentation registers.</p>
+    <p><b>KPI movement.</b> Every tile carries its <b>week-on-week</b> change against the previous import: percentage-point moves on the tag tiles, count moves on assets and issues. Before a second week exists to compare, the arrows derive from the pack's own week-over-week columns, and a tile at zero with no movement reads <b>not started</b> rather than a false zero.</p>
+    <p><b>Insights strip (admin).</b> A toggleable panel reads the page for you: tagging pace against a target date, movers versus stalled equipment types (any type under 100% with no movement across consecutive imports is flagged stalled), overdue risk rows oldest first, and a documentation readiness score. Configure sets the stalled-after threshold and the Target 100% date the pace signal measures against.</p>
+    <p><b>Red Tag by Equipment Type</b> distinguishes movers from stalled, each type showing its weekly gain. The <b>Risk Register</b> computes days overdue against the reporting week and sorts overdue first, oldest first. Every workbook-derived string is escaped on the way in, so a malformed register cannot inject markup.</p>` },
+
+  r_hub:{ title:"Projects &amp; the hub", ill:`<div class="ill"><div class="tb"><span class="tbtn on">Home</span><span class="tbtn">Projects</span><span class="tbtn">Inside A Project</span></div><div class="cap" style="margin-top:8px">A frozen hub bar; each project is a snapshot you can open.</div></div>`, body:`
+    <p>DLP is a multi-project platform. The <b>hub</b> carries a frozen header and a <b>Home, Projects, Inside A Project</b> navigation bar that stays in view as you scroll. You switch projects from the switcher beside the logo; everything you see (board, analytics, scope) is that project's.</p>
+    <p><b>Inside A Project</b> is a live snapshot of every project you can see, one collapsible section each with its accent band, activity, completion and PPC, so you can read the portfolio at a glance without opening each one.</p>
+    <p><b>Edit Project (owner and platform supers).</b> A pencil on each Projects row opens a modal for name, code, client, location, dates and accent colour. A <b>sync</b> option keeps the in-app branding (tab title, location-code prefix, report headers) aligned to the project code. Projects can be put <b>on hold</b> or <b>archived</b>; archived projects drop out of Home, the switcher, the snapshots and Analytics. Edits and creation are written to the audit log.</p>
+    <p><b>Portfolio Analytics (owner and platform supers).</b> A hub-level Analytics tab shows portfolio KPI tiles (weighted PPC over committed work due to date, using the same formula as the per-project sidebar), a project comparison table with health badges, status-mix charts, an overdue Pareto and company activity bars, with an Excel export.</p>` },
+
+  r_roles:{ title:"Roles &amp; privileges", ill:adminList(), body:`
+    <p>DLP has five levels. The <b>Owner</b> sits above the platform team: exactly one owner account, seeded in the database, which no admin, super or API call can demote or delete. <b>Platform supers</b> administer across projects. <b>Per-project admins</b> administer one project. <b>Members</b> do the work. <b>Client viewers</b> (for example atnorth) read and can request witness invites.</p>
+    <p><b>User Privileges matrix (Admin, Access).</b> A per-person grid of rights for the current project: creating, editing, deleting, committing, editing committed work, requesting invites and so on. Everyone starts from their role baseline (Member or Admin) shown as defaults, and an admin can flip individual rights, with an amber dot marking any deviation and a <b>Reset To Role Defaults</b> per row. <b>Request Invites</b> is a managed privilege, on by default only for members whose company matches the project client.</p>
+    <p><b>Enforced in the database, not just the app.</b> Creating, editing, deleting, committing and editing committed work are checked by row-level security in Postgres as well as in the interface, so the rules hold even against direct API calls. A super account can only be managed by a super or the owner, and only supers change platform roles.</p>` },
+
+  r_connect:{ title:"Connecting Outlook &amp; SharePoint", ill:`<div class="ill"><div style="display:flex;flex-direction:column;gap:8px">${['Outlook (CS Nordics tenant)','SharePoint (Quantum MC tenant)'].map(n=>`<div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px"><b style="flex:1;font-size:12px">${n}</b><span style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:20px;padding:2px 9px">Connect</span></div>`).join('')}</div><div class="cap" style="margin-top:8px">Two separate tenants, two separate sign-ins, side by side.</div></div>`, body:`
+    <p>Two Microsoft integrations, in <b>Admin, Connections</b>, shown as status cards with the connected account or Not Connected. They are <b>separate tenants and separate sign-ins</b>; connecting one never touches the other.</p>
+    <p><b>Outlook (CS Nordics)</b> sends witness invites, the Weekly Report email and the admin digests from your signed-in account. One sign-in covers all three. <b>SharePoint (Quantum MC)</b> reads the Asset Cx Register from the Cx Master for the Asset Status sync; sign in with the account that can open the Cx Master in the browser.</p>
+    <p><b>How sign-in works.</b> Both use a quick <b>full-page Microsoft redirect</b> that returns to DLP, not a popup. If a sign-in was abandoned (tab closed at the Microsoft screen, or a wrong-tenant account chosen), the next Connect clears the stuck state and retries, so you are never permanently blocked. The same Connect and Reconnect buttons also appear on the Witness Schedule, the report window and the Asset Status sync window.</p>
+    <p><b>No standing permissions.</b> DLP holds zero standing Microsoft permissions; everything runs delegated, as you, from your live session. There is no server-side sender.</p>` },
+
+  r_digests:{ title:"Admin update emails", ill:`<div class="ill"><div style="background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px"><b style="font-size:12px">Admin Update Emails</b><div style="font-size:11px;color:var(--mut);margin-top:4px">Weekly: sent Fri &middot; Daily: sent today &middot; from your connected Outlook</div><div style="display:flex;gap:6px;margin-top:8px"><span class="tbtn">Send Weekly Now</span><span class="tbtn">Send Daily Now</span></div></div></div>`, body:`
+    <p><b>Admin update emails</b> are internal digests to all admins, separate from the stakeholder Weekly Report. A <b>daily</b> update at 17:00 and a <b>weekly</b> update at 16:00 on Friday (Europe/Helsinki) go out automatically from the designated session, and the <b>Send Now</b> buttons on the card at the top of Reports send immediately from your connected Outlook.</p>
+    <p><b>No double sends.</b> A database claim makes duplicate sends across open tabs impossible, with a catch-up window so a missed schedule still goes out, and a liveness guard so a claim orphaned by a reload (killed mid-send) does not block the next one silently.</p>
+    <p><b>Recipients</b> honour the full role model: legacy profile admins, platform supers, the owner, and per-project admins on the current project. The card shows when each digest last went out and to how many people. Content is deduplicated (repeated references collapse to one entry with a count) and never truncated mid-word.</p>
+    <p><b>No standing permissions.</b> Like the other sends, these run delegated from a live session; there is no server-side sender and no standing Microsoft credential.</p>` },
+
+  r_people:{ title:"Managing people", ill:adminList(), body:`
+    <p>Two surfaces. <b>Global Contacts</b> is every person across the platform, where you add people and manage their name, company and platform role. <b>Project Team</b> is who is on this project, where you add existing people to the project and set their per-project role.</p>
+    <p><b>Adding and inviting.</b> Adding a person can email them a set-password link straight from your connected Outlook (the guided-steps template). <b>Access requests</b> (anyone can submit the form) land for an admin to approve; <b>Approve And Invite</b> creates the account, adds them to the project and sends the invitation in one step. Verify identity before approving, since the form is open.</p>
+    <p><b>Passwords and links.</b> From Global Contacts or the Project Team manage window you can <b>Reset Password</b> or <b>Resend Set-Password Link</b>; the credential card appears on Global Contacts. Per-project admins can do this for people who share a project where they are admin, but never for the owner or a super, and cannot delete platform accounts.</p>
+    <p>See <b>Roles &amp; privileges</b> for what each role and right allows, and <b>Connecting Outlook &amp; SharePoint</b> for the sign-in that powers the invitation emails.</p>` },
 };
 
 /* ===== How-To tutorials ===== */
@@ -567,14 +664,14 @@ const TUT={
     {h:"Pick the discipline", t:"On the <b>Details</b> tab, pick the <b>Discipline</b> (Mechanical, Electrical, BMS/EPMS, FLS; choose more than one for cross-trade work). This is required for a witness invite because it routes who gets invited.", ill:disciplinePick()},
     {h:"Check the recipients", t:"Back on Readiness, the editor lists the resolved <b>Required</b> and <b>CC</b> recipients for the chosen discipline, so you confirm who is invited before saving. You are never on the list.", ill:`<div class="ill">${recipientsBox()}</div>`},
     {h:"See it on the board", t:"Witnessed activities carry the <span class='chip wit'>WIT</span> chip, and the <b>Witness Schedule</b> pill lists them for the chosen period with time, duration and open constraints.", ill:witnessSchedulePop()},
-    {h:"Export and send", t:"From <b>Analytics</b>, use <b>Export witness invites</b>, bulk-send from classic Outlook with the supplied macro, then an admin uses <b>Mark sent</b> so none is sent twice.", ill:witnessExportBox()},
+    {h:"Send the invites", t:"An admin presses <b>Connect Outlook</b> once, then <b>Send</b> per row or <b>Send All Pending</b> for the period, straight from the <b>Witness Schedule</b>. Each row shows a live Sent status; <b>Test To Me</b> previews the real invite to you alone first.", ill:witnessReadiness()},
   ]},
   ytt:{ title:"YTT daily focus", tag:"EVERYONE", mins:"1 min", sim:null, steps:[
     {h:"Narrow to three days", t:"The <b>YTT</b> toggle (Yesterday, Today, Tomorrow) narrows the board to those three days and the activities carrying open constraints, for a tight daily stand-up.", ill:realToolbar('ytt')},
     {h:"Toggle off for the full view", t:"Switch YTT off to return to the full lookahead. Pair it with <b>Make-ready</b> to run the stand-up around blockers.", ill:realBoard({dim:true})},
   ]},
   analytics:{ title:"Dashboard &amp; popouts", tag:"EVERYONE", mins:"2 min", sim:"ana", steps:[
-    {h:"Read the headline", t:"<b>Analytics</b> opens with the <b>PPC</b> gauge (committed activities finished on or before their promised date), the Weekly PPC Trend, a Status Mix donut and KPI tiles.", ill:`<div class="ill" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">${ring(75,'var(--amber)')}<div style="flex:1;min-width:200px;font-size:12.5px;color:var(--mut)">Of <b style="color:var(--ink)">12</b> committed activities, <b style="color:#0E9384">9</b> were completed on or before their promised finish. PPC is the reliability of promises kept, the core Last Planner metric.</div></div>`},
+    {h:"Read the headline", t:"<b>Analytics</b> opens with the <b>PPC</b> gauge (committed activities finished on or before their promised date), the Weekly PPC Trend, a Status Mix donut and KPI tiles.", ill:`<div class="ill" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">${gauge(92,80)}<div style="flex:1;min-width:200px;font-size:12.5px;color:var(--mut)">Of the committed activities <b>due to date</b>, the gauge shows how many were completed on or before their promised finish, against the project target. PPC is the reliability of promises kept, the core Last Planner metric.</div></div>`},
     {h:"Click any number", t:"Every KPI tile, donut slice and trend point is clickable and opens a <b>drill popout</b> listing the exact activities behind the figure.", ill:`<div class="ill">${realKpis()}<div class="popout show"><div class="ph">Need make-ready · 4 activities <span style="color:var(--mut)">✕</span></div><div class="pr"><span class="dot" style="background:var(--constrained)"></span> Energise UPS A · CTS Nordics</div><div class="pr"><span class="chip wit">WIT</span> Busbar batch 3 · Mecwide</div></div></div>`},
     {h:"Jump back to the work", t:"Click any popout row to open that activity on the board. Export figures with <b>Metrics (Excel)</b> or <b>PDF</b>, or generate the <b>Weekly Report</b>.", ill:realBoard()},
   ]},
@@ -585,24 +682,79 @@ const TUT={
 };
 
 const NAV=[
-  ["Quick Reference",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"],["r_reading","Reading the schedule","◷"],["r_delay","Delays & excusing","⏱"],["r_constraints","Constraints & make-ready","⚑"],["r_commit","Committing & PPC","✓"],["r_complete","Marking work complete","◉"],["r_witness","Witness invites & schedule","◎"],["r_verdicts","Slips vs pass / fail","⇄"],["r_discipline","Discipline","⬢"],["r_analytics","Analytics & reports","◔"],["r_admin","Admin & settings","⚙"],["r_cxstages","Cx stages & colours","◆"],["r_markers","Markers & chips","▣"],["r_codes","Location codes","#"],["r_assets","Assets & auto-fill","⬡"]]],
-  ["How To",[["board","Add via Planning Board","+"],["table","Add via Activity Table","▤"],["import","Bulk import (Excel/CSV)","⇪"],["views","Switch & read views","▫"],["reschedule","Reschedule & links","↔"],["constraints","Constraints & make-ready","⚑"],["complete","Mark work complete","◉"],["witness","Witness invites","◎"],["excuse","Excuse a delay","⏱"],["ytt","YTT daily focus","☼"],["analytics","Dashboard & popouts","◔"],["weekly","Weekly Report","▣"]]],
+  ["Getting started",[["r_overview","Sign in & scope","◈"],["r_navigate","Find your way around","▫"],["r_hub","Projects & the hub","◱"]]],
+  ["The board",[["r_board","The Planning Board","▭"],["r_card","The activity card","☷"],["r_reading","Reading the schedule","◷"],["r_markers","Markers & chips","▣"],["r_failed","Failed witnesses & retests","✕"],["r_table","The Activity Table","▤"],["r_schedpage","The Schedule page","▦"]]],
+  ["Planning & delivery",[["r_commit","Committing & PPC","✓"],["r_qappc","Quality-Adjusted PPC & targets","◔"],["r_constraints","Constraints & make-ready","⚑"],["r_delay","Delays & excusing","⏱"],["r_complete","Marking work complete","◉"],["ytt","YTT daily focus","☼"]]],
+  ["Witnessing",[["r_witness","Witness invites & schedule","◎"],["r_verdicts","Slips vs pass / fail","⇄"],["r_connect","Connecting Outlook & SharePoint","⚭"]]],
+  ["Reporting",[["r_analytics","Analytics & reports","◔"],["r_cxprog","Weekly Cx Progress","◪"],["r_digests","Admin update emails","✉"]]],
+  ["Assets",[["r_assets_status","Asset Status matrix","▦"],["r_assets","Assets & auto-fill","⬡"],["r_codes","Location codes","#"],["r_cxstages","Cx stages & colours","◆"],["r_discipline","Discipline","⬢"]]],
+  ["Administration",[["r_roles","Roles & privileges","⚿"],["r_people","Managing people","☺"],["r_admin","Admin & settings","⚙"]]],
+  ["Tutorials (Try It)",[["board","Add via Planning Board","+"],["table","Add via Activity Table","▤"],["import","Bulk import (Excel/CSV)","⇪"],["views","Switch & read views","▫"],["reschedule","Reschedule & links","↔"],["constraints","Make-ready walkthrough","⚑"],["complete","Mark work complete","◉"],["witness","Witness invites","◎"],["excuse","Excuse a delay","⏱"],["analytics","Dashboard & popouts","◔"],["weekly","Weekly Report","▣"]]],
 ];
 const isTut=(k)=>!!TUT[k];
-const ADMIN_ONLY=new Set(['weekly','r_admin','r_delay','excuse']);   // Weekly Report, Admin, and the admin-only delay pages
+const ADMIN_ONLY=new Set(['weekly','r_admin','r_delay','excuse','r_connect','r_cxprog','r_digests','r_roles','r_people']);   // admin-only reference and tutorial pages
 
 let cur='r_overview', mode='walk', step=0, role='admin';
 const subnav=document.getElementById('subnav'), subbody=document.getElementById('subbody');
 
 try{const rp=new URLSearchParams(location.search).get('role'); if(rp==='member'||rp==='admin') role=rp;}catch(e){}
 
+// REV126: which chapter each page belongs to, and the set of open chapters (only the
+// active chapter's chapter opens by default, turning the flat wall into a tree).
+const CHAP_OF={}; NAV.forEach(([g,items])=>items.forEach(([k])=>CHAP_OF[k]=g));
+let openChaps=new Set();
+function ensureOpen(k){ const g=CHAP_OF[k]; if(g) openChaps=new Set([g]); }
+ensureOpen(cur);
+
+// REV126: strip a small helper to plain text for the search index.
+const stripTags=(h)=>String(h||'').replace(/<[^>]*>/g,' ').replace(/&[a-z]+;/g,' ').replace(/\s+/g,' ').trim();
+// REV126: full-text index over every visible page's title and body prose.
+function buildIndex(){
+  const idx=[];
+  NAV.forEach(([g,items])=>items.forEach(([k,l])=>{
+    if(role!=='admin'&&ADMIN_ONLY.has(k)) return;
+    const src=REF[k]?REF[k].body:(TUT[k]?(TUT[k].steps||[]).map(s=>s.h+' '+s.t).join(' '):'');
+    idx.push({k,label:l,chap:g,text:(l+' '+stripTags(src)).toLowerCase(),body:stripTags(src)});
+  }));
+  return idx;
+}
+let SEARCH_IDX=[];
+let searchMode=false;
+
 function renderNav(){
+  if(searchMode){ return; }   // the results list owns the panel while searching
+  subnav.style.display='';
   subnav.innerHTML=NAV.map(([g,items])=>{
     const vis=items.filter(([k])=>role==='admin'||!ADMIN_ONLY.has(k));
     if(!vis.length) return '';
-    return `<div class="grp"><div class="grphd">${g}</div>${vis.map(([k,l,ic])=>`<button data-k="${k}" class="${k===cur?'sel':''}"><span class="ic">${ic}</span>${l}${ADMIN_ONLY.has(k)?'<span class="tagx adm">ADMIN</span>':(TUT[k]&&TUT[k].sim?'<span class="tagx">TRY</span>':'')}</button>`).join('')}</div>`;
+    const open=openChaps.has(g);
+    return `<div class="chap ${open?'open':''}" data-g="${g}"><div class="chaphd ${open?'open':''}" data-g="${g}"><span class="tw">&#9654;</span>${g}<span class="cc">${vis.length}</span></div><div class="leaves">${vis.map(([k,l,ic])=>`<button data-k="${k}" class="${k===cur?'sel':''}"><span class="ic">${ic}</span>${l}${ADMIN_ONLY.has(k)?'<span class="tagx adm">ADMIN</span>':(TUT[k]&&TUT[k].sim?'<span class="tagx">TRY</span>':'')}</button>`).join('')}</div></div>`;
   }).join('');
-  subnav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ cur=b.dataset.k; mode='walk'; step=0; renderNav(); renderBody(); });
+  subnav.querySelectorAll('.chaphd').forEach(h=>h.onclick=()=>{ const g=h.dataset.g; openChaps.has(g)?openChaps.delete(g):openChaps.add(g); renderNav(); });
+  subnav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ cur=b.dataset.k; mode='walk'; step=0; ensureOpen(cur); renderNav(); renderBody(); });
+}
+
+function hlSnippet(body,term){
+  const low=body.toLowerCase(), i=low.indexOf(term);
+  if(i<0) return body.slice(0,90)+(body.length>90?'...':'');
+  const start=Math.max(0,i-30);
+  const esc=x=>x.replace(/</g,'&lt;');
+  return (start>0?'...':'')+esc(body.slice(start,i))+'<b>'+esc(body.slice(i,i+term.length))+'</b>'+esc(body.slice(i+term.length,i+term.length+50))+'...';
+}
+function runSearch(raw){
+  const term=raw.trim().toLowerCase();
+  const results=document.getElementById('helpResults');
+  if(!term){ searchMode=false; results.style.display='none'; document.getElementById('helpClr').style.display='none'; renderNav(); return; }
+  searchMode=true; subnav.style.display='none'; results.style.display=''; document.getElementById('helpClr').style.display='';
+  const hits=SEARCH_IDX.map(e=>{
+    const ti=e.label.toLowerCase().indexOf(term), bi=e.text.indexOf(term);
+    if(bi<0) return null;
+    return {e, score: ti>=0?0:1};
+  }).filter(Boolean).sort((a,b)=>a.score-b.score);
+  results.innerHTML = hits.length
+    ? `<div class="rhd">${hits.length} result${hits.length>1?'s':''}</div>`+hits.map(h=>`<button class="ritem" data-k="${h.e.k}"><div class="rt">${h.e.label}${ADMIN_ONLY.has(h.e.k)?' <span class="tagx adm">ADMIN</span>':''}</div><div class="rc">${h.e.chap} &middot; ${hlSnippet(h.e.body,term)}</div></button>`).join('')
+    : `<div class="rnone">No help pages match "${raw.replace(/</g,'&lt;')}".</div>`;
+  results.querySelectorAll('.ritem').forEach(r=>r.onclick=()=>{ cur=r.dataset.k; mode='walk'; step=0; document.getElementById('helpSearch').value=''; searchMode=false; results.style.display='none'; document.getElementById('helpClr').style.display='none'; ensureOpen(cur); renderNav(); renderBody(); });
 }
 function renderBody(){
   if(REF[cur]){ const r=REF[cur];
@@ -643,7 +795,7 @@ function simViews(){ let v='swim', q=''; const mb=document.getElementById('mb');
     inp.oninput=()=>{ q=inp.value; apply(); }; apply(); }; draw();
 }
 function simAna(){ const mb=document.getElementById('mb');
-  mb.innerHTML=`<div class="coach"><span class="s">Try</span><div>Click a <b>KPI tile</b> to open its drill popout, then a row to jump to that activity on the board.</div></div><div class="ill"><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:11px">${ring(75,'var(--amber)')}${realKpis()}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px">${[['3','ATTEMPTED','var(--ink)'],['1','SUCCEEDED','var(--ready)'],['2','FAILED','var(--late)'],['33%','FIRST-TIME PASS','var(--ready)']].map(x=>`<span style="border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:8px 14px;min-width:88px"><b style="display:block;font-size:16px;color:${x[2]}">${x[0]}</b><span style="font-size:9px;letter-spacing:.06em;color:var(--mut)">${x[1]}</span></span>`).join('')}</div><div class="cap" style="margin-bottom:9px"><b>Invitation Outcomes</b> measures the witnessed events (pass / fail quality, feeding first-time pass), separate from <b>Reasons for Non-Completion</b> which measures promises (feeding PPC). One activity can appear in both, for different facts: see Slips vs pass / fail.</div><div class="popout" id="po"><div class="ph"><span id="poT"></span><span style="color:var(--mut);cursor:pointer" id="poX">✕</span></div><div class="pr"><span class="dot" style="background:var(--ready)"></span> Energise UPS A · CTS Nordics <span class="go">open ›</span></div><div class="pr"><span class="chip wit">WIT</span> Busbar batch 3 · Mecwide <span class="go">open ›</span></div><div class="pr">Modbus comms test · Gapit Nordics <span class="go">open ›</span></div></div></div>`;
+  mb.innerHTML=`<div class="coach"><span class="s">Try</span><div>Click a <b>KPI tile</b> to open its drill popout, then a row to jump to that activity on the board.</div></div><div class="ill"><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:11px">${gauge(92,80)}${realKpis()}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px">${[['3','ATTEMPTED','var(--ink)'],['1','SUCCEEDED','var(--ready)'],['2','FAILED','var(--late)'],['33%','FIRST-TIME PASS','var(--ready)']].map(x=>`<span style="border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:8px 14px;min-width:88px"><b style="display:block;font-size:16px;color:${x[2]}">${x[0]}</b><span style="font-size:9px;letter-spacing:.06em;color:var(--mut)">${x[1]}</span></span>`).join('')}</div><div class="cap" style="margin-bottom:9px"><b>Invitation Outcomes</b> measures the witnessed events (pass / fail quality, feeding first-time pass), separate from <b>Reasons for Non-Completion</b> which measures promises (feeding PPC). One activity can appear in both, for different facts: see Slips vs pass / fail.</div><div class="popout" id="po"><div class="ph"><span id="poT"></span><span style="color:var(--mut);cursor:pointer" id="poX">✕</span></div><div class="pr"><span class="dot" style="background:var(--ready)"></span> Energise UPS A · CTS Nordics <span class="go">open ›</span></div><div class="pr"><span class="chip wit">WIT</span> Busbar batch 3 · Mecwide <span class="go">open ›</span></div><div class="pr">Modbus comms test · Gapit Nordics <span class="go">open ›</span></div></div></div>`;
   mb.querySelectorAll('.kpi').forEach(k=>k.onclick=()=>{ mb.querySelector('#poT').textContent=k.dataset.k; mb.querySelector('#po').classList.add('show'); }); mb.querySelector('#poX').onclick=()=>mb.querySelector('#po').classList.remove('show');
 }
 function simComplete(){ let st='planned'; const mb=document.getElementById('mb'); const order=['planned','in_progress','complete'], lbl={planned:'Planned',in_progress:'In progress',complete:'Complete'};
@@ -656,7 +808,12 @@ function simWitness(){ let on=false, disc=[], wd=1; const D=['Mechanical','Elect
     mb.querySelector('#wt').onclick=()=>{on=!on; if(!on)disc=[]; draw();}; const ds=mb.querySelector('#dsel'); if(ds) ds.querySelectorAll('span').forEach(s=>s.onclick=()=>{const d=s.dataset.d; disc=disc.includes(d)?disc.filter(x=>x!==d):[...disc,d]; draw();}); const wm=mb.querySelector('#wdm'), wp=mb.querySelector('#wdp'); if(wm)wm.onclick=()=>{wd=Math.max(1,wd-1);draw();}; if(wp)wp.onclick=()=>{wd=Math.min(5,wd+1);draw();}; };
   draw();
 }
-try{const pp=new URLSearchParams(location.search).get('page'); if(pp&&(REF[pp]||TUT[pp])){ cur=pp; mode='walk'; step=0; }}catch(e){}
+try{const pp=new URLSearchParams(location.search).get('page'); if(pp&&(REF[pp]||TUT[pp])){ cur=pp; mode='walk'; step=0; ensureOpen(cur); }}catch(e){}
+SEARCH_IDX=buildIndex();
+(function(){ const inp=document.getElementById('helpSearch'), clr=document.getElementById('helpClr');
+  if(inp){ inp.oninput=()=>runSearch(inp.value); }
+  if(clr){ clr.onclick=()=>{ inp.value=''; runSearch(''); inp.focus(); }; }
+})();
 renderNav(); renderBody();
 window.addEventListener('message',function(ev){ var d=ev.data; if(!d||d.src!=='dlp-help') return;
   if(d.type==='help-theme'){ if(d.dark) document.documentElement.setAttribute('data-theme','dark'); else document.documentElement.removeAttribute('data-theme'); return; }
