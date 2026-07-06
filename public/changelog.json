@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV135",
+    "date": "2026-07-06",
+    "items": [
+      "Fixed: your Outlook connection is now recognised everywhere from the moment the app loads. Before, the app only noticed your delegated session once you opened the Witness Schedule, so the RFFE window thought you were signed out and offered Connect Outlook even though Settings showed you connected. The connection is hydrated at boot now, so Send RFFE is live straight away without reconnecting.",
+      "Fixed: the energisation badge on the envelope climbs on its own. It refreshes the instant you set a Yellow Tag in Edit Mode, on a timer, and whenever the tab regains focus, rather than only when you open the drawer.",
+      "Added: Test To Me in the RFFE window. It sends the exact same email and PDF to your own address only, marked [TEST], with no Velox or Cc recipients and no change to the asset state, so you can check it in your own inbox before the real send."
+    ]
+  },
+  {
     "rev": "REV134",
     "date": "2026-07-06",
     "items": [
