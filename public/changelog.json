@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV117",
+    "date": "2026-07-06",
+    "items": [
+      "Fix: the SharePoint sync modal claimed a connection using the Outlook (cs-nordics) account, which can never read the Quantum MC tenant. MSAL shares its account cache across sign-ins on the same origin, so the SharePoint module now hard-filters accounts by the file's tenant; the modal only shows connected when a Quantum MC account is present, and the two sign-ins (Outlook on cs-nordics, SharePoint on quantum-mc) live side by side without touching each other",
+      "Fix: Sync Settings was unreachable before the first import because the button lived in the toolbar, which only renders once a register is loaded. It now sits in the always-visible page header next to Sync From SharePoint, and the sync window itself shows the configured target file and worksheet, or a red warning with an Open Sync Settings shortcut when the URL is missing",
+      "Cx Step Reference upgraded to the full Test Steps Legend: step number, pre-requisite step, description, purpose, OFCI/CFCI, executed by, signed off by, and notes, seeded for all 20 legend steps including FWT. FWT is legend-only: it appears in the reference popup with a legend-only badge but never as a matrix column, since the register carries no FWT data. Admin editing moved to a labelled grid editor under the clicked row"
+    ]
+  },
+  {
     "rev": "REV116",
     "date": "2026-07-06",
     "items": [
