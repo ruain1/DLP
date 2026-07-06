@@ -6,6 +6,8 @@ import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
 import SetPassword from "./SetPassword.jsx";
 import CxProgressPage from "./CxProgress.jsx";
 import AssetStatusPage from "./AssetStatus.jsx";
+import RffeCompose from "./RffeCompose.jsx";
+import { loadAssetEventsNamed, setAssetEventState } from "./data";
 import { supabase } from "./supabaseClient";
 
 // Captured synchronously at module evaluation: enterProject's history.replaceState("?p=...")
@@ -1926,6 +1928,19 @@ export default function App({ session }) {
     return base;
   }, [S, anchor, DAYS]);
 
+  // REV134: energisation notification feed. Loaded here (before the early returns) so the
+  // badge is right without opening the drawer. cu and selProj are in scope; isAdmin is not
+  // yet (defined after the return), so the admin gate uses cu.role, which is equivalent.
+  const [assetEvents, setAssetEvents] = useState([]);
+  const [rffePicks, setRffePicks] = useState(() => new Set());
+  const [rffeOpen, setRffeOpen] = useState(null);   // array of events to compose, or null
+  useEffect(() => {
+    let live = true;
+    if (!selProj || !cu || cu.role !== "admin") { setAssetEvents([]); return; }
+    loadAssetEventsNamed(selProj).then((r) => { if (live && !r.error) setAssetEvents(r.events || []); }).catch(() => {});
+    return () => { live = false; };
+  }, [selProj]);
+
   if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
   if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id, focus) => enterProject(id, undefined, focus)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid, (projects.find((p) => p.id === pid) || {}).name)} onUpdateProject={async (id, fields) => { await updateProject(id, fields); if (fields.syncBrand) { try { await updateBranding({ project_name: fields.code.trim() }, id); } catch (e) { console.error("Branding sync failed:", e); } } await boot(); }} onOpenAnalytics={(id) => enterProject(id, undefined, undefined, "reports")} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
@@ -2207,6 +2222,13 @@ export default function App({ session }) {
   const myInviteFor = (actId) => inviteReqs.find((r) => r.activityId === actId && r.requesterId === cu.id) || null;
   const pendingInvites = isAdmin ? inviteReqs.filter((r) => r.status === "pending") : [];
   const notifTotal = notifCount + pendingInvites.length;
+  // REV134: energisation feed (admins only). Persisted asset events awaiting an RFFE.
+  const readyEvents = isAdmin ? (assetEvents || []).filter((e) => e.state === "new" || e.state === "rffe_sent") : [];
+  const reloadAssetEvents = () => { if (selProj && isAdmin) loadAssetEventsNamed(selProj).then((r) => { if (!r.error) setAssetEvents(r.events || []); }).catch(() => {}); };
+  const togglePick = (id) => setRffePicks((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const openRffe = (evts) => { setNotifOpen(false); setRffeOpen(evts); };
+  const openRffeSelected = () => { const chosen = readyEvents.filter((e) => rffePicks.has(e.id)); if (chosen.length) openRffe(chosen); };
+  const notifTotalWithEvents = notifTotal + readyEvents.length;
   const requestInvite = async (a) => {
     if (!a || !isClientViewer || myInviteFor(a.id)) return;
     const optimistic = { id: "tmp_" + a.id, activityId: a.id, requesterId: cu.id, requesterName: cu.name, requesterEmail: session.user.email || "", desc: a.desc || "", code: (a.code == null ? "" : String(a.code)), location: locCode(a), status: "pending", createdAt: new Date().toISOString(), decidedByName: "", decidedAt: null };
@@ -2643,7 +2665,7 @@ export default function App({ session }) {
         <div className="lk-spacer" />
         <div className="lk-who">
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
-          <button className="lk-btn icon lk-notifbtn" title={notifTotal ? `${notifTotal} item${notifTotal === 1 ? "" : "s"} need your attention` : "Nothing needs your attention"} onClick={() => setNotifOpen(true)}><Icon n="mail" s={16} />{notifTotal > 0 && <span className="lk-notifbadge">{notifTotal > 99 ? "99+" : notifTotal}</span>}</button>
+          <button className="lk-btn icon lk-notifbtn" title={notifTotalWithEvents ? `${notifTotalWithEvents} item${notifTotalWithEvents === 1 ? "" : "s"} need your attention` : "Nothing needs your attention"} onClick={() => { reloadAssetEvents(); setNotifOpen(true); }}><Icon n="mail" s={16} />{notifTotalWithEvents > 0 && <span className="lk-notifbadge">{notifTotalWithEvents > 99 ? "99+" : notifTotalWithEvents}</span>}</button>
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
           {isOwner ? <span className="lk-pill admin" style={{ background: "#7c3aed", color: "#fff" }}>Owner</span> : cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
@@ -2809,10 +2831,26 @@ export default function App({ session }) {
         return <div className="lk-modal-bg" onClick={() => setNotifOpen(false)}>
           <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
             <div className="ytt-head">
-              <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Notifications</h3><span className="ytt-sub">{[notifCount ? `${notifCount} open constraint${notifCount === 1 ? "" : "s"}` : "", pendingInvites.length ? `${pendingInvites.length} invite request${pendingInvites.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" \u00b7 ") || "Nothing right now"}</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Notifications</h3><span className="ytt-sub">{[readyEvents.length ? `${readyEvents.length} ready for energisation` : "", notifCount ? `${notifCount} open constraint${notifCount === 1 ? "" : "s"}` : "", pendingInvites.length ? `${pendingInvites.length} invite request${pendingInvites.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" \u00b7 ") || "Nothing right now"}</span></div>
               <button className="lk-btn icon" onClick={() => setNotifOpen(false)}><Icon n="x" /></button>
             </div>
             <div className="ytt-list" style={{ maxHeight: "70vh", overflow: "auto" }}>
+              {readyEvents.length > 0 && <div style={{ marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 2px 8px", fontSize: 12.5, color: "var(--head)", fontWeight: 800 }}><Icon n="package" s={14} /><span>Ready For Energisation</span>{readyEvents.length > 1 && <button className="lk-btn primary" style={{ marginLeft: "auto", padding: "5px 9px", fontSize: 11.5 }} disabled={!rffePicks.size} onClick={openRffeSelected}>Email {rffePicks.size || ""} selected as one RFFE</button>}</div>
+                {readyEvents.map((e) => <div key={e.id} className="ytt-card" style={{ borderLeftColor: "#E0A106" }}>
+                  <div className="ytt-card-desc" onClick={() => { setNotifOpen(false); setPage("assets"); }}>{"\u26A1 "}{e.asset_name || e.asset_tag}</div>
+                  <div className="ytt-card-meta">
+                    <span className="dot" style={{ background: e.state === "rffe_sent" ? "var(--accent)" : "#E0A106" }} />
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{e.state === "rffe_sent" ? "RFFE sent" : "Ready"}, approved for Yellow Tag by Cx</span>
+                    <span className="ytt-loc">{e.asset_tag}{e.created_at ? <> {"\u00b7"} {new Date(e.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</> : ""}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                    {readyEvents.length > 1 && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--muted)" }}><input type="checkbox" checked={rffePicks.has(e.id)} onChange={() => togglePick(e.id)} /> combine</label>}
+                    <span style={{ flex: 1 }} />
+                    <button className="lk-btn primary" onClick={() => openRffe([e])}><Icon n="mail" s={14} />Email Velox SAP (RFFE)</button>
+                  </div>
+                </div>)}
+              </div>}
               {pendingInvites.map((r) => { const a = (S.activities || []).find((x) => x.id === r.activityId); return <div key={r.id} className="ytt-card" style={{ borderLeftColor: "var(--accent)" }}>
                   <div className="ytt-card-desc" onClick={() => { if (a) { setNotifOpen(false); setPage("board"); setEditing({ ...a }); } }}>{"\u2709 "}{(a && a.desc) || r.desc || "Untitled"}</div>
                   <div className="ytt-card-meta">
@@ -2822,7 +2860,7 @@ export default function App({ session }) {
                   </div>
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><button className="lk-btn primary" onClick={() => markInviteForwarded(r.id)}><Icon n="check" s={14} />Mark Forwarded</button></div>
                 </div>; })}
-              {byAct.length === 0 && pendingInvites.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing needs your attention right now.</div>
+              {byAct.length === 0 && pendingInvites.length === 0 && readyEvents.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing needs your attention right now.</div>
                 : byAct.map(({ a, cons }) => { const lv = lvOf(LV, a.level); return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
                     <div className="ytt-card-desc" onClick={() => { setNotifOpen(false); setPage("board"); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
                     <div className="ytt-card-meta">
@@ -2840,6 +2878,7 @@ export default function App({ session }) {
           </div>
         </div>;
       })()}
+      {rffeOpen && <RffeCompose events={rffeOpen} projectId={selProj} olAcct={olAcct} organiser={cu.name} onClose={() => { setRffeOpen(null); setRffePicks(new Set()); }} onSent={reloadAssetEvents} onConnect={connectOl} />}
       {companyInfo && <CompanyModal co={companyInfo} logo={pickLogo(companyInfo)} S={S} onClose={() => setCompanyInfo(null)} />}
       {showImport && <UserImport S={S} cu={cu} isAdmin={isAdmin} LV={LV} update={update} onClose={() => setShowImport(false)} />}
       {page === "board" && ytt && (() => {

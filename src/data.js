@@ -885,3 +885,15 @@ export function computeSyncConflicts(overrides, incomingRows) {
   });
   return out;
 }
+
+// REV134: events store only the asset tag; the notification feed and the RFFE need the
+// display name too. One extra read joins the names from the register in memory.
+export async function loadAssetEventsNamed(projectId) {
+  const r = await loadAssetEvents(projectId);
+  if (r.error) return r;
+  const tags = [...new Set((r.events || []).map((e) => e.asset_tag))];
+  if (!tags.length) return { events: r.events || [], error: "" };
+  const { data } = await supabase.from("asset_register").select("tag, name").eq("project_id", projectId).in("tag", tags);
+  const nm = {}; (data || []).forEach((x) => { nm[x.tag] = x.name; });
+  return { events: (r.events || []).map((e) => ({ ...e, asset_name: nm[e.asset_tag] || e.asset_tag })), error: "" };
+}
