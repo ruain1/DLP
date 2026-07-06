@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV126",
+    "date": "2026-07-06",
+    "items": [
+      "Help rebuilt (Help REV 10), the first content update since REV80. The navigation is now a collapsing chapter tree (Getting Started, The Board, Planning and Delivery, Witnessing, Reporting, Assets, Administration, Tutorials) instead of a flat wall of pages; only the active chapter opens by default, and a mandatory full-text search box above the tree filters every page by title and body text, showing matches with a snippet and jumping to the page",
+      "The Analytics PPC illustration in the help is now the semicircular gauge with the target tick, matching the app; the retired full ring is gone from every help surface including the interactive analytics simulator",
+      "Two documentation bugs fixed. The witness pages no longer teach the retired CSV-export-plus-Outlook-macro-plus-Mark-Sent flow (removed from the reference page, the Analytics page and the witness and weekly tutorials); they now describe Connect Outlook, Send All Pending, per-row Sent status, Invite Type, the itemised constraints, the deep link and Test To Me. The PPC definition is corrected to the due-based REV106 meaning (only promises that have come due), replacing the stale all-committed wording",
+      "Nine new help pages at full depth, each with a faithful illustration: Quality-Adjusted PPC and targets (gauge, target, reconciliation line), Failed witnesses and retests, Asset Status matrix, Weekly Cx Progress, Projects and the hub, Roles and privileges, Connecting Outlook and SharePoint, Admin update emails, and Managing people",
+      "Groundwork for REV127: new gauge and reconciliation illustration builders are in place. REV127 will add interactive Try It simulators for the gauge and target, the reconciliation line and Asset Status, and rewrite the older thin reference pages (Analytics, Admin, Board, Sign-in, Markers) to full depth"
+    ]
+  },
+  {
     "rev": "REV125",
     "date": "2026-07-06",
     "items": [
