@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV132",
+    "date": "2026-07-06",
+    "items": [
+      "Asset energisation, backend and email layer. Shipped first, ahead of the UI revisions, so nothing user-facing changes yet and the live Asset Status page is untouched. Two new tables sit outside the register: asset_override stores manual status edits separately, so a SharePoint re-import never wipes a hand-set value, and asset_event is the persisted ready-for-energisation feed, keyed uniquely per asset so the Yellow Tag event fires once and survives re-imports.",
+      "A new Assets privilege group adds Edit Asset Status, on for admins, and Mark Equipment Energised, the narrow Velox lane that is off by default and granted per user. It is enforced in the database, not just the interface: row level security allows an EE edit only on an asset that already holds Yellow Tag and only by a granted user or an admin, while every other status cell needs the broad Edit Asset Status capability. The four Velox SAP members are granted EE on FIN04 by the migration.",
+      "Database triggers raise the ready-for-energisation event on the Yellow Tag transition from both the manual and the import path, flip it to energised the moment EE is marked complete, and retract rather than delete it if a Yellow Tag is later cleared, so an RFFE that already went out always leaves a record.",
+      "The RFFE request-for-energisation email gains a builder in the house Outlook-safe template that matches the witness invite: the blue FIN04 header bar, the asset or assets in bold with muted tags, a bulleted list for a combined multi-asset send, an Open In DLP button, the 48 hour reminder callout and a provenance footer."
+    ]
+  },
+  {
     "rev": "REV131",
     "date": "2026-07-06",
     "items": [
