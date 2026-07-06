@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV131",
+    "date": "2026-07-06",
+    "items": [
+      "Fix: the gauge tutorial sliders (PPC and target in Reading the gauge) could be moved by clicking at a point but would not respond to a held drag. The simulator rebuilt its whole panel on every input, destroying the slider you were dragging. It now updates only the gauge, the number labels and the sentence on input, leaving the sliders in place, so a held drag slides smoothly"
+    ]
+  },
+  {
     "rev": "REV130",
     "date": "2026-07-06",
     "items": [
