@@ -290,6 +290,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-railppc{text-align:center;cursor:pointer;border-radius:10px;padding:4px 0;transition:background .12s}
 .lk-railppc:hover{background:#2a333f}
 .lk-rail.open .lk-railppc{text-align:left;padding:0 13px}
+.lk-railppc .railqa{display:none}
+.lk-rail.open .lk-railppc span.railqa{display:inline-flex}
+.lk-rail.open .lk-railppc div.railqa{display:block}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .lk-rep-card.clickable{cursor:pointer;transition:border-color .12s,background .12s}
 .lk-rep-card.clickable:hover{border-color:var(--accent);background:var(--hover)}
@@ -840,7 +843,7 @@ function defaults() {
     ],
     areas: ["Data Hall 1", "Data Hall 2", "MV Room", "Electrical Room", "Generator Yard", "Cooling Plant", "Pump Room"],
     systems: ["MV Switchgear", "LV Distribution", "Generators", "UPS", "Chilled Water", "CRAH/CRAC", "BMS", "EPMS"],
-    settings: { weeks: 4, makeReadyDays: 7 },
+    settings: { weeks: 4, makeReadyDays: 7, ppcTarget: 80 },
     levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)),
     audit: [],
     activities: [
@@ -2215,6 +2218,10 @@ export default function App({ session }) {
   // Sidebar PPC: on-time completions over committed work DUE TO DATE (REV106). Commitments whose
   // promised finish has not arrived get no verdict yet, matching the gauge, Reasons panel and trend.
   const ppcAll = (() => { const t0 = todayMid(); const c = S.activities.filter((a) => a.committed && a.start && addDays(parseD(a.start), (a.duration || 1) - 1).getTime() < t0); if (!c.length) return null; const onTime = (a) => a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= addDays(parseD(a.start), (a.duration || 1) - 1)); return Math.round(c.filter(onTime).length / c.length * 100); })();
+  // REV121: quality-adjusted twin of ppcAll (on-time witness failures excluded from the numerator)
+  // and the project PPC target driving the rail colour and the gauge marker.
+  const qaAll = (() => { const t0 = todayMid(); const c = S.activities.filter((a) => a.committed && a.start && addDays(parseD(a.start), (a.duration || 1) - 1).getTime() < t0); if (!c.length) return null; const ok = (a) => a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= addDays(parseD(a.start), (a.duration || 1) - 1)) && !(a.witnessInvite && (a.outcome || "pending") === "failed"); return Math.round(c.filter(ok).length / c.length * 100); })();
+  const tgtAll = (S.settings && S.settings.ppcTarget) || 80;
   // Board search: same fields as the Activity Table search (description, company, system),
   // plus asset and location code since both are printed on the cards. Filters only what the
   // board draws; visible, the KPI tiles and exportActivities are deliberately untouched so a
@@ -2569,9 +2576,10 @@ export default function App({ session }) {
         <button title="Asset Status" className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n="package" s={20} /><span className="lbl">Asset Status</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
-        <div className="lk-railppc" title={"PPC \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
-          <div style={{ fontSize: 9, letterSpacing: ".1em" }}>PPC</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= 80 ? "#34D399" : ppcAll >= 50 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
+        <div className="lk-railppc" title={"PPC " + (ppcAll == null ? "\u2014" : ppcAll + "%") + " \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Target " + tgtAll + "%" + (qaAll != null && qaAll !== ppcAll ? " \u00B7 Quality-adjusted " + qaAll + "% (also excludes on-time witness failures)" : "") + " \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
+          <div style={{ fontSize: 9, letterSpacing: ".1em", display: "flex", alignItems: "center" }}>PPC<span className="railqa"><PpcInfo target={tgtAll} small /></span></div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= tgtAll ? "#34D399" : ppcAll >= tgtAll - 15 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
+          {qaAll != null && qaAll !== ppcAll && <div className="railqa" style={{ fontSize: 9.5, fontWeight: 700, color: "#FBBF24" }}>QA {qaAll}%</div>}
         </div>
       </div></nav>
       <div className="lk-page">
@@ -2627,7 +2635,7 @@ export default function App({ session }) {
           {[["day", "Day"], ["week", "Week"]].map(([k, l]) => (
             <button key={k} className={grain === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, grain: k }))}>{l}</button>))}
         </div>
-        {isAdmin && <select className="lk-wsel" value={S.settings.weeks} title="Lookahead window length (project setting; also in Admin -> Lookahead)" onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, weeks: Number(e.target.value) } }), { action: "Change setting", detail: `Lookahead ${e.target.value} weeks` })}>
+        {isAdmin && <select className="lk-wsel" value={S.settings.weeks} title="Lookahead window length (project setting; also in Admin -> Lookahead & Targets)" onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, weeks: Number(e.target.value) } }), { action: "Change setting", detail: `Lookahead ${e.target.value} weeks` })}>
           {[1, 2, 4, 6, 8, 12].map((w) => <option key={w} value={w}>{w}-week</option>)}
         </select>}
         {S.view === "swimlane" && <div className="lk-seg">
@@ -3895,7 +3903,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   };
   const canv = can || (() => true);
   const navGroups = [
-    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead"], ["baseline", "P6 Baseline"]]],
+    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
     ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
@@ -4445,6 +4453,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
               <div className="lk-status">{[1, 2, 4, 6, 8, 12].map((w) => <button key={w} className={S.settings.weeks === w ? "sel" : ""} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, weeks: w } }), { action: "Change setting", detail: `Lookahead ${w} week${w === 1 ? "" : "s"}` })}>{w} week{w === 1 ? "" : "s"}</button>)}</div></div>
             <div className="lk-f"><label>Make-Ready Window (Days)</label>
               <input className="lk-in mono" type="number" min="1" value={S.settings.makeReadyDays} onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, makeReadyDays: Math.max(1, +e.target.value || 1) } }))} /></div>
+            <div className="lk-f"><label>PPC Target (%)</label>
+              <input className="lk-in mono" type="number" min="1" max="100" value={S.settings.ppcTarget ?? 80} onChange={(e) => { const v = Math.max(1, Math.min(100, +e.target.value || 80)); update((p) => ({ ...p, settings: { ...p.settings, ppcTarget: v } }), { action: "Change setting", detail: `PPC target ${v}%` }); }} />
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Shown as a red marker on the Analytics gauge, a dashed line on the Weekly PPC Trend and a chip on the weekly report. It also drives the sidebar PPC colour: green at or above target, amber within 15 points below, red beyond.</div></div>
           </>}
           {tab === "levels" && <div className="lk-list">
             {Object.entries(S.levels).map(([k, v]) => <div key={k} className="lk-li">
@@ -5538,15 +5549,46 @@ function HelpPage({ dark, admin, brandLogo, proj }) {
   );
 }
 
-function Gauge({ value, size = 150, label = "PPC", onClick }) {
+// REV121: shared explainer for PPC, Quality-Adjusted PPC and the project target. Renders a small
+// info icon; clicking opens a popup. Self-contained (own open state) so the sidebar rail and the
+// Analytics heading reuse it. stopPropagation everywhere so it never triggers the host's onClick.
+function PpcInfo({ target, small }) {
+  const [open, setOpen] = useState(false);
+  const d = small ? 13 : 16;
+  return <>
+    <span title="How these figures are calculated" onClick={(e) => { e.stopPropagation(); setOpen(true); }} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: d, height: d, borderRadius: "50%", border: "1.5px solid var(--muted)", color: "var(--muted)", fontSize: small ? 8.5 : 10, fontWeight: 800, cursor: "pointer", marginLeft: 6, verticalAlign: "middle", userSelect: "none", flex: "none", lineHeight: 1 }}>i</span>
+    {open && <div className="lk-modal-bg" style={{ zIndex: 90 }} onClick={(e) => { e.stopPropagation(); setOpen(false); }}>
+      <div className="lk-modal" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
+        <div className="bd">
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>How These Figures Are Calculated</h3>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>Both share one denominator: committed activities whose promised finish has passed. Commitments not yet due get no verdict.</div>
+          </div>
+          <div className="ref"><b style={{ color: "#0E9384" }}>PPC, Percent Plan Complete</b>A promise is kept when the activity is Complete with an actual finish on or before its promised finish. This is plan reliability: did the team do what it said, when it said. A witnessed event held on its promised day counts as kept even if the test failed; the failure is a quality verdict, recorded separately.</div>
+          <div className="ref"><b style={{ color: "#D97706" }}>Quality-Adjusted PPC</b>The same calculation, except an on-time completion whose witness outcome is Failed does not count as kept. Of the work promised, how much was done on time and passed.</div>
+          <div className="ref"><b style={{ color: "#C0392B" }}>Target{target != null ? " \u00b7 " + target + "%" : ""}</b>The red marker is this project's PPC target, set by admins in Admin, Lookahead &amp; Targets. It applies to PPC, the core reliability metric, not the quality-adjusted figure.</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}><b style={{ color: "var(--ink)" }}>Example:</b> 10 committed activities due. 8 finished on time (PPC 80%). 2 were witnessed tests that failed on the day (Quality-Adjusted 60%). The failures also lower First-Time Pass and each carries a linked retest, which earns its own PPC verdict when its promised date passes.</div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="lk-btn primary" onClick={(e) => { e.stopPropagation(); setOpen(false); }}>Got It</button></div>
+        </div>
+      </div>
+    </div>}
+  </>;
+}
+function Gauge({ value, size = 150, label = "PPC", onClick, target }) {
   const r = size / 2 - 14, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
   const frac = value == null ? 0 : Math.max(0, Math.min(1, value / 100));
-  const col = value == null ? "var(--muted)" : value >= 80 ? "#0E9384" : value >= 50 ? "#D97706" : "#C0392B";
+  // REV121: colour keys off the project target when given (green at or above, amber within 15
+  // below, red beyond); the old hardcoded 80/50 bands remain the fallback for target-less callers.
+  const tg = target == null ? null : Math.max(1, Math.min(100, target));
+  const col = value == null ? "var(--muted)" : (tg != null ? (value >= tg ? "#0E9384" : value >= tg - 15 ? "#D97706" : "#C0392B") : (value >= 80 ? "#0E9384" : value >= 50 ? "#D97706" : "#C0392B"));
+  const ta = tg == null ? 0 : (tg / 100) * 2 * Math.PI - Math.PI / 2;
   return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
     <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--hover)" strokeWidth="14" />
     <circle cx={cx} cy={cy} r={r} fill="none" stroke={col} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${C * frac} ${C}`} transform={`rotate(-90 ${cx} ${cy})`} />
+    {tg != null && <line x1={cx + (r - 11) * Math.cos(ta)} y1={cy + (r - 11) * Math.sin(ta)} x2={cx + (r + 11) * Math.cos(ta)} y2={cy + (r + 11) * Math.sin(ta)} stroke="#C0392B" strokeWidth="3" strokeLinecap="round"><title>{"Target " + tg + "%"}</title></line>}
     <text x={cx} y={cy + 4} textAnchor="middle" fontSize={size * 0.27} fontWeight="700" fill="var(--ink)" fontFamily="inherit">{value == null ? "\u2014" : value + "%"}</text>
     <text x={cx} y={cy + size * 0.19} textAnchor="middle" fontSize="11" fill="var(--muted)" fontFamily="inherit" style={{ letterSpacing: "0.12em" }}>{label}</text>
+    {tg != null && <text x={cx} y={cy + size * 0.19 + 13} textAnchor="middle" fontSize="9" fontWeight="800" fill="#C0392B" fontFamily="inherit" style={{ letterSpacing: "0.1em" }}>{"TARGET " + tg + "%"}</text>}
   </svg>;
 }
 function Donut({ data, size = 150, onSlice }) {
@@ -5559,7 +5601,7 @@ function Donut({ data, size = 150, onSlice }) {
     <text x={cx} y={cy + size * 0.16} textAnchor="middle" fontSize="10.5" fill="var(--muted)" fontFamily="inherit">activities</text>
   </svg>;
 }
-function Trend({ points, h = 168, onPoint }) {
+function Trend({ points, h = 168, onPoint, target }) {
   const w = Math.max(440, points.length * 60);
   const padL = 26, padR = 14, padT = 14, padB = 24, iw = w - padL - padR, ih = h - padT - padB;
   const xs = (i) => padL + (points.length <= 1 ? iw / 2 : (i / (points.length - 1)) * iw);
@@ -5579,6 +5621,7 @@ function Trend({ points, h = 168, onPoint }) {
   <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ height: "auto", display: "block" }}>
     <defs><linearGradient id="ppcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" /><stop offset="100%" stopColor="var(--accent)" stopOpacity="0" /></linearGradient></defs>
     {[0, 25, 50, 75, 100].map((g) => <g key={g}><line x1={padL} y1={ys(g)} x2={w - padR} y2={ys(g)} stroke="var(--line)" strokeWidth="1" /><text x={2} y={ys(g) + 3} fontSize="9" fill="var(--muted)" fontFamily="inherit">{g}</text></g>)}
+    {target != null && valid.length > 0 && <line x1={padL} y1={ys(Math.max(0, Math.min(100, target)))} x2={w - padR} y2={ys(Math.max(0, Math.min(100, target)))} stroke="#C0392B" strokeWidth="1.5" strokeDasharray="6 5" opacity="0.85"><title>{"Target " + target + "%"}</title></line>}
     {area && <path d={area} fill="url(#ppcg)" />}
     {line && <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
     {dash && <path d={dash} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeDasharray="5 4" strokeLinecap="round" />}
@@ -5588,10 +5631,11 @@ function Trend({ points, h = 168, onPoint }) {
     {onPoint && valid.map((p) => <circle key={"h" + p.i} cx={xs(p.i)} cy={ys(p.value)} r="12" fill="transparent" style={{ cursor: "pointer" }} onClick={() => onPoint(p.i)}><title>{tip(p)}</title></circle>)}
     {points.map((p, i) => <text key={i} x={xs(i)} y={h - 7} textAnchor="middle" fontSize="9" fill="var(--muted)" fontFamily="inherit">{p.label}</text>)}
   </svg>
-  {(avgLine || openPt) && <div style={{ fontSize: 10.5, color: "var(--muted)", display: "flex", gap: 16, marginTop: 4, flexWrap: "wrap" }}>
+  {(avgLine || openPt || (target != null && valid.length > 0)) && <div style={{ fontSize: 10.5, color: "var(--muted)", display: "flex", gap: 16, marginTop: 4, flexWrap: "wrap" }}>
     <span><span style={{ display: "inline-block", width: 12, height: 3, background: "var(--accent)", borderRadius: 2, verticalAlign: "middle", marginRight: 5 }} />Weekly PPC</span>
     {openPt && <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", border: "2px solid var(--accent)", verticalAlign: "middle", marginRight: 5 }} />Current week, in progress</span>}
     {avgLine && <span><span style={{ display: "inline-block", width: 12, height: 0, borderTop: "2px dashed #F59E0B", verticalAlign: "middle", marginRight: 5 }} />4-week average</span>}
+    {target != null && valid.length > 0 && <span><span style={{ display: "inline-block", width: 12, height: 0, borderTop: "2px dashed #C0392B", verticalAlign: "middle", marginRight: 5 }} />Target {target}%</span>}
   </div>}
   </>;
 }
@@ -5659,6 +5703,12 @@ function computeReport({ S, LV, coName, start, end }){
   const kept = due.filter(made);
   const missed = due.filter((a) => !made(a));
   const ppc = due.length ? Math.round(kept.length / due.length * 100) : null;
+  // REV121: quality-adjusted PPC for the report week (on-time witness failures excluded from the
+  // numerator, same denominator) plus the project target for the hero chip.
+  const qaMade = (a) => made(a) && !(a.witnessInvite && (a.outcome || "pending") === "failed");
+  const qaFails = kept.filter((a) => !qaMade(a));
+  const qaPpc = due.length ? Math.round(due.filter(qaMade).length / due.length * 100) : null;
+  const ppcTarget = (S.settings && S.settings.ppcTarget) || 80;
   // 4-week PPC trend ending at the report week
   const trend = [];
   const mon = mondayOf(start);
@@ -5705,7 +5755,7 @@ function computeReport({ S, LV, coName, start, end }){
   const woRoots = invitesAll.filter((a)=>!a.retestOf && (a.outcome||"pending")!=="pending");
   const woFtp = woRoots.length ? Math.round((woRoots.filter((a)=>a.outcome==="succeeded").length / woRoots.length) * 100) : null;
   const witnessOut = { attempted: outInPeriod.length, passed: woPassed, failed: woFailed.length, failReasons: woRows, ftp: woFtp, roots: woRoots.length };
-  return { start, end, ppc, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, milestones, schedule, witnessOut,
+  return { start, end, ppc, qaPpc, qaFails, ppcTarget, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, milestones, schedule, witnessOut,
            today, laStart:today, laEnd:addDays(today,27), finishOf, openOf, openCs, coName, LV };
 }
 
@@ -5814,9 +5864,13 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   if (intro) blocks.push(`<section>${intro}</section>`);
   if (SEC.ppc) blocks.push(`<section>${sh("Plan reliability")}`
     + `<div class="hero"><div><div class="big num">${r.ppc==null?"&ndash;":r.ppc}<small>${r.ppc==null?"":"%"}</small></div><div class="caplabel"><div class="eyebrow">Percent plan complete</div><div class="sub">${r.ppc==null?"no commitments due":r.kept.length+" of "+r.due.length+" commitments kept"}</div></div></div>`
+    + (r.qaPpc!=null && r.qaFails && r.qaFails.length ? `<div><div class="big num" style="font-size:32px;color:#D97706">${r.qaPpc}<small>%</small></div><div class="caplabel"><div class="eyebrow">Quality-adjusted</div><div class="sub">${r.due.length - r.missed.length - r.qaFails.length} of ${r.due.length} kept and passed</div></div></div>` : ``)
+    + (r.ppc!=null ? `<div><span style="display:inline-block;border:1px solid var(--red);color:var(--red);border-radius:20px;padding:2px 11px;font-size:10.5px;font-weight:800;letter-spacing:.04em">TARGET ${r.ppcTarget}%</span><div class="caplabel" style="margin-top:5px"><div class="sub">${r.ppc>=r.ppcTarget?"met this week":"missed this week"}</div></div></div>` : ``)
     + `<div class="promise"><div class="row"><span class="t">This week's commitments &nbsp;<b>(WILL)</b></span><span class="t"><b>${r.kept.length}</b> kept &nbsp; <b>${r.missed.length}</b> missed</span></div>`
     + `<div class="cells">${cells}</div>`
-    + `<div class="spark">${spark}<div style="flex:1"></div><div class="legend"><span><i class="dot" style="background:var(--green)"></i>Kept</span><span><i class="dot" style="background:var(--red)"></i>Missed</span></div></div></div></div></section>`);
+    + `<div class="spark">${spark}<div style="flex:1"></div><div class="legend"><span><i class="dot" style="background:var(--green)"></i>Kept</span><span><i class="dot" style="background:var(--red)"></i>Missed</span></div></div></div></div>`
+    + (r.qaFails && r.qaFails.length ? `<div style="margin-top:10px;font-size:12px;color:var(--mut,inherit)">The gap between the figures is <b>${r.qaFails.length} on-time witness failure${r.qaFails.length===1?"":"s"}</b>: work executed as promised that did not pass its witnessed test. These carry retests.</div>` : ``)
+    + `<div style="margin-top:7px;font-size:10.5px;font-style:italic;opacity:.75">PPC counts a committed activity as kept when it completes on or before its promised finish. Quality-adjusted PPC additionally requires any witnessed outcome to be a pass. Target is a project setting (Admin, Lookahead &amp; Targets).</div></section>`);
   if (SEC.constraints) blocks.push(`<section>${sh("Open constraints")}<div class="cards">${cardsHtml}</div></section>`);
   if (SEC.reasons && SEC.byco) blocks.push(`<section><div class="twocol"><div>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></div><div>${sh("By contractor")}<div class="bars">${coHtml}</div></div></div></section>`);
   else { if (SEC.reasons) blocks.push(`<section>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></section>`); if (SEC.byco) blocks.push(`<section>${sh("By contractor")}<div class="bars">${coHtml}</div></section>`); }
@@ -6012,7 +6066,7 @@ function draftReportSummary({ r, sections, cxSnap, cxSel }){
   const SEC = sections||{}; const parts=[];
   if (r && SEC.ppc!==false){
     if (r.ppc==null) parts.push("No commitments fell due this week.");
-    else parts.push(`Commitment reliability stood at ${r.ppc}% PPC, with ${r.kept.length} of ${r.due.length} committed activit${r.due.length===1?"y":"ies"} completed on time.`);
+    else { parts.push(`Commitment reliability stood at ${r.ppc}% PPC against the ${r.ppcTarget||80}% target, with ${r.kept.length} of ${r.due.length} committed activit${r.due.length===1?"y":"ies"} completed on time.`); if (r.qaFails && r.qaFails.length) parts.push(`Quality-adjusted, ${r.qaPpc}%: ${r.qaFails.length} on-time witness failure${r.qaFails.length===1?"":"s"} carr${r.qaFails.length===1?"ies":"y"} retests.`); }
   }
   if (r && SEC.constraints!==false && r.cards.length) parts.push(`${r.cards.length} activit${r.cards.length===1?"y carries":"ies carry"} open constraints in the lookahead.`);
   if (r && SEC.reasons!==false && r.reasons[0] && r.reasons[0].name!=="Unattributed") parts.push(`The main driver of non-completion was ${r.reasons[0].name.toLowerCase()}.`);
@@ -6493,6 +6547,12 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const today0 = todayMid();
   const commDue = committed.filter((a) => a.start && finishOf(a).getTime() < today0);
   const ppc = commDue.length ? Math.round(commDue.filter(made).length / commDue.length * 100) : null;
+  // REV121: Quality-Adjusted PPC. Same denominator; an on-time completion whose witness outcome is
+  // Failed does not count as kept. The base PPC predicate above is deliberately untouched.
+  const qaMade = (a) => made(a) && !(a.witnessInvite && (a.outcome || "pending") === "failed");
+  const qaFails = commDue.filter((a) => made(a) && !qaMade(a));
+  const qaPpc = commDue.length ? Math.round(commDue.filter(qaMade).length / commDue.length * 100) : null;
+  const ppcTarget = (S.settings && S.settings.ppcTarget) || 80;
   const complete = acts.filter((a) => a.status === "complete").length;
   const cardDefs = [
     { l: "Total activities", f: () => true },
@@ -6594,6 +6654,8 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       s.addRow({ m: "Cx stage filter", v: lv === "all" ? "All Cx stages" : lv });
       s.addRow({ m: "Period", v: period === "all" ? "All time" : ((from || "start") + " to " + (to || "end")) });
       s.addRow({ m: "PPC (committed due to date, done on time)", v: ppc == null ? "n/a" : ppc + "%" });
+      s.addRow({ m: "PPC target (project setting)", v: ppcTarget + "%" });
+      s.addRow({ m: "Quality-adjusted PPC (kept and passed)", v: qaPpc == null ? "n/a" : qaPpc + "%" });
       s.addRow({ m: "Committed due to date", v: commDue.length });
       s.addRow({ m: "Committed not yet due", v: committed.length - commDue.length });
       s.addRow({});
@@ -6630,9 +6692,14 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
-        <Gauge value={ppc} onClick={() => openDrill("PPC \u00b7 committed due to date", commDue)} />
+        <Gauge value={ppc} target={ppcTarget} onClick={() => openDrill("PPC \u00b7 committed due to date", commDue)} />
+        {qaPpc != null && qaFails.length > 0 && <div style={{ borderLeft: "1px solid var(--line)", paddingLeft: 20, minWidth: 150, alignSelf: "center" }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#D97706", cursor: "pointer" }} onClick={() => openDrill("Quality-Adjusted PPC \u00b7 on-time witness failures", qaFails)}>{qaPpc}%</div>
+          <div style={{ fontSize: 10.5, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 800, marginTop: 2 }}>Quality-Adjusted PPC</div>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.45 }}>{commDue.filter(qaMade).length} of {commDue.length} kept and passed. The gap is {qaFails.length} on-time witness failure{qaFails.length === 1 ? "" : "s"}. Click to drill.</div>
+        </div>}
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h3 style={{ marginBottom: 8 }}>Percent Plan Complete</h3>
+          <h3 style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>Percent Plan Complete<PpcInfo target={ppcTarget} /></h3>
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>
             {commDue.length ? <>Of <b style={{ color: "var(--ink)" }}>{commDue.length}</b> committed activities due to date, <b style={{ color: "#0E9384" }}>{commDue.filter(made).length}</b> were completed on or before their promised finish. {committed.length > commDue.length ? <>{committed.length - commDue.length} open commitment{committed.length - commDue.length === 1 ? " is" : "s are"} not yet due and get{committed.length - commDue.length === 1 ? "s" : ""} no verdict until the promised finish passes. </> : ""}PPC is the reliability of promises kept, the core Last Planner metric.</> : committed.length ? <>All <b style={{ color: "var(--ink)" }}>{committed.length}</b> committed activities have promised finishes in the future, so no promise has come due yet. PPC fills in as promised dates pass.</> : <>No activities are committed yet, so PPC cannot be calculated. Toggle "Committed for this week" on the promises your teams make, and this fills in.</>}
           </div>
@@ -6642,7 +6709,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
         {cards.map((c, i) => <div key={i} className="lk-rep-card clickable" onClick={() => openDrill(c.l, acts.filter(c.f))}><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
       </div>
       </div>
-      <div className="lk-rep-sec"><h3>Weekly PPC Trend</h3>{hasTrend ? <Trend points={points} onPoint={(i) => openDrill("Week " + points[i].label + " \u00b7 committed due", points[i].items)} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
+      <div className="lk-rep-sec"><h3>Weekly PPC Trend</h3>{hasTrend ? <Trend points={points} target={ppcTarget} onPoint={(i) => openDrill("Week " + points[i].label + " \u00b7 committed due", points[i].items)} /> : <div style={{ fontSize: 12, color: "var(--muted)" }}>Needs committed activities across weeks to plot a trend.</div>}</div>
       <div className="lk-rep-2col">
       <div className="lk-rep-sec"><h3>Reasons For Non-Completion</h3>
         {misses.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No missed commitments to date. Every committed activity whose promised finish has passed was completed on time.</div>
