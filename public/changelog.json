@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV130",
+    "date": "2026-07-06",
+    "items": [
+      "Fix: the Help page showed the old flat Quick Reference / How To navigation instead of the new chapter tree, and the new tutorials were unreachable. The visible Help nav is rendered by the app itself (the help file's own nav is deliberately hidden when embedded), so the earlier help rebuild updated a nav that never showed. The app's Help nav is now the eight-chapter tree (Getting started, The board, Planning and delivery, Witnessing, Reporting, Assets, Administration, Tutorials) with a working search, matching the help content exactly so every page and every Try It tutorial is reachable",
+      "All nine newer reference pages (Quality-Adjusted PPC and targets, Failed witnesses and retests, Asset Status matrix, Weekly Cx Progress, Projects and the hub, Roles and privileges, Connecting Outlook and SharePoint, Admin update emails, Managing people) and the three interactive Try It simulators (Reading the gauge, The reconciliation line, Asset Status) now appear in the Help navigation and open correctly",
+      "The help file's own search box is now hidden when embedded, since the app supplies the navigation and search"
+    ]
+  },
+  {
     "rev": "REV129",
     "date": "2026-07-06",
     "items": [
