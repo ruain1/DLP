@@ -459,6 +459,32 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-helpnav button.sel{background:var(--ink);color:var(--paper)}
 .lk-helpnav .tag{margin-left:auto;font-size:8px;letter-spacing:.04em;font-family:ui-monospace,monospace;color:var(--accent);opacity:.7}
 .lk-helpnav button.sel .tag{color:var(--paper);opacity:.6}
+.lk-helpsearch{position:relative;margin-bottom:4px}
+.lk-helpsearch input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 28px;font-size:12.5px;color:var(--ink);font-family:inherit}
+.lk-helpsearch input:focus{outline:none;border-color:var(--accent)}
+.lk-helpsearch .i{position:absolute;left:9px;top:8px;color:var(--faint);font-size:13px;pointer-events:none}
+.lk-helpsearch .x{position:absolute;right:8px;top:5px;color:var(--faint);cursor:pointer;font-size:15px}
+.lk-helptree{display:flex;flex-direction:column;gap:2px}
+.lk-helptree .chap{display:flex;flex-direction:column}
+.lk-helptree .chaphd{display:flex;align-items:center;gap:7px;padding:8px 9px;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);cursor:pointer;border-radius:8px;user-select:none}
+.lk-helptree .chaphd:hover{background:var(--hover)}
+.lk-helptree .chaphd .tw{font-size:9px;color:var(--faint);transition:transform .15s;width:9px;display:inline-block}
+.lk-helptree .chaphd.open .tw{transform:rotate(90deg)}
+.lk-helptree .chaphd .cc{margin-left:auto;font-size:9px;color:var(--faint);font-weight:700}
+.lk-helptree .leaves{overflow:hidden;max-height:0;transition:max-height .2s ease;display:flex;flex-direction:column;gap:2px}
+.lk-helptree .chap.open .leaves{max-height:640px;padding:2px 0 4px}
+.lk-helptree .leaves button{text-align:left;border:1px solid transparent;background:transparent;color:var(--mut);border-radius:7px;padding:6px 10px 6px 22px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;width:100%;font-family:inherit}
+.lk-helptree .leaves button:hover{background:var(--hover)}
+.lk-helptree .leaves button.sel{background:var(--ink);color:var(--paper)}
+.lk-helptree .leaves button .tag{margin-left:auto;font-size:8px;letter-spacing:.04em;font-family:ui-monospace,monospace;color:var(--accent);opacity:.8}
+.lk-helptree .leaves button.sel .tag{color:var(--paper);opacity:.6}
+.lk-helpresults{display:flex;flex-direction:column;gap:2px}
+.lk-helpresults .rhd{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:6px 9px 4px}
+.lk-helpresults .ritem{text-align:left;border:0;background:transparent;color:var(--ink);border-radius:7px;padding:8px 9px;cursor:pointer;font-family:inherit}
+.lk-helpresults .ritem:hover{background:var(--hover)}
+.lk-helpresults .ritem .rt{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+.lk-helpresults .ritem .rc{font-size:11px;color:var(--mut);margin-top:2px}
+.lk-helpresults .rnone{font-size:12px;color:var(--faint);padding:12px 9px}
 .lk-helppane{flex:1;min-width:0;border:1px solid var(--line);border-top-left-radius:14px;border-top-right-radius:14px;overflow:hidden;background:var(--paper)}
 .lk-helppane iframe{width:100%;height:100%;border:0;display:block;background:var(--paper)}
 @media(max-width:820px){.lk-helpmain{flex-direction:column}.lk-helpnav{flex:none;width:100%;flex-direction:row;flex-wrap:wrap;overflow:visible}.lk-helppane{min-height:60vh}}
@@ -5555,24 +5581,31 @@ function LatestOnline({ users, ustat, pres }) {
 // CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
 // stale-iframe issue). It is deliberately independent of the in-app CHANGELOG, which lags and
 // would not change on a help-only revision.
-const HELP_VERSION = "rev128";
+const HELP_VERSION = "rev130";
 function HelpPage({ dark, admin, brandLogo, proj }) {
-  const ADMIN_ONLY = new Set(["weekly", "r_admin", "r_delay", "excuse"]);
-  const HOWTO_SIM = new Set(["board", "views", "analytics", "complete", "witness"]);
+  // REV130: the visible Help nav lives HERE, in App.jsx, not in help.html (whose own nav is
+  // hidden in embed mode). This mirrors the help.html NAV exactly so every page and tutorial is
+  // reachable. Keep in step with public/help.html NAV.
+  const ADMIN_ONLY = new Set(["weekly", "r_admin", "r_delay", "excuse", "r_connect", "r_cxprog", "r_digests", "r_roles", "r_people"]);
+  const HOWTO_SIM = new Set(["board", "views", "analytics", "complete", "witness", "gaugeread", "recon", "assetstatus"]);
   const NAV = [
-    ["Quick Reference", [
-      ["r_overview", "Sign in & scope"], ["r_navigate", "Find your way around"], ["r_board", "The Planning Board"],
-      ["r_card", "The activity card"], ["r_table", "The Activity Table"], ["r_schedpage", "The Schedule page"],
-      ["r_reading", "Reading the schedule"], ["r_delay", "Delays & excusing"], ["r_constraints", "Constraints & make-ready"], ["r_commit", "Committing & PPC"],
-      ["r_complete", "Marking work complete"], ["r_witness", "Witness invites"], ["r_verdicts", "Slips vs pass / fail"], ["r_discipline", "Discipline"],
-      ["r_analytics", "Analytics & reports"], ["r_admin", "Admin & settings"],
-      ["r_cxstages", "Cx stages & colours"], ["r_markers", "Markers & chips"], ["r_codes", "Location codes"], ["r_assets", "Assets & auto-fill"]]],
-    ["How To", [
-      ["board", "Add via Planning Board"], ["table", "Add via Activity Table"], ["import", "Bulk import (Excel/CSV)"],
-      ["views", "Switch & read views"], ["reschedule", "Reschedule & links"], ["constraints", "Constraints & make-ready"],
-      ["witness", "Witness invites"], ["complete", "Mark work complete"], ["excuse", "Excuse a delay"], ["ytt", "YTT daily focus"], ["analytics", "Dashboard & popouts"], ["weekly", "Weekly Report"]]],
+    ["Getting started", [["r_overview", "Sign in & scope"], ["r_navigate", "Find your way around"], ["r_hub", "Projects & the hub"]]],
+    ["The board", [["r_board", "The Planning Board"], ["r_card", "The activity card"], ["r_reading", "Reading the schedule"], ["r_markers", "Markers & chips"], ["r_failed", "Failed witnesses & retests"], ["r_table", "The Activity Table"], ["r_schedpage", "The Schedule page"]]],
+    ["Planning & delivery", [["r_commit", "Committing & PPC"], ["r_qappc", "Quality-Adjusted PPC & targets"], ["r_constraints", "Constraints & make-ready"], ["r_delay", "Delays & excusing"], ["r_complete", "Marking work complete"], ["ytt", "YTT daily focus"]]],
+    ["Witnessing", [["r_witness", "Witness invites & schedule"], ["r_verdicts", "Slips vs pass / fail"], ["r_connect", "Connecting Outlook & SharePoint"]]],
+    ["Reporting", [["r_analytics", "Analytics & reports"], ["r_cxprog", "Weekly Cx Progress"], ["r_digests", "Admin update emails"]]],
+    ["Assets", [["r_assets_status", "Asset Status matrix"], ["r_assets", "Assets & auto-fill"], ["r_codes", "Location codes"], ["r_cxstages", "Cx stages & colours"], ["r_discipline", "Discipline"]]],
+    ["Administration", [["r_roles", "Roles & privileges"], ["r_people", "Managing people"], ["r_admin", "Admin & settings"]]],
+    ["Tutorials (Try It)", [["gaugeread", "Reading the gauge"], ["recon", "The reconciliation line"], ["assetstatus", "Asset Status matrix"], ["board", "Add via Planning Board"], ["table", "Add via Activity Table"], ["import", "Bulk import (Excel/CSV)"], ["views", "Switch & read views"], ["reschedule", "Reschedule & links"], ["constraints", "Make-ready walkthrough"], ["complete", "Mark work complete"], ["witness", "Witness invites"], ["excuse", "Excuse a delay"], ["analytics", "Dashboard & popouts"], ["weekly", "Weekly Report"]]],
   ];
+  const NAV_LABEL = {}; NAV.forEach(([g, items]) => items.forEach(([k, l]) => { NAV_LABEL[k] = l; }));
+  const NAV_CHAP = {}; NAV.forEach(([g, items]) => items.forEach(([k]) => { NAV_CHAP[k] = g; }));
   const [hp, setHp] = useState("r_overview");
+  const [openChaps, setOpenChaps] = useState(() => new Set([NAV_CHAP["r_overview"]]));
+  const [hq, setHq] = useState("");
+  const goPage = (k) => { setHp(k); setOpenChaps(new Set([NAV_CHAP[k]])); setHq(""); };
+  const toggleChap = (g) => setOpenChaps((prev) => { const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n; });
+  const searchHits = hq.trim() ? NAV.flatMap(([g, items]) => items.filter(([k, l]) => (admin || !ADMIN_ONLY.has(k)) && l.toLowerCase().includes(hq.trim().toLowerCase())).map(([k, l]) => ({ k, l, g }))) : [];
   const frameRef = useRef(null);
   const srcRef = useRef("help.html?embed=1&v=" + HELP_VERSION + (dark ? "&theme=dark" : "") + "&page=r_overview");
   const post = (msg) => { try { const w = frameRef.current && frameRef.current.contentWindow; if (w) w.postMessage(msg, "*"); } catch (e) { } };
@@ -5595,11 +5628,31 @@ function HelpPage({ dark, admin, brandLogo, proj }) {
       </div>
       <div className="lk-helpmain">
         <nav className="lk-helpnav">
-          {NAV.map(([g, items]) => {
-            const vis = items.filter(([k]) => admin || !ADMIN_ONLY.has(k));
-            if (!vis.length) return null;
-            return <div key={g} className="grp"><div className="grphd">{g}</div>{vis.map(([k, l]) => <button key={k} className={hp === k ? "sel" : ""} onClick={() => setHp(k)}>{l}{ADMIN_ONLY.has(k) ? <span className="tag">Admin</span> : (HOWTO_SIM.has(k) ? <span className="tag">Try</span> : null)}</button>)}</div>;
-          })}
+          <div className="lk-helpsearch">
+            <span className="i">{"\u2315"}</span>
+            <input value={hq} onChange={(e) => setHq(e.target.value)} placeholder="Search help..." autoComplete="off" />
+            {hq ? <span className="x" onClick={() => setHq("")}>{"\u00D7"}</span> : null}
+          </div>
+          {hq.trim() ? (
+            <div className="lk-helpresults">
+              {searchHits.length ? <>
+                <div className="rhd">{searchHits.length} result{searchHits.length > 1 ? "s" : ""}</div>
+                {searchHits.map(({ k, l, g }) => <button key={k} className="ritem" onClick={() => goPage(k)}><div className="rt">{l}{ADMIN_ONLY.has(k) ? <span className="tag">Admin</span> : null}</div><div className="rc">{g}</div></button>)}
+              </> : <div className="rnone">No help pages match.</div>}
+            </div>
+          ) : (
+            <div className="lk-helptree">
+              {NAV.map(([g, items]) => {
+                const vis = items.filter(([k]) => admin || !ADMIN_ONLY.has(k));
+                if (!vis.length) return null;
+                const op = openChaps.has(g);
+                return <div key={g} className={"chap" + (op ? " open" : "")}>
+                  <div className={"chaphd" + (op ? " open" : "")} onClick={() => toggleChap(g)}><span className="tw">{"\u25B6"}</span>{g}<span className="cc">{vis.length}</span></div>
+                  <div className="leaves">{vis.map(([k, l]) => <button key={k} className={hp === k ? "sel" : ""} onClick={() => goPage(k)}>{l}{ADMIN_ONLY.has(k) ? <span className="tag">Admin</span> : (HOWTO_SIM.has(k) ? <span className="tag">Try</span> : null)}</button>)}</div>
+                </div>;
+              })}
+            </div>
+          )}
         </nav>
         <div className="lk-helppane">
           <iframe ref={frameRef} title="DLP Help" src={srcRef.current} onLoad={onLoad} />
