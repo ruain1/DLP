@@ -1727,6 +1727,7 @@ export default function App({ session }) {
   const [authDiag, setAuthDiag] = useState(null);  // last redirect-return diagnostics from the outlook module
   const digestBusy = useRef(false);                // re-entrancy guard for the digest scheduler
   const digestRef = useRef({ S: null, admin: false });   // latest state snapshot for the interval tick
+  const digestTickRef = useRef(null);              // REV136: latest digestTick, bridged across the early return
   const [digestNote, setDigestNote] = useState(null);    // { ok, text } toast for digest sends and failures
   useEffect(() => {
     if (!witSched) return;
@@ -1740,7 +1741,7 @@ export default function App({ session }) {
     // designated sender. A minute tick plus focus and visibility triggers; the report_runs
     // unique claim makes duplicate sends across tabs impossible; a 72 hour catch-up sweep
     // sends missed boundaries late instead of losing them.
-    const tick = () => { digestTick().catch(() => { }); };
+    const tick = () => { const f = digestTickRef.current; if (f) f().catch(() => { }); };
     const iv = setInterval(tick, 60000);
     const onWake = () => { if (document.visibilityState === "visible") tick(); };
     document.addEventListener("visibilitychange", onWake);
@@ -2210,6 +2211,12 @@ export default function App({ session }) {
       if (test) { try { localStorage.removeItem("fin04_digest_test"); } catch (e) { } }
     } finally { digestBusy.current = false; }
   };
+  // REV136: keep the scheduler pointed at the live digestTick. The effect that owns the timers
+  // runs once at mount, above the "if (booting) return" guard, but digestTick is declared below
+  // that guard; on the mount render the declaration never executes, so without this bridge the
+  // timer closure holds an uninitialised binding and every tick throws instead of sending. This
+  // assignment runs on each in-project render, after the guard, so the ref always has the real one.
+  digestTickRef.current = digestTick;
   // Real event, real template, real vendor logo, sent to the signed-in admin only. No routing,
   // no witness_events persistence, no sent stamps. The result line reports the logo verdict
   // (deep-insert accepted vs name-only fallback), which is the definitive template check.
