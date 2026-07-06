@@ -114,6 +114,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
   const veloxLane = canEditEE && !canEditAsset;
   const [editMode, setEditMode] = useState(false);
   const [sel, setSel] = useState(() => new Set());
+  const [anchorTag, setAnchorTag] = useState(null);   // REV138: shift-click range anchor
   const [ovr, setOvr] = useState([]);            // raw override rows, for the sync conflict compute
   const [assets, setAssets] = useState([]);
   const [stepDefs, setStepDefs] = useState([]);
@@ -136,6 +137,8 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
   const [cellMode, setCellMode] = useState("dots");
   const [hideDone, setHideDone] = useState(false);
   const [closed, setClosed] = useState({});
+  const [page, setPage] = useState(0);   // REV138: current matrix page (200 assets per page)
+  const collapseKeyRef = useRef(null);   // REV138: collapse all on first load and on regroup
   const [focus, setFocus] = useState(null);        // step_key
   const [focusMode, setFocusMode] = useState("out");
   const [tagFilter, setTagFilter] = useState(null); // stage key L1..L5
@@ -222,12 +225,41 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
     return l;
   }, [baseFiltered, tagFilter, tagStepByStage, focus, focusMode]);
 
+  const groupKeyOf = (a) => grpBy === "type" ? (a.type || "?") : grpBy === "hall" ? a.hall : grpBy === "lvl" ? (a.level || "?") : grpBy === "me" ? (a.discipline === "M" ? "Mechanical" : "Electrical") : "All Assets";
+  // REV138: cap the rendered matrix at PAGE_SIZE assets per page, so even Expand All never
+  // builds more than this many rows. Pages slice the filtered list; the KPIs, tag pipeline and
+  // export still run on the whole filtered set, only the matrix is paged.
+  const PAGE_SIZE = 200;
+  const pageStart = page * PAGE_SIZE;
+  const pageList = useMemo(() => list.slice(pageStart, pageStart + PAGE_SIZE), [list, pageStart]);
   const groups = useMemo(() => {
-    const key = (a) => grpBy === "type" ? (a.type || "?") : grpBy === "hall" ? a.hall : grpBy === "lvl" ? (a.level || "?") : grpBy === "me" ? (a.discipline === "M" ? "Mechanical" : "Electrical") : "All Assets";
     const g = {};
-    list.forEach((a) => { const k = key(a); (g[k] = g[k] || []).push(a); });
+    pageList.forEach((a) => { const k = groupKeyOf(a); (g[k] = g[k] || []).push(a); });
     return Object.keys(g).sort().map((k) => ({ key: k, rows: g[k] }));
+  }, [pageList, grpBy]);
+
+  // REV138: load with every group collapsed, and re-collapse when the grouping dimension changes.
+  // Collapse keys come from the whole filtered list, so every type is collapsed on any page.
+  useEffect(() => {
+    if (!list.length || collapseKeyRef.current === grpBy) return;
+    const keys = new Set(list.map(groupKeyOf));
+    const c = {}; keys.forEach((k) => { c[k] = true; });
+    setClosed(c); collapseKeyRef.current = grpBy;
   }, [list, grpBy]);
+  // Reset to the first page whenever the filter or grouping changes (deliberately not on edits,
+  // which change the data but not the filter, so you stay on the page you are working on).
+  useEffect(() => { setPage(0); }, [dq, fMe, fHall, fLvl, fType, fStatus, hideDone, grpBy, tagFilter, focus, focusMode]);
+  // REV138: full membership of each group across all pages, so a type header checkbox selects the
+  // whole type, not just the rows on the page you happen to be viewing.
+  const listByGroup = useMemo(() => { const m = {}; list.forEach((a) => { const k = groupKeyOf(a); (m[k] = m[k] || []).push(a.tag); }); return m; }, [list, grpBy]);
+  // The shift-click anchor is only meaningful for the current order; drop it when the list changes.
+  useEffect(() => { setAnchorTag(null); }, [list]);
+  // Visible order (expanded groups only), the basis for a shift-click range.
+  const visibleOrderedTags = useMemo(() => {
+    const out = [];
+    groups.forEach((g) => { if (!closed[g.key]) g.rows.forEach((a) => out.push(a.tag)); });
+    return out;
+  }, [groups, closed]);
 
   const tagCount = (stage, arr) => { const sk = tagStepByStage[stage]; return sk ? arr.filter((a) => (a.steps || {})[sk] === 2).length : 0; };
   const overdueCount = useMemo(() => list.filter((a) => a.overdue.length).length, [list]);
@@ -361,6 +393,32 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
   };
   const toggleSel = (e, tag) => { e.stopPropagation(); setSel((s) => { const n = new Set(s); n.has(tag) ? n.delete(tag) : n.add(tag); return n; }); };
   const clearSel = () => setSel(new Set());
+  // REV138: plain click toggles one row and sets the anchor; shift-click extends from the anchor
+  // to the clicked row across the visible order, the standard range behaviour used elsewhere.
+  const onRowCheck = (e, tag) => {
+    e.stopPropagation();
+    if (e.shiftKey && anchorTag && anchorTag !== tag) {
+      const i = visibleOrderedTags.indexOf(anchorTag), j = visibleOrderedTags.indexOf(tag);
+      if (i !== -1 && j !== -1) {
+        const [lo, hi] = i < j ? [i, j] : [j, i];
+        const range = visibleOrderedTags.slice(lo, hi + 1);
+        setSel((s) => { const n = new Set(s); range.forEach((t) => n.add(t)); return n; });
+        return;   // keep the anchor so a further shift-click extends again
+      }
+    }
+    setSel((s) => { const n = new Set(s); n.has(tag) ? n.delete(tag) : n.add(tag); return n; });
+    setAnchorTag(tag);
+  };
+  const selectAllVisible = () => setSel(new Set(list.map((a) => a.tag)));
+  // Group-level select: works even when the group is collapsed, so you can collapse all and tick
+  // whole types. Returns none / some / all for the header checkbox and its indeterminate state.
+  const groupState = (g) => { const tags = listByGroup[g.key] || g.rows.map((a) => a.tag); const sc = tags.filter((t) => sel.has(t)).length; return sc === 0 ? "none" : sc === tags.length ? "all" : "some"; };
+  const toggleGroupSel = (e, g) => {
+    e.stopPropagation();
+    const tags = listByGroup[g.key] || g.rows.map((a) => a.tag);
+    const all = groupState(g) === "all";
+    setSel((s) => { const n = new Set(s); tags.forEach((t) => { if (all) n.delete(t); else n.add(t); }); return n; });
+  };
   const bulkSet = async (stepKey, value) => {
     const tags = [...sel];
     if (!tags.length || !stepKey) return;
@@ -414,6 +472,11 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
         <button className="ast-btn" onClick={onExport} disabled={empty}>Export</button>
         {canEditAsset && !empty && <button className={"ast-btn" + (editMode ? " on" : "")} onClick={() => { setEditMode(!editMode); clearSel(); }} title="Manually set or bulk set statuses">{editMode ? "Editing" : "Edit Mode"}</button>}
         {veloxLane && !empty && <span className="ast-velox" title="You can mark EE on Yellow Tagged assets">EE editing enabled</span>}
+        {!empty && list.length > PAGE_SIZE && <div className="ast-pager">
+          <button className="ast-btn" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} title="Previous page">{"\u2039"} Prev</button>
+          <span className="ppos">{pageStart + 1}-{Math.min(list.length, pageStart + PAGE_SIZE)} <small>of {list.length}</small></span>
+          <button className="ast-btn" disabled={pageStart + PAGE_SIZE >= list.length} onClick={() => setPage((p) => p + 1)} title="Next page">Next {"\u203A"}</button>
+        </div>}
       </div>
 
       {err && <div className="ast-err">{err}<button onClick={() => setErr("")}>{"\u00D7"}</button></div>}
@@ -450,7 +513,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
         <div className="ast-f"><span>Level</span><select value={fLvl} onChange={(e) => setFLvl(e.target.value)}><option value="">All levels</option>{lvls.map((h) => <option key={h}>{h}</option>)}</select></div>
         <div className="ast-f"><span>Type</span><select value={fType} onChange={(e) => setFType(e.target.value)}><option value="">All types</option>{types.map((h) => <option key={h}>{h}</option>)}</select></div>
         <div className="ast-f"><span>Status</span><select value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="">All statuses</option><option value="overdue">Overdue vs plan</option><option value="prog">In progress</option><option value="ns">Not started</option></select></div>
-        <div className="ast-f"><span>Group By</span><select value={grpBy} onChange={(e) => { setGrpBy(e.target.value); setClosed({}); }}><option value="type">Type</option><option value="hall">Hall</option><option value="lvl">Level</option><option value="me">Discipline</option><option value="">None</option></select></div>
+        <div className="ast-f"><span>Group By</span><select value={grpBy} onChange={(e) => { setGrpBy(e.target.value); }}><option value="type">Type</option><option value="hall">Hall</option><option value="lvl">Level</option><option value="me">Discipline</option><option value="">None</option></select></div>
         <div className="ast-f ast-rel"><span>&nbsp;</span><button className="ast-btn" onClick={() => setColsOpen(!colsOpen)}>Columns {"\u25BE"}</button>
           {colsOpen && <div className="ast-pop" onClick={(e) => e.stopPropagation()}>
             <div className="cap">Stage Bands</div>
@@ -469,7 +532,8 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
         <span className="lbl">Set selected to</span>
         <button className="ast-btn" disabled={!sel.size || !yellowKey} onClick={() => bulkSet(yellowKey, 2)}>Yellow Tag</button>
         <button className="ast-btn" disabled={!sel.size || !yellowKey} onClick={() => bulkSet(yellowKey, 0)}>Clear Yellow Tag</button>
-        <button className="ast-btn" style={{ marginLeft: "auto" }} disabled={!sel.size} onClick={clearSel}>Deselect all</button>
+        <button className="ast-btn" style={{ marginLeft: "auto" }} disabled={!list.length} onClick={selectAllVisible}>Select all ({list.length})</button>
+        <button className="ast-btn" disabled={!sel.size} onClick={clearSel}>Deselect all</button>
         <span className="hint">Bulk writes are manual overrides. They raise notifications but never send email.</span>
       </div>}
 
@@ -504,7 +568,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
               return (
                 <React.Fragment key={g.key}>
                   <tr className={"grp" + (isClosed ? " closed" : "")} onClick={() => setClosed({ ...closed, [g.key]: !isClosed })}>
-                    <td className="idcell grpcell"><span className="gname"><span className="chev">{"\u25BC"}</span>{g.key} <span className="gcount">{g.rows.length} assets</span></span></td>
+                    <td className="idcell grpcell">{canEditAsset && editMode && <input type="checkbox" className="astchk grpchk" ref={(el) => { if (el) el.indeterminate = groupState(g) === "some"; }} checked={groupState(g) === "all"} onClick={(e) => toggleGroupSel(e, g)} onChange={() => {}} title="Select all in this type" />}<span className="gname"><span className="chev">{"\u25BC"}</span>{g.key} <span className="gcount">{g.rows.length} assets</span>{(() => { const sc = (listByGroup[g.key] || []).filter((t) => sel.has(t)).length; return canEditAsset && editMode && sc ? <span className="gsel">{sc} selected</span> : null; })()}</span></td>
                     <td colSpan={bands.filter((b) => bandsOn[b.stage]).reduce((n, b) => n + b.steps.length, 0)}>
                       <div className="minibars">{bands.filter((b) => bandsOn[b.stage]).map((b) => { const n = tagStepByStage[b.stage] ? g.rows.filter((a) => (a.steps || {})[tagStepByStage[b.stage]] === 2).length : 0; return <span key={b.stage} className="mb"><span className="t"><i style={{ width: (g.rows.length ? n / g.rows.length * 100 : 0) + "%", background: b.color }} /></span>{n}</span>; })}</div>
                     </td>
@@ -512,7 +576,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
                   </tr>
                   {!isClosed && g.rows.map((a) => (
                     <tr key={a.tag} className="arow" onClick={() => setDrawer(a)}>
-                      <td className="idcell">{canEditAsset && editMode && <input type="checkbox" className="astchk" checked={sel.has(a.tag)} onClick={(e) => toggleSel(e, a.tag)} onChange={() => {}} />}<div className="tg">{a.tag}</div><div className="nm">{a.name} {"\u00B7"} {a.hall}</div></td>
+                      <td className="idcell">{canEditAsset && editMode && <input type="checkbox" className="astchk" checked={sel.has(a.tag)} onClick={(e) => onRowCheck(e, a.tag)} onChange={() => {}} />}<div className="tg">{a.tag}</div><div className="nm">{a.name} {"\u00B7"} {a.hall}</div></td>
                       {bands.filter((b) => bandsOn[b.stage]).map((b) => b.steps.map((s) => {
                         const v = (a.steps || {})[s.step_key] || 0;
                         const ov = s.is_tag && a.overdue.includes(b.stage);
@@ -852,11 +916,16 @@ tr.arow:hover .idcell{background:var(--hover)}
 .dtbl td.regress{color:var(--red);font-weight:800}
 /* REV133 edit mode */
 .ast-velox{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.03em;color:var(--green);border:1px solid var(--green);border-radius:8px;padding:6px 10px}
+.ast-pager{display:inline-flex;align-items:center;gap:8px;margin-left:6px}
+.ast-pager .ppos{font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap}
+.ast-pager .ppos small{color:var(--muted);font-weight:500}
 .ast-bulk{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 18px;background:var(--chipbg);border-bottom:1px solid var(--line)}
 .ast-bulk b{font-size:12.5px;color:var(--ink)}
 .ast-bulk .lbl{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .ast-bulk .hint{font-size:11px;color:var(--muted)}
 .astchk{margin-right:8px;vertical-align:middle;accent-color:var(--accent);cursor:pointer}
+.grpchk{margin-right:8px}
+.gsel{margin-left:10px;font-size:10.5px;font-weight:800;letter-spacing:.03em;color:var(--accent)}
 .cp.editable{cursor:pointer;box-shadow:inset 0 0 0 2px rgba(59,130,246,.18);border-radius:6px}
 .cp.editable:hover{box-shadow:inset 0 0 0 2px var(--accent)}
 .cp.eeready{box-shadow:inset 0 0 0 2px rgba(24,182,155,.55)}
