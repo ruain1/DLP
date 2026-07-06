@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV134",
+    "date": "2026-07-06",
+    "items": [
+      "Energisation notifications. When an asset is Yellow Tagged, whether by hand in Edit Mode or by a SharePoint sync, DLP now raises a persisted notification to admins. The bell badge counts them, and a new Ready For Energisation section sits at the top of the notification drawer, one card per asset, showing the tag and the time Cx approved it.",
+      "Request For Energisation in two clicks. Each card has an Email Velox SAP (RFFE) button that opens a compose window with everything preset to the agreed rules: the four Velox SAP addresses plus the sap.vantaa group mailbox in To, the CSN and CTS people always in Cc, and the house style email carrying the asset list and a link back into DLP. You review and send from your own Outlook; nothing sends by itself. When several assets are ready, tick combine and send them as a single RFFE.",
+      "The Registration Form For Energisation is generated as a PDF and attached automatically, filled with the fixed details and the asset tags as the location. Download it on its own first if you want to check it. SJA and supporting documents stay outside DLP as agreed.",
+      "Built to protect the initial load. jsPDF is code split so it only downloads when you actually compose an RFFE, and the Microsoft sign in library stays lazy loaded exactly as before. Validated with a render harness for the compose window and a unit test proving the PDF generates."
+    ]
+  },
+  {
     "rev": "REV133",
     "date": "2026-07-06",
     "items": [
