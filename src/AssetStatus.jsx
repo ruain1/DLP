@@ -5,7 +5,7 @@
 // by position: between W25 and W26 the register dropped SFAT and W3 and renamed
 // FAT/DOF, QC and CYT, which would have silently corrupted a positional parser.
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAssetStatus, saveAssetRegister, saveStepReference, saveAssetStatusConfig } from "./data";
+import { loadAssetStatus, saveAssetRegister, saveStepReference, saveAssetStatusConfig, loadAssetOverrides, saveAssetOverride, deleteAssetOverride, computeSyncConflicts } from "./data";
 
 /* ---------- constants ---------- */
 const TAGC = { L1: "#E2564E", L2: "#E0A106", L3: "#18B69B", L4: "#4F8DF9", L5: "#94A3B8" };
@@ -107,7 +107,14 @@ function enrichAssets(assets, stepDefs) {
 }
 
 /* ---------- component ---------- */
-export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
+export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEditAsset = false, canEditEE = false, usersById = {} }) {
+  // REV133: edit mode. canEditAsset is the broad Edit Mode (admin baseline); canEditEE
+  // is the narrow Velox lane (edits EE only, and only on a Yellow Tagged asset, with no
+  // Edit Mode toggle). RLS enforces the same in the database; this only gates the UI.
+  const veloxLane = canEditEE && !canEditAsset;
+  const [editMode, setEditMode] = useState(false);
+  const [sel, setSel] = useState(() => new Set());
+  const [ovr, setOvr] = useState([]);            // raw override rows, for the sync conflict compute
   const [assets, setAssets] = useState([]);
   const [stepDefs, setStepDefs] = useState([]);
   const [config, setConfig] = useState(null);
@@ -142,9 +149,18 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
 
   const reload = async () => {
     setLoading(true);
-    const r = await loadAssetStatus(projectId);
+    const [r, ovres] = await Promise.all([loadAssetStatus(projectId), loadAssetOverrides(projectId)]);
     if (r.error) setErr(r.error);
-    setAssets(r.assets.map((row) => ({ tag: row.tag, name: row.name, type: row.type, discipline: row.discipline, level: row.level, hall: row.hall, steps: row.steps || {}, dates: row.dates || {}, synced_at: row.synced_at, source: row.source })));
+    const ovRows = (ovres && ovres.overrides) || [];
+    const ovByTag = {};
+    ovRows.forEach((o) => { (ovByTag[o.asset_tag] = ovByTag[o.asset_tag] || {})[o.step_key] = o; });
+    setAssets(r.assets.map((row) => {
+      const steps = { ...(row.steps || {}) };
+      const om = ovByTag[row.tag] || {};
+      Object.keys(om).forEach((k) => { steps[k] = om[k].value; });   // manual override wins over the mirror
+      return { tag: row.tag, name: row.name, type: row.type, discipline: row.discipline, level: row.level, hall: row.hall, steps, dates: row.dates || {}, synced_at: row.synced_at, source: row.source, ovr: om };
+    }));
+    setOvr(ovRows);
     setStepDefs(r.steps || []);
     setConfig(r.config);
     setLoading(false);
@@ -208,7 +224,10 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
   const applyParsed = async (parsed, source, extra) => {
     const r = await saveAssetRegister(projectId, parsed.assets, parsed.stepDefs, source);
     if (r.error) { setErr("Import failed: " + r.error); return; }
-    setSummary({ source, ...r, warnings: parsed.warnings, ...(extra || {}) });
+    // The register mirror is committed; overrides live in a separate table and are
+    // untouched. Flag only the manual values the incoming file would change.
+    const conflicts = computeSyncConflicts(ovr, parsed.assets);
+    setSummary({ source, ...r, warnings: parsed.warnings, conflicts, ...(extra || {}) });
     await reload();
   };
   const onUpload = async (file) => {
@@ -292,6 +311,47 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
     return <span className={cls + (ov ? " ov" : "")} style={v === 2 ? { background: color } : undefined} title={title} />;
   };
 
+  /* ---------- REV133: edit mode ---------- */
+  const yellowKey = tagStepByStage.L2 || null;
+  const eeKey = useMemo(() => { const s = regSteps.find((x) => /^ee$/i.test(x.step_key)); return s ? s.step_key : null; }, [regSteps]);
+  const holdsYellow = (a) => !!yellowKey && (a.steps || {})[yellowKey] === 2;
+  const cellEditable = (a, stepKey) => {
+    if (cellMode !== "dots") return false;
+    if (eeKey && stepKey === eeKey) return holdsYellow(a) && ((canEditAsset && editMode) || veloxLane);
+    return canEditAsset && editMode;
+  };
+  const nextVal = (stepKey, cur) => (eeKey && stepKey === eeKey) ? (cur === 2 ? 0 : 2) : ((cur + 1) % 3);
+  const overTip = (o) => {
+    const who = usersById[o.set_by] || (cu && o.set_by === cu.id ? (cu.name || "you") : "");
+    const when = o.set_at ? new Date(o.set_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+    return "Manual override" + (who ? " by " + who : "") + (when ? ", " + when : "");
+  };
+  const writeCell = async (a, stepKey, value) => {
+    const msg = await saveAssetOverride(projectId, a.tag, stepKey, value);
+    if (msg) { setErr("Could not save: " + msg); return; }
+    await reload();
+  };
+  const onCellClick = (e, a, stepKey) => {
+    e.stopPropagation();
+    if (!cellEditable(a, stepKey)) return;
+    writeCell(a, stepKey, nextVal(stepKey, (a.steps || {})[stepKey] || 0));
+  };
+  const toggleSel = (e, tag) => { e.stopPropagation(); setSel((s) => { const n = new Set(s); n.has(tag) ? n.delete(tag) : n.add(tag); return n; }); };
+  const clearSel = () => setSel(new Set());
+  const bulkSet = async (stepKey, value) => {
+    const tags = [...sel];
+    if (!tags.length || !stepKey) return;
+    if (!window.confirm("Set " + stepKey + " to " + (value === 2 ? "Complete" : "Not started") + " for " + tags.length + " asset" + (tags.length === 1 ? "" : "s") + "? This is a manual override. It raises notifications but sends no email.")) return;
+    setBusy(true);
+    for (const t of tags) { const m = await saveAssetOverride(projectId, t, stepKey, value); if (m) { setErr("Bulk save failed: " + m); break; } }
+    setBusy(false); clearSel(); await reload();
+  };
+  const applyConflictDecisions = async (dec) => {
+    setBusy(true);
+    for (const k of Object.keys(dec)) { if (dec[k] === "override") { const i = k.lastIndexOf("|"); await deleteAssetOverride(projectId, k.slice(0, i), k.slice(i + 1)); } }
+    setBusy(false); setSummary(null); await reload();
+  };
+
   const drawerRows = (a) => {
     const rows = [];
     regSteps.filter((s) => s.is_tag).forEach((s) => {
@@ -324,6 +384,8 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
         {isAdmin && <button className="ast-btn admin" onClick={() => setSyncOpen(true)}>{"\u21BB"} Sync From SharePoint</button>}
         {isAdmin && <button className="ast-btn" onClick={() => setCfgOpen(true)}>Sync Settings</button>}
         <button className="ast-btn" onClick={onExport} disabled={empty}>Export</button>
+        {canEditAsset && !empty && <button className={"ast-btn" + (editMode ? " on" : "")} onClick={() => { setEditMode(!editMode); clearSel(); }} title="Manually set or bulk set statuses">{editMode ? "Editing" : "Edit Mode"}</button>}
+        {veloxLane && !empty && <span className="ast-velox" title="You can mark EE on Yellow Tagged assets">EE editing enabled</span>}
       </div>
 
       {err && <div className="ast-err">{err}<button onClick={() => setErr("")}>{"\u00D7"}</button></div>}
@@ -374,6 +436,15 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
         <div className="ast-f"><span>&nbsp;</span><button className="ast-btn" onClick={() => { const anyOpen = groups.some((g) => !closed[g.key]); const c = {}; groups.forEach((g) => { c[g.key] = anyOpen; }); setClosed(c); }}>{groups.some((g) => !closed[g.key]) ? "Collapse All" : "Expand All"}</button></div>
       </div>
 
+      {canEditAsset && editMode && <div className="ast-bulk">
+        <b>{sel.size} selected</b>
+        <span className="lbl">Set selected to</span>
+        <button className="ast-btn" disabled={!sel.size || !yellowKey} onClick={() => bulkSet(yellowKey, 2)}>Yellow Tag</button>
+        <button className="ast-btn" disabled={!sel.size || !yellowKey} onClick={() => bulkSet(yellowKey, 0)}>Clear Yellow Tag</button>
+        <button className="ast-btn" style={{ marginLeft: "auto" }} disabled={!sel.size} onClick={clearSel}>Deselect all</button>
+        <span className="hint">Bulk writes are manual overrides. They raise notifications but never send email.</span>
+      </div>}
+
       {focus && focusStats && <div className="ast-focus">
         <span className="fdot" style={{ background: focusStats.color }} />
         <b>{focus}</b>
@@ -413,7 +484,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
                   </tr>
                   {!isClosed && g.rows.map((a) => (
                     <tr key={a.tag} className="arow" onClick={() => setDrawer(a)}>
-                      <td className="idcell"><div className="tg">{a.tag}</div><div className="nm">{a.name} {"\u00B7"} {a.hall}</div></td>
+                      <td className="idcell">{canEditAsset && editMode && <input type="checkbox" className="astchk" checked={sel.has(a.tag)} onClick={(e) => toggleSel(e, a.tag)} onChange={() => {}} />}<div className="tg">{a.tag}</div><div className="nm">{a.name} {"\u00B7"} {a.hall}</div></td>
                       {bands.filter((b) => bandsOn[b.stage]).map((b) => b.steps.map((s) => {
                         const v = (a.steps || {})[s.step_key] || 0;
                         const ov = s.is_tag && a.overdue.includes(b.stage);
@@ -423,7 +494,10 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
                           const d = ak && a.dates[ak] ? a.dates[ak] : (pk ? a.dates[pk] : "");
                           return <td key={s.step_key} className={"cp" + fc}><span className={"datecell" + (ov ? " ov" : "")}>{d ? d.slice(5) : "-"}</span></td>;
                         }
-                        return <td key={s.step_key} className={"cp" + fc}>{dot(v, b.color, ov, s.step_key + ": " + (v === 2 ? "Complete" : v === 1 ? "Outstanding" : "Not applicable / not reached") + (ov ? " - OVERDUE vs plan" : ""))}</td>;
+                        const editable = cellEditable(a, s.step_key);
+                        const over = a.ovr && a.ovr[s.step_key];
+                        const eeReady = eeKey && s.step_key === eeKey && holdsYellow(a) && v !== 2;
+                        return <td key={s.step_key} className={"cp" + fc + (editable ? " editable" : "") + (eeReady ? " eeready" : "")} onClick={editable ? (e) => onCellClick(e, a, s.step_key) : undefined} title={editable ? "Click to change" : undefined}>{dot(v, b.color, ov, s.step_key + ": " + (v === 2 ? "Complete" : v === 1 ? "Outstanding" : "Not applicable / not reached") + (ov ? " - OVERDUE vs plan" : ""))}{over ? <span className="ovmark" title={overTip(over)} /> : null}</td>;
                       }))}
                       <td className="cp" style={{ textAlign: "left", paddingLeft: 8 }}><span className="prog"><i style={{ width: a.pct + "%" }} /></span><span className="pctxt">{a.pct}%</span></td>
                     </tr>
@@ -549,7 +623,8 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
               {summary.stepsLost > 0 && <div className="warnbox">Completions were lost since the last sync: a step previously marked YES is no longer YES. Worth a look in the Master before this circulates.</div>}
             </>}
             {summary.warnings && summary.warnings.length > 0 && <div className="warnbox">{summary.warnings.map((w, i) => <div key={i}>{w}</div>)}</div>}
-            <div className="modalbtns"><button className="ast-btn on" onClick={() => setSummary(null)}>Close</button></div>
+            {summary.conflicts && summary.conflicts.length > 0 && <ConflictGate conflicts={summary.conflicts} busy={busy} onApply={applyConflictDecisions} />}
+            <div className="modalbtns">{summary.conflicts && summary.conflicts.length > 0 ? <button className="ast-btn" onClick={() => setSummary(null)}>Keep all mine, close</button> : <button className="ast-btn on" onClick={() => setSummary(null)}>Close</button>}</div>
           </div>
         </div></>}
     </div>
@@ -565,6 +640,29 @@ function CfgForm({ config, onSave, onCancel }) {
     {f("tenant_id", "Tenant ID (Directory ID)")}
     {f("client_id", "Client ID (Application ID)")}
     <div className="modalbtns"><button className="ast-btn" onClick={onCancel}>Cancel</button><button className="ast-btn on" onClick={() => onSave(c)}>Save Settings</button></div>
+  </div>;
+}
+
+/* REV133: keep-or-override gate for manual edits that clash with an import. */
+function ConflictGate({ conflicts, busy, onApply }) {
+  const key = (c) => c.tag + "|" + c.step_key;
+  const [dec, setDec] = useState(() => { const d = {}; conflicts.forEach((c) => { d[key(c)] = "keep"; }); return d; });
+  const setAll = (v) => { const d = {}; conflicts.forEach((c) => { d[key(c)] = v; }); setDec(d); };
+  const lbl = (v) => v === 2 ? "Complete" : v === 1 ? "In progress" : "Blank";
+  return <div className="confbox">
+    <div className="sumh">Manual Overrides The Import Would Change</div>
+    <p className="ast-p">These cells were set by hand in DLP. SharePoint is read only, so it never received them. Keep yours, or take the import, per row.</p>
+    <div className="confbtns"><button className="ast-btn" onClick={() => setAll("keep")}>Keep all mine</button><button className="ast-btn" onClick={() => setAll("override")}>Take all from import</button></div>
+    <table className="dtbl conf"><thead><tr><th>Asset</th><th>Column</th><th>Yours</th><th>Import</th><th>Decision</th></tr></thead><tbody>
+      {conflicts.map((c) => { const k = key(c); return <tr key={k}>
+        <td className="mn">{c.name}<div className="sub2">{c.tag}</div></td>
+        <td>{c.step_key}</td>
+        <td className="mine">{lbl(c.mine)}</td>
+        <td className="inc">{lbl(c.incoming)}</td>
+        <td><div className="crs"><label className="cr"><input type="radio" name={k} checked={dec[k] === "keep"} onChange={() => setDec({ ...dec, [k]: "keep" })} /> Keep</label><label className="cr"><input type="radio" name={k} checked={dec[k] === "override"} onChange={() => setDec({ ...dec, [k]: "override" })} /> Import</label></div></td>
+      </tr>; })}
+    </tbody></table>
+    <div className="modalbtns"><button className="ast-btn on" disabled={busy} onClick={() => onApply(dec)}>{busy ? "Applying\u2026" : "Apply decisions"}</button></div>
   </div>;
 }
 
@@ -724,4 +822,24 @@ tr.arow:hover .idcell{background:var(--hover)}
 .tagd .up{color:var(--green)}
 .tagd .dn{color:var(--red)}
 .dtbl td.regress{color:var(--red);font-weight:800}
+/* REV133 edit mode */
+.ast-velox{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.03em;color:var(--green);border:1px solid var(--green);border-radius:8px;padding:6px 10px}
+.ast-bulk{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 18px;background:var(--chipbg);border-bottom:1px solid var(--line)}
+.ast-bulk b{font-size:12.5px;color:var(--ink)}
+.ast-bulk .lbl{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.ast-bulk .hint{font-size:11px;color:var(--muted)}
+.astchk{margin-right:8px;vertical-align:middle;accent-color:var(--accent);cursor:pointer}
+.cp.editable{cursor:pointer;box-shadow:inset 0 0 0 2px rgba(59,130,246,.18);border-radius:6px}
+.cp.editable:hover{box-shadow:inset 0 0 0 2px var(--accent)}
+.cp.eeready{box-shadow:inset 0 0 0 2px rgba(24,182,155,.55)}
+.cp{position:relative}
+.ovmark{position:absolute;top:5px;right:8px;width:7px;height:7px;border-radius:2px;background:var(--accent);box-shadow:0 0 0 2px var(--card)}
+.confbox{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.confbtns{display:flex;gap:8px;margin-bottom:10px}
+.dtbl.conf td.mine{color:var(--accent);font-weight:800}
+.dtbl.conf td.inc{color:var(--amber);font-weight:800}
+.dtbl .sub2{font-size:10.5px;color:var(--muted);font-weight:500}
+.crs{display:flex;gap:12px}
+.cr{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer}
+.cr input{accent-color:var(--accent)}
 `;
