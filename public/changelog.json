@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV137",
+    "date": "2026-07-06",
+    "items": [
+      "Asset Status is faster, with no change to how it looks or works. Two things made the page heavy: every status edit refetched the whole 1096 asset register from the server before redrawing, and the search box redrew the entire matrix on every keystroke. Edits now update the changed cell in place and only resync from the server if the save actually fails, so setting a status is immediate instead of a couple of seconds. The search defers the heavy redraw so typing stays responsive. Behaviour and appearance are identical; only the speed changes."
+    ]
+  },
+  {
     "rev": "REV136",
     "date": "2026-07-06",
     "items": [
