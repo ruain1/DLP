@@ -837,7 +837,7 @@ function defaults() {
     { id: "co4", name: "Baudouin" }, { id: "co5", name: "Daikin" }, { id: "co6", name: "IKM" },
   ];
   return {
-    theme: "light", view: "swimlane", grain: "day", laneBy: "company", hideDone: false, currentUserId: "u1",
+    theme: "light", view: "swimlane", grain: "day", laneBy: "company", hideDone: false, viewWeeks: 4, currentUserId: "u1",
     companies,
     users: [
       { id: "u1", name: "R Burrows (QMC)", role: "admin", companyId: null },
@@ -1767,7 +1767,7 @@ export default function App({ session }) {
     try {
       const data = await loadAll(session, projectId, proj?.name);
       const p = prefs();
-      setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company", hideDone: !!p.hideDone });
+      setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company", hideDone: !!p.hideDone, viewWeeks: [1, 2, 4, 6, 8, 12].includes(p.viewWeeks) ? p.viewWeeks : (data.settings && data.settings.weeks) || 4 });
       if (initialPage) setPage(initialPage);
     } catch (e) { console.error("Load failed:", e); }
   };
@@ -1807,7 +1807,7 @@ export default function App({ session }) {
   useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
-  const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone"];
+  const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks"];
   const cu = S && (() => {
     const base = S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null };
     return { ...base, role: (isSuper || S.projectRole === "admin") ? "admin" : "member" };
@@ -1817,13 +1817,17 @@ export default function App({ session }) {
   // intentionally ignored and kept only as inline documentation of intent.
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
-    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone })); } catch (e) {} }
+    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks })); } catch (e) {} }
     syncCollections(prev, n, session, prev.projectId);
     return n;
   });
 
-  const DAYS = S ? S.settings.weeks * 7 : 28;
-  const WEEKS = S ? S.settings.weeks : 4;
+  // REV128: the board window is a per-user view preference (S.viewWeeks), seeded from the
+  // project default settings.weeks on first load. Changing it never touches the shared
+  // project setting or anyone else's board.
+  const vWeeks = S ? (S.viewWeeks || (S.settings && S.settings.weeks) || 4) : 4;
+  const DAYS = S ? vWeeks * 7 : 28;
+  const WEEKS = S ? vWeeks : 4;
   const todayOffset = useMemo(() => Math.round((todayMid() - anchor) / DAYMS), [anchor]);
   const days = useMemo(() => Array.from({ length: DAYS }, (_, i) => addDays(anchor, i)), [anchor, DAYS]);
   const pickLogo = (o) => !o ? "" : (S.theme === "dark" ? (o.logoDark || o.logoUrl || "") : (o.logoUrl || o.logoDark || ""));
@@ -2641,9 +2645,9 @@ export default function App({ session }) {
           {[["day", "Day"], ["week", "Week"]].map(([k, l]) => (
             <button key={k} className={grain === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, grain: k }))}>{l}</button>))}
         </div>
-        {isAdmin && <select className="lk-wsel" value={S.settings.weeks} title="Lookahead window length (project setting; also in Admin -> Lookahead & Targets)" onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, weeks: Number(e.target.value) } }), { action: "Change setting", detail: `Lookahead ${e.target.value} weeks` })}>
+<select className="lk-wsel" value={S.viewWeeks || (S.settings && S.settings.weeks) || 4} title="Board window: how far ahead your board draws. This is your own view preference and does not change the project or anyone else's board." onChange={(e) => setS((p) => ({ ...p, viewWeeks: Number(e.target.value) }))}>
           {[1, 2, 4, 6, 8, 12].map((w) => <option key={w} value={w}>{w}-week</option>)}
-        </select>}
+        </select>
         {S.view === "swimlane" && <div className="lk-seg">
           {[["company", "Company"], ...(S.areas.length > 1 ? [["area", "Building"]] : []), ["subarea", "Level"], ["tier3", "Zone"], ["level", "Cx Stage"]].map(([k, l]) => (
             <button key={k} className={S.laneBy === k ? "sel" : ""} onClick={() => update((p) => ({ ...p, laneBy: k }))}>{l}</button>))}
@@ -4499,8 +4503,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             {connMsg && <div style={{ fontSize: 11.5, color: connMsg.indexOf("failed") !== -1 ? "var(--red)" : "var(--muted)" }}>{connMsg}</div>}
           </>}
           {tab === "settings" && <>
-            <div className="lk-f"><label>Lookahead Length</label>
-              <div className="lk-status">{[1, 2, 4, 6, 8, 12].map((w) => <button key={w} className={S.settings.weeks === w ? "sel" : ""} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, weeks: w } }), { action: "Change setting", detail: `Lookahead ${w} week${w === 1 ? "" : "s"}` })}>{w} week{w === 1 ? "" : "s"}</button>)}</div></div>
+            {/* REV128: Lookahead Length removed from Admin. The board window is now a per-user
+                view preference set from the board toolbar by everyone, seeded from the project
+                default (settings.weeks, still stored and used as the seed). */}
             <div className="lk-f"><label>Make-Ready Window (Days)</label>
               <input className="lk-in mono" type="number" min="1" value={S.settings.makeReadyDays} onChange={(e) => update((p) => ({ ...p, settings: { ...p.settings, makeReadyDays: Math.max(1, +e.target.value || 1) } }))} /></div>
             <div className="lk-f"><label>PPC Target (%)</label>
@@ -5550,7 +5555,7 @@ function LatestOnline({ users, ustat, pres }) {
 // CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
 // stale-iframe issue). It is deliberately independent of the in-app CHANGELOG, which lags and
 // would not change on a help-only revision.
-const HELP_VERSION = "rev127";
+const HELP_VERSION = "rev128";
 function HelpPage({ dark, admin, brandLogo, proj }) {
   const ADMIN_ONLY = new Set(["weekly", "r_admin", "r_delay", "excuse"]);
   const HOWTO_SIM = new Set(["board", "views", "analytics", "complete", "witness"]);
