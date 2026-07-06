@@ -1,5 +1,17 @@
 [
   {
+    "rev": "REV121",
+    "date": "2026-07-06",
+    "items": [
+      "New Quality-Adjusted PPC beside the Analytics gauge: the same calculation as PPC except an on-time completion whose witness outcome is Failed does not count as kept. It answers the client question (of the work promised, how much was done on time AND passed) without touching PPC itself, which remains the orthodox Last Planner reliability metric everywhere. The figure is clickable and drills to the exact on-time witness failures; it hides when the filtered set has none",
+      "New info icon beside Percent Plan Complete on Analytics and beside PPC on the expanded sidebar: opens a popup spelling out how PPC, Quality-Adjusted PPC and the target are calculated, with a worked example. The collapsed sidebar carries the same explanation in its hover tooltip",
+      "New per-project PPC Target, set by admins in Admin > Lookahead & Targets (the Lookahead tab, renamed; FIN04 seeded at 80%). It draws as a red marker and TARGET caption on the Analytics gauge, a dashed red line on the Weekly PPC Trend, and a TARGET chip with met / missed on the weekly report hero. Run settings-ppc-target-REV121.sql before pushing data.js and App.jsx",
+      "The sidebar PPC colour now keys off the target instead of the old hardcoded bands: green at or above target, amber within 15 points below, red beyond. At the FIN04 target of 80 the only visible change is the amber floor moving from 50 to 65. The expanded sidebar also shows a small amber QA figure when it differs from PPC",
+      "Weekly report: the Plan Reliability hero gains the quality-adjusted figure (only when the week contains on-time witness failures, otherwise the hero is unchanged), the target chip, a gap sentence naming the failures, and a one-line method note. The auto-drafted executive summary states PPC against the target and adds the quality-adjusted line when relevant. The Analytics Excel metrics sheet carries PPC target and Quality-adjusted PPC rows",
+      "Deliberately untouched: every base PPC predicate (sidebar, editor miss check, weekly report, Analytics, portfolio hub, digest), so no historical week restates. The digest email and help pages are follow-ups"
+    ]
+  },
+  {
     "rev": "REV120",
     "date": "2026-07-06",
     "items": [
