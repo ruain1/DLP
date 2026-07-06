@@ -5581,7 +5581,7 @@ function LatestOnline({ users, ustat, pres }) {
 // CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
 // stale-iframe issue). It is deliberately independent of the in-app CHANGELOG, which lags and
 // would not change on a help-only revision.
-const HELP_VERSION = "rev130";
+const HELP_VERSION = "rev131";
 function HelpPage({ dark, admin, brandLogo, proj }) {
   // REV130: the visible Help nav lives HERE, in App.jsx, not in help.html (whose own nav is
   // hidden in embed mode). This mirrors the help.html NAV exactly so every page and tutorial is
