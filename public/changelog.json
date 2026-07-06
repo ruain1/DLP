@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV138",
+    "date": "2026-07-06",
+    "items": [
+      "Asset Status now loads with every type collapsed, so you see the whole list at a glance and open only what you need. Changing the Group By dimension re-collapses to the new grouping.",
+      "Real bulk editing in Edit Mode. Each type header has a checkbox that selects the whole type in one click, even while it is collapsed, so the flow is collapse all, tick the types you want, then apply. Inside an expanded type, click one row then Shift-click another to select the range between them, the same behaviour as the activity table. The selection bar gains Select all, which takes the whole filtered list, alongside Deselect all, and the type header shows an indeterminate state and a running count when a type is partly selected.",
+      "Asset Status now renders at most 200 assets per page, with a Prev and Next pager at the top right showing your position in the filtered list. Even Expand All never builds more than 200 rows, which is the main lever for keeping the page fast on the full register. The KPIs, tag pipeline and Excel export still cover the whole filtered set; only the matrix is paged. Changing a filter returns you to the first page; editing a cell leaves you where you are."
+    ]
+  },
+  {
     "rev": "REV137",
     "date": "2026-07-06",
     "items": [
