@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV119",
+    "date": "2026-07-06",
+    "items": [
+      "Witness invite emails now itemise the open constraints instead of stating a bare count: each open constraint is listed in the amber block with its text, owner and need-by date, sorted overdue first then soonest need-by, capped at six rows with a '+ N more, full list in DLP' overflow line. A need-by date before the session date renders in red with an OVERDUE tag; overdue is judged against each session day's date, not the moment of sending. Activities with no open constraints omit the block as before",
+      "New mandatory Invite Type on the Readiness tab when Witness invite is toggled (L2 FOK, W2, IVC, L3 FOK, L3 SU, L3 SAT, L4 FPT, L5 IST): it appears in the invite subject (FIN04 - L3 SAT INVITE FOR ...) and as an Invite Type row in the invite body, is copied onto retests, plan-locks with the other witness fields, joins the audit revert comparison, and shows as a pill on Witness Schedule cards. Existing witnessed activities are not disturbed on deploy: the type joins the invite change-detection hash only once set, so already-sent invitations do not flip to Details Changed until you actually assign a type",
+      "Needs the witness-type-REV119.sql migration run before data.js and App.jsx"
+    ]
+  },
+  {
     "rev": "REV118",
     "date": "2026-07-06",
     "items": [
