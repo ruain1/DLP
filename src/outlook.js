@@ -221,6 +221,7 @@ const dRow = (label, valueHtml) => valueHtml ? `<tr><td width="130" style="paddi
 // p: { title, code, inviteType, location, companyName, cxStage, system, discipline, sessionsLine,
 //      openConstraints: [{ text, owner, due, overdue }] (pre-sorted: overdue first, soonest need-by next, undated last),
 //      openCount (fallback only, count-only banner when openConstraints is absent),
+//      activityUrl (link back to the activity in DLP; omitted when absent),
 //      notes, dayLabel, organiser, logo: { width, alt } | null }
 // REV119: the amber block itemises the open constraints (approved mockup) instead of a bare
 // count. Rows arrive pre-sorted from the caller (overdue first, soonest need-by next, undated
@@ -282,6 +283,7 @@ export function buildInviteBodyHtml(p) {
     + `</table></td></tr>`
     + constraintsBlock(p)
     + (p.notes ? `<tr><td style="padding:0 18px 12px 18px;font-size:12px;color:#374151;line-height:1.5;${FSTACK}">${eH(p.notes)}</td></tr>` : "")
+    + (p.activityUrl ? `<tr><td style="padding:2px 18px 14px 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;"><a href="${eH(p.activityUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">Open This Activity In DLP</a></td></tr></table></td></tr>` : "")
     + `<tr><td style="padding:10px 18px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Issued from DLP by ${eH(p.organiser || "")} &#183; CSN Commissioning &#183; replies and responses go to the organiser</td></tr>`
     + `</table>`;
 }

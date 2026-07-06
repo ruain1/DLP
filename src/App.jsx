@@ -12,6 +12,10 @@ import { supabase } from "./supabaseClient";
 // rewrites the URL during boot and would otherwise erase the Microsoft redirect auth response
 // before the lazy outlook chunk could read it (the REV88 gap).
 const MSAL_RETURN_HASH = (typeof window !== "undefined" && /[#&](code|error|error_description)=/.test(window.location.hash || "")) ? window.location.hash : "";
+// REV120: deep link ?p=<project>&act=<activity> from witness invite emails. Captured at module
+// evaluation for the same reason as the hash above: enterProject rewrites the URL to ?p=<id>
+// during boot, which would erase the act param before boot could read it. Consumed once.
+let DEEPLINK_ACT = (typeof window !== "undefined") ? (() => { try { return new URLSearchParams(window.location.search).get("act") || ""; } catch (e) { return ""; } })() : "";
 const KEY = "fin04_app_v3";
 const DAYMS = 86400000;
 const DEFAULT_LEVELS = {
@@ -1768,7 +1772,8 @@ export default function App({ session }) {
       let target = null;
       if (urlP && list.find((x) => x.id === urlP)) target = urlP;
       else if (!sup && list.length === 1) target = list[0].id;
-      if (target) await enterProject(target, list);
+      const fa = DEEPLINK_ACT; DEEPLINK_ACT = "";
+      if (target) await enterProject(target, list, fa || undefined);
       else setSelProj(null);
     } catch (e) { console.error("Boot failed:", e); }
     setBooting(false);
@@ -1963,6 +1968,7 @@ export default function App({ session }) {
       discipline: (a.discipline || []).join("; "),
       sessionsLine: (n > 1 ? `${n} daily sessions, ` : "") + `${hm(sd)} to ${hm(ed)} (Europe/Helsinki)`,
       openCount: openCons.length, openConstraints: openCons,
+      activityUrl: (typeof window !== "undefined" && window.location && window.location.origin ? window.location.origin : "") + "/?p=" + encodeURIComponent(S.projectId || "") + "&act=" + encodeURIComponent(a.id),
       notes: a.notes || "", retest,
       headerChip: retest ? `Attempt ${att}` + (dayChip ? " \u00b7 " + dayChip : "") : dayChip,
       startLocal: sd, durationMin: mins, required: to || [], optional: cc || [],
