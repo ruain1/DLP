@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV124",
+    "date": "2026-07-06",
+    "items": [
+      "The Analytics PPC display is now a semicircular gauge instead of the full ring: a half-circle sweep on a fixed left-to-right scale with the red target tick crossing the arc and its numeric label outside it, reading as an instrument against a target rather than a pie. The value, PPC label and TARGET caption stack in the open lower half; hovering the tick names the target; clicking the gauge still drills to the committed-due list",
+      "Everything around it is untouched: the target-relative colour rule (green at or above, amber within 15 points below, red beyond), the Quality-Adjusted PPC figure, the witness-failure reconciliation line, the stretched KPI cards, the sidebar figure, the weekly report and the Excel export"
+    ]
+  },
+  {
     "rev": "REV123",
     "date": "2026-07-06",
     "items": [
