@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV118",
+    "date": "2026-07-06",
+    "items": [
+      "Fix: the SharePoint sync failed with a Graph 400 (This API is not supported for AAD accounts) because the workbook read was chained off the /shares path, which the Excel workload rejects for work accounts. The sync now resolves the pasted file URL to its drive and item identity through the shares endpoint, then reads the register through /drives, the addressing the workbook API documents. No configuration change needed; the pasted URL, tenant setup, and connection all stand"
+    ]
+  },
+  {
     "rev": "REV117",
     "date": "2026-07-06",
     "items": [
