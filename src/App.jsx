@@ -5,6 +5,7 @@ import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField,
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
 import SetPassword from "./SetPassword.jsx";
 import CxProgressPage from "./CxProgress.jsx";
+import AssetStatusPage from "./AssetStatus.jsx";
 import { supabase } from "./supabaseClient";
 
 // Captured synchronously at module evaluation: enterProject's history.replaceState("?p=...")
@@ -1707,6 +1708,7 @@ export default function App({ session }) {
     // response to the outlook module (the live URL may already have been rewritten by boot),
     // absorb it, reflect the account, and tidy any hash still visible.
     if (MSAL_RETURN_HASH) {
+      import("./sharepoint").then((sp) => sp.primeRedirectHash(MSAL_RETURN_HASH)).catch(() => {});
       import("./outlook").then(async (m) => { m.primeRedirectHash(MSAL_RETURN_HASH); const acct = await m.outlookAccount(); const d = await m.authDiagnostics(); setAuthDiag(d); return acct; })
         .then((acct) => { if (acct) setOlAcct(acct.username); })
         .catch(() => {})
@@ -1723,7 +1725,7 @@ export default function App({ session }) {
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
+  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
   // ---- multi-project ----
@@ -2544,6 +2546,7 @@ export default function App({ session }) {
         <button title="Schedule" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n="gantt" s={20} /><span className="lbl">Schedule</span></button>
         <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
         <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n="checkcircle" s={20} /><span className="lbl">Weekly Cx Progress</span></button>
+        <button title="Asset Status" className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n="tag" s={20} /><span className="lbl">Asset Status</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
         <div className="lk-railppc" title={"PPC \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
@@ -2727,6 +2730,7 @@ export default function App({ session }) {
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
+      {page === "assets" && <div className="lk-scroll"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>

@@ -694,3 +694,58 @@ export async function saveUserPrivileges(projectId, changes) {
   }
   return "";
 }
+
+/* ---------- REV115: Asset Status ---------- */
+
+export async function loadAssetStatus(projectId) {
+  const [reg, steps, cfg] = await Promise.all([
+    supabase.from("asset_register").select("*").eq("project_id", projectId).order("tag"),
+    supabase.from("cx_step_reference").select("*").eq("project_id", projectId).order("sort_order"),
+    supabase.from("asset_status_config").select("*").eq("project_id", projectId).maybeSingle(),
+  ]);
+  const err = reg.error || steps.error || cfg.error;
+  return { assets: reg.data || [], steps: steps.data || [], config: cfg.data || null, error: err ? (err.message || String(err)) : "" };
+}
+
+// Upsert the parsed register. Returns observable counts so every import/sync
+// reports exactly what it did: { read, added, updated, unchanged, error }.
+// Step structural fields (stage, sort_order, is_tag) refresh from the workbook;
+// admin-authored reference content (definition, executed_by, signed_off_by) is
+// deliberately not in the upsert payload so imports can never blank it.
+export async function saveAssetRegister(projectId, assets, stepDefs, source) {
+  const prev = await supabase.from("asset_register").select("tag,name,type,discipline,level,hall,steps,dates").eq("project_id", projectId);
+  if (prev.error) return { error: prev.error.message || String(prev.error) };
+  const prevMap = {};
+  (prev.data || []).forEach((r) => { prevMap[r.tag] = r; });
+  const sig = (r) => JSON.stringify([r.name, r.type, r.discipline, r.level, r.hall, r.steps, r.dates]);
+  let added = 0, updated = 0, unchanged = 0;
+  const now = new Date().toISOString();
+  const rows = assets.map((a) => ({ project_id: projectId, ...a, synced_at: now, source }));
+  rows.forEach((r) => { const p = prevMap[r.tag]; if (!p) added++; else if (sig(p) !== sig(r)) updated++; else unchanged++; });
+  for (let i = 0; i < rows.length; i += 400) {
+    const { error } = await supabase.from("asset_register").upsert(rows.slice(i, i + 400), { onConflict: "project_id,tag" });
+    if (error) return { error: error.message || String(error) };
+  }
+  if (stepDefs && stepDefs.length) {
+    const sRows = stepDefs.map((s) => ({ project_id: projectId, step_key: s.step_key, stage: s.stage, sort_order: s.sort_order, is_tag: s.is_tag, updated_at: now }));
+    const { error } = await supabase.from("cx_step_reference").upsert(sRows, { onConflict: "project_id,step_key" });
+    if (error) return { error: error.message || String(error) };
+  }
+  return { read: rows.length, added, updated, unchanged, error: "" };
+}
+
+export async function saveStepReference(projectId, stepKey, fields) {
+  const { error } = await supabase.from("cx_step_reference")
+    .update({ definition: fields.definition || "", executed_by: fields.executed_by || "", signed_off_by: fields.signed_off_by || "", updated_at: new Date().toISOString() })
+    .eq("project_id", projectId).eq("step_key", stepKey);
+  return error ? (error.message || String(error)) : "";
+}
+
+export async function saveAssetStatusConfig(projectId, cfg) {
+  const { error } = await supabase.from("asset_status_config").upsert({
+    project_id: projectId, tenant_id: cfg.tenant_id || "", client_id: cfg.client_id || "",
+    file_url: cfg.file_url || "", sheet_name: cfg.sheet_name || "Asset Cx Register",
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "project_id" });
+  return error ? (error.message || String(error)) : "";
+}
