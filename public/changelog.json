@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV128",
+    "date": "2026-07-06",
+    "items": [
+      "The board window (how far ahead the Planning Board draws) is now selectable by everyone from the board toolbar, not just admins. It is a per-user view preference stored in your browser beside your view, grain and lane choices, so your window is yours: changing it never moves the horizon for anyone else and never writes to the project. Two people can run the same project at one week and eight weeks at the same time. A new user opens at the project's default window",
+      "The Lookahead Length control has been removed from Admin > Lookahead & Targets; the window is no longer a project setting. The stored project default is retained purely to seed each user's first visit, and PPC Target and the Make-Ready Window stay on that page"
+    ]
+  },
+  {
     "rev": "REV127",
     "date": "2026-07-06",
     "items": [
