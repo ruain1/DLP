@@ -522,12 +522,32 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu }) {
           <div className="mhead"><h3>{summary.source === "sharepoint" ? "Sync Complete" : "Import Complete"}</h3><button className="dclose stat" onClick={() => setSummary(null)}>{"\u2715"}</button></div>
           <div className="mbody">
             {summary.fileName && <p className="ast-p"><b>{summary.fileName}</b>{summary.lastModified ? ", last modified " + new Date(summary.lastModified).toLocaleString("en-GB") : ""}</p>}
+            {summary.firstSync ? <div className="notebox">First import for this project: no previous status to compare against. Every asset below counts as added.</div>
+              : (summary.updated || summary.added || summary.removed) ? null
+              : <div className="notebox">No changes since the last sync. The register is identical.</div>}
+            <div className="sumh">Assets</div>
             <table className="dtbl sum"><tbody>
               <tr><td className="mn">Rows read</td><td>{summary.read}</td></tr>
               <tr><td className="mn">Added</td><td>{summary.added}</td></tr>
-              <tr><td className="mn">Updated</td><td>{summary.updated}</td></tr>
+              <tr><td className="mn">Removed from register</td><td>{summary.removed}</td></tr>
+              <tr><td className="mn">Changed</td><td>{summary.updated}</td></tr>
               <tr><td className="mn">Unchanged</td><td>{summary.unchanged}</td></tr>
             </tbody></table>
+            {!summary.firstSync && <>
+              <div className="sumh">Tag Movement Since Last Sync</div>
+              {(summary.tagDelta || []).some((t) => t.gained || t.lost) ? (
+                <div className="tagrow">{(summary.tagDelta || []).filter((t) => t.gained || t.lost).map((t) => (
+                  <span key={t.key} className="tagd"><span className="dot" style={{ background: TAGC[t.stage] }} />{STAGE_NAME[t.stage]}{t.gained ? <b className="up">+{t.gained}</b> : null}{t.lost ? <b className="dn">-{t.lost}</b> : null}</span>
+                ))}</div>
+              ) : <p className="ast-p">No tag movement.</p>}
+              <div className="sumh">Checkpoints And Schedule</div>
+              <table className="dtbl sum"><tbody>
+                <tr><td className="mn">Checkpoint completions gained</td><td>{summary.stepsGained}</td></tr>
+                <tr><td className="mn">Completions lost (regressions)</td><td className={summary.stepsLost ? "regress" : ""}>{summary.stepsLost}</td></tr>
+                <tr><td className="mn">Planned / actual date changes</td><td>{summary.dateChanges}</td></tr>
+              </tbody></table>
+              {summary.stepsLost > 0 && <div className="warnbox">Completions were lost since the last sync: a step previously marked YES is no longer YES. Worth a look in the Master before this circulates.</div>}
+            </>}
             {summary.warnings && summary.warnings.length > 0 && <div className="warnbox">{summary.warnings.map((w, i) => <div key={i}>{w}</div>)}</div>}
             <div className="modalbtns"><button className="ast-btn on" onClick={() => setSummary(null)}>Close</button></div>
           </div>
@@ -595,7 +615,8 @@ const AST_CSS = `
 .ast-seg button.sel{background:var(--ink);color:var(--paper)}
 .ast-rel{position:relative}
 .ast-pop{position:absolute;top:calc(100% + 6px);left:0;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:12px 14px;z-index:50;min-width:230px}
-.ast-pop label{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;font-weight:600;cursor:pointer}
+.ast-pop label{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;justify-content:flex-start}
+.ast-f .ast-pop input,.ast-pop input{width:auto;min-width:0;padding:0;margin:0;border:none;background:transparent;accent-color:var(--accent);flex:none}
 .ast-pop .cap{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:8px 0 3px}
 .ast-focus{display:flex;align-items:center;gap:12px;padding:9px 18px;background:var(--chipbg);border-bottom:1px solid var(--line)}
 .ast-focus .fdot{width:12px;height:12px;border-radius:50%}
@@ -696,4 +717,11 @@ tr.arow:hover .idcell{background:var(--hover)}
 .stcell .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .pend{color:var(--faint);font-style:italic}
 .editbtns{display:flex;gap:6px;margin-top:6px}
+.sumh{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin:14px 0 7px}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px}
+.tagd{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700}
+.tagd .dot{width:10px;height:10px;border-radius:50%}
+.tagd .up{color:var(--green)}
+.tagd .dn{color:var(--red)}
+.dtbl td.regress{color:var(--red);font-weight:800}
 `;

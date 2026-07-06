@@ -697,14 +697,64 @@ export async function saveUserPrivileges(projectId, changes) {
 
 /* ---------- REV115: Asset Status ---------- */
 
+// PostgREST caps any single select at 1000 rows, so register reads paginate.
+async function fetchAllAssetRows(projectId, cols) {
+  const out = []; const page = 1000;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await supabase.from("asset_register").select(cols).eq("project_id", projectId).order("tag").range(from, from + page - 1);
+    if (error) return { data: out, error: error.message || String(error) };
+    out.push(...(data || []));
+    if (!data || data.length < page) break;
+  }
+  return { data: out, error: "" };
+}
+
 export async function loadAssetStatus(projectId) {
   const [reg, steps, cfg] = await Promise.all([
-    supabase.from("asset_register").select("*").eq("project_id", projectId).order("tag"),
+    fetchAllAssetRows(projectId, "*"),
     supabase.from("cx_step_reference").select("*").eq("project_id", projectId).order("sort_order"),
     supabase.from("asset_status_config").select("*").eq("project_id", projectId).maybeSingle(),
   ]);
   const err = reg.error || steps.error || cfg.error;
-  return { assets: reg.data || [], steps: steps.data || [], config: cfg.data || null, error: err ? (err.message || String(err)) : "" };
+  return { assets: reg.data || [], steps: steps.data || [], config: cfg.data || null, error: err ? (err.message || err.error || String(err)) : "" };
+}
+
+// Canonical signature: JSON with recursively sorted keys. Postgres returns jsonb
+// in its own internal key order, which differs from the parser's column order;
+// naive stringify comparison marked every identical row as updated.
+export function stableSig(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map(stableSig).join(",") + "]";
+  return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stableSig(v[k])).join(",") + "}";
+}
+
+// Compare the previous register state with the incoming one and summarise the
+// movement. Pure function so it is harness-testable. Returns counts only,
+// never asset lists: added, removed, updated, unchanged, per-tag gained/lost,
+// checkpoint completions gained/lost, and planned/actual date changes.
+export function computeRegisterDelta(prevRows, newRows, stepDefs) {
+  const prevMap = {}; (prevRows || []).forEach((r) => { prevMap[r.tag] = r; });
+  const newMap = {}; (newRows || []).forEach((r) => { newMap[r.tag] = r; });
+  const rowSig = (r) => stableSig([r.name, r.type, r.discipline, r.level, r.hall, r.steps, r.dates]);
+  const tagSteps = (stepDefs || []).filter((sd) => sd.is_tag);
+  const allSteps = (stepDefs || []).map((sd) => sd.step_key);
+  const d = { firstSync: !(prevRows || []).length, added: 0, removed: 0, updated: 0, unchanged: 0, stepsGained: 0, stepsLost: 0, dateChanges: 0, tagDelta: tagSteps.map((t) => ({ key: t.step_key, stage: t.stage, gained: 0, lost: 0 })) };
+  const tagIx = {}; d.tagDelta.forEach((t, i) => { tagIx[t.key] = i; });
+  (newRows || []).forEach((r) => {
+    const p = prevMap[r.tag];
+    if (!p) { d.added++; return; }
+    if (rowSig(p) === rowSig(r)) { d.unchanged++; return; }
+    d.updated++;
+    allSteps.forEach((k) => {
+      const was = (p.steps || {})[k] || 0, now = (r.steps || {})[k] || 0;
+      if (was !== 2 && now === 2) { d.stepsGained++; if (tagIx[k] !== undefined) d.tagDelta[tagIx[k]].gained++; }
+      if (was === 2 && now !== 2) { d.stepsLost++; if (tagIx[k] !== undefined) d.tagDelta[tagIx[k]].lost++; }
+    });
+    const dk = new Set([...Object.keys(p.dates || {}), ...Object.keys(r.dates || {})]);
+    dk.forEach((k) => { if ((p.dates || {})[k] !== (r.dates || {})[k]) d.dateChanges++; });
+  });
+  (prevRows || []).forEach((p) => { if (!newMap[p.tag]) d.removed++; });
+  return d;
 }
 
 // Upsert the parsed register. Returns observable counts so every import/sync
@@ -713,25 +763,31 @@ export async function loadAssetStatus(projectId) {
 // admin-authored reference content (definition, executed_by, signed_off_by) is
 // deliberately not in the upsert payload so imports can never blank it.
 export async function saveAssetRegister(projectId, assets, stepDefs, source) {
-  const prev = await supabase.from("asset_register").select("tag,name,type,discipline,level,hall,steps,dates").eq("project_id", projectId);
-  if (prev.error) return { error: prev.error.message || String(prev.error) };
-  const prevMap = {};
-  (prev.data || []).forEach((r) => { prevMap[r.tag] = r; });
-  const sig = (r) => JSON.stringify([r.name, r.type, r.discipline, r.level, r.hall, r.steps, r.dates]);
-  let added = 0, updated = 0, unchanged = 0;
+  const prev = await fetchAllAssetRows(projectId, "tag,name,type,discipline,level,hall,steps,dates");
+  if (prev.error) return { error: prev.error };
   const now = new Date().toISOString();
   const rows = assets.map((a) => ({ project_id: projectId, ...a, synced_at: now, source }));
-  rows.forEach((r) => { const p = prevMap[r.tag]; if (!p) added++; else if (sig(p) !== sig(r)) updated++; else unchanged++; });
+  const delta = computeRegisterDelta(prev.data, rows, stepDefs);
   for (let i = 0; i < rows.length; i += 400) {
     const { error } = await supabase.from("asset_register").upsert(rows.slice(i, i + 400), { onConflict: "project_id,tag" });
     if (error) return { error: error.message || String(error) };
   }
+  // The register is the source of truth: tags that vanished from it are removed
+  // here too, and reported in the summary as Removed.
+  if (delta.removed) {
+    const newTags = new Set(rows.map((r) => r.tag));
+    const gone = prev.data.filter((p) => !newTags.has(p.tag)).map((p) => p.tag);
+    for (let i = 0; i < gone.length; i += 200) {
+      const { error } = await supabase.from("asset_register").delete().eq("project_id", projectId).in("tag", gone.slice(i, i + 200));
+      if (error) return { error: error.message || String(error) };
+    }
+  }
   if (stepDefs && stepDefs.length) {
-    const sRows = stepDefs.map((s) => ({ project_id: projectId, step_key: s.step_key, stage: s.stage, sort_order: s.sort_order, is_tag: s.is_tag, in_register: true, updated_at: now }));
+    const sRows = stepDefs.map((sd) => ({ project_id: projectId, step_key: sd.step_key, stage: sd.stage, sort_order: sd.sort_order, is_tag: sd.is_tag, in_register: true, updated_at: now }));
     const { error } = await supabase.from("cx_step_reference").upsert(sRows, { onConflict: "project_id,step_key" });
     if (error) return { error: error.message || String(error) };
   }
-  return { read: rows.length, added, updated, unchanged, error: "" };
+  return { read: rows.length, ...delta, error: "" };
 }
 
 export async function saveStepReference(projectId, stepKey, fields) {
