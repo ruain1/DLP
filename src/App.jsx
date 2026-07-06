@@ -1899,7 +1899,11 @@ export default function App({ session }) {
   // so adding a day offers Send Remaining instead of re-sending everything.
   const invHash = (a) => {
     const { to, cc } = witnessRecipients(a.discipline || []);
-    const s = JSON.stringify([a.desc || "", locCode(a), a.witnessAt || "", a.witnessDurationMin || 60, (to || []).slice().sort(), (cc || []).slice().sort()]);
+    // witnessType joins the hash only when set: appending it unconditionally would change the
+    // hash formula for every already-sent invite and flip them all to Details Changed on deploy.
+    const parts = [a.desc || "", locCode(a), a.witnessAt || "", a.witnessDurationMin || 60, (to || []).slice().sort(), (cc || []).slice().sort()];
+    if (a.witnessType) parts.push(a.witnessType);
+    const s = JSON.stringify(parts);
     let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
     return String(h);
   };
@@ -1943,13 +1947,22 @@ export default function App({ session }) {
     const att = a.retestOf ? attemptNo(a, S.activities) : 1;
     const retest = par ? { attemptNo: att, failedDate: par.outcomeAt ? fmtDoW(parseD(par.outcomeAt)) : "", reason: par.outcomeReason || "" } : null;
     const dayChip = n > 1 ? `Day ${dayIdx + 1} of ${n}` : "";
+    // REV119: open constraints travel itemised (text, owner, need-by). Overdue is anchored to
+    // this session day's date, not to the send moment: a need-by on the session date is fine,
+    // one before it is red. Sorted overdue first, soonest need-by next, undated last.
+    const sdISO = fmtISO(sd);
+    const fmtDue = (iso) => { const d = parseD(iso); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }); };
+    const openCons = (a.constraints || []).filter((c) => !c.done)
+      .map((c) => ({ text: c.text || "", owner: c.owner || "", due: c.due ? fmtDue(c.due) : "", overdue: !!(c.due && c.due < sdISO), _k: c.due || "9999" }))
+      .sort((x, y) => (y.overdue - x.overdue) || x._k.localeCompare(y._k));
+    const typ = a.witnessType ? a.witnessType + " " : "";
     return {
-      subject: (retest ? `FIN04 - RETEST INVITE FOR ${title} (Attempt ${att})` : `FIN04 - INVITE FOR ${title}`) + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
-      title, code: a.code != null ? String(a.code) : "",
+      subject: (retest ? `FIN04 - ${typ}RETEST INVITE FOR ${title} (Attempt ${att})` : `FIN04 - ${typ}INVITE FOR ${title}`) + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
+      title, code: a.code != null ? String(a.code) : "", inviteType: a.witnessType || "",
       location: locCode(a), companyName: coName(a.companyId), cxStage: a.level, system: a.system || "-",
       discipline: (a.discipline || []).join("; "),
       sessionsLine: (n > 1 ? `${n} daily sessions, ` : "") + `${hm(sd)} to ${hm(ed)} (Europe/Helsinki)`,
-      openCount: (a.constraints || []).filter((c) => !c.done).length,
+      openCount: openCons.length, openConstraints: openCons,
       notes: a.notes || "", retest,
       headerChip: retest ? `Attempt ${att}` + (dayChip ? " \u00b7 " + dayChip : "") : dayChip,
       startLocal: sd, durationMin: mins, required: to || [], optional: cc || [],
@@ -2276,7 +2289,7 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: can("editAny") ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
-      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessAt: "", witnessDurationMin: 60, witnessDays: 1, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
+      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessType: "", witnessAt: "", witnessDurationMin: 60, witnessDays: 1, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
@@ -2868,6 +2881,7 @@ export default function App({ session }) {
                         <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d); ed2.setDate(ed2.getDate() + (n - 1)); return f(d) + " - " + f(ed2); })()}</span>
                         <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
                         <span className="wsch-durpill">{durLabel(a.witnessDurationMin)}{Math.max(1, a.witnessDays || 1) > 1 ? " x " + (a.witnessDays || 1) + " days" : ""}</span>
+                        {a.witnessType ? <span className="wsch-durpill" style={{ fontWeight: 600 }}>{a.witnessType}</span> : null}
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div className="wsch-name" onClick={() => { setWitSched(false); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
@@ -2979,7 +2993,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
   };
   const doCreateRetest = () => {
     if (!rtStart || !rtName.trim()) return;
-    const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], witnessInvite: true, witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessDays: a.witnessDays || 1, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
+    const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], witnessInvite: true, witnessType: a.witnessType || "", witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessDays: a.witnessDays || 1, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
     setRtOpen(false);
     if (onSaveRetest && can("retest")) onSaveRetest(a, clone); else onSave(a, isNew);
   };
@@ -3030,6 +3044,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
   if (!a.system) missing.push("system");
   if (!a.start) missing.push("planned start");
   if (a.witnessInvite && !a.witnessAt) missing.push("witness date & time");
+  if (a.witnessInvite && !a.witnessType) missing.push("invite type");
   if (a.witnessInvite && !(a.discipline || []).length) missing.push("discipline");
   if (a.witnessInvite && !a.witnessDurationMin) missing.push("witness duration");
   if (a.witnessInvite && (a.outcome || "pending") === "failed" && !a.outcomeReason) missing.push("failure reason");
@@ -3165,6 +3180,13 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
             </div>}</div>
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => { if (planLocked) return; set("committed", !a.committed); }}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
           <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => { if (planLocked || !can("witnessReq")) return; set("witnessInvite", !a.witnessInvite); }}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
+          {a.witnessInvite && <div className="lk-f"><label>Invite Type <span style={{ color: "#C0392B" }}>*</span></label>
+            <select className="lk-select" value={a.witnessType || ""} disabled={disPlan} onChange={(e) => set("witnessType", e.target.value)}>
+              <option value="">Select type...</option>
+              {["L2 FOK", "W2", "IVC", "L3 FOK", "L3 SU", "L3 SAT", "L4 FPT", "L5 IST"].map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            {!a.witnessType && <span style={{ fontSize: 11, color: "#C0392B" }}>An invite type is required before this activity can be saved.</span>}
+            {a.witnessType && <span style={{ fontSize: 11, color: "var(--muted)" }}>Appears in the invite subject and body.</span>}</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
             <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={disPlan} onChange={(e) => set("witnessAt", e.target.value)} />
             {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}
@@ -3461,7 +3483,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   // Revert modal helpers. RVF maps snapshot (snake) columns to human labels; rowView renders the
   // live activity in the same shape so the modal can show restores-to vs currently.
   const RVF = [["descr", "Description"], ["company_id", "Company"], ["area", "Building"], ["sub_area", "Level"], ["tier3", "Zone / Room"], ["asset", "Asset"], ["system", "System"], ["level", "Cx Stage"], ["is_milestone", "Milestone"], ["start_date", "Planned Start"], ["duration", "Days (Calendar)"], ["committed", "Committed"], ["status", "Status"], ["percent", "Percent"], ["actual_start", "Actual Start"], ["actual_finish", "Actual Finish"], ["witness_invite", "Witness Invite"], ["witness_at", "Witness Date"], ["witness_duration_min", "Witness Duration"], ["witness_days", "Witness Days"], ["slip_reason", "Slip Reason"], ["outcome", "Witness Outcome"], ["outcome_reason", "Failure Reason"], ["outcome_at", "Outcome Date"], ["notes", "Notes"]];
-  const rvRowView = (a) => a ? ({ descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, system: a.system || null, level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1, committed: !!a.committed, status: a.status, percent: a.percent == null ? null : a.percent, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null, witness_invite: !!a.witnessInvite, witness_at: a.witnessAt || null, witness_duration_min: a.witnessDurationMin == null ? 60 : a.witnessDurationMin, witness_days: a.witnessDays == null ? 1 : a.witnessDays, slip_reason: a.slipReason || null, outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_at: a.outcomeAt || null, notes: a.notes || null }) : null;
+  const rvRowView = (a) => a ? ({ descr: a.desc || "", company_id: a.companyId || null, area: a.area || null, sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, system: a.system || null, level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1, committed: !!a.committed, status: a.status, percent: a.percent == null ? null : a.percent, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null, witness_invite: !!a.witnessInvite, witness_type: a.witnessType || null, witness_at: a.witnessAt || null, witness_duration_min: a.witnessDurationMin == null ? 60 : a.witnessDurationMin, witness_days: a.witnessDays == null ? 1 : a.witnessDays, slip_reason: a.slipReason || null, outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_at: a.outcomeAt || null, notes: a.notes || null }) : null;
   const rvCoName = (id) => (S.companies.find((c) => c.id === id) || {}).name || (id ? "(unknown)" : "--");
   const rvFmt = (k, v) => { if (v == null || v === "") return "--"; if (k === "company_id") return rvCoName(v); if (typeof v === "boolean") return v ? "Yes" : "No"; return String(v); };
   const rvNorm = (v) => (v == null || v === "" ? "" : typeof v === "boolean" ? (v ? "1" : "0") : String(v));

@@ -218,7 +218,40 @@ const FSTACK = "font-family:Segoe UI,Arial,sans-serif;";
 const eH = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const dRow = (label, valueHtml) => valueHtml ? `<tr><td width="130" style="padding:5px 10px 5px 0;color:${TPL.mut};font-size:11px;text-transform:uppercase;letter-spacing:0.4px;vertical-align:top;${FSTACK}">${eH(label)}</td><td style="padding:5px 0;font-size:13px;color:${TPL.ink};${FSTACK}">${valueHtml}</td></tr>` : "";
 
-// p: { title, code, location, companyName, cxStage, system, discipline, sessionsLine, openCount, notes, dayLabel, organiser, logo: { width, alt } | null }
+// p: { title, code, inviteType, location, companyName, cxStage, system, discipline, sessionsLine,
+//      openConstraints: [{ text, owner, due, overdue }] (pre-sorted: overdue first, soonest need-by next, undated last),
+//      openCount (fallback only, count-only banner when openConstraints is absent),
+//      notes, dayLabel, organiser, logo: { width, alt } | null }
+// REV119: the amber block itemises the open constraints (approved mockup) instead of a bare
+// count. Rows arrive pre-sorted from the caller (overdue first, soonest need-by next, undated
+// last); the cap lives here so every caller gets identical behaviour. A need-by on or before
+// the session date renders red with an OVERDUE tag. Falls back to the old count-only sentence
+// if only openCount is supplied, so a stale caller cannot break the send.
+const INVITE_CON_CAP = 6;
+const RED = "#B4231B";
+function constraintsBlock(p) {
+  const cons = Array.isArray(p.openConstraints) ? p.openConstraints : null;
+  const openWrap = (inner) => `<tr><td style="padding:4px 18px 12px 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${TPL.amberEdge};background-color:${TPL.amberBg};padding:9px 12px 10px 12px;">${inner}</td></tr></table></td></tr>`;
+  if (!cons) {
+    if (!(p.openCount > 0)) return "";
+    return openWrap(`<span style="font-size:12px;color:${TPL.amberInk};${FSTACK}">${p.openCount} open constraint${p.openCount === 1 ? "" : "s"} remain${p.openCount === 1 ? "s" : ""} on this activity. They are expected clear before the session; contact the organiser otherwise.</span>`);
+  }
+  if (!cons.length) return "";
+  const shown = cons.slice(0, INVITE_CON_CAP);
+  const extra = cons.length - shown.length;
+  const head = `<tr><td colspan="2" style="padding:0 0 6px 0;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.4px;color:${TPL.amberInk};${FSTACK}">${cons.length} Open Constraint${cons.length === 1 ? "" : "s"} On This Activity</td></tr>`;
+  const rows = shown.map((c) => {
+    const meta = [];
+    if (c.owner) meta.push(eH(c.owner));
+    if (c.due) meta.push(c.overdue ? `<span style="color:${RED};font-weight:bold;">need-by ${eH(c.due)} &#183; OVERDUE</span>` : `need-by ${eH(c.due)}`);
+    return `<tr><td width="14" style="padding:3px 6px 3px 0;font-size:12px;color:${c.overdue ? RED : TPL.amberEdge};vertical-align:top;line-height:1.5;">&#9679;</td>`
+      + `<td style="padding:3px 0;font-size:12.5px;color:${TPL.ink};line-height:1.5;${FSTACK}">${eH(c.text)}${meta.length ? `<span style="color:${TPL.mut};font-size:11.5px;"> &#183; ${meta.join(" &#183; ")}</span>` : ""}</td></tr>`;
+  }).join("");
+  const more = extra > 0 ? `<tr><td></td><td style="padding:4px 0 0 0;font-size:11.5px;color:${TPL.mut};${FSTACK}">+ ${extra} more, full list in DLP</td></tr>` : "";
+  const foot = `<tr><td colspan="2" style="padding:7px 0 0 0;font-size:11.5px;color:${TPL.amberInk};${FSTACK}">These are expected clear before the session; contact the organiser otherwise.</td></tr>`;
+  return openWrap(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">${head}${rows}${more}${foot}</table>`);
+}
+
 export function buildInviteBodyHtml(p) {
   const vendor = p.logo
     ? `<img src="cid:vendorlogo" width="${p.logo.width}" height="24" alt="${eH(p.logo.alt || p.companyName)}" style="display:block;border:0;height:24px;" /><span style="padding-left:10px;font-weight:bold;font-size:13px;color:${TPL.ink};${FSTACK}">${eH(p.companyName)}</span>`
@@ -240,13 +273,14 @@ export function buildInviteBodyHtml(p) {
     + `<td style="padding:2px 0;vertical-align:middle;">${vendor}</td></tr></table></td></tr>`
     + `<tr><td style="padding:10px 18px 6px 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">`
     + dRow("Activity", `<span style="font-weight:bold;">${eH(p.title)}${p.code != null && p.code !== "" ? " (#" + eH(p.code) + ")" : ""}</span>`)
+    + dRow("Invite Type", eH(p.inviteType))
     + dRow("Location", eH(p.location))
     + dRow("Cx Stage", eH(p.cxStage))
     + dRow("System", eH(p.system))
     + dRow("Discipline", eH(p.discipline))
     + dRow("Sessions", eH(p.sessionsLine))
     + `</table></td></tr>`
-    + (p.openCount > 0 ? `<tr><td style="padding:4px 18px 12px 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${TPL.amberEdge};background-color:${TPL.amberBg};padding:8px 12px;font-size:12px;color:${TPL.amberInk};${FSTACK}">${p.openCount} open constraint${p.openCount === 1 ? "" : "s"} remain${p.openCount === 1 ? "s" : ""} on this activity. They are expected clear before the session; contact the organiser otherwise.</td></tr></table></td></tr>` : "")
+    + constraintsBlock(p)
     + (p.notes ? `<tr><td style="padding:0 18px 12px 18px;font-size:12px;color:#374151;line-height:1.5;${FSTACK}">${eH(p.notes)}</td></tr>` : "")
     + `<tr><td style="padding:10px 18px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Issued from DLP by ${eH(p.organiser || "")} &#183; CSN Commissioning &#183; replies and responses go to the organiser</td></tr>`
     + `</table>`;
