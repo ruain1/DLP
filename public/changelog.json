@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV129",
+    "date": "2026-07-06",
+    "items": [
+      "Fix (infrastructure): the in-app Help could keep showing an older version after a help update was deployed, because the browser and CDN cached the static help file. A vercel.json now sets Cache-Control no-cache, must-revalidate on help.html, so the browser and CDN revalidate it on every load and always pick up a newly deployed help file. Unchanged help still returns a fast 304, so there is no speed cost. This fixes the caching at the HTTP layer and no longer depends on bumping a version token by hand",
+      "One-time note after deploying this: hard-reload the Help page once (Ctrl+Shift+R) to clear the copy already cached in the browser; from then on it stays current automatically"
+    ]
+  },
+  {
     "rev": "REV128",
     "date": "2026-07-06",
     "items": [
