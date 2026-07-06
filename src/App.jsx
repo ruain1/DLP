@@ -471,6 +471,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-rep .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
 .lk-rep-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 -22px 14px;position:sticky;top:0;z-index:20;background:var(--card);padding:10px 22px;border-bottom:1px solid var(--line)}
 .lk-rep-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px;margin-bottom:22px}
+.lk-rep-cards.fill{height:100%;grid-auto-rows:1fr;margin-bottom:0}
+.lk-rep-cards.fill .lk-rep-card{display:flex;flex-direction:column;justify-content:center}
 .lk-rep-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
 .lk-rep-card .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .lk-rep-card .l{font-size:11px;color:var(--muted);margin-top:5px;display:block;text-transform:uppercase;letter-spacing:.04em}
@@ -6600,6 +6602,15 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const qaMade = (a) => made(a) && !(a.witnessInvite && (a.outcome || "pending") === "failed");
   const qaFails = commDue.filter((a) => made(a) && !qaMade(a));
   const qaPpc = commDue.length ? Math.round(commDue.filter(qaMade).length / commDue.length * 100) : null;
+  // REV123: witness-failure reconciliation. Every failure in the filtered scope lands in
+  // exactly one bucket, and the buckets always sum to the total: on-time kept promises
+  // (the quality gap, qaFails above), late (already broken promises inside PPC's misses),
+  // committed but not yet due (a promise finishing today is due tomorrow), not committed.
+  const wfIsFailed = (a) => a.witnessInvite && (a.outcome || "pending") === "failed";
+  const witFailedAll = acts.filter(wfIsFailed);
+  const wfLate = commDue.filter((a) => !made(a) && wfIsFailed(a));
+  const wfNotDue = witFailedAll.filter((a) => a.committed && !(a.start && finishOf(a).getTime() < today0));
+  const wfUncommitted = witFailedAll.filter((a) => !a.committed);
   const ppcTarget = (S.settings && S.settings.ppcTarget) || 80;
   const complete = acts.filter((a) => a.status === "complete").length;
   const cardDefs = [
@@ -6750,10 +6761,22 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
           <h3 style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>Percent Plan Complete<PpcInfo target={ppcTarget} /></h3>
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>
             {commDue.length ? <>Of <b style={{ color: "var(--ink)" }}>{commDue.length}</b> committed activities due to date, <b style={{ color: "#0E9384" }}>{commDue.filter(made).length}</b> were completed on or before their promised finish. {committed.length > commDue.length ? <>{committed.length - commDue.length} open commitment{committed.length - commDue.length === 1 ? " is" : "s are"} not yet due and get{committed.length - commDue.length === 1 ? "s" : ""} no verdict until the promised finish passes. </> : ""}PPC is the reliability of promises kept, the core Last Planner metric.</> : committed.length ? <>All <b style={{ color: "var(--ink)" }}>{committed.length}</b> committed activities have promised finishes in the future, so no promise has come due yet. PPC fills in as promised dates pass.</> : <>No activities are committed yet, so PPC cannot be calculated. Toggle "Committed for this week" on the promises your teams make, and this fills in.</>}
+          {witFailedAll.length > 0 && <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.7 }}>
+            <b style={{ color: "var(--ink)" }}>{witFailedAll.length} witness failure{witFailedAll.length === 1 ? "" : "s"} in scope:</b>{" "}
+            {[
+              { n: qaFails.length, label: "on-time kept promise", tail: " (the quality gap)", color: "#D97706", title: "Witness failures \u00b7 on-time kept promises (the quality gap)", items: qaFails },
+              { n: wfLate.length, label: "late", tail: " (already broken promises in PPC)", color: "#C0392B", title: "Witness failures \u00b7 late, already broken promises in PPC", items: wfLate },
+              { n: wfNotDue.length, label: "not yet due", tail: "", color: "var(--accent)", title: "Witness failures \u00b7 promised finish has not passed", items: wfNotDue },
+              { n: wfUncommitted.length, label: "not committed", tail: "", color: "var(--muted)", title: "Witness failures \u00b7 never committed, outside PPC entirely", items: wfUncommitted },
+            ].filter((b) => b.n > 0).map((b, i, arr) => <span key={b.title}>
+              <span onClick={() => openDrill(b.title, b.items)} style={{ color: b.color, cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 2 }}>{b.n} {b.label}{b.n === 1 || b.label === "late" || b.label === "not yet due" || b.label === "not committed" ? "" : "s"}</span>{b.tail}{i < arr.length - 1 ? ", " : ". "}
+            </span>)}
+            Every failure feeds First-Time Pass and Invitation Outcomes regardless of bucket.
+          </div>}
           </div>
         </div>
       </div>
-      <div className="lk-rep-cards">
+      <div className="lk-rep-cards fill">
         {cards.map((c, i) => <div key={i} className="lk-rep-card clickable" onClick={() => openDrill(c.l, acts.filter(c.f))}><span className="v" style={{ color: c.c || "var(--ink)" }}>{c.v}</span><span className="l">{c.l}</span></div>)}
       </div>
       </div>
