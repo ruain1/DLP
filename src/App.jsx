@@ -242,7 +242,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-coremove{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1}
 .lk-coremove:hover{background:rgba(0,0,0,.7)}
 .lk-platbadge{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
-.lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}
+.lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}.lk-platbadge[data-super="own"]{background:#7c3aed;color:#fff;border-color:transparent}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-uacts{display:flex;align-items:center;gap:5px;justify-content:flex-end}
 .lk-mrow{display:grid;grid-template-columns:34px minmax(140px,1fr) minmax(86px,128px) 104px 50px 116px 30px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);font-size:12.5px;margin-bottom:7px}
@@ -2601,7 +2601,7 @@ export default function App({ session }) {
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
           <button className="lk-btn icon lk-notifbtn" title={notifTotal ? `${notifTotal} item${notifTotal === 1 ? "" : "s"} need your attention` : "Nothing needs your attention"} onClick={() => setNotifOpen(true)}><Icon n="mail" s={16} />{notifTotal > 0 && <span className="lk-notifbadge">{notifTotal > 99 ? "99+" : notifTotal}</span>}</button>
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
-          {cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
+          {isOwner ? <span className="lk-pill admin" style={{ background: "#7c3aed", color: "#fff" }}>Owner</span> : cu.role === "admin" ? <span className="lk-pill admin">Admin</span> : (coLogo(cu.companyId) ? <img className="lk-colead" src={coLogo(cu.companyId)} alt={coName(cu.companyId)} title={coName(cu.companyId)} /> : <span className="lk-pill member">{coName(cu.companyId)}</span>)}
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
       </div>
@@ -3806,7 +3806,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   const [mcount, setMcount] = useState({});
   useEffect(() => { let live = true; loadMembershipCounts().then((m) => { if (live) setMcount(m); }).catch(() => {}); return () => { live = false; }; }, [S.projectId, members]);
   const meSuper = (S.users.find((u) => u.id === S.currentUserId) || {}).platformRole === "super" || !!S.isSuper;
-  const setPlat = async (id, role, name) => { setUserMsg("Updating platform role…"); try { await setPlatformRole(id, role); setUserMsg((name || "User") + (role === "super" ? " is now a Super" : " is now a User") + ". Refresh to see it reflected everywhere."); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
+  const setPlat = async (id, role, name) => {
+    const tgt = (S.users || []).find((x) => x.id === id);
+    if (tgt && tgt.platformRole === "owner") { setUserMsg("The owner role cannot be changed from the app."); return; } setUserMsg("Updating platform role…"); try { await setPlatformRole(id, role); setUserMsg((name || "User") + (role === "super" ? " is now a Super" : " is now a User") + ". Refresh to see it reflected everywhere."); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   useEffect(() => { let live = true; if (S.projectId) loadProjectMembers(S.projectId).then((r) => { if (live) setMembers(r); }).catch((e) => { if (live) setMemMsg("Load failed: " + (e.message || e)); }); return () => { live = false; }; }, [S.projectId]);
   const reloadMems = () => loadProjectMembers(S.projectId).then(setMembers).catch((e) => setMemMsg("Load failed: " + (e.message || e)));
   const addMem = async (userId, name) => { setMemMsg("Adding " + (name || "") + "…"); try { await addMember(S.projectId, userId, memRole, S.currentUserId); setMemMsg((name || "User") + " added as " + memRole); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
@@ -4002,19 +4004,19 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
               const q = uq.trim().toLowerCase();
               const filtered = S.users.filter((u) => {
                 const pr = u.platformRole || "user";
-                if (uRole !== "all" && pr !== uRole) return false;
+                if (uRole !== "all" && !(pr === uRole || (uRole === "super" && pr === "owner"))) return false;
                 if (uCo === "none") { if (u.companyId) return false; } else if (uCo !== "all" && u.companyId !== uCo) return false;
                 if (uInvite !== "all") { const accepted = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (uInvite === "accepted" && !accepted) return false; if (uInvite === "pending" && accepted) return false; }
                 if (q && !(`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q))) return false;
                 return true;
               });
               const groups = {};
-              filtered.forEach((u) => { const key = u.platformRole === "super" ? "\u0000Platform team" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
+              filtered.forEach((u) => { const key = (u.platformRole === "super" || u.platformRole === "owner") ? "\u0000Platform team" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
               const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; const pr = u.platformRole || "user"; const n = mcount[u.id] || 0; const co = cn(u.companyId); return <div key={u.id} className="lk-urow">
                 <span className="lk-uava" style={{ background: avBg(u.id) }}>{avInit(u.name)}</span>
                 <div className="lk-uname"><b>{u.name || "(unnamed)"}</b>{u.id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
                 <span className="lk-cochip" title={co || "No company"}>{co || "No company"}</span>
-                <span className="lk-platbadge" data-super={pr === "super" ? "1" : "0"} title="Platform role">{pr === "super" ? "Super" : "User"}</span>
+                <span className="lk-platbadge" data-super={pr === "owner" ? "own" : pr === "super" ? "1" : "0"} title="Platform role">{pr === "owner" ? "Owner" : pr === "super" ? "Super" : "User"}</span>
                 <span className="lk-mpc" title={"On " + n + " project" + (n === 1 ? "" : "s")} style={{ color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
                 <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Last seen " + new Date(seen).toLocaleString("en-GB") : "Onboarding link not yet used"}>{seen ? "Active" : "Invite pending"}</span>
                 <button className="lk-mbtn" onClick={() => setManageId(u.id)}>Manage</button>
@@ -4027,7 +4029,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
                   <span className="chev" style={{ transform: open ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
                   {k === "\u0000Platform team" ? "Platform team" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span>
                 </button>
-                {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{groups[k].map(renderRow)}</div>}
+                {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{(k === "\u0000Platform team" ? groups[k].slice().sort((a, b) => (a.platformRole === "owner" ? -1 : b.platformRole === "owner" ? 1 : 0)) : groups[k]).map(renderRow)}</div>}
               </div>; })}</>;
             })()}
             <div className="lk-f"><label>Add A Person To Global Contacts (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
@@ -4090,7 +4092,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
                 <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className="lk-uava" style={{ background: avBg(u.id), width: 30, height: 30, fontSize: 11 }}>{avInit(u.name)}</span>{u.name || "Manage person"}{isSelf ? <span className="lk-you">you</span> : null}</h3><button className="lk-btn icon" onClick={() => setManageId(null)}><Icon n="x" /></button></div>
                 <div className="bd">
                   <div className="lk-f"><label>Display Name</label><input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} /></div>
-                  <div className="lk-f"><label>Platform Role</label>{meSuper
+                  <div className="lk-f"><label>Platform Role</label>{pr === "owner"
+                    ? <div className="lk-locked"><span className="lkv" style={{ color: "#9B86FF", fontWeight: 700 }}>Owner</span><span className="lkn">The owner role is fixed here; it can only be moved in the database</span></div>
+                    : meSuper
                     ? <select className="lk-select" value={pr} onChange={(e) => setPlat(u.id, e.target.value, u.name)}><option value="user">User</option><option value="super">Super</option></select>
                     : <div className="lk-locked"><span className="lkv">{pr === "super" ? "Super" : "User"}</span><span className="lkn">Only a super can change this</span></div>}
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>A <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div></div>
