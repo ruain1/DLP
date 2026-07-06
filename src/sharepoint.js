@@ -109,9 +109,15 @@ export function shareId(url) {
 // is a single call returning in seconds; no workbook session is created.
 export async function readSharePointRegister(fileUrl, sheetName) {
   const sid = shareId(fileUrl);
-  const item = await graph("/shares/" + sid + "/driveItem?$select=name,lastModifiedDateTime,webUrl");
+  // Two-step by necessity: the Excel workload rejects the /shares path for work
+  // accounts (400, "no addressUrl for Microsoft.Excel"). The shares call resolves
+  // the URL to a concrete driveId + itemId; the workbook read is then addressed
+  // through /drives, the only path the workbook API documents and supports.
+  const item = await graph("/shares/" + sid + "/driveItem?$select=id,name,lastModifiedDateTime,parentReference");
+  const driveId = item && item.parentReference && item.parentReference.driveId;
+  if (!driveId || !item.id) throw new Error("The share resolved but returned no drive identity. Check the file URL in Sync Settings points at the workbook itself.");
   const sheet = encodeURIComponent(String(sheetName || "Asset Cx Register").replace(/'/g, "''"));
-  const rng = await graph("/shares/" + sid + "/driveItem/workbook/worksheets('" + sheet + "')/usedRange?$select=values");
+  const rng = await graph("/drives/" + driveId + "/items/" + item.id + "/workbook/worksheets('" + sheet + "')/usedRange?$select=values");
   return {
     fileName: item && item.name ? item.name : "",
     lastModified: item && item.lastModifiedDateTime ? item.lastModifiedDateTime : "",
