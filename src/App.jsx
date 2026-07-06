@@ -5625,20 +5625,33 @@ function PpcInfo({ target, small }) {
   </>;
 }
 function Gauge({ value, size = 150, label = "PPC", onClick, target }) {
-  const r = size / 2 - 14, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
-  const frac = value == null ? 0 : Math.max(0, Math.min(1, value / 100));
-  // REV121: colour keys off the project target when given (green at or above, amber within 15
-  // below, red beyond); the old hardcoded 80/50 bands remain the fallback for target-less callers.
+  // REV124: semicircular gauge replacing the full ring. A half-circle sweep with a
+  // fixed left-to-right scale reads as an instrument against a target, where the
+  // ring read as a pie. Width stays the size prop; height is 0.68 of it.
+  const H = Math.round(size * 0.68);
+  const r = size / 2 - 16, cx = size / 2, cy = H - 20;
+  const v = value == null ? null : Math.max(0, Math.min(100, value));
+  // REV121 colour rule unchanged: target-relative when given (green at or above,
+  // amber within 15 below, red beyond); hardcoded 80/50 fallback for target-less callers.
   const tg = target == null ? null : Math.max(1, Math.min(100, target));
-  const col = value == null ? "var(--muted)" : (tg != null ? (value >= tg ? "#0E9384" : value >= tg - 15 ? "#D97706" : "#C0392B") : (value >= 80 ? "#0E9384" : value >= 50 ? "#D97706" : "#C0392B"));
-  const ta = tg == null ? 0 : (tg / 100) * 2 * Math.PI - Math.PI / 2;
-  return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
-    <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--hover)" strokeWidth="14" />
-    <circle cx={cx} cy={cy} r={r} fill="none" stroke={col} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${C * frac} ${C}`} transform={`rotate(-90 ${cx} ${cy})`} />
-    {tg != null && <line x1={cx + (r - 11) * Math.cos(ta)} y1={cy + (r - 11) * Math.sin(ta)} x2={cx + (r + 11) * Math.cos(ta)} y2={cy + (r + 11) * Math.sin(ta)} stroke="#C0392B" strokeWidth="3" strokeLinecap="round"><title>{"Target " + tg + "%"}</title></line>}
-    <text x={cx} y={cy + 4} textAnchor="middle" fontSize={size * 0.27} fontWeight="700" fill="var(--ink)" fontFamily="inherit">{value == null ? "\u2014" : value + "%"}</text>
-    <text x={cx} y={cy + size * 0.19} textAnchor="middle" fontSize="11" fill="var(--muted)" fontFamily="inherit" style={{ letterSpacing: "0.12em" }}>{label}</text>
-    {tg != null && <text x={cx} y={cy + size * 0.19 + 13} textAnchor="middle" fontSize="9" fontWeight="800" fill="#C0392B" fontFamily="inherit" style={{ letterSpacing: "0.1em" }}>{"TARGET " + tg + "%"}</text>}
+  const col = v == null ? "var(--muted)" : (tg != null ? (v >= tg ? "#0E9384" : v >= tg - 15 ? "#D97706" : "#C0392B") : (v >= 80 ? "#0E9384" : v >= 50 ? "#D97706" : "#C0392B"));
+  // Angle 180deg (left) to 0deg (right); sweep never exceeds 180 so large-arc is always 0.
+  const px = (p) => cx + r * Math.cos(Math.PI * (1 - p / 100));
+  const py = (p) => cy - r * Math.sin(Math.PI * (1 - p / 100));
+  const track = `M ${px(0)} ${cy} A ${r} ${r} 0 0 1 ${px(100)} ${cy}`;
+  const arc = v == null || v <= 0 ? "" : `M ${px(0)} ${cy} A ${r} ${r} 0 0 1 ${px(v).toFixed(2)} ${py(v).toFixed(2)}`;
+  const ta = tg == null ? 0 : Math.PI * (1 - tg / 100);
+  // Tick label sits outside the arc; clamp inside the viewBox for targets near the shoulders.
+  const tlx = tg == null ? 0 : Math.max(8, Math.min(size - 8, cx + (r + 22) * Math.cos(ta)));
+  const tly = tg == null ? 0 : Math.max(9, cy - (r + 22) * Math.sin(ta) + 3);
+  return <svg width={size} height={H} viewBox={`0 0 ${size} ${H}`} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
+    <path d={track} fill="none" stroke="var(--hover)" strokeWidth="14" strokeLinecap="round" />
+    {arc && <path d={arc} fill="none" stroke={col} strokeWidth="14" strokeLinecap="round" />}
+    {tg != null && <line x1={cx + (r - 11) * Math.cos(ta)} y1={cy - (r - 11) * Math.sin(ta)} x2={cx + (r + 11) * Math.cos(ta)} y2={cy - (r + 11) * Math.sin(ta)} stroke="#C0392B" strokeWidth="3" strokeLinecap="round"><title>{"Target " + tg + "%"}</title></line>}
+    {tg != null && <text x={tlx} y={tly} textAnchor="middle" fontSize="9" fontWeight="800" fill="#C0392B" fontFamily="inherit">{tg}</text>}
+    <text x={cx} y={cy - 16} textAnchor="middle" fontSize={size * 0.18} fontWeight="700" fill="var(--ink)" fontFamily="inherit">{v == null ? "\u2014" : v + "%"}</text>
+    <text x={cx} y={cy + 1} textAnchor="middle" fontSize="10" fill="var(--muted)" fontFamily="inherit" style={{ letterSpacing: "0.12em" }}>{label}</text>
+    {tg != null && <text x={cx} y={cy + 14} textAnchor="middle" fontSize="9" fontWeight="800" fill="#C0392B" fontFamily="inherit" style={{ letterSpacing: "0.08em" }}>{"TARGET " + tg + "%"}</text>}
   </svg>;
 }
 function Donut({ data, size = 150, onSlice }) {
@@ -6751,7 +6764,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
-        <Gauge value={ppc} target={ppcTarget} onClick={() => openDrill("PPC \u00b7 committed due to date", commDue)} />
+        <Gauge value={ppc} size={190} target={ppcTarget} onClick={() => openDrill("PPC \u00b7 committed due to date", commDue)} />
         {qaPpc != null && qaFails.length > 0 && <div style={{ borderLeft: "1px solid var(--line)", paddingLeft: 20, minWidth: 150, alignSelf: "center" }}>
           <div style={{ fontSize: 24, fontWeight: 800, color: "#D97706", cursor: "pointer" }} onClick={() => openDrill("Quality-Adjusted PPC \u00b7 on-time witness failures", qaFails)}>{qaPpc}%</div>
           <div style={{ fontSize: 10.5, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 800, marginTop: 2 }}>Quality-Adjusted PPC</div>
