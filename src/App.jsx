@@ -5546,6 +5546,11 @@ function LatestOnline({ users, ustat, pres }) {
     </div>);
 }
 
+// REV127: cache-bust token for the help iframe. BUMP THIS STRING WHENEVER public/help.html
+// CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
+// stale-iframe issue). It is deliberately independent of the in-app CHANGELOG, which lags and
+// would not change on a help-only revision.
+const HELP_VERSION = "rev127";
 function HelpPage({ dark, admin, brandLogo, proj }) {
   const ADMIN_ONLY = new Set(["weekly", "r_admin", "r_delay", "excuse"]);
   const HOWTO_SIM = new Set(["board", "views", "analytics", "complete", "witness"]);
@@ -5564,7 +5569,7 @@ function HelpPage({ dark, admin, brandLogo, proj }) {
   ];
   const [hp, setHp] = useState("r_overview");
   const frameRef = useRef(null);
-  const srcRef = useRef("help.html?embed=1" + (dark ? "&theme=dark" : "") + "&page=r_overview");
+  const srcRef = useRef("help.html?embed=1&v=" + HELP_VERSION + (dark ? "&theme=dark" : "") + "&page=r_overview");
   const post = (msg) => { try { const w = frameRef.current && frameRef.current.contentWindow; if (w) w.postMessage(msg, "*"); } catch (e) { } };
   useEffect(() => { post({ src: "dlp-help", type: "help-nav", page: hp }); }, [hp]);
   useEffect(() => { post({ src: "dlp-help", type: "help-theme", dark: !!dark }); }, [dark]);
