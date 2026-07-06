@@ -4,7 +4,7 @@
 // One shared parser serves both entrances, mapping columns by HEADER NAME, never
 // by position: between W25 and W26 the register dropped SFAT and W3 and renamed
 // FAT/DOF, QC and CYT, which would have silently corrupted a positional parser.
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from "react";
 import { loadAssetStatus, saveAssetRegister, saveStepReference, saveAssetStatusConfig, loadAssetOverrides, saveAssetOverride, deleteAssetOverride, computeSyncConflicts } from "./data";
 
 /* ---------- constants ---------- */
@@ -193,8 +193,11 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
   const lvls = useMemo(() => [...new Set(enriched.map((a) => a.level).filter(Boolean))].sort(), [enriched]);
   const types = useMemo(() => [...new Set(enriched.map((a) => a.type).filter(Boolean))].sort(), [enriched]);
 
+  // REV137: defer the search-driven recompute. The input keeps showing q instantly; the heavy
+  // matrix filter runs against dq at lower priority, so typing no longer blocks on the re-render.
+  const dq = useDeferredValue(q);
   const baseFiltered = useMemo(() => {
-    const ql = q.toLowerCase();
+    const ql = dq.toLowerCase();
     return enriched.filter((a) => {
       if (ql && !(a.tag.toLowerCase().includes(ql) || a.name.toLowerCase().includes(ql) || a.type.toLowerCase().includes(ql) || a.hall.toLowerCase().includes(ql))) return false;
       if (fMe && a.discipline !== fMe) return false;
@@ -207,7 +210,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
       if (fStatus === "ns" && a.started) return false;
       return true;
     });
-  }, [enriched, q, fMe, fHall, fLvl, fType, fStatus, hideDone]);
+  }, [enriched, dq, fMe, fHall, fLvl, fType, fStatus, hideDone]);
 
   const list = useMemo(() => {
     let l = baseFiltered;
@@ -336,11 +339,20 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
     const when = o.set_at ? new Date(o.set_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
     return "Manual override" + (who ? " by " + who : "") + (when ? ", " + when : "");
   };
+  // REV137: apply the override to local state immediately, so an edit reflects without the
+  // full loadAssetStatus refetch and re-enrich that made each edit cost a network round trip.
+  const applyLocalOverride = (tags, stepKey, value) => {
+    const at = new Set(tags);
+    const stamp = { value, set_by: cu && cu.id, set_at: new Date().toISOString() };
+    setAssets((prev) => prev.map((x) => at.has(x.tag)
+      ? { ...x, steps: { ...(x.steps || {}), [stepKey]: value }, ovr: { ...(x.ovr || {}), [stepKey]: stamp } }
+      : x));
+  };
   const writeCell = async (a, stepKey, value) => {
+    applyLocalOverride([a.tag], stepKey, value);   // optimistic
     const msg = await saveAssetOverride(projectId, a.tag, stepKey, value);
-    if (msg) { setErr("Could not save: " + msg); return; }
-    await reload();
-    if (onAssetChange) onAssetChange();   // REV135: refresh the energisation badge in App immediately
+    if (msg) { setErr("Could not save: " + msg); await reload(); return; }   // resync from DB on failure
+    if (onAssetChange) onAssetChange();   // REV135: refresh the energisation badge in App
   };
   const onCellClick = (e, a, stepKey) => {
     e.stopPropagation();
@@ -354,8 +366,11 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
     if (!tags.length || !stepKey) return;
     if (!window.confirm("Set " + stepKey + " to " + (value === 2 ? "Complete" : "Not started") + " for " + tags.length + " asset" + (tags.length === 1 ? "" : "s") + "? This is a manual override. It raises notifications but sends no email.")) return;
     setBusy(true);
-    for (const t of tags) { const m = await saveAssetOverride(projectId, t, stepKey, value); if (m) { setErr("Bulk save failed: " + m); break; } }
-    setBusy(false); clearSel(); await reload();
+    applyLocalOverride(tags, stepKey, value);   // optimistic for the whole selection
+    let failed = false;
+    for (const t of tags) { const m = await saveAssetOverride(projectId, t, stepKey, value); if (m) { setErr("Bulk save failed: " + m); failed = true; break; } }
+    setBusy(false); clearSel();
+    if (failed) await reload();   // resync from DB on failure
     if (onAssetChange) onAssetChange();
   };
   const applyConflictDecisions = async (dec) => {
