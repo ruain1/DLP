@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV133",
+    "date": "2026-07-06",
+    "items": [
+      "Asset Status Edit Mode. Admins get an Edit Mode toggle that makes the status matrix editable: click any cell to set it, or tick assets and bulk set them, for example bulk Yellow Tag. Every manual change is stored as an override, held separately from the register, so it shows a small marker with a who and when tooltip and, most importantly, survives the next SharePoint sync instead of being wiped by it.",
+      "The Velox SAP team get a tightly scoped lane. On a Yellow Tagged asset, and only there, they can mark EE complete; they have no broad Edit Mode and cannot touch any other cell. The database enforces this through row level security, so the limit holds even if the interface is bypassed.",
+      "Sync now asks before it overwrites your work. When an import would change a cell you set by hand, the sync summary lists exactly those clashes and lets you keep yours or take the import, per row or in one click for all. Non-conflicting changes still apply automatically as before, so a normal sync is unchanged.",
+      "Shipped with a jsdom render harness that mounts the matrix in Edit Mode and asserts it renders, the safeguard that was missing when an earlier edit mode collapsed the grid in production."
+    ]
+  },
+  {
     "rev": "REV132",
     "date": "2026-07-06",
     "items": [
