@@ -107,7 +107,7 @@ function enrichAssets(assets, stepDefs) {
 }
 
 /* ---------- component ---------- */
-export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEditAsset = false, canEditEE = false, usersById = {}, onAssetChange }) {
+export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEditAsset = false, canEditEE = false, usersById = {}, onAssetChange, focusTag, onFocusConsumed }) {
   // REV133: edit mode. canEditAsset is the broad Edit Mode (admin baseline); canEditEE
   // is the narrow Velox lane (edits EE only, and only on a Yellow Tagged asset, with no
   // Edit Mode toggle). RLS enforces the same in the database; this only gates the UI.
@@ -178,6 +178,16 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
   const bands = useMemo(() => STAGE_ORDER.map((st) => ({ stage: st, name: STAGE_NAME[st], color: TAGC[st], steps: regSteps.filter((s) => s.stage === st) })).filter((b) => b.steps.length), [regSteps]);
   const tagStepByStage = useMemo(() => { const o = {}; regSteps.forEach((s) => { if (s.is_tag) o[s.stage] = s.step_key; }); return o; }, [regSteps]);
   const enriched = useMemo(() => enrichAssets(assets, regSteps), [assets, regSteps]);
+
+  // REV136: deeplink from the RFFE email (Open This Asset In DLP). Once the register has
+  // loaded, open the overview drawer for the linked tag, then tell App to clear it so
+  // closing the drawer does not reopen it.
+  useEffect(() => {
+    if (!focusTag || !enriched.length) return;
+    const a = enriched.find((x) => x.tag === focusTag);
+    if (a) setDrawer(a);
+    if (onFocusConsumed) onFocusConsumed();
+  }, [focusTag, enriched.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const halls = useMemo(() => [...new Set(enriched.map((a) => a.hall))].sort(), [enriched]);
   const lvls = useMemo(() => [...new Set(enriched.map((a) => a.level).filter(Boolean))].sort(), [enriched]);

@@ -52,9 +52,10 @@ export default function RffeCompose({ events, projectId, olAcct, organiser, onCl
 
   const assets = list.map((e) => ({ name: e.asset_name || e.asset_tag, tag: e.asset_tag }));
   const multi = assets.length > 1;
-  const subject = multi ? "FIN04 - RFFE - " + assets[0].name + " + " + (assets.length - 1) + " more" : "FIN04 - RFFE " + assets[0].name;
+  const subject = multi ? "FIN04 - RFFE - " + assets[0].tag + " + " + (assets.length - 1) + " more" : "FIN04 - RFFE " + assets[0].tag;
   const origin = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
-  const appUrl = origin + "/?p=" + encodeURIComponent(projectId || "") + (multi ? "" : "&asset=" + encodeURIComponent(assets[0].tag));
+  const base = origin + "/?p=" + encodeURIComponent(projectId || "");
+  const appUrl = multi ? base + "&page=assets" : base + "&page=assets&asset=" + encodeURIComponent(assets[0].tag);
   const [html, setHtml] = useState("");
   useEffect(() => {
     let live = true;
@@ -64,7 +65,7 @@ export default function RffeCompose({ events, projectId, olAcct, organiser, onCl
     return () => { live = false; };
   }, [events, projectId, organiser]);
   const to = includeGroup ? RFFE_TO.concat(RFFE_GROUP) : RFFE_TO.slice();
-  const pdfName = "FIN04 RFFE - " + (multi ? assets.length + " assets" : assets[0].name) + ".pdf";
+  const pdfName = multi ? "FIN04 RFFE - " + assets.length + " assets.pdf" : "RFFE " + assets[0].tag + ".pdf";
 
   const download = async () => {
     try { await downloadRffePdf(assets, pdfName); }

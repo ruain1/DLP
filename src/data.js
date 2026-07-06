@@ -897,3 +897,19 @@ export async function loadAssetEventsNamed(projectId) {
   const nm = {}; (data || []).forEach((x) => { nm[x.tag] = x.name; });
   return { events: (r.events || []).map((e) => ({ ...e, asset_name: nm[e.asset_tag] || e.asset_tag })), error: "" };
 }
+
+// REV136: energisation confirmation claim. When EE is marked complete the REV132
+// trigger flips the event to 'energised'. claimEnergisedConfirmation sets confirmed_at
+// only if it is still null, so exactly one tab wins the right to send the confirmation
+// email. releaseEnergisedConfirmation rolls the claim back if the send fails.
+export async function claimEnergisedConfirmation(eventId) {
+  const { data, error } = await supabase.from("asset_event")
+    .update({ confirmed_at: new Date().toISOString() })
+    .eq("id", eventId).eq("state", "energised").is("confirmed_at", null)
+    .select("id");
+  if (error) return false;
+  return !!(data && data.length);
+}
+export async function releaseEnergisedConfirmation(eventId) {
+  await supabase.from("asset_event").update({ confirmed_at: null }).eq("id", eventId);
+}

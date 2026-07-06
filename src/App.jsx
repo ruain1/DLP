@@ -8,6 +8,7 @@ import CxProgressPage from "./CxProgress.jsx";
 import AssetStatusPage from "./AssetStatus.jsx";
 import RffeCompose from "./RffeCompose.jsx";
 import { loadAssetEventsNamed, setAssetEventState } from "./data";
+import { trySendEnergisedConfirmations } from "./energisedConfirm";
 import { supabase } from "./supabaseClient";
 
 // Captured synchronously at module evaluation: enterProject's history.replaceState("?p=...")
@@ -18,6 +19,11 @@ const MSAL_RETURN_HASH = (typeof window !== "undefined" && /[#&](code|error|erro
 // evaluation for the same reason as the hash above: enterProject rewrites the URL to ?p=<id>
 // during boot, which would erase the act param before boot could read it. Consumed once.
 let DEEPLINK_ACT = (typeof window !== "undefined") ? (() => { try { return new URLSearchParams(window.location.search).get("act") || ""; } catch (e) { return ""; } })() : "";
+// REV136: same capture-at-eval for the asset overview deeplink used by the RFFE email
+// (Open This Asset In DLP). page routes to the Asset Status scene; asset is the tag whose
+// overview drawer opens once the register has loaded. Both consumed once in boot.
+let DEEPLINK_ASSET = (typeof window !== "undefined") ? (() => { try { return new URLSearchParams(window.location.search).get("asset") || ""; } catch (e) { return ""; } })() : "";
+let DEEPLINK_PAGE = (typeof window !== "undefined") ? (() => { try { return new URLSearchParams(window.location.search).get("page") || ""; } catch (e) { return ""; } })() : "";
 const KEY = "fin04_app_v3";
 const DAYMS = 86400000;
 const DEFAULT_LEVELS = {
@@ -1775,6 +1781,7 @@ export default function App({ session }) {
   const [isSuper, setIsSuper] = useState(false);
   const [selProj, setSelProj] = useState(null);   // selected project id; null = portal
   const [pendingFocus, setPendingFocus] = useState(null);   // activity id to open once the board loads
+  const [pendingAsset, setPendingAsset] = useState(null);   // REV136: asset tag to open in Asset Status once its register loads
   const [booting, setBooting] = useState(true);
   const [swOpen, setSwOpen] = useState(false);
   const [userName, setUserName] = useState("");
@@ -1810,8 +1817,15 @@ export default function App({ session }) {
       if (urlP && list.find((x) => x.id === urlP)) target = urlP;
       else if (!sup && list.length === 1) target = list[0].id;
       const fa = DEEPLINK_ACT; DEEPLINK_ACT = "";
-      if (target) await enterProject(target, list, fa || undefined);
-      else setSelProj(null);
+      const fasset = DEEPLINK_ASSET; DEEPLINK_ASSET = "";
+      let fpage = DEEPLINK_PAGE; DEEPLINK_PAGE = "";
+      const PAGES = ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets"];
+      if (!PAGES.includes(fpage)) fpage = "";
+      if (target) {
+        const ip = fpage || (fasset ? "assets" : undefined);
+        await enterProject(target, list, fa || undefined, ip);
+        if (fasset) setPendingAsset(fasset);
+      } else setSelProj(null);
     } catch (e) { console.error("Boot failed:", e); }
     setBooting(false);
   };
@@ -1949,7 +1963,15 @@ export default function App({ session }) {
     // opening the drawer. Same-tab edits also fire an explicit refresh via onAssetChange.
     let live = true;
     if (!selProj || !cu || cu.role !== "admin") { setAssetEvents([]); return; }
-    const load = () => loadAssetEventsNamed(selProj).then((r) => { if (live && !r.error) setAssetEvents(r.events || []); }).catch(() => {});
+    const load = async () => {
+      const r = await loadAssetEventsNamed(selProj);
+      if (!live || r.error) return;
+      setAssetEvents(r.events || []);
+      // REV136: attempt confirmations off the same poll. No-op unless this is the
+      // designated sender's tab and there are energised, unconfirmed events.
+      const sent = await trySendEnergisedConfirmations(selProj, r.events || [], (cu && cu.name) || "");
+      if (sent && live) { const r2 = await loadAssetEventsNamed(selProj); if (live && !r2.error) setAssetEvents(r2.events || []); }
+    };
     load();
     const iv = setInterval(load, 60000);
     const onWake = () => { if (document.visibilityState === "visible") load(); };
@@ -2833,7 +2855,7 @@ export default function App({ session }) {
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
-      {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} /></div>}
+      {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>

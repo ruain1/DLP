@@ -435,7 +435,7 @@ export function buildRffeEmailHtml(p) {
   if (!a.length) return "";
   const multi = a.length > 1;
   const P = (html, padTop) => `<tr><td style="padding:${padTop || "2px"} 20px 0 20px;font-size:13.5px;line-height:1.6;color:${TPL.ink};${FSTACK}">${html}</td></tr>`;
-  const bAsset = (x) => `<b style="color:${TPL.ink};">${eH(x.name)}</b> <span style="color:${TPL.mut};font-size:12px;">(${eH(x.tag)})</span>`;
+  const bAsset = (x) => `<b style="color:${TPL.ink};">${eH(x.tag)}</b> <span style="color:${TPL.mut};font-size:12px;">(${eH(x.name)})</span>`;
   let assetBlock;
   if (multi) {
     const rows = a.map((x) => `<tr><td width="14" style="padding:3px 8px 3px 0;font-size:12px;color:${TPL.amberEdge};vertical-align:top;line-height:1.6;">&#9679;</td><td style="padding:3px 0;font-size:13px;color:${TPL.ink};line-height:1.6;${FSTACK}">${bAsset(x)}</td></tr>`).join("");
@@ -443,7 +443,7 @@ export function buildRffeEmailHtml(p) {
   } else {
     assetBlock = P(`See attached RFFE for ${bAsset(a[0])}.`);
   }
-  const eeTarget = multi ? "each asset listed above" : `<b>${eH(a[0].name)}</b>`;
+  const eeTarget = multi ? "each asset listed above" : `<b>${eH(a[0].tag)}</b>`;
   const linkRow = p.appUrl
     ? `<tr><td style="padding:14px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;"><a href="${eH(p.appUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">Open ${multi ? "These Assets" : "This Asset"} In DLP</a></td></tr></table></td></tr>`
     : "";
@@ -458,5 +458,39 @@ export function buildRffeEmailHtml(p) {
     + P("Kind regards,<br>CSN Cx Team", "15px")
     + `<tr><td style="height:10px;line-height:10px;font-size:0;">&nbsp;</td></tr>`
     + `<tr><td style="padding:10px 18px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Issued from DLP by ${eH(p.organiser || "CSN Cx Team")} &#183; CSN Commissioning &#183; RFFE attached as PDF</td></tr>`
+    + `</table>`;
+}
+
+// REV136: energisation confirmation email. Sent automatically from DLP to the admins
+// when the EE column is marked complete (typically by Velox SAP, who cannot send email
+// themselves). House style, green to read as "go", asset code primary with the name in
+// parentheses to match the RFFE and the PDF, and a deeplink to the asset overview.
+export function buildEnergisedEmailHtml(p) {
+  const a = p.assets || [];
+  if (!a.length) return "";
+  const multi = a.length > 1;
+  const GRN = "#15803d", GRNBG = "#E9F7EF", GRNEDGE = "#18b69b";
+  const P = (html, padTop) => `<tr><td style="padding:${padTop || "2px"} 20px 0 20px;font-size:13.5px;line-height:1.6;color:${TPL.ink};${FSTACK}">${html}</td></tr>`;
+  const bAsset = (x) => `<b style="color:${TPL.ink};">${eH(x.tag)}</b> <span style="color:${TPL.mut};font-size:12px;">(${eH(x.name)})</span>`;
+  let assetBlock;
+  if (multi) {
+    const rows = a.map((x) => `<tr><td width="14" style="padding:3px 8px 3px 0;font-size:12px;color:${GRNEDGE};vertical-align:top;line-height:1.6;">&#9679;</td><td style="padding:3px 0;font-size:13px;color:${TPL.ink};line-height:1.6;${FSTACK}">${bAsset(x)}</td></tr>`).join("");
+    assetBlock = P("The following assets are now marked as Equipment Energised:") + `<tr><td style="padding:9px 20px 2px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${rows}</table></td></tr>`;
+  } else {
+    assetBlock = P(`${bAsset(a[0])} is now marked as <b>Equipment Energised</b>.`);
+  }
+  const linkRow = p.appUrl
+    ? `<tr><td style="padding:14px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${GRN};padding:9px 22px;"><a href="${eH(p.appUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">Open ${multi ? "These Assets" : "This Asset"} In DLP</a></td></tr></table></td></tr>`
+    : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
+    + `<tr><td style="padding:0;background-color:${GRN};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="padding:12px 18px;font-size:15px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 Equipment Energised</td><td align="right" style="padding:12px 18px;font-size:11px;color:#d6f0e0;${FSTACK}">Loop closed</td></tr></table></td></tr>`
+    + P("Hi all,", "14px")
+    + assetBlock
+    + P(`${multi ? "These assets have" : "This asset has"} been energised by the Velox SAP team. L3 startup can now proceed.`, "11px")
+    + linkRow
+    + `<tr><td style="padding:15px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${GRNEDGE};background-color:${GRNBG};padding:9px 12px;font-size:12px;color:${GRN};${FSTACK}">Automated confirmation from DLP, sent when the EE column was marked complete. No action needed.</td></tr></table></td></tr>`
+    + P("Kind regards,<br>DLP", "15px")
+    + `<tr><td style="height:10px;line-height:10px;font-size:0;">&nbsp;</td></tr>`
+    + `<tr><td style="padding:10px 18px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Automated energisation confirmation &#183; CSN Commissioning &#183; sent from DLP</td></tr>`
     + `</table>`;
 }
