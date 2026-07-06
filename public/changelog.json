@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV125",
+    "date": "2026-07-06",
+    "items": [
+      "The Analytics page is now centred on the screen and capped at the same 1500px width as the Weekly Cx Progress page, so the two pages line up when you switch between them instead of Analytics hugging the left edge on a wide monitor",
+      "The Analytics filter bar (Company, Building, Cx Stage, Period and the report buttons) no longer bleeds wider than the content beneath it; its left and right edges now sit flush with the KPI cards. It stays sticky with its background and border. The Weekly Report PDF output is unchanged, since the print styles already override both rules"
+    ]
+  },
+  {
     "rev": "REV124",
     "date": "2026-07-06",
     "items": [
