@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV116",
+    "date": "2026-07-06",
+    "items": [
+      "Fix: the Asset Status sidebar button rendered with no icon because REV115 referenced an icon key that did not exist in the icon set. A package glyph (equipment asset box, feather style matching the existing set) now joins the icon map and the button points at it"
+    ]
+  },
+  {
     "rev": "REV115",
     "date": "2026-07-06",
     "items": [
