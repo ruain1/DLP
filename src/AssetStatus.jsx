@@ -107,7 +107,7 @@ function enrichAssets(assets, stepDefs) {
 }
 
 /* ---------- component ---------- */
-export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEditAsset = false, canEditEE = false, usersById = {} }) {
+export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEditAsset = false, canEditEE = false, usersById = {}, onAssetChange }) {
   // REV133: edit mode. canEditAsset is the broad Edit Mode (admin baseline); canEditEE
   // is the narrow Velox lane (edits EE only, and only on a Yellow Tagged asset, with no
   // Edit Mode toggle). RLS enforces the same in the database; this only gates the UI.
@@ -330,6 +330,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
     const msg = await saveAssetOverride(projectId, a.tag, stepKey, value);
     if (msg) { setErr("Could not save: " + msg); return; }
     await reload();
+    if (onAssetChange) onAssetChange();   // REV135: refresh the energisation badge in App immediately
   };
   const onCellClick = (e, a, stepKey) => {
     e.stopPropagation();
@@ -345,11 +346,13 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
     setBusy(true);
     for (const t of tags) { const m = await saveAssetOverride(projectId, t, stepKey, value); if (m) { setErr("Bulk save failed: " + m); break; } }
     setBusy(false); clearSel(); await reload();
+    if (onAssetChange) onAssetChange();
   };
   const applyConflictDecisions = async (dec) => {
     setBusy(true);
     for (const k of Object.keys(dec)) { if (dec[k] === "override") { const i = k.lastIndexOf("|"); await deleteAssetOverride(projectId, k.slice(0, i), k.slice(i + 1)); } }
     setBusy(false); setSummary(null); await reload();
+    if (onAssetChange) onAssetChange();
   };
 
   const drawerRows = (a) => {

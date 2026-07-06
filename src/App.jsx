@@ -1935,10 +1935,27 @@ export default function App({ session }) {
   const [rffePicks, setRffePicks] = useState(() => new Set());
   const [rffeOpen, setRffeOpen] = useState(null);   // array of events to compose, or null
   useEffect(() => {
+    // REV135: hydrate the connected Outlook account at boot, not only when the Witness
+    // Schedule opens. Everything that gates on olAcct (RFFE send, invites, the digest UI)
+    // now recognises an existing delegated session immediately. getAllAccounts is a cache
+    // read, no interaction, so this is safe to run once on mount.
+    let live = true;
+    import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); if (live && acct) setOlAcct(acct.username); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  useEffect(() => {
+    // REV135: the energisation badge must climb on its own. Load on project change, then
+    // poll and refresh on focus so events raised in another tab or by a sync appear without
+    // opening the drawer. Same-tab edits also fire an explicit refresh via onAssetChange.
     let live = true;
     if (!selProj || !cu || cu.role !== "admin") { setAssetEvents([]); return; }
-    loadAssetEventsNamed(selProj).then((r) => { if (live && !r.error) setAssetEvents(r.events || []); }).catch(() => {});
-    return () => { live = false; };
+    const load = () => loadAssetEventsNamed(selProj).then((r) => { if (live && !r.error) setAssetEvents(r.events || []); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 60000);
+    const onWake = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    return () => { live = false; clearInterval(iv); document.removeEventListener("visibilitychange", onWake); window.removeEventListener("focus", onWake); };
   }, [selProj]);
 
   if (booting) return <div className="lk" style={cssVars(prefs().theme === "dark" ? "dark" : "light")}><style>{css}</style><div className="lk-empty">Loading…</div></div>;
@@ -2816,7 +2833,7 @@ export default function App({ session }) {
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
-      {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
+      {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>

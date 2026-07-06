@@ -84,6 +84,19 @@ export default function RffeCompose({ events, projectId, olAcct, organiser, onCl
     } catch (e) { setMsg({ ok: false, t: "Send failed: " + (e && e.message ? e.message : e) }); }
     setBusy(false);
   };
+  const testToMe = async () => {
+    // REV135: send the exact RFFE, PDF and all, to yourself only. No Velox, no Cc, no state
+    // change on the event. Lets you eyeball it in your real inbox before the real send.
+    if (!olAcct) { setMsg({ ok: false, t: "Connect Outlook first." }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const att = await buildRffePdf(assets, pdfName);
+      const ol = await import("./outlook");
+      await ol.sendMailMessage({ subject: "[TEST] " + subject, html, to: [olAcct], attachments: [att] });
+      setMsg({ ok: true, t: "Test copy sent to " + olAcct + ". Nothing went to Velox and no status changed." });
+    } catch (e) { setMsg({ ok: false, t: "Test failed: " + (e && e.message ? e.message : e) }); }
+    setBusy(false);
+  };
 
   return <div className="lk-modal-bg" onClick={onClose}>
     <style>{CSS}</style>
@@ -103,6 +116,7 @@ export default function RffeCompose({ events, projectId, olAcct, organiser, onCl
       <div className="rffe-foot">
         {!olAcct && <button className="lk-btn" onClick={onConnect}>Connect Outlook</button>}
         <span style={{ flex: 1 }} />
+        <button className="lk-btn" disabled={busy || !olAcct} title={!olAcct ? "Connect Outlook first" : "Send this exact RFFE to yourself only"} onClick={testToMe}>Test To Me</button>
         <button className="lk-btn" onClick={download}>Download PDF</button>
         <button className="lk-btn primary" disabled={busy || !olAcct} onClick={send}>{busy ? "Sending..." : "Send RFFE"}</button>
       </div>
