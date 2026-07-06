@@ -570,9 +570,9 @@ function CfgForm({ config, onSave, onCancel }) {
 
 /* ---------- CSS ---------- */
 const AST_CSS = `
-.ast{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#f7f8fa;--card:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--chipbg:#eef3fb;--hover:#eef3f9;--head:#2563EB;color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;min-height:100%}
+.ast{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#f7f8fa;--card:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--chipbg:#eef3fb;--hover:#eef3f9;--head:#2563EB;color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;height:100%;display:flex;flex-direction:column;overflow:hidden}
 .ast.ast-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--paper:#10151C;--card:#1A222D;--card2:#141d29;--line:#2A3543;--chipbg:#22324A;--hover:#202B38;--head:#7FB0FF}
-.ast-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--line)}
+.ast-top{flex:none;z-index:30;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--line)}
 .ast-title{font-size:18px;font-weight:800;color:var(--head)}
 .ast-title small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:2px}
 .ast-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -584,7 +584,7 @@ const AST_CSS = `
 .ast-err{display:flex;align-items:center;gap:10px;margin:10px 18px;padding:9px 13px;border:1px solid var(--red);border-radius:9px;color:var(--red);font-weight:600;background:var(--card)}
 .ast-err button{margin-left:auto;border:0;background:transparent;color:var(--red);font-size:15px;cursor:pointer}
 .ast-empty{padding:60px 20px;text-align:center;color:var(--muted)}
-.ast-kpis{display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
+.ast-kpis{flex:none;display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
 .ast-kpi{padding:12px 20px;border-right:1px solid var(--line);min-width:128px}
 .ast-kpi .v{font-size:22px;font-weight:800;line-height:1.1}
 .ast-kpi .l{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:2px}
@@ -592,7 +592,7 @@ const AST_CSS = `
 .ast-kpi.warn .v{color:var(--red)}
 .ast-kpi.click{cursor:pointer}
 .ast-kpi.click:hover,.ast-kpi.on{background:var(--hover)}
-.ast-pipe{display:flex;gap:8px;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--line);overflow-x:auto}
+.ast-pipe{flex:none;display:flex;gap:8px;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--line);overflow-x:auto}
 .ast-stage{flex:1;min-width:148px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;background:var(--paper)}
 .ast-stage:hover{background:var(--hover)}
 .ast-stage.active{box-shadow:0 0 0 2px var(--accent);background:var(--chipbg)}
@@ -603,7 +603,7 @@ const AST_CSS = `
 .ast-stage .bar{height:5px;border-radius:3px;background:var(--line);margin-top:7px;overflow:hidden}
 .ast-stage .bar i{display:block;height:100%;border-radius:3px}
 .ast-arrow{align-self:center;color:var(--muted);font-size:15px;flex:none}
-.ast-tools{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card)}
+.ast-tools{flex:none;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card)}
 .ast-f{display:flex;flex-direction:column;gap:3px}
 .ast-f.full{margin-bottom:10px}
 .ast-f.full input{width:100%}
@@ -618,11 +618,11 @@ const AST_CSS = `
 .ast-pop label{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;justify-content:flex-start}
 .ast-f .ast-pop input,.ast-pop input{width:auto;min-width:0;padding:0;margin:0;border:none;background:transparent;accent-color:var(--accent);flex:none}
 .ast-pop .cap{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:8px 0 3px}
-.ast-focus{display:flex;align-items:center;gap:12px;padding:9px 18px;background:var(--chipbg);border-bottom:1px solid var(--line)}
+.ast-focus{flex:none;display:flex;align-items:center;gap:12px;padding:9px 18px;background:var(--chipbg);border-bottom:1px solid var(--line)}
 .ast-focus .fdot{width:12px;height:12px;border-radius:50%}
 .ast-focus b{font-size:13px}
 .ast-focus .stats{color:var(--muted);font-size:12.5px}
-.ast-wrap{overflow:auto;max-height:calc(100vh - 130px)}
+.ast-wrap{flex:1;min-height:0;overflow:auto}
 .ast-mx{border-collapse:separate;border-spacing:0;min-width:100%}
 .ast-mx th,.ast-mx td{padding:0;font-size:12px}
 .ast-mx thead th{position:sticky;background:var(--paper);z-index:20}

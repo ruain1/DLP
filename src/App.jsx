@@ -317,6 +317,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 }
 .lk-page{flex:1;min-width:0;min-height:0;height:100%;display:flex;flex-direction:column;overflow:hidden}
 .lk-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+.lk-fillpage{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .lk-rep{padding:18px 22px;max-width:1400px}
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
 .lk-adminwrap .lk-db{padding:14px 0 0}
@@ -1716,7 +1717,10 @@ export default function App({ session }) {
     // response to the outlook module (the live URL may already have been rewritten by boot),
     // absorb it, reflect the account, and tidy any hash still visible.
     if (MSAL_RETURN_HASH) {
-      import("./sharepoint").then((sp) => sp.primeRedirectHash(MSAL_RETURN_HASH)).catch(() => {});
+      import("./sharepoint").then((sp) => { sp.primeRedirectHash(MSAL_RETURN_HASH); return sp.sharePointAccount(); }).catch(() => {});
+      // REV122: sharePointAccount() above constructs the SharePoint MSAL instance so the
+      // redirect return is processed AT BOOT (account stored, interaction flag cleared),
+      // not deferred until the Asset Status page happens to open in this tab.
       import("./outlook").then(async (m) => { m.primeRedirectHash(MSAL_RETURN_HASH); const acct = await m.outlookAccount(); const d = await m.authDiagnostics(); setAuthDiag(d); return acct; })
         .then((acct) => { if (acct) setOlAcct(acct.username); })
         .catch(() => {})
@@ -2758,7 +2762,7 @@ export default function App({ session }) {
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
-      {page === "assets" && <div className="lk-scroll"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} /></div>}
+      {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
@@ -3483,8 +3487,32 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
 }
 
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
+  // REV122: Connections tab state. null = checking, "" = not connected, string = account.
+  const [connOl, setConnOl] = useState(null);
+  const [connSp, setConnSp] = useState(null);
+  const [connMsg, setConnMsg] = useState("");
+  useEffect(() => {
+    if (tab !== "connections") return;
+    let live = true;
+    setConnOl(null); setConnSp(null); setConnMsg("");
+    import("./outlook").then(async (m) => { const a = await m.outlookAccount(); if (live) setConnOl(a ? (a.username || "") : ""); }).catch(() => { if (live) setConnOl(""); });
+    import("./sharepoint").then(async (sp) => {
+      // Default registration ids serve FIN04; a project with config overrides will already
+      // have initialised the instance from the Asset Status page, which this call reuses.
+      sp.initSharePoint(undefined);
+      const a = await sp.sharePointAccount(); if (live) setConnSp(a ? (a.username || "") : "");
+    }).catch(() => { if (live) setConnSp(""); });
+    return () => { live = false; };
+  }, [tab]);
+  const connGo = async (which) => {
+    setConnMsg("Redirecting to Microsoft sign-in\u2026");
+    try {
+      if (which === "ol") { const m = await import("./outlook"); await m.connectOutlook(); }
+      else { const sp = await import("./sharepoint"); sp.initSharePoint(undefined); await sp.connectSharePoint(); }
+    } catch (e) { setConnMsg("Connect failed: " + (e && e.message ? e.message : e)); }
+  };
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false);
@@ -3904,6 +3932,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   const canv = can || (() => true);
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
+    ["Connections", [["connections", "Outlook & SharePoint"]]],
     ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
     ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
@@ -4133,6 +4162,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>An <b>Admin</b> can manage this project's setup, team and activities; a <b>Member</b> works within it. At least one admin must remain.</div></div>
                   <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11, display: "flex", flexDirection: "column", gap: 7 }}>
                     <button className="lk-btn" onClick={() => { setPmManageId(null); setManageId(u.id); }}><Icon n="person" s={14} />Edit name, company or platform role</button>
+                    <button className="lk-btn" onClick={() => { setPmManageId(null); setTab("users"); sendLink(u.id, u.name); }} title="The link card appears on Global Contacts"><Icon n="mail" s={14} />Resend set-password link</button>
+                    <button className="lk-btn" onClick={() => { setPmManageId(null); setTab("users"); resetPw(u.id, u.name); }} title="The new password card appears on Global Contacts"><Icon n="cog" s={14} />Reset password</button>
                     {!isSelf && <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setPmManageId(null); askDel("Remove " + (u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(u.id, u.name)); }}><Icon n="trash" s={14} />Remove from this project</button>}
                   </div>
                 </div>
@@ -4447,6 +4478,23 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
               <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>PNG, JPG, SVG or WebP, wide transparent PNG looks best. Set one for each theme; if you set only one, it is used in both modes.</div>
             </div>
             {brandMsg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{brandMsg}</div>}
+          </>}
+          {tab === "connections" && <>
+            <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.55, marginBottom: 14 }}>Both integrations sign in with a quick full-page Microsoft redirect and return here. They are separate tenants and separate sign-ins that live side by side; connecting one never touches the other. The same buttons remain on the Witness Schedule, the report window and the Asset Status sync window.</div>
+            {[
+              { k: "ol", name: "Outlook (CS Nordics tenant)", desc: "Sends witness invites, report emails and admin digests from your signed-in account. One sign-in covers all three.", v: connOl },
+              { k: "sp", name: "SharePoint (Quantum MC tenant)", desc: "Reads the Asset Cx Register from the Cx Master for the Asset Status sync. Sign in with the account that can open the Cx Master in the browser.", v: connSp },
+            ].map((c) => <div key={c.k} style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "13px 15px", marginBottom: 11 }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontWeight: 800, fontSize: 13 }}>{c.name}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>{c.desc}</div>
+              </div>
+              {c.v == null ? <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{"Checking\u2026"}</span>
+                : c.v ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "rgba(52,211,153,.13)", color: "#0E9384" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />{c.v}</span>
+                : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "var(--hover)", color: "var(--muted)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Not connected</span>}
+              <button className={"lk-btn" + (c.v ? "" : " primary")} onClick={() => connGo(c.k)} title="Signs in via a quick full-page Microsoft redirect and returns here">{c.v ? "Reconnect" : (c.k === "ol" ? "Connect Outlook" : "Connect SharePoint")}</button>
+            </div>)}
+            {connMsg && <div style={{ fontSize: 11.5, color: connMsg.indexOf("failed") !== -1 ? "var(--red)" : "var(--muted)" }}>{connMsg}</div>}
           </>}
           {tab === "settings" && <>
             <div className="lk-f"><label>Lookahead Length</label>

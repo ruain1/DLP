@@ -63,12 +63,42 @@ export async function sharePointAccount() {
 
 export function requiredTenant() { return ids.tenantId; }
 
+// REV122: an abandoned or failed redirect sign-in (closed tab at the Microsoft
+// screen, back button, or an AADSTS error page that never redirects home) leaves
+// MSAL's interaction flag set in this tab's storage, and every later connect
+// throws interaction_in_progress. At the moment the user presses Connect there
+// is provably no interaction running in this tab (a live one would have
+// navigated away), so a stale flag is safe to purge, once, then retry.
+function purgeStuckInteraction(clientId) {
+  try {
+    const needle = "interaction.status";
+    [window.sessionStorage, window.localStorage].forEach((store) => {
+      const kill = [];
+      for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k && k.indexOf(needle) !== -1 && k.indexOf(clientId) !== -1) kill.push(k); }
+      if (!kill.length) for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k && k.indexOf("msal") !== -1 && k.indexOf(needle) !== -1) kill.push(k); }
+      kill.forEach((k) => { try { store.removeItem(k); } catch (e) {} });
+    });
+  } catch (e) {}
+}
+
+const isStuck = (e) => !!e && ((e.errorCode === "interaction_in_progress") || String(e.message || e).indexOf("interaction_in_progress") !== -1);
+
 export async function connectSharePoint() {
   const m = app(); await ready;
   // Redirect-first for the same three reasons outlook.js is (REV90): popup
   // blockers and enterprise policy, background-tab popup monitoring, and the
   // msal-browser 5.x popup-close regression.
-  await m.loginRedirect({ scopes: SCOPES, prompt: "select_account" });
+  try {
+    await m.loginRedirect({ scopes: SCOPES, prompt: "select_account" });
+  } catch (e) {
+    if (!isStuck(e)) throw e;
+    purgeStuckInteraction(ids.clientId);
+    try { await m.loginRedirect({ scopes: SCOPES, prompt: "select_account" }); }
+    catch (e2) {
+      if (isStuck(e2)) throw new Error("Sign-in state was stuck from an earlier attempt and has been cleared. Press Connect SharePoint once more.");
+      throw e2;
+    }
+  }
   return null;
 }
 

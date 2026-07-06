@@ -67,7 +67,30 @@ export async function connectOutlook() {
   // inside the popup stripped the response hash, and a reported msal-browser 5.x regression
   // where the popup redirects to the app instead of closing. The full-page redirect is immune
   // to all three; its return is absorbed by the captured-hash path (primeRedirectHash).
-  await m.loginRedirect({ scopes: SCOPES, prompt: "select_account" });
+  // REV122: same stale interaction_in_progress recovery as sharepoint.js. An
+  // abandoned redirect leaves the flag set for this tab; no genuine interaction
+  // can be running at click time, so purge once and retry.
+  try {
+    await m.loginRedirect({ scopes: SCOPES, prompt: "select_account" });
+  } catch (e) {
+    const stuck = !!e && ((e.errorCode === "interaction_in_progress") || String(e.message || e).indexOf("interaction_in_progress") !== -1);
+    if (!stuck) throw e;
+    try {
+      const needle = "interaction.status";
+      [window.sessionStorage, window.localStorage].forEach((store) => {
+        const kill = [];
+        for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k && k.indexOf(needle) !== -1 && k.indexOf(CLIENT_ID) !== -1) kill.push(k); }
+        if (!kill.length) for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k && k.indexOf("msal") !== -1 && k.indexOf(needle) !== -1) kill.push(k); }
+        kill.forEach((k) => { try { store.removeItem(k); } catch (x) {} });
+      });
+    } catch (x) {}
+    try { await m.loginRedirect({ scopes: SCOPES, prompt: "select_account" }); }
+    catch (e2) {
+      const stuck2 = !!e2 && ((e2.errorCode === "interaction_in_progress") || String(e2.message || e2).indexOf("interaction_in_progress") !== -1);
+      if (stuck2) throw new Error("Sign-in state was stuck from an earlier attempt and has been cleared. Press Connect Outlook once more.");
+      throw e2;
+    }
+  }
   return null;   // navigation is in flight; callers do nothing
 }
 
