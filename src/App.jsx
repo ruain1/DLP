@@ -315,7 +315,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-dispbtn .lbl{display:none}
 .lk-rail.open .lk-dispbtn .lbl{display:inline;font-size:13px;font-weight:600}
 .lk-dispback{position:fixed;inset:0;z-index:59}
-.lk-dispfly{position:absolute;left:calc(100% + 8px);bottom:0;width:242px;background:#232c38;border:1px solid #384556;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.45);padding:8px 8px 9px;z-index:60}
+.lk-dispfly{position:absolute;left:calc(100% + 16px);bottom:0;width:242px;background:#232c38;border:1px solid #384556;border-radius:12px;box-shadow:6px 12px 20px rgba(0,0,0,.5);padding:8px 8px 9px;z-index:60}
 .lk-rail.open .lk-dispfly{left:auto;right:8px;bottom:44px}
 .lk-dispfly h5{margin:3px 12px 8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#8b98ab;font-weight:800}
 .lk-dispopt{display:flex;align-items:center;gap:12px;width:100%;min-height:34px;text-align:left;background:transparent;border:0;border-radius:8px;padding:4px 10px;color:#dbe3ee;font-family:inherit;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
