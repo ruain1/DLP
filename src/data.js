@@ -927,17 +927,21 @@ export async function releaseEnergisedConfirmation(eventId) {
    ============================================================ */
 
 export async function loadDocsStatus(projectId) {
-  const [mx, cols, cfg, ov, ven] = await Promise.all([
+  const [mx, cols, cfg, ov, ven, vt] = await Promise.all([
     supabase.from("docs_matrix").select("*").eq("project_id", projectId).order("sort_order"),
     supabase.from("docs_column_ref").select("*").eq("project_id", projectId).order("sort_order"),
     supabase.from("docs_status_config").select("*").eq("project_id", projectId).maybeSingle(),
     supabase.from("docs_override").select("equip_type, doc_key, value, set_by, set_at, note").eq("project_id", projectId),
     supabase.from("asset_vendor").select("equip_type, vendor").eq("project_id", projectId),
+    supabase.from("docs_vendor_target").select("vendor, level, due_date, note").eq("project_id", projectId),
   ]);
-  const err = mx.error || cols.error || cfg.error || ov.error || ven.error;
+  // A missing docs_vendor_target table (migration not yet run) must not break the
+  // whole page; the Vendor Status window simply starts empty until the SQL is run.
+  const vtMissing = vt.error && /docs_vendor_target|relation .* does not exist|schema cache/i.test(vt.error.message || "");
+  const err = mx.error || cols.error || cfg.error || ov.error || ven.error || (vtMissing ? null : vt.error);
   return {
     matrix: mx.data || [], columns: cols.data || [], config: cfg.data || null,
-    overrides: ov.data || [], vendors: ven.data || [],
+    overrides: ov.data || [], vendors: ven.data || [], vendor_targets: (vt && vt.data) || [],
     error: err ? (err.message || err.error || String(err)) : "",
   };
 }
@@ -1007,6 +1011,22 @@ export async function saveDocsStatusConfig(projectId, cfg) {
     file_url: cfg.file_url || "", sheet_name: cfg.sheet_name || "Documentation status",
     updated_at: new Date().toISOString(),
   }, { onConflict: "project_id" });
+  return error ? (error.message || String(error)) : "";
+}
+
+// REV144: per vendor, per level document due date for the Vendor Status window.
+// An empty dueDate clears the target (delete the row) so a cleared date does not
+// linger as an overdue flag. Admin only at the RLS layer.
+export async function saveDocsVendorTarget(projectId, vendor, level, dueDate, note, userName) {
+  if (!dueDate) {
+    const { error } = await supabase.from("docs_vendor_target").delete()
+      .eq("project_id", projectId).eq("vendor", vendor).eq("level", level);
+    return error ? (error.message || String(error)) : "";
+  }
+  const { error } = await supabase.from("docs_vendor_target").upsert({
+    project_id: projectId, vendor, level, due_date: dueDate, note: note || "",
+    updated_at: new Date().toISOString(), updated_by: userName || "",
+  }, { onConflict: "project_id,vendor,level" });
   return error ? (error.message || String(error)) : "";
 }
 

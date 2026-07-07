@@ -11,7 +11,7 @@
 // parser still captures overall, so no data is lost). The row vendor figure
 // counts VEN columns only.
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadDocsStatus, saveDocsMatrix, saveDocsStatusConfig, saveDocsOverride, deleteDocsOverride, computeDocsConflicts } from "./data";
+import { loadDocsStatus, saveDocsMatrix, saveDocsStatusConfig, saveDocsOverride, deleteDocsOverride, computeDocsConflicts, saveDocsVendorTarget } from "./data";
 
 /* ---------- constants ---------- */
 const TAGC = { L1: "#E2564E", L2: "#E0A106", L3: "#18B69B", L4: "#4F8DF9", L5: "#94A3B8" };
@@ -136,9 +136,13 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   const [summary, setSummary] = useState(null);
   const [cfgUrl, setCfgUrl] = useState("");
   const [cfgSheet, setCfgSheet] = useState("Documentation status");
+  const [colPop, setColPop] = useState(null);   // REV144: clicked header title popover
+  const [vsOpen, setVsOpen] = useState(false);   // REV144: Vendor Status window
+  const [targets, setTargets] = useState({});    // REV144: vendor -> level -> { due_date, note }
 
   useEffect(() => { try { localStorage.setItem("docsHeaderAngle", String(deg)); } catch (e) { /* noop */ } }, [deg]);
   useEffect(() => { try { localStorage.setItem("docsHeaderMode", headerMode); } catch (e) { /* noop */ } }, [headerMode]);
+  useEffect(() => { const onKey = (e) => { if (e.key === "Escape") { setColPop(null); setVsOpen(false); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
   useEffect(() => {
     const el = wrapRef.current; if (!el) return;
     const measure = () => setWrapW(el.clientWidth || 1500);
@@ -176,6 +180,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
     const vm = {}; (r.vendors || []).forEach((v) => { vm[v.equip_type] = v.vendor; });
     setVendors(vm);
     setConfig(r.config);
+    { const tm = {}; (r.vendor_targets || []).forEach((t) => { (tm[t.vendor] = tm[t.vendor] || {})[t.level] = { due_date: t.due_date, note: t.note }; }); setTargets(tm); }
     setCfgUrl((r.config && r.config.file_url) || "");
     setCfgSheet((r.config && r.config.sheet_name) || "Documentation status");
     setLoading(false);
@@ -237,6 +242,23 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   const visibleCols = useMemo(() => columns.filter((c) => (!fLevel || c.level === fLevel) && (!fResp || (c.resp || c.responsible) === fResp)), [columns, fLevel, fResp]);
   const rowStats = (r) => { let y = 0, ap = 0; columns.forEach((c) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0, out: ap - y }; };
   const venCols = useMemo(() => columns.filter((c) => (c.resp || c.responsible) === "VEN"), [columns]);
+  // REV144: per-column received stat and the clicked-title popover.
+  const colStat = (c) => { let y = 0, ap = 0; matrix.forEach((r) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap }; };
+  const openColPop = (e, c) => {
+    e.stopPropagation();
+    if (colPop && colPop.key === c.doc_key) { setColPop(null); setFocus(null); return; }
+    const rct = e.currentTarget.getBoundingClientRect();
+    const w = 268, vw = (typeof window !== "undefined" ? window.innerWidth : 1200);
+    const left = Math.max(8, Math.min(rct.left + rct.width / 2 - w / 2, vw - w - 8));
+    setFocus(c.doc_key);
+    setColPop({ key: c.doc_key, c, left, top: rct.bottom + 6 });
+  };
+  // REV144: matrix lookup by equipment type, and optimistic due-date save for Vendor Status.
+  const rowByType = useMemo(() => { const m = {}; matrix.forEach((r) => { m[r.equip_type] = r; }); return m; }, [matrix]);
+  const saveTarget = async (vendor, level, due) => {
+    setTargets((prev) => { const n = { ...prev, [vendor]: { ...(prev[vendor] || {}) } }; if (due) n[vendor][level] = { ...(n[vendor][level] || {}), due_date: due }; else delete n[vendor][level]; return n; });
+    try { const err = await saveDocsVendorTarget(projectId, vendor, level, due, "", cu && cu.name); if (err) setErr("Could not save the due date: " + err); } catch (e) { setErr("Could not save the due date: " + ((e && e.message) || e)); }
+  };
   const venStats = (r) => { let y = 0, ap = 0; venCols.forEach((c) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0, out: ap - y }; };
   const levelStat = (lv) => { let y = 0, ap = 0; const keys = columns.filter((c) => c.level === lv).map((c) => c.doc_key); matrix.forEach((r) => keys.forEach((k) => { const s = r.status[k]; if (s && s !== "a") { ap++; if (s === "y") y++; } })); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0 }; };
 
@@ -344,10 +366,11 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
         <div className="dts-title">Documentation Tracker<small>Equipment documentation matrix from the Cx Master.{syncedAt ? " Data as of " + new Date(syncedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</small></div>
         <div style={{ flex: 1 }} />
         {isAdmin && <label className="dts-btn"><input type="file" accept=".xlsx,.xlsm" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onUpload(f); }} />{busy ? "Working\u2026" : "Import Workbook"}</label>}
-        {isAdmin && <button className="dts-btn" onClick={() => setSyncOpen(true)}>{"\u21BB"} Sync From SharePoint</button>}
+        {isAdmin && <button className="dts-btn admin" onClick={() => setSyncOpen(true)}>{"\u21BB"} Sync From SharePoint</button>}
         <button className="dts-btn" onClick={onExport} disabled={empty}>Export</button>
         <button className="dts-btn" onClick={() => setRefOpen(true)}>Reference</button>
-        {canEditDocs && <button className={"dts-btn admin" + (editMode ? " on" : "")} onClick={() => setEditMode((v) => !v)}>Edit Mode</button>}
+        {isAdmin && <button className="dts-btn" onClick={() => setVsOpen(true)} title="Document status by vendor and level, with due dates and delays">Vendor Status</button>}
+        {canEditDocs && <button className={"dts-btn" + (editMode ? " on" : "")} onClick={() => setEditMode((v) => !v)} title="Manually set document statuses">{editMode ? "Editing" : "Edit Mode"}</button>}
       </div>
 
       {err && <div className="dts-err">{err}<button onClick={() => setErr("")}>{"\u00D7"}</button></div>}
@@ -416,7 +439,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
                     </tr>
                     <tr className="coderow">
                       <th className="first"><div className="firstin"><span className="firstlbl">Equipment Type &amp; Vendor</span><button className="dts-info" onClick={() => setRefOpen(true)} title="Column reference">i</button></div></th>
-                      {visibleCols.map((c) => <th key={c.doc_key} className={"codeh" + (focus === c.doc_key ? " cf" : "")} title={c.doc_name + " (" + (c.resp || c.responsible) + ")"} onClick={() => setFocus(focus === c.doc_key ? null : c.doc_key)}><span>{codeOf(c)}</span></th>)}
+                      {visibleCols.map((c) => <th key={c.doc_key} className={"codeh" + (focus === c.doc_key ? " cf" : "")} title={c.doc_name + " (" + (c.resp || c.responsible) + ")"} onClick={(e) => openColPop(e, c)}><span>{codeOf(c)}</span></th>)}
                       <th className="dts-sp" />
                     </tr>
                     <tr className="resp">
@@ -430,7 +453,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
                     <tr className="names">
                       <th className="first" style={{ height: geom.H + "px" }}><div className="firstin"><span className="firstlbl">Equipment Type &amp; Vendor</span><button className="dts-info" onClick={() => setRefOpen(true)} title="Column reference">i</button></div></th>
                       {visibleCols.map((c, i) => (
-                        <th key={c.doc_key} className="rot" data-vi={i} style={{ height: geom.H + "px" }} onMouseEnter={() => setHot(i)} onMouseLeave={() => setHot(null)} onClick={() => setFocus(focus === c.doc_key ? null : c.doc_key)}>
+                        <th key={c.doc_key} className="rot" data-vi={i} style={{ height: geom.H + "px" }} onMouseEnter={() => setHot(i)} onMouseLeave={() => setHot(null)} onClick={(e) => openColPop(e, c)}>
                           <div className={"rl" + (focus === c.doc_key ? " lf" : "")} style={{ transform: "translate(-50%,-50%) rotate(-" + deg + "deg)", borderBottomColor: TAGC[c.level] }} title={c.doc_name + " (" + (c.resp || c.responsible) + ")"}>{c.doc_name}</div>
                         </th>
                       ))}
@@ -510,6 +533,79 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
           </div>
         </div>
       )}
+
+      {colPop && (<>
+        <div className="dts-colpop-catch" onClick={() => { setColPop(null); setFocus(null); }} />
+        <div className="dts-colpop" style={{ left: colPop.left, top: colPop.top }} onClick={(e) => e.stopPropagation()}>
+          <div className="cp-head"><span className="cp-lvl" style={{ background: TAGC[colPop.c.level] }}>{colPop.c.level} {STAGE_NAME[colPop.c.level]}</span><button className="cp-x" onClick={() => { setColPop(null); setFocus(null); }}>{"\u00D7"}</button></div>
+          <div className="cp-name">{colPop.c.doc_name}</div>
+          <div className="cp-meta"><span className="cp-resp" title={RESP_DEF[colPop.c.resp || colPop.c.responsible] || ""}>{RESP_DEF[colPop.c.resp || colPop.c.responsible] || (colPop.c.resp || colPop.c.responsible)}</span><span className="cp-code">{codeOf(colPop.c)}</span></div>
+          {(() => { const st = colStat(colPop.c); return <div className="cp-stat">{st.ap ? (st.y + " of " + st.ap + " received across equipment (" + Math.round(100 * st.y / st.ap) + "%)") : "Not applicable to any equipment type in view"}</div>; })()}
+        </div>
+      </>)}
+
+      {vsOpen && <VendorStatusModal vendors={vendors} rowByType={rowByType} venCols={venCols} targets={targets} onSave={saveTarget} canEdit={isAdmin} onClose={() => setVsOpen(false)} />}
+    </div>
+  );
+}
+
+function VendorStatusModal({ vendors, rowByType, venCols, targets, onSave, canEdit, onClose }) {
+  const [hideDone, setHideDone] = useState(false);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const byVendor = {};
+  Object.keys(rowByType).forEach((et) => { const v = vendors[et] || "TBC"; (byVendor[v] = byVendor[v] || []).push(et); });
+  const vendorNames = Object.keys(byVendor).sort((a, b) => (a === "TBC" ? 1 : b === "TBC" ? -1 : a.localeCompare(b)));
+  const colsByLevel = (lv) => venCols.filter((c) => c.level === lv);
+  const cellStat = (vendor, lv) => {
+    let y = 0, ap = 0; const cols = colsByLevel(lv);
+    (byVendor[vendor] || []).forEach((et) => { const r = rowByType[et]; if (!r) return; cols.forEach((c) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); });
+    return { y, ap, out: ap - y };
+  };
+  const delay = (st, due) => {
+    if (!st.ap) return { label: "-", cls: "none" };
+    if (st.out === 0) return { label: "Complete", cls: "ok" };
+    if (!due) return { label: st.out + " outstanding", cls: "warn" };
+    const days = Math.round((new Date(due + "T00:00:00") - today) / 86400000);
+    if (days < 0) return { label: "Overdue " + Math.abs(days) + "d", cls: "bad" };
+    if (days === 0) return { label: "Due today", cls: "soon" };
+    return { label: "Due in " + days + "d", cls: "soon" };
+  };
+  const vendorOverall = (vendor) => { let y = 0, ap = 0; STAGE_ORDER.forEach((lv) => { const s = cellStat(vendor, lv); y += s.y; ap += s.ap; }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0 }; };
+  const rows = vendorNames.filter((v) => { if (!hideDone) return true; const o = vendorOverall(v); return o.ap > 0 && o.y < o.ap; });
+  return (
+    <div className="dts-scrim" onClick={onClose}>
+      <div className="dts-modal wide" onClick={(e) => e.stopPropagation()}>
+        <div className="mhead"><h3>Vendor Status</h3><button onClick={onClose}>{"\u00D7"}</button></div>
+        <div className="mbody">
+          <div className="notebox">Vendor owned (VEN) documents by tag level: received of applicable per level. Set a due date to track delays. Due dates are visible to all; {canEdit ? "you can edit them here." : "editing is admin only."}</div>
+          <div className="vs-tools">
+            <label className="vs-hide"><input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} /> Hide vendors that are fully received</label>
+            <div className="vs-legend"><span className="vs-chip ok">Complete</span><span className="vs-chip soon">Due soon</span><span className="vs-chip bad">Overdue</span><span className="vs-chip warn">No due date</span></div>
+          </div>
+          <div className="vs-scroll">
+            <table className="vs-tbl">
+              <thead><tr><th className="vs-v">Vendor</th>{STAGE_ORDER.map((lv) => <th key={lv} className="vs-lh" style={{ borderTopColor: TAGC[lv] }}>{lv} {STAGE_NAME[lv]}</th>)}</tr></thead>
+              <tbody>
+                {rows.map((v) => { const ov = vendorOverall(v); return (
+                  <tr key={v}>
+                    <td className="vs-v"><div className="vs-vn">{v === "TBC" ? "Vendor TBC (unassigned)" : v}</div><div className="vs-vb"><span style={{ width: ov.pct + "%" }} /></div><div className="vs-vm">{ov.y} of {ov.ap} received{ov.ap ? " (" + ov.pct + "%)" : ""}</div></td>
+                    {STAGE_ORDER.map((lv) => { const st = cellStat(v, lv); const due = targets[v] && targets[v][lv] && targets[v][lv].due_date; const dl = delay(st, due); return (
+                      <td key={lv} className="vs-c">
+                        {st.ap ? (<>
+                          <div className={"vs-count" + (st.out === 0 ? " done" : "")}>{st.y}/{st.ap}</div>
+                          <input className="vs-due" type="date" value={due || ""} disabled={!canEdit || v === "TBC"} onChange={(e) => onSave(v, lv, e.target.value)} title={v === "TBC" ? "Assign a vendor in Settings, Vendors first" : "Due date for " + v + ", " + lv} />
+                          <div className={"vs-dl " + dl.cls}>{dl.label}</div>
+                        </>) : <div className="vs-na">-</div>}
+                      </td>
+                    ); })}
+                  </tr>
+                ); })}
+                {!rows.length && <tr><td colSpan={6}><div className="vs-empty">No vendors to show.</div></td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -543,8 +639,9 @@ const DOCS_CSS = `
 .dts-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
 .dts-btn:hover{background:var(--hover)}
 .dts-btn:disabled{opacity:.5;cursor:default}
+.dts-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .dts-btn.admin{border-color:#7C3AED;color:#7C3AED}
-.dts-btn.admin.on{background:#7C3AED;border-color:#7C3AED;color:#fff}
+.dts-btn.admin:hover{background:rgba(124,58,237,.08)}
 .dts-err{flex:none;display:flex;justify-content:space-between;gap:10px;padding:8px 18px;background:rgba(226,86,78,.1);border-bottom:1px solid var(--red);color:var(--red);font-size:12.5px;font-weight:600}
 .dts-err button{border:0;background:transparent;color:var(--red);font-size:16px;cursor:pointer}
 .dts-kpis{flex:none;display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
@@ -638,4 +735,39 @@ tr.dts-erow:hover .dts-id{background:var(--hover)}
 .frow{display:flex;align-items:center;gap:10px;flex-wrap:wrap} .acct{font-size:11.5px;color:var(--muted)}
 .sumline{font-size:13px;font-weight:600} .sumsrc{font-size:11.5px;color:var(--muted)} .sumwarn{font-size:12px;color:var(--amber);font-weight:600} .sumok{font-size:12.5px;color:var(--green);font-weight:600}
 .confhead{font-size:12.5px;font-weight:600;margin-top:6px} .conf select{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit}
+/* REV144: clicked header title popover */
+.rot,.codeh{cursor:pointer}
+.dts-colpop-catch{position:fixed;inset:0;z-index:69}
+.dts-colpop{position:fixed;z-index:70;width:268px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 44px rgba(0,0,0,.28);padding:11px 13px;color:var(--ink)}
+.dts-colpop .cp-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.dts-colpop .cp-lvl{font-size:10.5px;font-weight:800;color:#fff;padding:2px 8px;border-radius:999px;letter-spacing:.02em}
+.dts-colpop .cp-x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer;line-height:1}
+.dts-colpop .cp-name{font-size:14px;font-weight:800;line-height:1.25;color:var(--head)}
+.dts-colpop .cp-meta{display:flex;align-items:center;gap:8px;margin-top:6px}
+.dts-colpop .cp-resp{font-size:11.5px;color:var(--muted);font-weight:600}
+.dts-colpop .cp-code{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--muted);background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.dts-colpop .cp-stat{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--ink)}
+/* REV144: Vendor Status window */
+.dts-modal.wide{max-width:1040px}
+.vs-tools{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:12px 0 6px}
+.vs-hide{font-size:12px;color:var(--ink);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.vs-legend{margin-left:auto;display:inline-flex;gap:6px;flex-wrap:wrap}
+.vs-chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px}
+.vs-chip.ok{background:rgba(24,182,155,.14);color:#0f8a76} .vs-chip.soon{background:rgba(59,130,246,.14);color:var(--accent)} .vs-chip.bad{background:rgba(226,86,78,.15);color:var(--red)} .vs-chip.warn{background:rgba(224,161,6,.15);color:#9a6f04}
+.vs-scroll{overflow:auto;max-height:64vh;border:1px solid var(--line);border-radius:10px}
+.vs-tbl{border-collapse:collapse;width:100%;font-size:12px}
+.vs-tbl th,.vs-tbl td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left}
+.vs-tbl thead th{position:sticky;top:0;background:var(--card2);z-index:1;font-size:11px;color:var(--muted);font-weight:700}
+.vs-tbl th.vs-lh{border-top:3px solid var(--line)}
+.vs-v{min-width:180px}
+.vs-vn{font-weight:800;font-size:12.5px;color:var(--ink)}
+.vs-vb{height:5px;border-radius:3px;background:var(--card2);overflow:hidden;margin:5px 0 3px} .vs-vb span{display:block;height:100%;background:var(--accent)}
+.vs-vm{font-size:11px;color:var(--muted)}
+.vs-c{min-width:118px}
+.vs-count{font-size:13px;font-weight:800;color:var(--red)} .vs-count.done{color:var(--green)}
+.vs-due{margin-top:5px;width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:4px 6px;font-size:11.5px;font-family:inherit}
+.vs-due:focus{outline:none;border-color:var(--accent)} .vs-due:disabled{opacity:.5;cursor:not-allowed}
+.vs-dl{margin-top:4px;font-size:10.5px;font-weight:700} .vs-dl.ok{color:#0f8a76} .vs-dl.soon{color:var(--accent)} .vs-dl.bad{color:var(--red)} .vs-dl.warn{color:#9a6f04} .vs-dl.none{color:var(--faint)}
+.vs-na{color:var(--faint);font-size:13px} .vs-empty{padding:22px;text-align:center;color:var(--muted)}
+.dts-dark .vs-count{color:#ff8078} .dts-dark .vs-count.done{color:#3dd7bf}
 `;

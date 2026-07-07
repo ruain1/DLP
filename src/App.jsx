@@ -3,6 +3,7 @@ import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollecti
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
+import { claimReportRun } from "./digestClaim";
 import SetPassword from "./SetPassword.jsx";
 import CxProgressPage from "./CxProgress.jsx";
 import AssetStatusPage from "./AssetStatus.jsx";
@@ -2181,18 +2182,21 @@ export default function App({ session }) {
         const runDate = core.helDateStr(b.due);
         let claimId = null;
         if (!test) {
-          const ins = await supabase.from("report_runs").insert({ kind: b.kind, run_date: runDate, status: "sending", recipients: 0 }).select("id").single();
-          if (ins.error) {
-            if (ins.error.code === "23505" || /duplicate|unique/i.test(ins.error.message || "")) {
-              // A row exists. Usually another tab, or already sent. But a claim stuck in
-              // "sending" (a reload killed the sender between claim and cleanup) would block
-              // this boundary forever, so adopt stale claims older than ten minutes and
-              // finish their job instead of treating them as done.
-              const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("kind", b.kind).eq("run_date", runDate).maybeSingle();
-              if (ex.data && ex.data.status === "sending" && (Date.now() - new Date(ex.data.sent_at).getTime()) > 600000) claimId = ex.data.id;
-              else continue;
-            } else { setDigestNote({ ok: false, text: "Digest claim failed: " + digestErrText(ins.error.message) }); return; }
-          } else claimId = ins.data.id;
+          // REV144: retry transport blips (Failed to fetch) before giving up; a duplicate
+          // is another tab or an already-sent boundary, handled as before.
+          const claim = await claimReportRun(supabase, b.kind, runDate);
+          if (claim.duplicate) {
+            // A row exists. Usually another tab, or already sent. But a claim stuck in
+            // "sending" (a reload killed the sender between claim and cleanup) would block
+            // this boundary forever, so adopt stale claims older than ten minutes and
+            // finish their job instead of treating them as done.
+            const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("kind", b.kind).eq("run_date", runDate).maybeSingle();
+            if (ex.data && ex.data.status === "sending" && (Date.now() - new Date(ex.data.sent_at).getTime()) > 600000) claimId = ex.data.id;
+            else continue;
+          } else if (claim.error) {
+            if (claim.transport) { setDigestNote({ ok: false, text: "Could not reach the database to claim the " + b.kind + " digest (a connection blip); it will retry automatically on the next tick." }); return; }
+            setDigestNote({ ok: false, text: "Digest claim failed: " + digestErrText(claim.error.message) }); return;
+          } else claimId = claim.id;
         }
         try {
           const asm = await assembleDigest(core, St, b.kind, b.due);
@@ -3288,7 +3292,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
             <button className="lk-btn primary" style={{ marginTop: 8 }} disabled={!rsDate || !rsReason.trim() || rsDate === a.start} onClick={doReschedule}><Icon n="loader" s={13} />Reschedule</button>
             {(a.reschedules || []).length > 0 && <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>Reschedule History</div>
-              {(a.reschedules || []).map((r, i) => <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11.5, padding: "3px 0", borderTop: i ? "1px solid var(--line)" : "none" }}><span className="mono">{r.from}</span><span style={{ color: "#C0392B" }}>{"\u2192"}</span><span className="mono">{r.to}</span><span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--muted)" }}>{r.by || "—"} · <span className="mono">{r.at}</span></span>{r.reason && <span style={{ flexBasis: "100%", fontSize: 10.5, color: "var(--muted)" }}>{r.reason}</span>}</div>)}
+              {(a.reschedules || []).map((r, i) => <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11.5, padding: "3px 0", borderTop: i ? "1px solid var(--line)" : "none" }}><span className="mono">{r.from}</span><span style={{ color: "#C0392B" }}>{"\u2192"}</span><span className="mono">{r.to}</span><span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--muted)" }}>{r.by || "-"} · <span className="mono">{r.at}</span></span>{r.reason && <span style={{ flexBasis: "100%", fontSize: 10.5, color: "var(--muted)" }}>{r.reason}</span>}</div>)}
             </div>}
           </div>}
           <div className="lk-f"><label>Predecessors <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this starts after these finish; a slip upstream pushes this forward)</span></label>
@@ -6742,9 +6746,10 @@ function AdminDigestCard({ S }) {
         }
         claimId = ex.data.id;
       } else {
-        const ins = await supabase.from("report_runs").insert({ kind, run_date: runDate, status: "sending", recipients: 0 }).select("id").single();
-        if (ins.error) throw new Error("claim: " + digestErrText(ins.error.message));
-        claimId = ins.data.id;
+        const claim = await claimReportRun(supabase, kind, runDate);
+        if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("kind", kind).eq("run_date", runDate).maybeSingle(); if (ex2.data) claimId = ex2.data.id; else throw new Error("claim race, please retry"); }
+        else if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim: " + digestErrText(claim.error.message));
+        else claimId = claim.id;
       }
       const asm = await assembleDigest(core, S, kind, due);
       const rr = await resolveDigestRecipients(S);
