@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV157",
+    "date": "2026-07-07",
+    "items": [
+      "Executive summary in the weekly report now carries the same numbered section heading as every other section; it becomes section 01 and the rest renumber automatically, with the KPI tiles remaining beneath it as the at a glance numbers.",
+      "AI polish can now be steered. A short optional instruction beside Polish with AI (for example more concise, lead with the MV risk, or formal board tone) is passed to the polish so you can shape tone, length, emphasis and order. The existing guard is unchanged: any figure, date or name not already in the draft is rejected, so a steer can reshape the summary but never invent a number. Steering takes effect once the updated super-action edge function is deployed; without it, polish still works and simply ignores the steer."
+    ]
+  },
+  {
     "rev": "REV156",
     "date": "2026-07-07",
     "items": [
