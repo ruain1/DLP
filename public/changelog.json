@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV145",
+  "date": "2026-07-07",
+  "items": [
+   "Vendor Status now counts VEN/CON documents, not just VEN. A shared vendor/contractor document (for example the Vendor/Installer Pre-Start Up Checklist) now contributes to a vendor's received-of-applicable figure, so L2 Yellow Tag shows figures for vendors it previously left blank. The same rule now applies to the per-row vendor figure on the main matrix; its note reads VEN and VEN/CON columns.",
+   "Vendor Status, an info button beside each vendor name lists exactly which documents are outstanding, grouped by tag level, with the equipment types affected. A vendor with everything received reads All vendor documents received. Close with the X, Escape, or a click outside."
+  ]
+ },
+ {
   "rev": "REV144",
   "date": "2026-07-07",
   "items": [
