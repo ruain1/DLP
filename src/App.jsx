@@ -782,6 +782,7 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV157", date: "2026-07-07", items: ["Executive summary in the weekly report now carries the same numbered section heading as every other section; it becomes section 01 and the rest renumber automatically, with the KPI tiles remaining beneath it as the at a glance numbers.", "AI polish can now be steered. A short optional instruction beside Polish with AI (for example more concise, lead with the MV risk, or formal board tone) is passed to the polish so you can shape tone, length, emphasis and order. The existing guard is unchanged: any figure, date or name not already in the draft is rejected, so a steer can reshape the summary but never invent a number. Steering takes effect once the updated super-action edge function is deployed; without it, polish still works and simply ignores the steer."] },
   { rev: "REV156", date: "2026-07-07", items: ["Weekly report visual fixes to match the app. Status mix: a very thin band (for example In progress when it is only a handful of activities) now keeps a minimum visible width and drops its inline label instead of clipping it, so the colour always shows and the exact count reads from the card below.", "Committed next week, Milestones, and the Schedule snapshot now colour by Cx stage, matching the planning board. The next-week card edge and the milestone diamond take the tag colour (readiness state stays on the pill), and the schedule snapshot bars and legend follow the Cx stage rather than status.", "Cx attainment KPI grid filled: Blue tag (L4) and White tag (L5) tiles added so the eight tiles complete the grid and the empty grey space is gone; null counts read n/a.", "Risk register in the report now matches the app: Responsible, Raised and Overdue columns, overdue rows sorted first by days overdue with the year inferred from the reporting week, overdue cells flagged red, and priority shown as a coloured tag."] },
   { rev: "REV155", date: "2026-07-07", items: ["Committed next week rebuilt as a decision snapshot. Each upcoming committed activity is now a card with a coloured left edge for its state (ready, make-ready or at risk) and signal chips that appear only when they apply: witness type and time, the open constraint count with the nearest need-by date, predecessor codes with any incomplete one flagged, a forecast push in days when a predecessor knock-on moves the start, and the reschedule history. Notes render in full. A summary line tallies how many of the week's commitments are ready, make-ready and at risk.", "The forecast push reuses the same non-destructive forward pass as the planning board, so an incomplete or slipped predecessor moves a successor consistently across the board and the report."] },
   { rev: "REV154", date: "2026-07-07", items: ["Weekly DLP Report brought in line with the Analytics page. By contractor and By Cx stage are no longer plain bar charts of headcount: each row now carries a segmented volume bar (complete, in progress, planned), a reliability figure (PPC for contractors, share complete for Cx stages) and its open constraint count, so a reader sees who is delivering and what is blocked in one line. Both read programme to date, matching Analytics with filters at All, and each states its scope.", "New Status mix section in the report: the whole programme split into planned, in progress and complete, with each band broken into its actionable sub-states (ready to run versus needs make-ready, running late versus constrained, on time versus finished late). It is the print form of the Analytics Status Mix and is on by default.", "The Percent Plan Complete hero is now the semicircular gauge used on Analytics, with the target tick and colour bands (green at or above target, amber within 15 points, red beyond), replacing the plain number.", "The weekly PPC trend is upgraded from a sparkline to the Analytics grade chart: a dashed target line, a 4 week rolling average, the current in progress week drawn hollow with a dashed lead in, and the kept of due figures printed under each week since paper has no hover. It now covers 8 weeks so the average has room.", "New Witness reconciliation under Plan reliability: every witnessed test failure across the programme is placed into on-time-failed, late-failed, not-yet-due or not-committed, always summing to the total."] },
@@ -6315,7 +6316,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const sh = (title) => `<div class="sec-head"><span class="eyebrow">${nn()}</span><h2>${title}</h2><div class="rule"></div></div>`;
   const blocks = [];
   let intro = "";
-  if (SEC.summary) intro += `<p class="lede">${sumHtml}</p>`;
+  if (SEC.summary) intro += `${sh("Executive summary")}<p class="lede">${sumHtml}</p>`;
   if (SEC.kpis) intro += `<div class="kpis">${kpiTiles}</div>`;
   if (intro) blocks.push(`<section>${intro}</section>`);
   if (SEC.ppc) blocks.push(`<section>${sh("Plan reliability")}`
@@ -6636,6 +6637,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   const [busy, setBusy] = useState(false);
   const [polishing, setPolishing] = useState(false);
   const [polishNote, setPolishNote] = useState("");
+  const [steer, setSteer] = useState("");
   const [recips, setRecips] = useState([]);
   const [emails, setEmails] = useState({});
   const [recipOpen, setRecipOpen] = useState(false);
@@ -6689,7 +6691,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     const draft = summaryVal; if (!draft) return;
     setPolishing(true); setPolishNote("");
     try {
-      const { data, error } = await supabase.functions.invoke("super-action", { body: { draft } });
+      const { data, error } = await supabase.functions.invoke("super-action", { body: { draft, steer: steer.trim() || undefined } });
       if (error) setPolishNote("AI polish unavailable: " + (error.message || "function not reachable") + ". Keeping the drafted summary.");
       else if (!data || data.error) setPolishNote("AI polish unavailable: " + ((data && (data.detail || data.error)) || "not configured") + ". Keeping the drafted summary.");
       else if (data.text && rptNumbersOk(draft, data.text)) { setSummary(data.text); setPolishNote("Polished with AI. Every figure preserved and verified."); }
@@ -6812,8 +6814,10 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
             <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>{busy ? "Loading latest Cx week..." : cxSnap ? ("Cx sections read the week ending " + fmtFull(new Date(cxSnap.week_ending)) + ".") : "No Cx week imported yet; Cx sections will be skipped."}</div>
           </div>
           <div className="rep-fld" style={{ marginTop: 14 }}><label style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}><span>Executive Summary <span className="rep-mut">(auto-drafted from included sections, editable)</span></span><button type="button" className="lk-btn" style={{ padding:"4px 10px", fontSize:11.5 }} disabled={polishing} onClick={polish}>{polishing ? "Polishing\u2026" : "Polish with AI"}</button></label>
+            <input className="lk-in" style={{ marginBottom:8, fontSize:12.5 }} value={steer} onChange={(e) => setSteer(e.target.value)} placeholder="Optional: steer the polish, e.g. more concise, lead with the MV risk, formal board tone" />
             <textarea className="lk-in rep-sum" rows={4} value={summaryVal} onChange={(e) => setSummary(e.target.value)} />
-            {polishNote && <div className="rep-mut" style={{ fontSize:11, marginTop:4 }}>{polishNote}</div>}</div>
+            {polishNote && <div className="rep-mut" style={{ fontSize:11, marginTop:4 }}>{polishNote}</div>}
+            <div className="rep-mut" style={{ fontSize:10.5, marginTop:4 }}>The polish reshapes tone, length and emphasis; it cannot add a figure, date or name that is not already in the draft.</div></div>
           <div className="rep-fld" style={{ marginTop: 14 }}><label>Appearance</label>
             <div className="rep-seg"><button className={theme==="light"?"on":""} onClick={() => setTheme("light")}>Light</button><button className={theme==="dark"?"on":""} onClick={() => setTheme("dark")}>Dark</button></div>
           </div>
