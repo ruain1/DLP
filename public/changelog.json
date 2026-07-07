@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV142",
+  "date": "2026-07-07",
+  "items": [
+   "Digest emails no longer print raw JSON. Setup-table audit rows (settings, profiles, companies, areas, systems, levels) that stored the row as JSON are now humanised at render time: settings show as a lookahead line, profiles as name and role, and the others as short labels. Any unrecognised JSON degrades to a plain verb plus entity, never the blob.",
+   "Digest classifier now routes profile changes to the Users bucket and other setup changes to the Project admin bucket, instead of dumping them all into Other.",
+   "audit_setup database trigger rewritten to store a human-readable detail per table rather than left(row_to_json(row), 400), so newly written audit rows are legible at source. Existing rows are still cleaned by the render-time humaniser."
+  ]
+ },
+ {
   "rev": "REV141",
   "date": "2026-07-07",
   "items": [
