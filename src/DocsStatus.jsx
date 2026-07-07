@@ -1,11 +1,15 @@
 // DocsStatus.jsx
-// REV139: Documentation Tracker. Equipment-type x document matrix driven by
+// REV141: Documentation Tracker. Equipment-type x document matrix driven by
 // FINO4_Docs_Master_LIVE.xlsm (sheet "Documentation status"), populated by the
 // same SharePoint sync as Asset Status (see sharepoint.js, reused unchanged).
 // Columns are keyed by a composite level + header, never by header alone,
 // because "PQM Data" appears under two tag levels; a header-only key would
-// silently merge them. The header renders as a single measured canvas so long
-// labels are never covered by a neighbouring cell, at 90, 60, or 45 degrees.
+// silently merge them. Each rotated header label lives in its own real column
+// cell, sharing the same <col> as the data below it, so header and column are
+// the same width by construction at any angle. A Codes mode gives a compact,
+// horizontal alternative. The sign-off column was removed in REV141 (the
+// parser still captures overall, so no data is lost). The row vendor figure
+// counts VEN columns only.
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { loadDocsStatus, saveDocsMatrix, saveDocsStatusConfig, saveDocsOverride, deleteDocsOverride, computeDocsConflicts } from "./data";
 
@@ -14,6 +18,11 @@ const TAGC = { L1: "#E2564E", L2: "#E0A106", L3: "#18B69B", L4: "#4F8DF9", L5: "
 const STAGE_NAME = { L1: "Red Tag", L2: "Yellow Tag", L3: "Green Tag", L4: "Blue Tag", L5: "White Tag" };
 const STAGE_ORDER = ["L1", "L2", "L3", "L4", "L5"];
 const RESP_DEF = { "VEN": "Vendor", "VEN/CON": "Vendor / Contractor", "GC CON": "General Contractor - Construction", "GC QC": "General Contractor - Quality Control", "GC CX": "General Contractor - Commissioning", "GC DES": "General Contractor - Design", "ELEC CON": "Electrical Contractor", "MECH CON": "Mechanical Contractor", "BMS CON": "BMS Contractor", "EPMS CON": "EPMS Contractor", "IR CON": "Infrared (Thermography) Contractor", "CON": "Contractor (general)", "CxA": "Commissioning Authority" };
+// Short codes keyed by composite level|name (the two PQM Data and the two BMS/EPMS
+// Screenshots columns are distinct only by level). Falls back to the first four
+// characters when a column name is not in the map.
+const CODES = { "L1|FAT or FWT": "FAT", "L1|Certificates": "CERT", "L1|Approved Submittals": "SUBM", "L1|Delivery Documentation": "DLVY", "L1|Set In Place Photos": "SIPP", "L1|Red Tag Checklist": "RTC", "L2|Elec Dead Test": "EDT", "L2|Primary/Secondary injection Test Results": "PSI", "L2|Vendor/Installer Pre-Start Up Checklist": "VPSU", "L2|As built Documentation/Panel schedule": "ABLT", "L2|Torque Report": "TORQ", "L2|Pressure test results": "PRES", "L2|Flushing Report": "FLSH", "L2|Point to Point and Network Test": "P2P", "L2|Yellow Tag Checklist": "YTC", "L3|Vendor L3 SU or SAT Checklist": "SAT", "L3|BMS / EPMS Test Results & Screenshots": "BET", "L3|Live Cable Test Results": "LCT", "L3|PQM Data": "PQM3", "L3|Thermal Imaging Report": "THRM", "L3|TAB": "TAB", "L3|Green Tag Checklist": "GTC", "L4|Level 4 Test Results": "L4T", "L4|PQM Data": "PQM4", "L4|BMS / EPMS Screen Shots": "BES1", "L5|BMS / EPMS Screenshots": "BES2", "L5|L5 Test Results": "L5T", "L5|Tamper Seal Log": "TSL", "L5|As-Left Settings": "ALS", "L5|Post-Cutover Verification": "PCV" };
+const codeOf = (c) => CODES[c.doc_key] || (c.doc_name || "").slice(0, 4).toUpperCase();
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 /* ---------- shared parser (upload + SharePoint) ----------
@@ -91,9 +100,9 @@ function measureLabel(t) {
     _measCanvas = _measCanvas || document.createElement("canvas");
     const ctx = _measCanvas.getContext("2d");
     if (!ctx) return t.length * 6.2;
-    ctx.font = '700 11px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-    return ctx.measureText(t).width || t.length * 6.2;
-  } catch (e) { return t.length * 6.2; }
+    ctx.font = '700 10px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    return ctx.measureText(t).width || t.length * 5.7;
+  } catch (e) { return t.length * 5.7; }
 }
 
 export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditDocs, usersById }) {
@@ -117,7 +126,11 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   const [tagFilter, setTagFilter] = useState(null);
   const [focus, setFocus] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  const [deg, setDeg] = useState(() => { const v = Number(typeof localStorage !== "undefined" && localStorage.getItem("docsHeaderAngle")); return v === 90 || v === 45 ? v : 60; });
+  const [deg, setDeg] = useState(() => { const v = Number(typeof localStorage !== "undefined" && localStorage.getItem("docsHeaderAngle")); return v === 90 || v === 75 || v === 60 || v === 45 ? v : 45; });
+  const [headerMode, setHeaderMode] = useState(() => { try { return localStorage.getItem("docsHeaderMode") === "codes" ? "codes" : "labels"; } catch (e) { return "labels"; } });
+  const [wrapW, setWrapW] = useState(1500);
+  const wrapRef = useRef(null);
+  const tblRef = useRef(null);
   const [syncOpen, setSyncOpen] = useState(false);
   const [refOpen, setRefOpen] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -125,6 +138,25 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   const [cfgSheet, setCfgSheet] = useState("Documentation status");
 
   useEffect(() => { try { localStorage.setItem("docsHeaderAngle", String(deg)); } catch (e) { /* noop */ } }, [deg]);
+  useEffect(() => { try { localStorage.setItem("docsHeaderMode", headerMode); } catch (e) { /* noop */ } }, [headerMode]);
+  useEffect(() => {
+    const el = wrapRef.current; if (!el) return;
+    const measure = () => setWrapW(el.clientWidth || 1500);
+    measure();
+    if (typeof ResizeObserver === "undefined") { window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }
+    const ro = new ResizeObserver(measure); ro.observe(el); return () => ro.disconnect();
+  }, [loading, matrix.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Link a hovered column to its rotated header cell without a re-render.
+  const setHot = (vi) => {
+    const root = tblRef.current; if (!root) return;
+    root.querySelectorAll(".rl.hot").forEach((e) => e.classList.remove("hot"));
+    root.querySelectorAll(".rot.hotc").forEach((e) => e.classList.remove("hotc"));
+    root.querySelectorAll(".dts-cp.hotcol").forEach((e) => e.classList.remove("hotcol"));
+    if (vi === null || vi === undefined) return;
+    const th = root.querySelector('.rot[data-vi="' + vi + '"]'); if (th) { th.classList.add("hotc"); const s = th.querySelector(".rl"); if (s) s.classList.add("hot"); }
+    root.querySelectorAll('.dts-cp[data-vi="' + vi + '"]').forEach((e) => e.classList.add("hotcol"));
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -195,11 +227,8 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   /* ---------- edit mode (admin) ---------- */
   const cyc = (c) => (c === "y" ? "n" : c === "n" ? "a" : "y");
   const applyLocalCell = (equip, docKey, value) => setMatrix((prev) => prev.map((r) => r.equip_type === equip ? { ...r, status: { ...r.status, [docKey]: value }, ovr: { ...(r.ovr || {}), [docKey]: { value, set_by: cu && cu.id, set_at: new Date().toISOString() } } } : r));
-  const applyLocalOverall = (equip, value) => setMatrix((prev) => prev.map((r) => r.equip_type === equip ? { ...r, overall: value === "y", ovr: { ...(r.ovr || {}), __overall__: { value, set_by: cu && cu.id, set_at: new Date().toISOString() } } } : r));
   const writeCell = async (equip, docKey, value) => { applyLocalCell(equip, docKey, value); const msg = await saveDocsOverride(projectId, equip, docKey, value); if (msg) { setErr("Could not save: " + msg); await reload(); } };
-  const writeOverall = async (equip, value) => { applyLocalOverall(equip, value); const msg = await saveDocsOverride(projectId, equip, "__overall__", value); if (msg) { setErr("Could not save: " + msg); await reload(); } };
   const onCellClick = (e, row, col) => { e.stopPropagation(); if (!(canEditDocs && editMode)) return; writeCell(row.equip_type, col.doc_key, cyc(row.status[col.doc_key] || "a")); };
-  const onOverallClick = (e, row) => { e.stopPropagation(); if (!(canEditDocs && editMode)) return; writeOverall(row.equip_type, row.overall ? "n" : "y"); };
   const applyConflictDecisions = async (dec) => { setBusy(true); for (const k of Object.keys(dec)) { if (dec[k] === "override") { const i = k.indexOf("||"); await deleteDocsOverride(projectId, k.slice(0, i), k.slice(i + 2)); } } setBusy(false); setSummary(null); await reload(); };
 
   /* ---------- derived ---------- */
@@ -207,7 +236,8 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   const vendorList = useMemo(() => [...new Set(matrix.map((r) => vendors[r.equip_type] || "TBC"))].sort(), [matrix, vendors]);
   const visibleCols = useMemo(() => columns.filter((c) => (!fLevel || c.level === fLevel) && (!fResp || (c.resp || c.responsible) === fResp)), [columns, fLevel, fResp]);
   const rowStats = (r) => { let y = 0, ap = 0; columns.forEach((c) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0, out: ap - y }; };
-  const colPct = (c) => { let y = 0, ap = 0; matrix.forEach((r) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return ap ? Math.round(100 * y / ap) : 0; };
+  const venCols = useMemo(() => columns.filter((c) => (c.resp || c.responsible) === "VEN"), [columns]);
+  const venStats = (r) => { let y = 0, ap = 0; venCols.forEach((c) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0, out: ap - y }; };
   const levelStat = (lv) => { let y = 0, ap = 0; const keys = columns.filter((c) => c.level === lv).map((c) => c.doc_key); matrix.forEach((r) => keys.forEach((k) => { const s = r.status[k]; if (s && s !== "a") { ap++; if (s === "y") y++; } })); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0 }; };
 
   const filtered = useMemo(() => {
@@ -218,8 +248,6 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
       if (fVendor && vend !== fVendor) return false;
       const st = rowStats(r);
       if (fStatus === "out" && st.out === 0) return false;
-      if (fStatus === "signed" && !r.overall) return false;
-      if (fStatus === "notsigned" && r.overall) return false;
       if (tagFilter) { const keys = columns.filter((c) => c.level === tagFilter).map((c) => c.doc_key); if (!keys.some((k) => r.status[k] && r.status[k] !== "a")) return false; }
       return true;
     });
@@ -232,20 +260,36 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
     return Object.keys(g).sort().map((k) => ({ key: k, rows: g[k] }));
   }, [filtered, grpBy, vendors, columns]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---------- measured canvas header geometry ---------- */
+  /* ---------- header geometry: column width tracks the slant ----------
+     A tilted label of text length L at angle t has horizontal footprint
+     L*cos(t) + lineH*sin(t). Every column is at least that wide, so the
+     centred label fits inside its own borders and cannot overlap or drift.
+     Fill the window when the angle allows; scroll when it does not. */
   const geom = useMemo(() => {
-    const rad = deg * Math.PI / 180, si = Math.sin(rad), co = Math.cos(rad), f = 14, PAD = 14, W = 32, OVW = 48;
+    const rad = deg * Math.PI / 180, si = Math.sin(rad), co = Math.cos(rad);
+    const FIRST = 330, n = Math.max(1, visibleCols.length);
+    const fillW = Math.floor((wrapW - FIRST - 10) / n);
+    if (headerMode === "codes") {
+      const W = Math.max(40, Math.min(120, fillW));
+      const S = Math.max(8, wrapW - FIRST - n * W - 2);
+      return { H: 84, S, W };
+    }
     let maxW = 0; visibleCols.forEach((c) => { const w = measureLabel(c.doc_name); if (w > maxW) maxW = w; });
     if (!maxW) maxW = 120;
-    const H = Math.ceil(maxW * si + f * co) + 8 + PAD;
-    const S = Math.ceil(maxW * co + f * si) + PAD;
-    return { H, S, W, OVW };
-  }, [visibleCols, deg]);
+    const lineH = 13;
+    const footprint = maxW * co + lineH * si;
+    const vext = maxW * si + lineH * co;
+    const footW = Math.max(40, Math.ceil(footprint) + 8);
+    const W = Math.max(footW, fillW);
+    const H = Math.ceil(vext) + 16;
+    const S = Math.max(8, wrapW - FIRST - n * W - 2);
+    return { H, S, W };
+  }, [visibleCols, deg, wrapW, headerMode]);
 
   const kpis = useMemo(() => {
-    let y = 0, ap = 0, out = 0, signed = 0, tbc = 0;
-    filtered.forEach((r) => { const s = rowStats(r); y += s.y; ap += s.ap; out += s.out; if (r.overall) signed++; if ((vendors[r.equip_type] || "TBC") === "TBC") tbc++; });
-    return { types: filtered.length, pct: ap ? Math.round(100 * y / ap) : 0, y, ap, out, signed, tbc };
+    let y = 0, ap = 0, out = 0, tbc = 0;
+    filtered.forEach((r) => { const s = rowStats(r); y += s.y; ap += s.ap; out += s.out; if ((vendors[r.equip_type] || "TBC") === "TBC") tbc++; });
+    return { types: filtered.length, pct: ap ? Math.round(100 * y / ap) : 0, y, ap, out, tbc };
   }, [filtered, columns, vendors]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const syncedAt = useMemo(() => (config && config.updated_at) || null, [config]);
@@ -259,9 +303,8 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
       const ws = wb.addWorksheet("Documentation status");
       const cols = [{ header: "Equipment Type", key: "equip", width: 34 }, { header: "Vendor", key: "vendor", width: 14 }];
       visibleCols.forEach((c) => cols.push({ header: c.level + " " + c.doc_name, key: c.doc_key, width: 12 }));
-      cols.push({ header: "Overall", key: "overall", width: 9 });
       ws.columns = cols; ws.getRow(1).font = { bold: true };
-      filtered.forEach((r) => { const row = { equip: r.equip_type, vendor: vendors[r.equip_type] || "TBC", overall: r.overall ? "Y" : "N" }; visibleCols.forEach((c) => { const s = r.status[c.doc_key]; row[c.doc_key] = s === "y" ? "TRUE" : s === "n" ? "FALSE" : "n/a"; }); ws.addRow(row); });
+      filtered.forEach((r) => { const row = { equip: r.equip_type, vendor: vendors[r.equip_type] || "TBC" }; visibleCols.forEach((c) => { const s = r.status[c.doc_key]; row[c.doc_key] = s === "y" ? "TRUE" : s === "n" ? "FALSE" : "n/a"; }); ws.addRow(row); });
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const a = document.createElement("a"); a.href = url; a.download = "FIN04-documentation-status-" + todayISO() + ".xlsx"; a.click();
@@ -277,18 +320,17 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   /* ---------- header canvas ---------- */
   const bands = []; { let cur = null; visibleCols.forEach((c) => { if (!cur || cur.lv !== c.level) { cur = { lv: c.level, n: 1 }; bands.push(cur); } else cur.n++; }); }
   const renderRow = (r) => {
-    const st = rowStats(r); const vend = vendors[r.equip_type] || "TBC"; const vset = vend && vend !== "TBC";
+    const vs = venStats(r); const vend = vendors[r.equip_type] || "TBC"; const vset = vend && vend !== "TBC";
     const [tag, ...rest] = r.equip_type.split(" - ");
     return (
       <tr className="dts-erow" key={r.equip_type}>
         <td className="dts-id">
           <div className="dts-idtop"><span className="tg">{tag}</span><span className="idsub">{rest.join(" - ")}</span></div>
-          <div className="dts-idbot"><span className={"vchip " + (vset ? "set" : "tbc")}>{vset ? vend : "Vendor TBC"}</span><span className="rowpct">{st.pct}% received, {st.out} outstanding</span></div>
+          <div className="dts-idbot"><span className={"vchip " + (vset ? "set" : "tbc")}>{vset ? vend : "Vendor TBC"}</span><span className="rowpct">{vs.ap ? <><b>{vs.pct}%</b> vendor docs, {vs.out} outstanding</> : "no vendor docs"}</span></div>
         </td>
-        {visibleCols.map((c) => { const s = r.status[c.doc_key] || "a"; const ov = r.ovr && r.ovr[c.doc_key]; return (
-          <td key={c.doc_key} className={"dts-cp" + (focus === c.doc_key ? " fcol" : "") + (canEditDocs && editMode ? " editable" : "")} onClick={(e) => onCellClick(e, r, c)} title={ov ? "Manual override" : undefined}><span className={dotCls[s]} /></td>
+        {visibleCols.map((c, vi) => { const s = r.status[c.doc_key] || "a"; const ov = r.ovr && r.ovr[c.doc_key]; return (
+          <td key={c.doc_key} data-vi={vi} className={"dts-cp" + (focus === c.doc_key ? " fcol" : "") + (canEditDocs && editMode ? " editable" : "")} onMouseEnter={() => setHot(vi)} onMouseLeave={() => setHot(null)} onClick={(e) => onCellClick(e, r, c)} title={ov ? "Manual override" : undefined}><span className={dotCls[s]} /></td>
         ); })}
-        <td className={"dts-ov " + (r.overall ? "yes" : "no") + (canEditDocs && editMode ? " editable" : "")} onClick={(e) => onOverallClick(e, r)}>{r.overall ? "\u2714" : "\u2718"}</td>
         <td className="dts-sp" />
       </tr>
     );
@@ -321,7 +363,6 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
             <div className="dts-kpi"><div className="v">{kpis.types}</div><div className="l">Equipment Types</div><div className="s">in view</div></div>
             <div className={"dts-kpi " + (kpis.pct >= 66 ? "good" : kpis.pct < 33 ? "warn" : "")}><div className="v">{kpis.pct}%</div><div className="l">Received</div><div className="s">{kpis.y} of {kpis.ap} applicable</div></div>
             <div className={"dts-kpi " + (kpis.out ? "warn" : "good")}><div className="v">{kpis.out}</div><div className="l">Outstanding</div><div className="s">applicable, not received</div></div>
-            <div className="dts-kpi"><div className="v">{kpis.signed} / {kpis.types}</div><div className="l">Signed Off</div><div className="s">overall flag set</div></div>
             <div className={"dts-kpi " + (kpis.tbc ? "amber" : "good")}><div className="v">{kpis.tbc}</div><div className="l">Vendor TBC</div><div className="s">set in Settings, Vendors</div></div>
           </div>
 
@@ -340,7 +381,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
             <span className="li"><span className="dts-d yes" />Received</span>
             <span className="li"><span className="dts-d no" />Outstanding</span>
             <span className="li"><span className="dts-d na" />Not applicable</span>
-            <span style={{ marginLeft: "auto" }}>Column completion = received / applicable. Overall = manual sign-off flag.</span>
+            <span style={{ marginLeft: "auto" }}>{headerMode === "codes" ? "Codes map to full names in Reference and on hover." : "Hover a column to link it to its label."} Vendor figure counts VEN columns only.</span>
           </div>
 
           <div className="dts-tools">
@@ -348,57 +389,76 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
             <div className="dts-f"><span>Level</span><select value={fLevel} onChange={(e) => { setFLevel(e.target.value); setTagFilter(e.target.value || null); }}><option value="">All levels</option>{STAGE_ORDER.map((lv) => <option key={lv} value={lv}>{lv} {STAGE_NAME[lv]}</option>)}</select></div>
             <div className="dts-f"><span>Responsible</span><select value={fResp} onChange={(e) => setFResp(e.target.value)}><option value="">All parties</option>{resps.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>
             <div className="dts-f"><span>Vendor</span><select value={fVendor} onChange={(e) => setFVendor(e.target.value)}><option value="">All vendors</option>{vendorList.map((v) => <option key={v} value={v}>{v}</option>)}</select></div>
-            <div className="dts-f"><span>Status</span><select value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="">All rows</option><option value="out">Has outstanding</option><option value="signed">Signed off</option><option value="notsigned">Not signed off</option></select></div>
+            <div className="dts-f"><span>Status</span><select value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="">All rows</option><option value="out">Has outstanding</option></select></div>
             <div className="dts-f"><span>Group by</span><div className="dts-seg">{[["none", "None"], ["level", "Lead level"], ["vendor", "Vendor"]].map(([g, lbl]) => <button key={g} className={grpBy === g ? "sel" : ""} onClick={() => { setGrpBy(g); setClosed({}); }}>{lbl}</button>)}</div></div>
-            <div className="dts-f"><span>Header angle</span><div className="dts-seg">{[90, 60, 45].map((d) => <button key={d} className={deg === d ? "sel" : ""} onClick={() => setDeg(d)}>{d}</button>)}</div></div>
+            <div className="dts-f"><span>Header</span><div className="dts-seg">{[["codes", "Codes"], ["labels", "Labels"]].map(([m, lbl]) => <button key={m} className={headerMode === m ? "sel" : ""} onClick={() => setHeaderMode(m)}>{lbl}</button>)}</div></div>
+            {headerMode === "labels" && <div className="dts-f"><span>Angle</span><div className="dts-seg">{[90, 75, 60, 45].map((d) => <button key={d} className={deg === d ? "sel" : ""} onClick={() => setDeg(d)}>{d}</button>)}</div></div>}
           </div>
 
-          {canEditDocs && editMode && <div className="dts-editbar"><b>Edit Mode active</b><span>Click a cell to cycle Received, Outstanding, Not applicable. Click Overall to toggle sign-off. Vendor is edited in Settings, Vendors. Manual edits survive the next sync unless the Master overrides them.</span></div>}
+          {canEditDocs && editMode && <div className="dts-editbar"><b>Edit Mode active</b><span>Click a cell to cycle Received, Outstanding, Not applicable. Vendor is edited in Settings, Vendors. Manual edits survive the next sync unless the Master overrides them.</span></div>}
 
-          <div className="dts-wrap">
-            <table className="dts-mx" style={{ "--hh": geom.H + "px", "--hh2": (geom.H + 24) + "px" }}>
+          <div className="dts-wrap" ref={wrapRef}>
+            <table className="dts-mx" ref={tblRef} style={headerMode === "codes"
+              ? { "--tb": "0px", "--tc": "24px", "--tr": "54px", width: (330 + visibleCols.length * geom.W + geom.S) + "px" }
+              : { "--tb": geom.H + "px", "--tr": (geom.H + 24) + "px", width: (330 + visibleCols.length * geom.W + geom.S) + "px" }}>
               <colgroup>
                 <col style={{ width: "330px" }} />
                 {visibleCols.map((c) => <col key={c.doc_key} style={{ width: geom.W + "px" }} />)}
-                <col style={{ width: geom.OVW + "px" }} />
                 <col style={{ width: geom.S + "px" }} />
               </colgroup>
               <thead>
-                <tr className="names">
-                  <th className="first" style={{ height: geom.H + "px" }}><div className="firstin"><span className="firstlbl">Equipment Type &amp; Vendor</span><button className="dts-info" onClick={() => setRefOpen(true)} title="Responsible party key">i</button></div></th>
-                  <th className="canvas" colSpan={visibleCols.length + 2} style={{ height: geom.H + "px" }}>
-                    {visibleCols.map((c, i) => { const x = i * geom.W; const lx = deg === 90 ? x + Math.round(geom.W / 2) + 5 : x + 13; return (
-                      <React.Fragment key={c.doc_key}>
-                        <div className="gl" style={{ left: x + "px", height: geom.H + "px" }} />
-                        <div className="pb" style={{ left: (x + 1) + "px", width: (geom.W - 2) + "px" }}><i style={{ width: colPct(c) + "%" }} /></div>
-                        <div className={"lbl" + (focus === c.doc_key ? " lf" : "")} style={{ left: lx + "px", transform: "rotate(-" + deg + "deg)" }} title={c.doc_name + " (" + (c.resp || c.responsible) + ")"} onClick={() => setFocus(focus === c.doc_key ? null : c.doc_key)}>{c.doc_name}</div>
-                      </React.Fragment>
-                    ); })}
-                    <div className="gl" style={{ left: (visibleCols.length * geom.W) + "px", height: geom.H + "px" }} />
-                    <div className="ovlbl" style={{ left: (visibleCols.length * geom.W + 8) + "px" }}>Overall</div>
-                  </th>
-                </tr>
-                <tr className="bands">
-                  <th className="first" />
-                  {bands.map((b, i) => <th key={i} className="bandcell" colSpan={b.n} style={{ background: TAGC[b.lv] }}>{b.lv} {STAGE_NAME[b.lv]}</th>)}
-                  <th className="ovh2" /><th className="dts-sp" />
-                </tr>
-                <tr className="resp">
-                  <th className="first" />
-                  {visibleCols.map((c) => <th key={c.doc_key} className="resph" title={RESP_DEF[c.resp || c.responsible] || (c.resp || c.responsible)}>{c.resp || c.responsible}</th>)}
-                  <th className="ovh2">Sign-off</th><th className="dts-sp" />
-                </tr>
+                {headerMode === "codes" ? (
+                  <>
+                    <tr className="bands">
+                      <th className="first" />
+                      {bands.map((b, i) => <th key={i} className="bandcell" colSpan={b.n} style={{ background: TAGC[b.lv] }}>{b.lv} {STAGE_NAME[b.lv]}</th>)}
+                      <th className="dts-sp" />
+                    </tr>
+                    <tr className="coderow">
+                      <th className="first"><div className="firstin"><span className="firstlbl">Equipment Type &amp; Vendor</span><button className="dts-info" onClick={() => setRefOpen(true)} title="Column reference">i</button></div></th>
+                      {visibleCols.map((c) => <th key={c.doc_key} className={"codeh" + (focus === c.doc_key ? " cf" : "")} title={c.doc_name + " (" + (c.resp || c.responsible) + ")"} onClick={() => setFocus(focus === c.doc_key ? null : c.doc_key)}><span>{codeOf(c)}</span></th>)}
+                      <th className="dts-sp" />
+                    </tr>
+                    <tr className="resp">
+                      <th className="first" />
+                      {visibleCols.map((c) => <th key={c.doc_key} className="resph" title={RESP_DEF[c.resp || c.responsible] || (c.resp || c.responsible)}><span>{c.resp || c.responsible}</span></th>)}
+                      <th className="dts-sp" />
+                    </tr>
+                  </>
+                ) : (
+                  <>
+                    <tr className="names">
+                      <th className="first" style={{ height: geom.H + "px" }}><div className="firstin"><span className="firstlbl">Equipment Type &amp; Vendor</span><button className="dts-info" onClick={() => setRefOpen(true)} title="Column reference">i</button></div></th>
+                      {visibleCols.map((c, i) => (
+                        <th key={c.doc_key} className="rot" data-vi={i} style={{ height: geom.H + "px" }} onMouseEnter={() => setHot(i)} onMouseLeave={() => setHot(null)} onClick={() => setFocus(focus === c.doc_key ? null : c.doc_key)}>
+                          <div className={"rl" + (focus === c.doc_key ? " lf" : "")} style={{ transform: "translate(-50%,-50%) rotate(-" + deg + "deg)", borderBottomColor: TAGC[c.level] }} title={c.doc_name + " (" + (c.resp || c.responsible) + ")"}>{c.doc_name}</div>
+                        </th>
+                      ))}
+                      <th className="dts-sp" />
+                    </tr>
+                    <tr className="bands">
+                      <th className="first" />
+                      {bands.map((b, i) => <th key={i} className="bandcell" colSpan={b.n} style={{ background: TAGC[b.lv] }}>{b.lv} {STAGE_NAME[b.lv]}</th>)}
+                      <th className="dts-sp" />
+                    </tr>
+                    <tr className="resp">
+                      <th className="first" />
+                      {visibleCols.map((c) => <th key={c.doc_key} className="resph" title={RESP_DEF[c.resp || c.responsible] || (c.resp || c.responsible)}><span>{c.resp || c.responsible}</span></th>)}
+                      <th className="dts-sp" />
+                    </tr>
+                  </>
+                )}
               </thead>
               <tbody>
                 {groups ? groups.map((g) => (
                   <React.Fragment key={g.key}>
                     <tr className={"dts-grp" + (closed[g.key] ? " closed" : "")} onClick={() => setClosed((c) => ({ ...c, [g.key]: !c[g.key] }))}>
-                      <td colSpan={visibleCols.length + 3}><div className="gname"><span className="chev">{"\u25BC"}</span>{g.key}<span className="gcount">{g.rows.length} type{g.rows.length > 1 ? "s" : ""}</span></div></td>
+                      <td colSpan={visibleCols.length + 2}><div className="gname"><span className="chev">{"\u25BC"}</span>{g.key}<span className="gcount">{g.rows.length} type{g.rows.length > 1 ? "s" : ""}</span></div></td>
                     </tr>
                     {!closed[g.key] && g.rows.map(renderRow)}
                   </React.Fragment>
                 )) : filtered.map(renderRow)}
-                {!filtered.length && <tr><td colSpan={visibleCols.length + 3}><div className="dts-empty">No equipment types match the current filters.</div></td></tr>}
+                {!filtered.length && <tr><td colSpan={visibleCols.length + 2}><div className="dts-empty">No equipment types match the current filters.</div></td></tr>}
               </tbody>
             </table>
           </div>
@@ -518,17 +578,21 @@ const DOCS_CSS = `
 .dts-mx th,.dts-mx td{padding:0;font-size:12px}
 .dts-mx thead th{position:sticky;background:var(--paper);z-index:20}
 .dts-mx thead tr.names th{top:0;vertical-align:bottom}
-.dts-mx thead tr.bands th{top:var(--hh);height:24px}
-.dts-mx thead tr.resp th{top:var(--hh2);height:24px;border-bottom:2px solid var(--line)}
-.canvas{position:relative;background:var(--paper);vertical-align:bottom;overflow:visible;padding:0}
-.canvas .lbl{position:absolute;bottom:8px;transform-origin:0 100%;white-space:nowrap;font-size:11px;font-weight:700;color:var(--muted);line-height:1;cursor:pointer}
-.canvas .lbl:hover,.canvas .lbl.lf{color:var(--ink)}
-.canvas .gl{position:absolute;top:0;width:1px;background:var(--line)}
-.canvas .pb{position:absolute;bottom:0;height:3px;background:var(--line)} .canvas .pb i{display:block;height:100%;background:var(--accent)}
-.canvas .ovlbl{position:absolute;bottom:8px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.dts-mx thead tr.bands th{top:var(--tb);height:24px}
+.dts-mx thead tr.coderow th{top:var(--tc);height:30px}
+.dts-mx thead tr.resp th{top:var(--tr);height:24px;border-bottom:2px solid var(--line)}
+/* per-cell rotated header: each label shares its column's cell, so header and column are one width at any angle */
+.rot{position:sticky;top:0;padding:0;vertical-align:middle;background:var(--paper);border-right:1px solid var(--line);overflow:visible;z-index:20;cursor:pointer}
+.rot .rl{position:absolute;left:50%;top:50%;transform-origin:center;white-space:nowrap;font-size:10px;font-weight:700;color:var(--muted);line-height:1;padding:1px 4px 2px 4px;border-bottom:2px solid var(--line)}
+.rot .rl:hover,.rot .rl.lf,.rot .rl.hot{color:var(--accent);border-bottom-width:3px}
+.rot.hotc{background:var(--hover)}
+.dts-cp.hotcol{background:var(--hover)}
+.codeh{text-align:center;border-right:1px solid var(--line);vertical-align:middle;cursor:pointer;border-bottom:1px solid var(--line)}
+.codeh span{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.02em;color:var(--muted);padding:3px 5px;border-radius:5px}
+.codeh:hover span,.codeh.cf span{background:var(--chipbg);color:var(--accent)}
 .bandcell{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#fff;text-align:center;border-right:2px solid var(--paper)}
-.resph{font-size:8.5px;font-weight:800;color:var(--muted);text-align:center;border-right:1px solid var(--line);text-transform:uppercase;padding:2px 1px;white-space:nowrap;overflow:hidden}
-.ovh2{text-align:center;border-left:2px solid var(--line);font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;padding:0 2px 6px;vertical-align:bottom}
+.resph{text-align:center;border-right:1px solid var(--line);white-space:nowrap;overflow:hidden;vertical-align:middle;padding:2px 1px}
+.resph span{display:inline-block;font-size:8.5px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.02em;padding:2px 4px;border-radius:4px;background:var(--chipbg)}
 .dts-sp{background:var(--paper);border:0}
 .dts-mx thead tr.names th.first,.dts-mx thead tr.bands th.first,.dts-mx thead tr.resp th.first{text-align:left;padding:0 12px;position:sticky;left:0;z-index:22;background:var(--paper);border-right:2px solid var(--line)}
 .firstin{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;height:100%;padding-bottom:8px}
@@ -558,9 +622,6 @@ tr.dts-erow:hover .dts-id{background:var(--hover)}
 .dts-d.yes::after{content:"";position:absolute;left:4px;top:1px;width:3px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(40deg)}
 .dts-d.no{background:transparent;border:2px solid var(--red);width:11px;height:11px;opacity:.75}
 .dts-d.na{width:8px;height:2px;border-radius:1px;background:var(--faint)}
-.dts-ov{text-align:center;border-left:2px solid var(--line);font-size:15px;font-weight:800}
-.dts-ov.yes{color:var(--green)} .dts-ov.no{color:var(--faint)}
-.dts-ov.editable{cursor:pointer} .dts-ov.editable:hover{background:var(--hover)}
 .dts-empty{padding:50px 20px;text-align:center;color:var(--muted)}
 .dts-scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;display:flex;align-items:center;justify-content:center}
 .dts-modal{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.3);max-width:720px;width:94vw;max-height:86vh;overflow:auto;color:var(--ink)}
