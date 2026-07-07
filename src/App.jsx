@@ -320,11 +320,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-dispfly h5{margin:2px 6px 8px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#8b98ab;font-weight:800}
 .lk-dispopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:9px 8px;color:#dbe3ee;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .lk-dispopt:hover{background:#2c3644}
-.lk-dispopt.on{background:#31405a}
-.lk-dispopt .sw{display:inline-flex;gap:4px;width:37px;flex:none}
-.lk-dispopt .sw i{width:9px;height:9px;border-radius:50%;display:inline-block}
-.lk-dispopt .ck{margin-left:auto;color:#6ea8fe;font-weight:800;opacity:0}
-.lk-dispopt.on .ck{opacity:1}
+.lk-displbl{padding:3px 10px;border-radius:6px;line-height:1.45}
+.lk-displbl.on{background:#2f6bff;color:#fff}
+.lk-dispsw{display:inline-flex;gap:4px;width:37px;flex:none}
+.lk-dispsw i{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .lk-rep-card.clickable{cursor:pointer;transition:border-color .12s,background .12s}
 .lk-rep-card.clickable:hover{border-color:var(--accent);background:var(--hover)}
@@ -2720,8 +2719,8 @@ export default function App({ session }) {
           {dispOpen && <div className="lk-dispfly">
             <h5>Palette</h5>
             {[["default", "Default", ["#18b69b", "#e0a106", "#e2564e"]], ["hc", "High contrast", ["#0E9E6E", "#B45309", "#D62828"]], ["cb", "Colourblind safe", ["#0072B2", "#E0A106", "#D55E00"]]].map(([k, lbl, cols]) => (
-              <button key={k} className={"lk-dispopt" + (palette === k ? " on" : "")} onClick={() => { update((pp) => ({ ...pp, palette: k })); setDispOpen(false); }}>
-                <span className="sw">{cols.map((c, i) => <i key={i} style={{ background: c }} />)}</span>{lbl}<span className="ck">{"\u2713"}</span>
+              <button key={k} className="lk-dispopt" onClick={() => { update((pp) => ({ ...pp, palette: k })); setDispOpen(false); }}>
+                <span className="lk-dispsw">{cols.map((c, i) => <i key={i} style={{ background: c }} />)}</span><span className={"lk-displbl" + (palette === k ? " on" : "")}>{lbl}</span>
               </button>
             ))}
           </div>}
