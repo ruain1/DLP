@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV156",
+    "date": "2026-07-07",
+    "items": [
+      "Weekly report visual fixes to match the app. Status mix: a very thin band (for example In progress when it is only a handful of activities) now keeps a minimum visible width and drops its inline label instead of clipping it, so the colour always shows and the exact count reads from the card below.",
+      "Committed next week, Milestones, and the Schedule snapshot now colour by Cx stage, matching the planning board. The next-week card edge and the milestone diamond take the tag colour (readiness state stays on the pill), and the schedule snapshot bars and legend follow the Cx stage rather than status.",
+      "Cx attainment KPI grid filled: Blue tag (L4) and White tag (L5) tiles added so the eight tiles complete the grid and the empty grey space is gone; null counts read n/a.",
+      "Risk register in the report now matches the app: Responsible, Raised and Overdue columns, overdue rows sorted first by days overdue with the year inferred from the reporting week, overdue cells flagged red, and priority shown as a coloured tag."
+    ]
+  },
+  {
     "rev": "REV155",
     "date": "2026-07-07",
     "items": [
