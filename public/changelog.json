@@ -1,5 +1,15 @@
 [
  {
+  "rev": "REV144",
+  "date": "2026-07-07",
+  "items": [
+   "Documentation Tracker, Vendor Status window (admin and owner only). A new Vendor Status button opens a table of vendor owned (VEN) documents grouped by vendor and tag level: received of applicable per level, with a due date you can set per vendor and level and a live delay chip (Complete, Due soon, Due today, Overdue by N days, or outstanding with no due date). Unassigned equipment types are grouped under Vendor TBC. Requires the SQL migration supabase/docs-vendor-target-REV144.sql to be run once in the Supabase SQL editor; until then the window opens empty and the page still works.",
+   "Documentation Tracker, click a column header to read its full title. Clicking a header (in Codes or Labels mode) opens a popover with the full document name, its tag level, the responsible party, and how many equipment types have received it. The column highlights while it is open; close with the X, Escape, or a click outside. The angled labels were hard to read at a glance.",
+   "Digest claim resilience. A transient transport failure on the report_runs claim (the browser's Failed to fetch, a cold or briefly unreachable database) no longer aborts the whole digest with a red toast. Transport errors retry a few times with a short backoff and, if still unreachable, show a soft note and retry on the next tick. A duplicate claim or an RLS block is unchanged, so stuck-claim adoption still works. This does not fix a genuinely unreachable database; frequent occurrences are environmental.",
+   "Toolbar continuity. Sync From SharePoint is now the purple button on the Documentation Tracker to match Asset Status, and Edit Mode is neutral when off and fills blue when active with its label switching to Editing."
+  ]
+ },
+ {
   "rev": "REV143",
   "date": "2026-07-07",
   "items": [
