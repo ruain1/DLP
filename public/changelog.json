@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV152",
+    "date": "2026-07-07",
+    "items": [
+      "Stopped the palette popout bleeding onto the sidebar rail: widened the gap between the rail and the popout, and gave the popout shadow a contained rightward spread so its soft edge no longer washes back over the rail."
+    ]
+  },
+  {
     "rev": "REV151",
     "date": "2026-07-07",
     "items": [
