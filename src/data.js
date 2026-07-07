@@ -656,6 +656,8 @@ export const PRIV_GROUPS = [
   // editEE is the narrow Velox lane, off by default and granted per user. can_edit_ee
   // in SQL reads the same editEE grant, so client and RLS stay in lockstep.
   ["Assets", [["editAsset", "Edit Asset Status"], ["editEE", "Mark Equipment Energised (EE)"]]],
+  // REV139: Documentation Tracker edit mode. Mirrors editAsset (admin baseline, owner blanket).
+  ["Documentation", [["editDocs", "Edit Documentation Status"]]],
   ["Administration", [["users", "Manage Users"], ["approve", "Approve Access Requests"], ["auditView", "View Audit Log"], ["auditRevert", "Revert From Audit Log"], ["privs", "Manage Privileges"]]],
 ];
 export const PRIV_KEYS = PRIV_GROUPS.flatMap(([, ps]) => ps.map(([k]) => k));

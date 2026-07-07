@@ -6,8 +6,10 @@ import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
 import SetPassword from "./SetPassword.jsx";
 import CxProgressPage from "./CxProgress.jsx";
 import AssetStatusPage from "./AssetStatus.jsx";
+import DocsStatusPage from "./DocsStatus.jsx";
 import RffeCompose from "./RffeCompose.jsx";
 import { loadAssetEventsNamed, setAssetEventState } from "./data";
+import { loadDocsStatus, saveAssetVendor } from "./data";
 import { trySendEnergisedConfirmations } from "./energisedConfirm";
 import { supabase } from "./supabaseClient";
 
@@ -704,6 +706,7 @@ body.dark .lk-match.fuzzy{background:rgba(224,163,58,.18);color:#EAC178}
 const I = {
   plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
   grid: <><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></>,
+  file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></>,
   gantt: <><line x1="4" y1="6" x2="13" y2="6"/><line x1="7" y1="12" x2="18" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/></>,
   pen: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>,
   x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
@@ -1774,7 +1777,7 @@ export default function App({ session }) {
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
+  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
   // ---- multi-project ----
@@ -1820,7 +1823,7 @@ export default function App({ session }) {
       const fa = DEEPLINK_ACT; DEEPLINK_ACT = "";
       const fasset = DEEPLINK_ASSET; DEEPLINK_ASSET = "";
       let fpage = DEEPLINK_PAGE; DEEPLINK_PAGE = "";
-      const PAGES = ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets"];
+      const PAGES = ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs"];
       if (!PAGES.includes(fpage)) fpage = "";
       if (target) {
         const ip = fpage || (fasset ? "assets" : undefined);
@@ -2678,6 +2681,7 @@ export default function App({ session }) {
         <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
         <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n="checkcircle" s={20} /><span className="lbl">Weekly Cx Progress</span></button>
         <button title="Asset Status" className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n="package" s={20} /><span className="lbl">Asset Status</span></button>
+        <button title="Documentation Tracker" className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n="file" s={20} /><span className="lbl">Documentation</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
         <div className="lk-railppc" title={"PPC " + (ppcAll == null ? "\u2014" : ppcAll + "%") + " \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Target " + tgtAll + "%" + (qaAll != null && qaAll !== ppcAll ? " \u00B7 Quality-adjusted " + qaAll + "% (also excludes on-time witness failures)" : "") + " \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
@@ -2863,6 +2867,7 @@ export default function App({ session }) {
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
+      {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
@@ -3603,8 +3608,59 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
   </>;
 }
 
+function VendorsTab({ projectId }) {
+  const [rows, setRows] = useState([]);
+  const [known, setKnown] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [tbcOnly, setTbcOnly] = useState(false);
+  const [saved, setSaved] = useState("");
+  useEffect(() => { let on = true; (async () => {
+    const r = await loadDocsStatus(projectId); if (!on) return;
+    const vm = {}; (r.vendors || []).forEach((v) => { vm[v.equip_type] = v.vendor; });
+    const types = [...new Set((r.matrix || []).map((m) => m.equip_type))].sort();
+    setRows(types.map((t) => ({ equip_type: t, vendor: vm[t] && vm[t] !== "TBC" ? vm[t] : "" })));
+    setKnown([...new Set(Object.values(vm).filter((v) => v && v !== "TBC"))].sort());
+    setLoading(false);
+  })(); return () => { on = false; }; }, [projectId]);
+  const onLocal = (t, val) => setRows((rs) => rs.map((r) => r.equip_type === t ? { ...r, vendor: val } : r));
+  const onSave = async (t) => {
+    const row = rows.find((r) => r.equip_type === t); if (!row) return;
+    const v = (row.vendor || "").trim().toUpperCase() || "TBC";
+    setRows((rs) => rs.map((r) => r.equip_type === t ? { ...r, vendor: v === "TBC" ? "" : v } : r));
+    const msg = await saveAssetVendor(projectId, t, v);
+    if (!msg) { setSaved(t); setTimeout(() => setSaved(""), 1200); }
+  };
+  if (loading) return <div style={{ padding: 20, color: "var(--muted)" }}>Loading vendors...</div>;
+  const shown = rows.filter((r) => (!q || r.equip_type.toLowerCase().includes(q.toLowerCase())) && (!tbcOnly || !r.vendor));
+  const set = rows.filter((r) => r.vendor).length;
+  return (<div>
+    <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 12px" }}>Maps each equipment type to its vendor or OEM. The Documentation Tracker reads from here. Equipment types come from the last Documentation sync.</p>
+    {!rows.length ? <p style={{ color: "var(--muted)" }}>No equipment types yet. Sync the Documentation Tracker first.</p> : <>
+    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+      <input className="lk-in" placeholder="Filter equipment types..." value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 240 }} />
+      <label style={{ fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={tbcOnly} onChange={(e) => setTbcOnly(e.target.checked)} /> Show only TBC</label>
+      <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--muted)" }}>{set} assigned, {rows.length - set} to confirm</span>
+    </div>
+    <datalist id="dlp-vendors">{known.map((k) => <option key={k} value={k} />)}</datalist>
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <thead><tr>
+        <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Equipment Type</th>
+        <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Vendor / OEM</th>
+        <th style={{ width: 60 }} />
+      </tr></thead>
+      <tbody>{shown.map((r) => { const isTbc = !r.vendor; return (
+        <tr key={r.equip_type}>
+          <td style={{ padding: "6px 10px", borderBottom: "1px solid var(--line)", fontWeight: 600 }}>{r.equip_type}</td>
+          <td style={{ padding: "6px 10px", borderBottom: "1px solid var(--line)" }}><input className="lk-in" list="dlp-vendors" value={r.vendor} placeholder="TBC" onChange={(e) => onLocal(r.equip_type, e.target.value)} onBlur={() => onSave(r.equip_type)} style={{ width: 200, color: isTbc ? "var(--amber)" : undefined }} /></td>
+          <td style={{ padding: "6px 10px", borderBottom: "1px solid var(--line)", color: "var(--green)", fontSize: 12, fontWeight: 700 }}>{saved === r.equip_type ? "Saved" : ""}</td>
+        </tr>); })}</tbody>
+    </table></>}
+  </div>);
+}
+
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
@@ -4048,7 +4104,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   };
   const canv = can || (() => true);
   const navGroups = [
-    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
+    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
     ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
@@ -4070,6 +4126,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             </div>)}</div>
             <div className="lk-add"><input className="lk-in" placeholder="Add system…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("systems", "system")} /><button className="lk-btn primary" onClick={() => addList("systems", "system")}><Icon n="plus" s={15} /></button></div>
           </>}
+          {tab === "vendors" && <VendorsTab projectId={S.projectId} />}
           {tab === "companies" && <>
             <div className="lk-cohead"><span /><span>Company &amp; role</span><span className="ctr">People</span><span /></div>
             <div className="lk-list" style={{ gap: 8 }}>{S.companies.map((c) => {
