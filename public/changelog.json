@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV150",
+    "date": "2026-07-07",
+    "items": [
+      "Palette menu now opens clear to the right of the sidebar rail with a small gap, instead of overlapping it, and the colour swatches sit on the right of each option so they no longer crowd the rail."
+    ]
+  },
+  {
     "rev": "REV149",
     "date": "2026-07-07",
     "items": [
