@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV139",
+    "date": "2026-07-07",
+    "items": [
+      "New Documentation Tracker page. An equipment type by document matrix driven by the Cx Master (sheet Documentation status), synced from SharePoint by the same mechanism as Asset Status. Five commissioning tag levels (L1 Red through L5 White), tri state cells (received, outstanding, not applicable), per column responsible party, a manual overall sign off flag, and a live received against applicable percentage.",
+      "The column headers can be angled at 90, 60, or 45 degrees from a toggle on the filter row, and every label stays fully visible at any angle. Filter by level, responsible party, vendor, and status; group by lead level or vendor; and click a column to focus it.",
+      "Admins can edit the matrix in Edit Mode: click a cell to cycle received, outstanding, not applicable, and click the Overall column to toggle sign off. Manual edits survive the next sync; where a manual value clashes with the incoming file, the sync summary lets you keep yours or take the Master.",
+      "New Vendors section under Settings, Project Setup. Admins map each equipment type to its vendor or OEM; the mapping shows on the Documentation Tracker as a chip and drives the vendor filter. A new Edit Documentation Status privilege gates the tracker Edit Mode.",
+      "Excel export of the filtered documentation matrix."
+    ]
+  },
+  {
     "rev": "REV138",
     "date": "2026-07-06",
     "items": [
