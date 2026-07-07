@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV143",
+  "date": "2026-07-07",
+  "items": [
+   "Weekly Cx Progress can now sync the Cx Master straight from SharePoint. A new Sync From SharePoint button sits beside Import workbook and opens a window that shows the tenant connection, an editable file URL, and Run Sync. It pulls the workbook bytes and runs the exact same parse and week upsert that a manual upload runs, so there is one parser and no new table. The file URL is remembered per project in the existing cx_config.",
+   "The sync window includes a Use the Asset Status URL button that copies the URL already configured on Asset Status, since it is the same physical file. Note: the URL is held as a separate per project copy on this page, so if the file ever moves it must be updated in both places until a single shared project level pointer is added.",
+   "AssetStatus pager moved and restyled. The Prev, range, Next control has left the top action bar and now sits on the filters row, right aligned, as a compact bordered pill. The range shows in accent bold with of N muted, and Prev and Next are chevron icon buttons that fill accent blue on hover. Paging behaviour is unchanged: the pager only appears when the filtered list is longer than 200 and filtering resets to the first page."
+  ]
+ },
+ {
   "rev": "REV142",
   "date": "2026-07-07",
   "items": [
