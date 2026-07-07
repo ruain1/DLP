@@ -154,3 +154,30 @@ export async function readSharePointRegister(fileUrl, sheetName) {
     values: (rng && rng.values) || [],
   };
 }
+
+// REV143: raw workbook download for pages that parse the whole file client-side.
+// Weekly Cx Progress reads several sheets through exceljs, so a single usedRange
+// is not enough; it needs the bytes. Same two-step share resolution as the
+// register read (the Excel workload rejects /shares for work accounts), then a
+// GET of the item content through /drives. Returns an ArrayBuffer the caller
+// hands straight to the existing workbook parser, so the parse path is shared
+// with a manual upload and never forks.
+export async function downloadSharePointFile(fileUrl) {
+  const sid = shareId(fileUrl);
+  const item = await graph("/shares/" + sid + "/driveItem?$select=id,name,lastModifiedDateTime,parentReference");
+  const driveId = item && item.parentReference && item.parentReference.driveId;
+  if (!driveId || !item.id) throw new Error("The share resolved but returned no drive identity. Check the file URL points at the workbook itself.");
+  const t = await token();
+  const res = await fetch("https://graph.microsoft.com/v1.0/drives/" + driveId + "/items/" + item.id + "/content", { headers: { Authorization: "Bearer " + t } });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw new Error("Graph refused the download (" + res.status + "). Check that Files.Read.All has the green Granted tick and that the signed-in account can open the file in the browser.");
+    if (res.status === 404) throw new Error("The file was not found. Check the file URL in the sync window.");
+    throw new Error("Graph download of the workbook failed (" + res.status + ").");
+  }
+  const buffer = await res.arrayBuffer();
+  return {
+    fileName: item && item.name ? item.name : "",
+    lastModified: item && item.lastModifiedDateTime ? item.lastModifiedDateTime : "",
+    buffer,
+  };
+}

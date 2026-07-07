@@ -83,7 +83,7 @@ async function parseWorkbook(file) {
   const _xl = await import("exceljs/dist/exceljs.min.js");
   const ExcelJS = _xl.default || _xl;
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(await file.arrayBuffer());
+  await wb.xlsx.load(file instanceof ArrayBuffer ? file : await file.arrayBuffer());  // REV143: accepts SharePoint bytes or an uploaded File
   const sheet = (name) => { let ws = wb.getWorksheet(name); if (ws) return ws; const want = norm(name); return wb.worksheets.find((w) => norm(w.name).includes(want)) || null; };
 
   const out = { week_ending: null, acc_refreshed: null, headline: {}, detail: {}, warnings: [] };
@@ -514,6 +514,9 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
   const [insightsOn, setInsightsOn] = useState(() => { try { return localStorage.getItem("dlp-cx-insights") !== "0"; } catch (e) { return true; } });
   const setInsights = (v) => { setInsightsOn(v); try { localStorage.setItem("dlp-cx-insights", v ? "1" : "0"); } catch (e) { /* private mode */ } };
   const fileRef = useRef(null);
+  const [spAcct, setSpAcct] = useState(null);      // REV143: connected Quantum MC tenant account (same module Asset Status uses)
+  const [syncOpen, setSyncOpen] = useState(false); // SharePoint sync window
+  const [spUrl, setSpUrl] = useState("");          // editable file URL inside the sync window
 
   const loadWeeks = useCallback(async (selectWeek) => {
     setLoading(true); setErr("");
@@ -564,6 +567,53 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
 
   const saveCfg = async (next) => { setCfg(next); try { await supabase.from("cx_config").upsert({ project_id: projectId, config: next, updated_at: new Date().toISOString(), updated_by: cu && cu.name }, { onConflict: "project_id" }); } catch (e) { setErr("Config save failed: " + (e.message || e)); } };
 
+  // REV143: SharePoint sync. The Cx Master is the same physical file Asset Status
+  // syncs, so this reuses sharepoint.js unchanged and just pulls the bytes, then
+  // runs the very same onImport parse+upsert path a manual upload runs.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const sp = await import("./sharepoint");
+        sp.initSharePoint((cfg && cfg.sp) || undefined);
+        const a = await sp.sharePointAccount();
+        if (live) setSpAcct(a ? (a.username || a.name || "connected") : null);
+      } catch (e) { /* module optional until first use */ }
+    })();
+    return () => { live = false; };
+  }, [cfg && cfg.sp && cfg.sp.client_id, cfg && cfg.sp && cfg.sp.tenant_id]);
+
+  const onConnectSp = async () => {
+    try { const sp = await import("./sharepoint"); sp.initSharePoint((cfg && cfg.sp) || undefined); await sp.connectSharePoint(); }
+    catch (e) { setErr("Connect failed: " + (e && e.message ? e.message : e)); }
+  };
+
+  const pullUrlFromAssets = async () => {
+    try {
+      const { data } = await supabase.from("asset_status_config").select("file_url").eq("project_id", projectId).maybeSingle();
+      if (data && data.file_url) { setSpUrl(data.file_url); setInfo("Pulled the file URL from Asset Status. Run Sync to confirm it reads."); }
+      else setErr("Asset Status has no SharePoint file URL configured for this project yet.");
+    } catch (e) { setErr("Could not read the Asset Status config: " + (e && e.message ? e.message : e)); }
+  };
+
+  const onSyncSp = async () => {
+    const fileUrl = spUrl || (cfg && cfg.sp && cfg.sp.file_url) || "";
+    if (!fileUrl) { setErr("Paste the Cx Master browser URL in the sync window first."); return; }
+    setBusy(true); setErr(""); setInfo("");
+    if (spUrl && spUrl !== ((cfg && cfg.sp && cfg.sp.file_url) || "")) {
+      try { await saveCfg({ ...cfg, sp: { ...((cfg && cfg.sp) || {}), file_url: spUrl } }); } catch (e) { /* non-fatal; sync still proceeds */ }
+    }
+    let buf = null;
+    try {
+      const sp = await import("./sharepoint");
+      sp.initSharePoint((cfg && cfg.sp) || undefined);
+      const r = await sp.downloadSharePointFile(fileUrl);
+      buf = r.buffer;
+    } catch (e) { setErr("Sync failed: " + (e && e.message ? e.message : e)); setBusy(false); return; }
+    setSyncOpen(false);
+    await onImport(buf);   // shared parse+upsert path; onImport manages busy from here
+  };
+
   const onDrill = (e) => {
     const el = e.target.closest("[data-pop]"); if (!el) return;
     const built = buildDrill(el.dataset.pop, el.dataset, data); if (!built) return;
@@ -586,6 +636,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
           {weeks.map((w) => <option key={w.week_ending} value={w.week_ending}>Week ending {fmtFull(w.week_ending)}</option>)}
         </select>
         {canv("importWb") && <label className="cxp-btn"><input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />{busy ? "Importing\u2026" : "Import workbook"}</label>}
+        {canv("importWb") && <button className="cxp-btn sp" onClick={(e) => { e.stopPropagation(); setSpUrl((cfg && cfg.sp && cfg.sp.file_url) || ""); setSyncOpen(true); }} title="Pull the Cx Master straight from SharePoint, the same file Asset Status syncs">{"\u21BB"} Sync From SharePoint</button>}
         {reportButton}
         {canv("cxConfig") && <button className="cxp-btn prime" onClick={(e) => { e.stopPropagation(); setCfgOpen(true); }}>Configure</button>}
       </div>
@@ -601,6 +652,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>No weekly pack imported yet</div>
           <div style={{ color: "var(--muted)", marginBottom: 14 }}>Import the weekly Cx Excel workbook to populate this page. Re-importing the same week overwrites it.</div>
           <label className="cxp-btn prime"><input type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; onImport(f); }} />Import workbook</label>
+          {canv("importWb") && <button className="cxp-btn sp" style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); setSpUrl((cfg && cfg.sp && cfg.sp.file_url) || ""); setSyncOpen(true); }}>{"\u21BB"} Sync From SharePoint</button>}
         </div>
       )}
 
@@ -665,6 +717,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
 
       {/* configure */}
       {cfgOpen && <Configure cfg={cfg} weeks={weeks} cur={snap && snap.week_ending} onWeek={(we) => setSnap(weeks.find((w) => w.week_ending === we) || null)} onSave={saveCfg} onClose={() => setCfgOpen(false)} />}
+      {syncOpen && <SyncModal theme={theme} spAcct={spAcct} busy={busy} spUrl={spUrl} setSpUrl={setSpUrl} savedUrl={(cfg && cfg.sp && cfg.sp.file_url) || ""} onConnect={onConnectSp} onRun={onSyncSp} onPull={pullUrlFromAssets} onClose={() => setSyncOpen(false)} />}
     </div>
   );
 }
@@ -801,6 +854,32 @@ function Attendance({ s }) {
 }
 
 /* ---------- configure drawer ---------- */
+function SyncModal({ theme, spAcct, busy, spUrl, setSpUrl, savedUrl, onConnect, onRun, onPull, onClose }) {
+  const short = (u) => { if (!u) return ""; try { const m = u.match(/file=([^&]+)/); return decodeURIComponent(m ? m[1] : u).slice(0, 72); } catch (e) { return String(u).slice(0, 72); } };
+  return <>
+    <div className="cxp-scrim show" onClick={(e) => { e.stopPropagation(); onClose(); }} />
+    <div className={"cxp-sync" + (theme === "dark" ? " cxp-dark" : "")} onClick={(e) => e.stopPropagation()}>
+      <div className="sh"><h3>{"\u21BB"} Sync From SharePoint</h3><button className="cxp-x" onClick={onClose}>{"\u2715"}</button></div>
+      <div className="sb">
+        <div className="cxp-note2">Reads the Cx Master directly from SharePoint (Quantum MC tenant) and imports the current week, exactly as an uploaded workbook would. This is the same physical file Asset Status syncs. Connection: {spAcct ? <b>connected as {spAcct}</b> : <b>no Quantum MC tenant account connected</b>}.</div>
+        {!spAcct && <p className="cxp-note">The sync needs an account in the Quantum MC tenant (the one that can open the Cx Master in the browser). Your Outlook connection on cs-nordics is untouched; the two sign-ins live side by side. Press Connect SharePoint, pick your quantum-mc account, then reopen this window and run the sync.</p>}
+        <label className="cxp-lbl">Cx Master file URL</label>
+        <input className="url" type="text" value={spUrl} placeholder="https://quantummccx.sharepoint.com/..." onChange={(e) => setSpUrl(e.target.value)} />
+        <div className="cxp-urlrow">
+          <button className="cxp-btn tiny" onClick={onPull} title="Copy the URL already configured on Asset Status">Use the Asset Status URL</button>
+          {savedUrl ? <span className="cxp-saved">Saved: {short(savedUrl)}</span> : <span className="cxp-saved warn">No URL saved yet for this page</span>}
+        </div>
+        <p className="cxp-note">The URL is stored per project on this page. It is a separate copy from the one on Asset Status; if the file ever moves, update both, or ask for the single shared project-level pointer.</p>
+      </div>
+      <div className="sf">
+        {!spAcct && <button className="cxp-btn sp" onClick={onConnect}>Connect SharePoint</button>}
+        <button className="cxp-btn" onClick={onClose}>Cancel</button>
+        <button className="cxp-btn prime" disabled={busy || !spAcct} onClick={onRun}>{busy ? "Syncing\u2026" : "Run Sync"}</button>
+      </div>
+    </div>
+  </>;
+}
+
 function Configure({ cfg, weeks, cur, onWeek, onSave, onClose }) {
   const [c, setC] = useState(JSON.parse(JSON.stringify(cfg)));
   const order = c.order && c.order.length ? c.order.filter((k) => CARD_KEYS.includes(k)) : CARD_KEYS.slice();
@@ -870,6 +949,21 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-btn,.cxp-wk{font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
 .cxp-btn:hover{border-color:var(--accent)}
 .cxp-btn.prime{background:var(--accent);border-color:var(--accent);color:#fff}
+.cxp-btn.sp{border-color:#7C3AED;color:#7C3AED}
+.cxp-btn.sp:hover{border-color:#7C3AED;background:rgba(124,58,237,.08)}
+.cxp-btn.tiny{padding:5px 9px;font-size:11.5px;font-weight:600}
+.cxp-sync{position:fixed;z-index:61;top:50%;left:50%;transform:translate(-50%,-50%);width:min(560px,92vw);background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.35);overflow:hidden;color:var(--ink)}
+.cxp-sync .sh{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.cxp-sync .sh h3{margin:0;font-size:15px;font-weight:800}
+.cxp-sync .sb{padding:16px 18px}
+.cxp-sync .sf{display:flex;gap:8px;justify-content:flex-end;padding:13px 18px;border-top:1px solid var(--line)}
+.cxp-sync input.url{width:100%;box-sizing:border-box;margin-top:5px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:inherit}
+.cxp-sync input.url:focus{outline:none;border-color:var(--accent)}
+.cxp-lbl{display:block;margin-top:12px;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cxp-urlrow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.cxp-saved{font-size:11px;color:var(--muted)}
+.cxp-saved.warn{color:var(--amber);font-weight:700}
+.cxp-note2{font-size:12px;color:var(--ink);line-height:1.5;background:var(--card2, var(--paper));border:1px solid var(--line);border-radius:9px;padding:10px 12px}
 .cxp-err{background:rgba(224,161,6,.12);border:1px solid var(--amber);color:var(--ink);border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:14px}
 .cxp-ok{background:rgba(24,182,155,.12);border:1px solid var(--green);color:var(--ink);border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:14px}
 .cxp-empty{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px;text-align:center;color:var(--ink)}

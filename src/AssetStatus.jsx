@@ -472,11 +472,6 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
         <button className="ast-btn" onClick={onExport} disabled={empty}>Export</button>
         {canEditAsset && !empty && <button className={"ast-btn" + (editMode ? " on" : "")} onClick={() => { setEditMode(!editMode); clearSel(); }} title="Manually set or bulk set statuses">{editMode ? "Editing" : "Edit Mode"}</button>}
         {veloxLane && !empty && <span className="ast-velox" title="You can mark EE on Yellow Tagged assets">EE editing enabled</span>}
-        {!empty && list.length > PAGE_SIZE && <div className="ast-pager">
-          <button className="ast-btn" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} title="Previous page">{"\u2039"} Prev</button>
-          <span className="ppos">{pageStart + 1}-{Math.min(list.length, pageStart + PAGE_SIZE)} <small>of {list.length}</small></span>
-          <button className="ast-btn" disabled={pageStart + PAGE_SIZE >= list.length} onClick={() => setPage((p) => p + 1)} title="Next page">Next {"\u203A"}</button>
-        </div>}
       </div>
 
       {err && <div className="ast-err">{err}<button onClick={() => setErr("")}>{"\u00D7"}</button></div>}
@@ -525,6 +520,12 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
         </div>
         <div className="ast-f"><span>&nbsp;</span><button className={"ast-btn" + (hideDone ? " on" : "")} onClick={() => setHideDone(!hideDone)}>Hide Complete</button></div>
         <div className="ast-f"><span>&nbsp;</span><button className="ast-btn" onClick={() => { const anyOpen = groups.some((g) => !closed[g.key]); const c = {}; groups.forEach((g) => { c[g.key] = anyOpen; }); setClosed(c); }}>{groups.some((g) => !closed[g.key]) ? "Collapse All" : "Expand All"}</button></div>
+      
+        {!empty && list.length > PAGE_SIZE && <div className="ast-pager">
+          <button className="pg-arrow" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} title="Previous page" aria-label="Previous page">{"\u2039"}</button>
+          <span className="ppos"><b>{pageStart + 1}-{Math.min(list.length, pageStart + PAGE_SIZE)}</b> <small>of {list.length}</small></span>
+          <button className="pg-arrow" disabled={pageStart + PAGE_SIZE >= list.length} onClick={() => setPage((p) => p + 1)} title="Next page" aria-label="Next page">{"\u203A"}</button>
+        </div>}
       </div>
 
       {canEditAsset && editMode && <div className="ast-bulk">
@@ -916,8 +917,13 @@ tr.arow:hover .idcell{background:var(--hover)}
 .dtbl td.regress{color:var(--red);font-weight:800}
 /* REV133 edit mode */
 .ast-velox{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.03em;color:var(--green);border:1px solid var(--green);border-radius:8px;padding:6px 10px}
-.ast-pager{display:inline-flex;align-items:center;gap:8px;margin-left:6px}
-.ast-pager .ppos{font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap}
+.ast-pager{display:inline-flex;align-items:center;gap:4px;margin-left:auto;align-self:flex-end;border:1px solid var(--line);background:var(--card2);border-radius:9px;padding:3px 4px}
+.ast-pager .pg-arrow{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:0;background:transparent;color:var(--ink);border-radius:6px;font-size:16px;font-weight:800;line-height:1;cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
+.ast-pager .pg-arrow:hover:not(:disabled){background:var(--accent);color:#fff}
+.ast-pager .pg-arrow:active:not(:disabled){transform:translateY(1px)}
+.ast-pager .pg-arrow:disabled{opacity:.35;cursor:not-allowed}
+.ast-pager .ppos{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;padding:0 6px}
+.ast-pager .ppos b{color:var(--accent);font-weight:800}
 .ast-pager .ppos small{color:var(--muted);font-weight:500}
 .ast-bulk{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 18px;background:var(--chipbg);border-bottom:1px solid var(--line)}
 .ast-bulk b{font-size:12.5px;color:var(--ink)}
