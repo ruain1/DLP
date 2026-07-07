@@ -86,6 +86,8 @@ export function classify(action: string): BucketKey {
   if (/reschedul|move activity|resize/.test(a)) return "resched";
   if (/percent|progress/.test(a)) return "progress";
   if (/complete/.test(a)) return "completed";
+  if (/^(insert|update|delete) profiles\b/.test(a)) return "users";
+  if (/^(insert|update|delete) (settings|companies|areas|systems|levels)\b/.test(a)) return "admin";
   if (/invite user|user invited|access request|approve|reset password|set-password|remove user|add person/.test(a)) return "users";
   if (/import|export|workbook|json/.test(a)) return "io";
   if (/note/.test(a)) return "noted";
@@ -98,12 +100,32 @@ export function classify(action: string): BucketKey {
 export const esc = (s: unknown) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" } as Record<string, string>)[c]);
 export type AuditRow = { ts: string; user: string; action: string; detail: string; entity: string; entityId: string | null };
 export type ActRef = { code: number | null; desc: string; companyId: string | null };
+// Setup-table audit rows historically stored the raw row_to_json() of the changed row as the
+// detail (see the audit_setup trigger), so rendering that verbatim dumped unreadable JSON into
+// the digest. Any JSON-shaped detail is humanised here rather than printed. Rows written by the
+// REV142 trigger already carry human detail and fall straight through the non-JSON path.
+const SETUP_ENTITIES = new Set(["settings", "profiles", "companies", "areas", "systems", "levels"]);
+const looksJson = (s: string) => { const t = (s || "").trim(); return t.charAt(0) === "{" || t.charAt(0) === "["; };
+const setupVerb = (action: string) => { const x = (action || "").toLowerCase(); return x.indexOf("insert") === 0 ? "Added" : x.indexOf("update") === 0 ? "Updated" : x.indexOf("delete") === 0 ? "Removed" : "Changed"; };
+export function humanSetup(entity: string, action: string, detail: string): string {
+  let o: any = {};
+  try { o = JSON.parse(detail); } catch { return setupVerb(action) + " " + (entity || "record"); }
+  if (entity === "settings") return `Lookahead ${o.weeks} wk / make-ready ${o.make_ready_days} d`;
+  if (entity === "profiles") { const nm = o.name || "user"; const r = o.role || o.platform_role || ""; return nm + (r ? ` (${r})` : ""); }
+  if (entity === "companies") return ("Company " + (o.name || "")).trim();
+  if (entity === "areas") return ("Zone " + (o.name || "")).trim();
+  if (entity === "systems") return ("System " + (o.name || "")).trim();
+  if (entity === "levels") return ("Stage " + (o.key || "") + " " + (o.name || "")).trim();
+  return setupVerb(action) + " " + (entity || "record");
+}
 export function refName(row: AuditRow, acts: Map<string, ActRef>): string {
   if (row.entity === "activity" && row.entityId && acts.has(row.entityId)) {
     const a = acts.get(row.entityId)!;
     return (a.code != null ? "#" + a.code + " " : "") + (a.desc || "activity");
   }
+  if (SETUP_ENTITIES.has(row.entity) && looksJson(row.detail)) return humanSetup(row.entity, row.action, row.detail);
   const d = (row.detail || row.action || "").split(/[\n;]/)[0];
+  if (looksJson(d)) return setupVerb(row.action) + " " + (row.entity || "record");
   return d;
 }
 const normT = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -113,6 +135,7 @@ const normT = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ")
 const detailFrag = (row: AuditRow, ref?: string) => {
   const d = (row.detail || "").trim();
   if (!d) return "";
+  if (looksJson(d)) return "";
   if (ref) {
     const nd = normT(d);
     if (nd && (nd === normT(ref) || nd === normT(ref.replace(/^#\d+\s*/, "")))) return "";
