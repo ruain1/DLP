@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV148",
+    "date": "2026-07-07",
+    "items": [
+      "Palette menu tidy: the selected option is now a neat pill on the label itself, not a full-width block, and the colour swatches sit cleanly inside each row. The selected highlight no longer looks misplaced."
+    ]
+  },
+  {
     "rev": "REV147",
     "date": "2026-07-07",
     "items": [
