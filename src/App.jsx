@@ -2003,7 +2003,7 @@ export default function App({ session }) {
     const { to, cc } = witnessRecipients(a.discipline || []);
     // witnessType joins the hash only when set: appending it unconditionally would change the
     // hash formula for every already-sent invite and flip them all to Details Changed on deploy.
-    const parts = [a.desc || "", locCode(a), a.witnessAt || "", a.witnessDurationMin || 60, (to || []).slice().sort(), (cc || []).slice().sort()];
+    const parts = [a.desc || "", locCode(a), a.witnessAt || "", a.witnessDurationMin || 60, a.accUrl || "", a.fokRef || "", (to || []).slice().sort(), (cc || []).slice().sort()];
     if (a.witnessType) parts.push(a.witnessType);
     const s = JSON.stringify(parts);
     let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
@@ -2066,7 +2066,7 @@ export default function App({ session }) {
       sessionsLine: (n > 1 ? `${n} daily sessions, ` : "") + `${hm(sd)} to ${hm(ed)} (Europe/Helsinki)`,
       openCount: openCons.length, openConstraints: openCons,
       activityUrl: (typeof window !== "undefined" && window.location && window.location.origin ? window.location.origin : "") + "/?p=" + encodeURIComponent(S.projectId || "") + "&act=" + encodeURIComponent(a.id),
-      notes: a.notes || "", retest,
+      notes: (a.notes || "").replace(/\n*LINK TO ACC FILES:[^\n]*/gi, "").trim(), fokRef: a.fokRef || "", accUrl: a.accUrl || "", retest,
       headerChip: retest ? `Attempt ${att}` + (dayChip ? " \u00b7 " + dayChip : "") : dayChip,
       startLocal: sd, durationMin: mins, required: to || [], optional: cc || [],
     };
