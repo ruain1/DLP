@@ -105,7 +105,7 @@ function measureLabel(t) {
   } catch (e) { return t.length * 5.7; }
 }
 
-export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditDocs, usersById }) {
+export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditDocs, usersById, palette }) {
   const [matrix, setMatrix] = useState([]);
   const [columns, setColumns] = useState([]);
   const [config, setConfig] = useState(null);
@@ -334,7 +334,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
     } catch (e) { setErr("Export failed: " + (e && e.message ? e.message : e)); }
   };
 
-  if (loading) return <div className={"dts" + (dark ? " dts-dark" : "")}><style>{DOCS_CSS}</style><div className="dts-empty">Loading Documentation Tracker&hellip;</div></div>;
+  if (loading) return <div className={"dts" + (dark ? " dts-dark" : "") + (palette === "hc" ? " pal-hc" : palette === "cb" ? " pal-cb" : "")}><style>{DOCS_CSS}</style><div className="dts-empty">Loading Documentation Tracker&hellip;</div></div>;
 
   const empty = !matrix.length;
   const dotCls = { y: "dts-d yes", n: "dts-d no", a: "dts-d na" };
@@ -359,7 +359,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   };
 
   return (
-    <div className={"dts" + (dark ? " dts-dark" : "")}>
+    <div className={"dts" + (dark ? " dts-dark" : "") + (palette === "hc" ? " pal-hc" : palette === "cb" ? " pal-cb" : "")}>
       <style>{DOCS_CSS}</style>
 
       <div className="dts-top">
@@ -653,6 +653,11 @@ function ConflictList({ conflicts, onApply, busy }) {
 const DOCS_CSS = `
 .dts{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#f7f8fa;--card:#fff;--card2:#f7f9fc;--line:#e3e8ef;--chipbg:#eef3fb;--hover:#eef3f9;--head:#2563EB;color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--paper)}
 .dts-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--paper:#10151C;--card:#1A222D;--card2:#141d29;--line:#2A3543;--chipbg:#22324A;--hover:#202B38;--head:#7FB0FF}
+/* REV146: palette overrides (Display control) */
+.dts.pal-hc{--muted:#37455a;--faint:#586377;--line:#cbd3de;--green:#0B8F63;--red:#C42B2B;--amber:#A85D00}
+.dts.pal-hc.dts-dark{--muted:#c6d2e2;--faint:#98a6b8;--line:#3c4b5f;--green:#19cf8d;--red:#ff6b62;--amber:#f0ad2a}
+.dts.pal-cb{--muted:#37455a;--faint:#586377;--line:#cbd3de;--green:#0072B2;--red:#D55E00;--amber:#E0A106}
+.dts.pal-cb.dts-dark{--muted:#c6d2e2;--faint:#98a6b8;--line:#3c4b5f;--green:#56B4E9;--red:#EE7733;--amber:#EECC44}
 .dts *{box-sizing:border-box}
 .dts-top{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--line);z-index:30}
 .dts-title{font-size:18px;font-weight:800;color:var(--head)}

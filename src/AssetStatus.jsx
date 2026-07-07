@@ -107,7 +107,7 @@ function enrichAssets(assets, stepDefs) {
 }
 
 /* ---------- component ---------- */
-export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEditAsset = false, canEditEE = false, usersById = {}, onAssetChange, focusTag, onFocusConsumed }) {
+export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEditAsset = false, canEditEE = false, usersById = {}, onAssetChange, focusTag, onFocusConsumed, palette }) {
   // REV133: edit mode. canEditAsset is the broad Edit Mode (admin baseline); canEditEE
   // is the narrow Velox lane (edits EE only, and only on a Yellow Tagged asset, with no
   // Edit Mode toggle). RLS enforces the same in the database; this only gates the UI.
@@ -454,13 +454,13 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
     return rows;
   };
 
-  if (loading) return <div className={"ast" + (theme === "dark" ? " ast-dark" : "")}><style>{AST_CSS}</style><div className="ast-empty">Loading Asset Status&hellip;</div></div>;
+  if (loading) return <div className={"ast" + (theme === "dark" ? " ast-dark" : "") + (palette === "hc" ? " pal-hc" : palette === "cb" ? " pal-cb" : "")}><style>{AST_CSS}</style><div className="ast-empty">Loading Asset Status&hellip;</div></div>;
 
   const empty = !assets.length;
   const today = todayISO();
 
   return (
-    <div className={"ast" + (theme === "dark" ? " ast-dark" : "")}>
+    <div className={"ast" + (theme === "dark" ? " ast-dark" : "") + (palette === "hc" ? " pal-hc" : palette === "cb" ? " pal-cb" : "")}>
       <style>{AST_CSS}</style>
 
       <div className="ast-top">
@@ -763,6 +763,11 @@ function ConflictGate({ conflicts, busy, onApply }) {
 const AST_CSS = `
 .ast{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#f7f8fa;--card:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--chipbg:#eef3fb;--hover:#eef3f9;--head:#2563EB;color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;height:100%;display:flex;flex-direction:column;overflow:hidden}
 .ast.ast-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--paper:#10151C;--card:#1A222D;--card2:#141d29;--line:#2A3543;--chipbg:#22324A;--hover:#202B38;--head:#7FB0FF}
+/* REV146: palette overrides (Display control) */
+.ast.pal-hc{--muted:#37455a;--faint:#586377;--line:#cbd3de;--green:#0B8F63;--red:#C42B2B;--amber:#A85D00}
+.ast.pal-hc.ast-dark{--muted:#c6d2e2;--faint:#98a6b8;--line:#3c4b5f;--green:#19cf8d;--red:#ff6b62;--amber:#f0ad2a}
+.ast.pal-cb{--muted:#37455a;--faint:#586377;--line:#cbd3de;--green:#0072B2;--red:#D55E00;--amber:#E0A106}
+.ast.pal-cb.ast-dark{--muted:#c6d2e2;--faint:#98a6b8;--line:#3c4b5f;--green:#56B4E9;--red:#EE7733;--amber:#EECC44}
 .ast-top{flex:none;z-index:30;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--line)}
 .ast-title{font-size:18px;font-weight:800;color:var(--head)}
 .ast-title small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:2px}

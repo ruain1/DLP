@@ -304,6 +304,27 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-railppc .railqa{display:none}
 .lk-rail.open .lk-railppc span.railqa{display:inline-flex}
 .lk-rail.open .lk-railppc div.railqa{display:block}
+/* REV146: palette (Display) overrides for status colours on the main app */
+.lk.pal-hc{--green:#0E9E6E;--red:#D62828;--amber:#B45309}
+.lk.pal-cb{--green:#1E7FC0;--red:#DA5A1A;--amber:#E0A106}
+/* REV146: rail Display control + palette flyout */
+.lk-disp{position:relative;width:100%;display:flex;justify-content:center}
+.lk-dispbtn{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.lk-rail.open .lk-dispbtn{width:100%;justify-content:flex-start;gap:13px;padding:0 11px}
+.lk-dispbtn:hover{background:#2a333f;color:#dfe6ef}
+.lk-dispbtn .lbl{display:none}
+.lk-rail.open .lk-dispbtn .lbl{display:inline;font-size:13px;font-weight:600}
+.lk-dispback{position:fixed;inset:0;z-index:59}
+.lk-dispfly{position:absolute;left:52px;bottom:0;width:226px;background:#232c38;border:1px solid #384556;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.45);padding:8px;z-index:60}
+.lk-rail.open .lk-dispfly{left:auto;right:8px;bottom:44px}
+.lk-dispfly h5{margin:2px 6px 8px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#8b98ab;font-weight:800}
+.lk-dispopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:9px 8px;color:#dbe3ee;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.lk-dispopt:hover{background:#2c3644}
+.lk-dispopt.on{background:#31405a}
+.lk-dispopt .sw{display:inline-flex;gap:3px;flex:none}
+.lk-dispopt .sw i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.lk-dispopt .ck{margin-left:auto;color:#6ea8fe;font-weight:800;opacity:0}
+.lk-dispopt.on .ck{opacity:1}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .lk-rep-card.clickable{cursor:pointer;transition:border-color .12s,background .12s}
 .lk-rep-card.clickable:hover{border-color:var(--accent);background:var(--hover)}
@@ -1796,6 +1817,7 @@ export default function App({ session }) {
   useEffect(() => { selProjRef.current = selProj; }, [selProj]);
   useEffect(() => { projectsRef.current = projects; }, [projects]);
 
+  const [dispOpen, setDispOpen] = useState(false);   // REV146: palette flyout
   const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
 
   const enterProject = async (projectId, projList, focusActId, initialPage) => {
@@ -1854,7 +1876,7 @@ export default function App({ session }) {
   useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
-  const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks"];
+  const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks", "palette"];
   const cu = S && (() => {
     const base = S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null };
     return { ...base, role: (isSuper || S.projectRole === "admin") ? "admin" : "member" };
@@ -1864,7 +1886,7 @@ export default function App({ session }) {
   // intentionally ignored and kept only as inline documentation of intent.
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
-    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks })); } catch (e) {} }
+    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks, palette: n.palette })); } catch (e) {} }
     syncCollections(prev, n, session, prev.projectId);
     return n;
   });
@@ -2673,8 +2695,9 @@ export default function App({ session }) {
           onClick={() => newActivity(lane, dropDay(i))} onDragOver={(e) => e.preventDefault()} onDrop={() => moveActivity(dragId.current, dropDay(i), lane)} />))}
     </div>);
 
+  const palette = ["hc", "cb"].includes(S.palette) ? S.palette : (["hc", "cb"].includes(prefs().palette) ? prefs().palette : "default");
   return (
-    <div className="lk" style={cssVars(S.theme)}><style>{css}</style>
+    <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
@@ -2688,6 +2711,21 @@ export default function App({ session }) {
         <button title="Documentation Tracker" className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n="file" s={20} /><span className="lbl">Documentation</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
+        <div className="lk-disp">
+          {dispOpen && <div className="lk-dispback" onClick={() => setDispOpen(false)} />}
+          <button className="lk-dispbtn" title="Display, palette and contrast" onClick={() => setDispOpen((v) => !v)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none" /></svg>
+            <span className="lbl">Display</span>
+          </button>
+          {dispOpen && <div className="lk-dispfly">
+            <h5>Palette</h5>
+            {[["default", "Default", "#18b69b", "#e2564e"], ["hc", "High contrast", "#0E9E6E", "#D62828"], ["cb", "Colourblind safe", "#0072B2", "#D55E00"]].map(([k, lbl, ca, cb]) => (
+              <button key={k} className={"lk-dispopt" + (palette === k ? " on" : "")} onClick={() => { update((pp) => ({ ...pp, palette: k })); setDispOpen(false); }}>
+                <span className="sw"><i style={{ background: ca }} /><i style={{ background: cb }} /></span>{lbl}<span className="ck">{"\u2713"}</span>
+              </button>
+            ))}
+          </div>}
+        </div>
         <div className="lk-railppc" title={"PPC " + (ppcAll == null ? "\u2014" : ppcAll + "%") + " \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Target " + tgtAll + "%" + (qaAll != null && qaAll !== ppcAll ? " \u00B7 Quality-adjusted " + qaAll + "% (also excludes on-time witness failures)" : "") + " \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em", display: "flex", alignItems: "center" }}>PPC<span className="railqa"><PpcInfo target={tgtAll} small /></span></div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= tgtAll ? "#34D399" : ppcAll >= tgtAll - 15 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
@@ -2869,9 +2907,9 @@ export default function App({ session }) {
       {page === "constraints" && <div className="lk-scroll"><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
-      {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
-      {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
-      {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
+      {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
+      {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
+      {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>

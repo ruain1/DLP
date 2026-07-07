@@ -499,7 +499,7 @@ function buildDrill(key, ds, data) {
 /* =====================================================================
    PAGE
    ===================================================================== */
-export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, reportButton }) {
+export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, reportButton, palette }) {
   const canv = can || (() => isAdmin);
   const [weeks, setWeeks] = useState([]);          // [{week_ending, ...headline}]
   const [snap, setSnap] = useState(null);          // current full snapshot row
@@ -624,7 +624,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
   const order = (cfg.order && cfg.order.length ? cfg.order : CARD_KEYS).filter((k) => CARD_KEYS.includes(k));
 
   return (
-    <div className={"cxp" + (theme === "dark" ? " cxp-dark" : "")} onClick={onDrill}>
+    <div className={"cxp" + (theme === "dark" ? " cxp-dark" : "") + (palette === "hc" ? " pal-hc" : palette === "cb" ? " pal-cb" : "")} onClick={onDrill}>
       <style>{CXP_CSS}</style>
 
       <div className="cxp-top">
@@ -940,6 +940,11 @@ const CXP_CSS = `
 ` + `
 .cxp{--ink:#16202c;--muted:#5d6b7c;--faint:#94a1b1;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#ffffff;--card:#ffffff;--surface:#ffffff;--card2:#f7f9fc;--line:#e3e8ef;--line2:#d6dde6;--chipbg:#f7f9fc;--hover:#eef3f9;--cxsh:0 1px 2px rgba(16,32,48,.06),0 10px 24px rgba(16,32,48,.07);--head:#2563EB;--headtint:rgba(37,99,235,.09);max-width:1500px;margin:0 auto;padding:0 22px 44px;color:var(--ink);font-family:var(--body)}
 body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--accent:#3b82f6;--green:#18b69b;--amber:#e0a106;--red:#e2564e;--paper:#141d29;--card:#141d29;--surface:#101822;--card2:#0f1722;--line:#22303f;--line2:#2c3a4b;--chipbg:#0f1722;--hover:#1b2735;--cxsh:0 1px 0 rgba(255,255,255,.02),0 8px 28px rgba(0,0,0,.35);--head:#7FB0FF;--headtint:rgba(127,176,255,.14)}
+/* REV146: palette overrides (Display control) */
+.cxp.pal-hc{--muted:#37455a;--faint:#586377;--line:#cbd3de;--green:#0B8F63;--red:#C42B2B;--amber:#A85D00}
+.cxp.pal-hc.cxp-dark{--muted:#c6d2e2;--faint:#98a6b8;--line:#3c4b5f;--green:#19cf8d;--red:#ff6b62;--amber:#f0ad2a}
+.cxp.pal-cb{--muted:#37455a;--faint:#586377;--line:#cbd3de;--green:#0072B2;--red:#D55E00;--amber:#E0A106}
+.cxp.pal-cb.cxp-dark{--muted:#c6d2e2;--faint:#98a6b8;--line:#3c4b5f;--green:#56B4E9;--red:#EE7733;--amber:#EECC44}
 .cxp-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin:0 -22px 16px;padding:14px 22px 13px;background:var(--card);border-bottom:1px solid var(--line)}
 .cxp-title{font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--head)}
 .cxp-title small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:2px}
