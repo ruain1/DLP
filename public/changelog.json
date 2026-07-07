@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV153",
+    "date": "2026-07-07",
+    "items": [
+      "Fixed the palette popout layout. A global sidebar rule that sizes rail icon buttons to 40px was also catching the popout option buttons, forcing them narrow so the labels spilled outside the box. The popout styles now take precedence: labels sit inside the box with proper padding on the left, and the colour swatches line up in a column on the right."
+    ]
+  },
+  {
     "rev": "REV152",
     "date": "2026-07-07",
     "items": [
