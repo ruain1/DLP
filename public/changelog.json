@@ -1,5 +1,15 @@
 [
  {
+  "rev": "REV141",
+  "date": "2026-07-07",
+  "items": [
+   "Documentation Tracker header redesigned. Each angled column label now sits in its own header cell, sharing the exact column the data dots use, so the label and its column are always the same width and a long label can never sit over a neighbouring column. Column width tracks the chosen angle: steeper angles give narrower columns. Angle choices are now 90, 75, 60, and 45 degrees.",
+   "New Codes header mode. A toggle on the filter row switches between full angled Labels and compact horizontal Codes (short four character codes, with the full name on hover and in Reference). Hovering a column links it to its header label.",
+   "The Overall sign off column was removed from the tracker, along with its Signed Off tile and the signed and not signed row filters. The sign off value is still read and stored from the Master, so nothing is lost and it can be brought back later.",
+   "The per row vendor figure now counts vendor owned (VEN) document columns only, so it reflects what the vendor is actually responsible for rather than every column."
+  ]
+ },
+ {
   "rev": "REV140",
   "date": "2026-07-07",
   "items": [
