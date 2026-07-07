@@ -318,12 +318,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-dispfly{position:absolute;left:calc(100% + 16px);bottom:0;width:242px;background:#232c38;border:1px solid #384556;border-radius:12px;box-shadow:6px 12px 20px rgba(0,0,0,.5);padding:8px 8px 9px;z-index:60}
 .lk-rail.open .lk-dispfly{left:auto;right:8px;bottom:44px}
 .lk-dispfly h5{margin:3px 12px 8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#8b98ab;font-weight:800}
-.lk-dispopt{display:flex;align-items:center;gap:12px;width:100%;min-height:34px;text-align:left;background:transparent;border:0;border-radius:8px;padding:4px 10px;color:#dbe3ee;font-family:inherit;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
-.lk-dispopt:hover{background:#2c3644}
-.lk-displbl{padding:3px 9px;border-radius:6px;line-height:1.4;white-space:nowrap}
-.lk-displbl.on{background:#2f6bff;color:#fff}
-.lk-dispsw{display:inline-flex;gap:5px;flex:none;margin-left:auto}
-.lk-dispsw i{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.lk-dispfly .lk-dispopt{display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;height:auto;min-height:34px;text-align:left;background:transparent;border:0;border-radius:8px;padding:5px 10px;color:#dbe3ee;font-family:inherit;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
+.lk-dispfly .lk-dispopt:hover{background:#2c3644}
+.lk-dispfly .lk-displbl{padding:3px 10px;border-radius:6px;line-height:1.4;white-space:nowrap;color:inherit}
+.lk-dispfly .lk-displbl.on{background:#2f6bff;color:#fff}
+.lk-dispfly .lk-dispsw{display:inline-flex;gap:5px;flex:none;margin-left:auto}
+.lk-dispfly .lk-dispsw i{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .lk-rep-card.clickable{cursor:pointer;transition:border-color .12s,background .12s}
 .lk-rep-card.clickable:hover{border-color:var(--accent);background:var(--hover)}
