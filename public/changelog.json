@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV151",
+    "date": "2026-07-07",
+    "items": [
+      "Tidied the palette popout: widened it so no option label wraps, gave every row the same height, kept labels aligned on the left and the three colour swatches aligned in a column on the right."
+    ]
+  },
+  {
     "rev": "REV150",
     "date": "2026-07-07",
     "items": [
