@@ -913,3 +913,164 @@ export async function claimEnergisedConfirmation(eventId) {
 export async function releaseEnergisedConfirmation(eventId) {
   await supabase.from("asset_event").update({ confirmed_at: null }).eq("id", eventId);
 }
+
+/* ============================================================
+   REV139: Documentation Tracker + Vendors
+   Mirrors the asset status data layer. docs_matrix is the SharePoint
+   mirror (status jsonb of doc_key -> 'y'|'n'|'a' plus the manual overall
+   flag). docs_override holds manual Edit Mode changes so a re-sync never
+   wipes them. docs_column_ref is purely structural (refreshed on sync).
+   asset_vendor is reference data edited in Settings > Vendors.
+   Cell codes: 'y' received, 'n' outstanding, 'a' not applicable.
+   ============================================================ */
+
+export async function loadDocsStatus(projectId) {
+  const [mx, cols, cfg, ov, ven] = await Promise.all([
+    supabase.from("docs_matrix").select("*").eq("project_id", projectId).order("sort_order"),
+    supabase.from("docs_column_ref").select("*").eq("project_id", projectId).order("sort_order"),
+    supabase.from("docs_status_config").select("*").eq("project_id", projectId).maybeSingle(),
+    supabase.from("docs_override").select("equip_type, doc_key, value, set_by, set_at, note").eq("project_id", projectId),
+    supabase.from("asset_vendor").select("equip_type, vendor").eq("project_id", projectId),
+  ]);
+  const err = mx.error || cols.error || cfg.error || ov.error || ven.error;
+  return {
+    matrix: mx.data || [], columns: cols.data || [], config: cfg.data || null,
+    overrides: ov.data || [], vendors: ven.data || [],
+    error: err ? (err.message || err.error || String(err)) : "",
+  };
+}
+
+// Pure, harness-testable. Summarise the movement between the previous matrix
+// and the incoming parse. Counts only, never lists: added/removed equipment
+// types, updated/unchanged, and per-cell received gained/lost.
+export function computeDocsDelta(prevRows, newRows) {
+  const prevMap = {}; (prevRows || []).forEach((r) => { prevMap[r.equip_type] = r; });
+  const newMap = {}; (newRows || []).forEach((r) => { newMap[r.equip_type] = r; });
+  const sig = (r) => stableSig([r.status, r.overall]);
+  const d = { firstSync: !(prevRows || []).length, added: 0, removed: 0, updated: 0, unchanged: 0, cellsGained: 0, cellsLost: 0 };
+  (newRows || []).forEach((r) => {
+    const p = prevMap[r.equip_type];
+    if (!p) { d.added++; return; }
+    if (sig(p) === sig(r)) { d.unchanged++; return; }
+    d.updated++;
+    const keys = new Set([...Object.keys(p.status || {}), ...Object.keys(r.status || {})]);
+    keys.forEach((k) => {
+      const was = (p.status || {})[k], now = (r.status || {})[k];
+      if (was !== "y" && now === "y") d.cellsGained++;
+      if (was === "y" && now !== "y") d.cellsLost++;
+    });
+  });
+  (prevRows || []).forEach((p) => { if (!newMap[p.equip_type]) d.removed++; });
+  return d;
+}
+
+// Upsert the parsed matrix and refresh the structural column reference.
+// Equipment types that vanished from the sheet are removed and reported.
+// rows:    [{ equip_type, status:{doc_key:'y'|'n'|'a'}, overall:bool, sort_order }]
+// columns: [{ doc_key, doc_name, level, responsible, sort_order }]
+export async function saveDocsMatrix(projectId, rows, columns, source) {
+  const prevRes = await supabase.from("docs_matrix").select("equip_type,status,overall").eq("project_id", projectId);
+  if (prevRes.error) return { error: prevRes.error.message || String(prevRes.error) };
+  const prev = prevRes.data || [];
+  const now = new Date().toISOString();
+  const payload = rows.map((r) => ({ project_id: projectId, equip_type: r.equip_type, status: r.status || {}, overall: !!r.overall, sort_order: r.sort_order || 0, synced_at: now, source }));
+  const delta = computeDocsDelta(prev, payload);
+  for (let i = 0; i < payload.length; i += 400) {
+    const { error } = await supabase.from("docs_matrix").upsert(payload.slice(i, i + 400), { onConflict: "project_id,equip_type" });
+    if (error) return { error: error.message || String(error) };
+  }
+  if (delta.removed) {
+    const keep = new Set(payload.map((r) => r.equip_type));
+    const gone = prev.filter((p) => !keep.has(p.equip_type)).map((p) => p.equip_type);
+    for (let i = 0; i < gone.length; i += 200) {
+      const { error } = await supabase.from("docs_matrix").delete().eq("project_id", projectId).in("equip_type", gone.slice(i, i + 200));
+      if (error) return { error: error.message || String(error) };
+    }
+  }
+  if (columns && columns.length) {
+    const cRows = columns.map((c) => ({ project_id: projectId, doc_key: c.doc_key, doc_name: c.doc_name, level: c.level, responsible: c.responsible || "", sort_order: c.sort_order || 0, updated_at: now }));
+    const { error } = await supabase.from("docs_column_ref").upsert(cRows, { onConflict: "project_id,doc_key" });
+    if (error) return { error: error.message || String(error) };
+    const keepK = new Set(cRows.map((c) => c.doc_key));
+    const goneRes = await supabase.from("docs_column_ref").select("doc_key").eq("project_id", projectId);
+    const goneK = (goneRes.data || []).map((x) => x.doc_key).filter((k) => !keepK.has(k));
+    if (goneK.length) { await supabase.from("docs_column_ref").delete().eq("project_id", projectId).in("doc_key", goneK); }
+  }
+  return { read: payload.length, ...delta, error: "" };
+}
+
+export async function saveDocsStatusConfig(projectId, cfg) {
+  const { error } = await supabase.from("docs_status_config").upsert({
+    project_id: projectId, tenant_id: cfg.tenant_id || "", client_id: cfg.client_id || "",
+    file_url: cfg.file_url || "", sheet_name: cfg.sheet_name || "Documentation status",
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "project_id" });
+  return error ? (error.message || String(error)) : "";
+}
+
+export async function loadDocsOverrides(projectId) {
+  const { data, error } = await supabase.from("docs_override")
+    .select("equip_type, doc_key, value, set_by, set_at, note").eq("project_id", projectId);
+  if (error) return { overrides: [], error: error.message || String(error) };
+  return { overrides: data || [], error: "" };
+}
+
+// doc_key '__overall__' overrides the sign-off flag ('y'|'n'); any other
+// doc_key overrides a cell ('y'|'n'|'a').
+export async function saveDocsOverride(projectId, equipType, docKey, value, note) {
+  const me = await currentUserId();
+  const { error } = await supabase.from("docs_override").upsert({
+    project_id: projectId, equip_type: equipType, doc_key: docKey,
+    value, set_by: me, set_at: new Date().toISOString(), note: note || null,
+  }, { onConflict: "project_id,equip_type,doc_key" });
+  return error ? (error.message || String(error)) : "";
+}
+
+export async function deleteDocsOverride(projectId, equipType, docKey) {
+  const { error } = await supabase.from("docs_override").delete()
+    .eq("project_id", projectId).eq("equip_type", equipType).eq("doc_key", docKey);
+  return error ? (error.message || String(error)) : "";
+}
+
+// Pure resolver for the sync gate (no I/O, harness-testable). Given manual
+// overrides and the freshly parsed incoming rows, return only the cells where
+// a manual value clashes with what the import wants.
+//   overrides:    [{ equip_type, doc_key, value }]
+//   incomingRows: [{ equip_type, status:{doc_key:'y'|'n'|'a'}, overall:bool }]
+//   returns:      [{ equip_type, doc_key, mine, incoming }]
+export function computeDocsConflicts(overrides, incomingRows) {
+  const byType = {};
+  (incomingRows || []).forEach((r) => { byType[r.equip_type] = r; });
+  const out = [];
+  (overrides || []).forEach((o) => {
+    const row = byType[o.equip_type];
+    if (!row) return;                                   // type gone from the sheet
+    let inc;
+    if (o.doc_key === "__overall__") inc = row.overall ? "y" : "n";
+    else inc = (row.status || {})[o.doc_key];
+    if (inc === undefined) return;                      // column not in this import
+    if (String(inc) !== String(o.value)) {
+      out.push({ equip_type: o.equip_type, doc_key: o.doc_key, mine: o.value, incoming: inc });
+    }
+  });
+  return out;
+}
+
+/* ---------- Vendors (Settings > Vendors, admin only) ---------- */
+
+export async function loadAssetVendors(projectId) {
+  const { data, error } = await supabase.from("asset_vendor")
+    .select("equip_type, vendor").eq("project_id", projectId);
+  if (error) return { vendors: [], error: error.message || String(error) };
+  return { vendors: data || [], error: "" };
+}
+
+export async function saveAssetVendor(projectId, equipType, vendor) {
+  const me = await currentUserId();
+  const v = (vendor || "").trim().toUpperCase() || "TBC";
+  const { error } = await supabase.from("asset_vendor").upsert({
+    project_id: projectId, equip_type: equipType, vendor: v,
+    updated_by: me, updated_at: new Date().toISOString(),
+  }, { onConflict: "project_id,equip_type" });
+  return error ? (error.message || String(error)) : "";
+}
