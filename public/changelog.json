@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV149",
+    "date": "2026-07-07",
+    "items": [
+      "The Display palette now reaches the whole app, not just the data pages. The planning board delay bars, the activity table, constraints, the schedule, admin status pills and the sidebar PPC figure all follow the selected palette. Status colours are now theme and palette aware: Default is unchanged, High contrast and Colourblind safe apply everywhere.",
+      "Email, weekly report and PDF colours are deliberately left untouched, since those must carry real colour values that mail clients and the PDF engine can render. The embedded Help content and the subtle translucent delay tints on the board are the remaining surfaces and will follow in a later revision."
+    ]
+  },
+  {
     "rev": "REV148",
     "date": "2026-07-07",
     "items": [
