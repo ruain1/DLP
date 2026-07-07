@@ -308,7 +308,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk.pal-hc{--green:#0E9E6E;--red:#D62828;--amber:#B45309}
 .lk.pal-cb{--green:#1E7FC0;--red:#DA5A1A;--amber:#E0A106}
 /* REV146: rail Display control + palette flyout */
-.lk-disp{position:relative;width:100%;display:flex;justify-content:center}
+.lk-disp{position:relative;width:100%;display:flex;justify-content:center;margin-top:auto}
 .lk-dispbtn{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
 .lk-rail.open .lk-dispbtn{width:100%;justify-content:flex-start;gap:13px;padding:0 11px}
 .lk-dispbtn:hover{background:#2a333f;color:#dfe6ef}
@@ -321,8 +321,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-dispopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:9px 8px;color:#dbe3ee;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .lk-dispopt:hover{background:#2c3644}
 .lk-dispopt.on{background:#31405a}
-.lk-dispopt .sw{display:inline-flex;gap:3px;flex:none}
-.lk-dispopt .sw i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.lk-dispopt .sw{display:inline-flex;gap:4px;width:37px;flex:none}
+.lk-dispopt .sw i{width:9px;height:9px;border-radius:50%;display:inline-block}
 .lk-dispopt .ck{margin-left:auto;color:#6ea8fe;font-weight:800;opacity:0}
 .lk-dispopt.on .ck{opacity:1}
 .lk-barright{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
@@ -2714,19 +2714,19 @@ export default function App({ session }) {
         <div className="lk-disp">
           {dispOpen && <div className="lk-dispback" onClick={() => setDispOpen(false)} />}
           <button className="lk-dispbtn" title="Display, palette and contrast" onClick={() => setDispOpen((v) => !v)}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none" /></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="13.5" cy="6.5" r="1.4" fill="currentColor" stroke="none" /><circle cx="17" cy="10.5" r="1.4" fill="currentColor" stroke="none" /><circle cx="8.5" cy="7" r="1.4" fill="currentColor" stroke="none" /><circle cx="6.5" cy="12" r="1.4" fill="currentColor" stroke="none" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.83-.44-1.12-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.66h1.99C19.5 15.4 22 12.9 22 9.85 22 5.5 17.5 2 12 2z" /></svg>
             <span className="lbl">Display</span>
           </button>
           {dispOpen && <div className="lk-dispfly">
             <h5>Palette</h5>
-            {[["default", "Default", "#18b69b", "#e2564e"], ["hc", "High contrast", "#0E9E6E", "#D62828"], ["cb", "Colourblind safe", "#0072B2", "#D55E00"]].map(([k, lbl, ca, cb]) => (
+            {[["default", "Default", ["#18b69b", "#e0a106", "#e2564e"]], ["hc", "High contrast", ["#0E9E6E", "#B45309", "#D62828"]], ["cb", "Colourblind safe", ["#0072B2", "#E0A106", "#D55E00"]]].map(([k, lbl, cols]) => (
               <button key={k} className={"lk-dispopt" + (palette === k ? " on" : "")} onClick={() => { update((pp) => ({ ...pp, palette: k })); setDispOpen(false); }}>
-                <span className="sw"><i style={{ background: ca }} /><i style={{ background: cb }} /></span>{lbl}<span className="ck">{"\u2713"}</span>
+                <span className="sw">{cols.map((c, i) => <i key={i} style={{ background: c }} />)}</span>{lbl}<span className="ck">{"\u2713"}</span>
               </button>
             ))}
           </div>}
         </div>
-        <div className="lk-railppc" title={"PPC " + (ppcAll == null ? "\u2014" : ppcAll + "%") + " \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Target " + tgtAll + "%" + (qaAll != null && qaAll !== ppcAll ? " \u00B7 Quality-adjusted " + qaAll + "% (also excludes on-time witness failures)" : "") + " \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: "auto", color: "#9aa7b8" }}>
+        <div className="lk-railppc" title={"PPC " + (ppcAll == null ? "\u2014" : ppcAll + "%") + " \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Target " + tgtAll + "%" + (qaAll != null && qaAll !== ppcAll ? " \u00B7 Quality-adjusted " + qaAll + "% (also excludes on-time witness failures)" : "") + " \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: 2, color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em", display: "flex", alignItems: "center" }}>PPC<span className="railqa"><PpcInfo target={tgtAll} small /></span></div>
           <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= tgtAll ? "#34D399" : ppcAll >= tgtAll - 15 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
           {qaAll != null && qaAll !== ppcAll && <div className="railqa" style={{ fontSize: 9.5, fontWeight: 700, color: "#FBBF24" }}>QA {qaAll}%</div>}
