@@ -130,16 +130,28 @@ begin
   if (tg_op='DELETE') then return old; else return new; end if;
 end; $$;
 
+-- Human-readable detail per setup table (REV142). Action and entity are unchanged so the
+-- digest classifier still routes rows; only the stored detail changes from raw JSON to a label.
 create or replace function public.audit_setup() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare uname text; act text; det text;
+declare uname text; act text; det text; rec json;
 begin
   select coalesce(name,'') into uname from profiles where id = auth.uid();
   act := initcap(lower(tg_op)) || ' ' || tg_table_name;
-  det := left(coalesce((case when tg_op='DELETE' then row_to_json(old)::text else row_to_json(new)::text end),''), 400);
+  rec := case when tg_op = 'DELETE' then row_to_json(old) else row_to_json(new) end;
+  det := case tg_table_name
+    when 'settings'  then 'Lookahead ' || coalesce(rec->>'weeks','?') || ' wk / make-ready ' || coalesce(rec->>'make_ready_days','?') || ' d'
+    when 'profiles'  then coalesce(nullif(rec->>'name',''),'user') || coalesce(' (' || nullif(coalesce(rec->>'role', rec->>'platform_role'),'') || ')', '')
+    when 'companies' then 'Company ' || coalesce(rec->>'name','')
+    when 'areas'     then 'Zone ' || coalesce(rec->>'name','')
+    when 'systems'   then 'System ' || coalesce(rec->>'name','')
+    when 'levels'    then trim('Stage ' || coalesce(rec->>'key','') || ' ' || coalesce(rec->>'name',''))
+    else tg_table_name || ' record'
+  end;
+  det := left(coalesce(det,''), 400);
   insert into audit_log(user_id,user_name,action,entity,detail)
   values (auth.uid(), uname, act, tg_table_name, det);
-  if (tg_op='DELETE') then return old; else return new; end if;
+  if (tg_op = 'DELETE') then return old; else return new; end if;
 end; $$;
 
 drop trigger if exists trg_audit_activities on activities;
