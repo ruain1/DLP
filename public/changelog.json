@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV147",
+    "date": "2026-07-07",
+    "items": [
+      "Display control moved to sit directly above the PPC figure at the foot of the rail, as one bottom cluster, instead of being stranded under the last nav icon.",
+      "New palette glyph for the Display control, replacing the half-circle that read too much like a light or dark toggle. The palette menu swatches now show a clean three-dot status preview (received, warning, outstanding) for each option."
+    ]
+  },
+  {
     "rev": "REV146",
     "date": "2026-07-07",
     "items": [
