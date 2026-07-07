@@ -782,6 +782,8 @@ const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
 const CHANGELOG = [
+  { rev: "REV155", date: "2026-07-07", items: ["Committed next week rebuilt as a decision snapshot. Each upcoming committed activity is now a card with a coloured left edge for its state (ready, make-ready or at risk) and signal chips that appear only when they apply: witness type and time, the open constraint count with the nearest need-by date, predecessor codes with any incomplete one flagged, a forecast push in days when a predecessor knock-on moves the start, and the reschedule history. Notes render in full. A summary line tallies how many of the week's commitments are ready, make-ready and at risk.", "The forecast push reuses the same non-destructive forward pass as the planning board, so an incomplete or slipped predecessor moves a successor consistently across the board and the report."] },
+  { rev: "REV154", date: "2026-07-07", items: ["Weekly DLP Report brought in line with the Analytics page. By contractor and By Cx stage are no longer plain bar charts of headcount: each row now carries a segmented volume bar (complete, in progress, planned), a reliability figure (PPC for contractors, share complete for Cx stages) and its open constraint count, so a reader sees who is delivering and what is blocked in one line. Both read programme to date, matching Analytics with filters at All, and each states its scope.", "New Status mix section in the report: the whole programme split into planned, in progress and complete, with each band broken into its actionable sub-states (ready to run versus needs make-ready, running late versus constrained, on time versus finished late). It is the print form of the Analytics Status Mix and is on by default.", "The Percent Plan Complete hero is now the semicircular gauge used on Analytics, with the target tick and colour bands (green at or above target, amber within 15 points, red beyond), replacing the plain number.", "The weekly PPC trend is upgraded from a sparkline to the Analytics grade chart: a dashed target line, a 4 week rolling average, the current in progress week drawn hollow with a dashed lead in, and the kept of due figures printed under each week since paper has no hover. It now covers 8 weeks so the average has room.", "New Witness reconciliation under Plan reliability: every witnessed test failure across the programme is placed into on-time-failed, late-failed, not-yet-due or not-committed, always summing to the total."] },
   { rev: "REV102", date: "2026-07-03", items: ["Full-text fix: no printed or emailed entry is ever cut off mid-word again. In the Weekly DLP Report, the Reasons and Breakdown row names and the schedule snapshot's activity labels previously clipped with an ellipsis at fixed widths, unreadable on paper; they now wrap to as many lines as they need, with the row growing to fit and the layout otherwise unchanged", "In the admin digests, activity references, detail fragments and changelog rows are no longer truncated at character caps; every word shown is whole. Busy-week changelog volume is handled structurally instead: weeks with more than three revisions itemise the latest three and state plainly how many earlier revisions the week held, with the full changelog in DLP"] },
   { rev: "REV101", date: "2026-07-03", items: ["Admin digest emails redesigned to the approved QMC brand: white header carrying the Quantum Mission Critical mark, the four-colour Cx workflow bar (read live from this project's L1 to L4 stage colours) under the header and echoed above the footer, and each vendor as a bordered card with a shaded band carrying its real logo, name and counts, most active person named on multi-user vendors. Vendor logos embed as inline attachments from each company's light-surface asset with a name-only fallback; the daily and weekly share the one template", "Content fixes in both digests: repeated references within a verb group now collapse to one entry with a count (x2 style) and the caps count deduplicated entries; detail fragments that merely echo the activity name are suppressed; and audit entries whose author matches no current user profile now appear in their own Unattributed card pinned last, with an explanation, instead of being silently filed under CSN"] },
   { rev: "REV100", date: "2026-07-03", items: ["New Admin Update Emails card at the top of Reports (admins only): shows when the daily and weekly digests last went out and to how many recipients, plus your Outlook connection, with Send Weekly Update Now and Send Daily Update Now buttons. Manual sends go to all admins from your own connected Outlook, target the most recent boundary with its correct fixed window, complete a stuck claim if one exists, and ask before re-sending a digest that already went out", "Scheduler liveness fix: a digest claim orphaned in the sending state (for example a reload killing the tab mid-send) used to block that boundary silently and forever; the scheduler now adopts claims stuck for over ten minutes and finishes them. The digest content assembly is now one shared path for the scheduler and the manual buttons, so the two can never drift apart"] },
@@ -6018,12 +6020,15 @@ function computeReport({ S, LV, coName, start, end }){
   const qaFails = kept.filter((a) => !qaMade(a));
   const qaPpc = due.length ? Math.round(due.filter(qaMade).length / due.length * 100) : null;
   const ppcTarget = (S.settings && S.settings.ppcTarget) || 80;
-  // 4-week PPC trend ending at the report week
+  // Weekly PPC trend, 8 weeks ending at the report week, so the 4-week rolling average has room.
   const trend = [];
   const mon = mondayOf(start);
-  for (let i = 3; i >= 0; i--){ const w0 = addDays(mon, -7*i); const w0ms = w0.getTime(), w1ms = addDays(w0,6).getTime();
+  const TW = 8;
+  for (let i = TW-1; i >= 0; i--){ const w0 = addDays(mon, -7*i); const w0ms = w0.getTime(), w1ms = addDays(w0,6).getTime();
     const d = dated.filter((a)=>a.committed && finishOf(a).getTime()>=w0ms && finishOf(a).getTime()<=w1ms);
-    trend.push({ label:"W"+isoWeek(w0), value: d.length ? Math.round(d.filter(made).length/d.length*100) : null }); }
+    const kpt = d.filter(made).length;
+    trend.push({ label:"W"+isoWeek(w0), value: d.length ? Math.round(kpt/d.length*100) : null, kept:kpt, due:d.length, open: addDays(w0,6).getTime() >= today.getTime() }); }
+  trend.forEach((p,i)=>{ let k=0,dd=0; for(let j=Math.max(0,i-3);j<=i;j++){ k+=trend[j].kept; dd+=trend[j].due; } p.avg = dd ? Math.round(k/dd*100) : null; });
   // lookahead window (4 weeks from today)
   const la0 = today.getTime(), la1 = addDays(today,27).getTime();
   const inLA = (a)=>{ if(!a.start) return false; const s=parseD(a.start).getTime(), f=finishOf(a).getTime(); return s<=la1 && f>=la0; };
@@ -6043,11 +6048,55 @@ function computeReport({ S, LV, coName, start, end }){
     .sort((x,y)=>(x.cons[0]?.due||"9999").localeCompare(y.cons[0]?.due||"9999")).slice(0,8);
   const rt = {}; missed.forEach((a)=>{ const r=a.slipReason||"Unattributed"; rt[r]=(rt[r]||0)+1; });
   const reasons = Object.entries(rt).map(([name,n])=>({name,n})).sort((a,b)=>b.n-a.n);
-  const byCompany = S.companies.map((c)=>({name:c.name,n:la.filter((a)=>a.companyId===c.id).length})).filter((x)=>x.n>0).sort((a,b)=>b.n-a.n).slice(0,8);
-  const byCx = Object.keys(LV).map((k)=>({name:k+" "+LV[k].name,color:LV[k].color,n:la.filter((a)=>a.level===k).length})).filter((x)=>x.n>0);
+  const byCompany = S.companies.map((c)=>{ const ca=acts.filter((a)=>a.companyId===c.id); const cd=ca.filter((a)=>a.committed && a.start && finishOf(a).getTime()<today.getTime()); return { name:c.name, n:ca.length, done:ca.filter((a)=>a.status==="complete").length, inprog:ca.filter((a)=>a.status==="in_progress").length, open:ca.reduce((s,a)=>s+openOf(a),0), ppcDue:cd.length, ppcKept:cd.filter(made).length }; }).filter((x)=>x.n>0).sort((a,b)=>b.n-a.n).slice(0,12);
+  const byCx = Object.keys(LV).map((k)=>{ const lk=acts.filter((a)=>a.level===k); return { name:k+" "+LV[k].name, color:LV[k].color, n:lk.length, done:lk.filter((a)=>a.status==="complete").length, inprog:lk.filter((a)=>a.status==="in_progress").length, open:lk.reduce((s,a)=>s+openOf(a),0) }; }).filter((x)=>x.n>0);
   const nw0 = addDays(end,1).getTime(), nw1 = addDays(end,7).getTime();
-  const nextWeek = dated.filter((a)=>a.committed && parseD(a.start).getTime()>=nw0 && parseD(a.start).getTime()<=nw1)
-    .sort((a,b)=>(a.start||"").localeCompare(b.start||"")).slice(0,10);
+  // REV155: non-destructive forward pass (same logic as the board) to derive each activity's
+  // predecessor knock-on, the days a slipped or incomplete predecessor pushes its start.
+  const DAYMS = 86400000;
+  const anchorMs = today.getTime();
+  const fbase = dated.map((a)=>{
+    const ps = parseD(a.start), pf = addDays(ps,(a.duration||1)-1);
+    const as = a.actualStart ? parseD(a.actualStart) : null;
+    let delayDays = 0;
+    if (a.status==="complete" && a.actualFinish) delayDays = Math.round((parseD(a.actualFinish)-pf)/DAYMS);
+    else if (a.status!=="complete"){ const lateStart = as ? Math.round((as-ps)/DAYMS) : 0; const overdue = anchorMs > pf.getTime() ? Math.round((anchorMs-pf.getTime())/DAYMS) : 0; delayDays = Math.max(0,lateStart,overdue); }
+    return { a, startOff: Math.round((ps-anchorMs)/DAYMS), span:(a.duration||1)-1, delayDays };
+  });
+  const fById = {}; fbase.forEach((x)=>{ fById[x.a.id]=x; });
+  const fmemo = {}, fstack = {};
+  const projEnd = (id)=>{
+    const x = fById[id]; if (!x) return null;
+    if (fmemo[id]!==undefined) return fmemo[id];
+    if (fstack[id]) return x.startOff + x.span;
+    fstack[id]=true;
+    let st = x.a.actualStart ? Math.round((parseD(x.a.actualStart)-anchorMs)/DAYMS) : x.startOff + Math.max(0,x.delayDays);
+    x._base = st;
+    (x.a.predecessors||[]).forEach((pid)=>{ const pe=projEnd(pid); if (pe!=null) st=Math.max(st,pe+1); });
+    st = Math.max(st,x._base);
+    const pe = (x.a.status==="complete" && x.a.actualFinish) ? Math.round((parseD(x.a.actualFinish)-anchorMs)/DAYMS) : st + x.span;
+    x._ps = st; fstack[id]=false; fmemo[id]=pe; return pe;
+  };
+  fbase.forEach((x)=>projEnd(x.a.id));
+  const knockOnOf = (a)=>{ const x=fById[a.id]; if(!x) return 0; return Math.max(0,(x._ps!=null?x._ps:x.startOff)-(x._base!=null?x._base:x.startOff)); };
+  const cleanNotes = (s)=>(s||"").replace(/\n*LINK TO ACC FILES:[^\n]*/gi,"").trim();
+  const nwRaw = dated.filter((a)=>a.committed && parseD(a.start).getTime()>=nw0 && parseD(a.start).getTime()<=nw1).sort((a,b)=>(a.start||"").localeCompare(b.start||""));
+  const mkNext = (a)=>{
+    const oc = openCs(a);
+    const nearestDue = oc.map((c)=>c.due).filter(Boolean).sort()[0] || null;
+    const preds = (a.predecessors||[]).map((pid)=>{ const p=acts.find((x)=>x.id===pid); return p?{ code:p.code!=null?("#"+p.code):"", complete:p.status==="complete" }:null; }).filter(Boolean);
+    const predWaiting = preds.filter((p)=>!p.complete).length;
+    const knockOn = knockOnOf(a);
+    const rsArr = a.reschedules||[];
+    const rs = rsArr.length ? { count:rsArr.length, last:rsArr[rsArr.length-1] } : null;
+    const notesClean = cleanNotes(a.notes);
+    const state = (predWaiting>0 || knockOn>0) ? "risk" : (oc.length>0 ? "makeready" : "ready");
+    return { a, open:oc.length, nearestDue, preds, predWaiting, knockOn, rs, notesClean, state };
+  };
+  const nextWeekAll = nwRaw.map(mkNext);
+  const nextWeek = nextWeekAll.slice(0,12);
+  const nextWeekMore = Math.max(0, nextWeekAll.length-12);
+  const nextWeekTally = { ready:nextWeekAll.filter((x)=>x.state==="ready").length, makeready:nextWeekAll.filter((x)=>x.state==="makeready").length, risk:nextWeekAll.filter((x)=>x.state==="risk").length, total:nextWeekAll.length };
   const milestones = dated.filter((a)=>a.isMilestone && finishOf(a).getTime()>=la0)
     .sort((a,b)=>(a.start||"").localeCompare(b.start||"")).slice(0,6);
   const schedule = la.filter((a)=>a.committed||a.status==="in_progress"||openOf(a)>0)
@@ -6064,7 +6113,33 @@ function computeReport({ S, LV, coName, start, end }){
   const woRoots = invitesAll.filter((a)=>!a.retestOf && (a.outcome||"pending")!=="pending");
   const woFtp = woRoots.length ? Math.round((woRoots.filter((a)=>a.outcome==="succeeded").length / woRoots.length) * 100) : null;
   const witnessOut = { attempted: outInPeriod.length, passed: woPassed, failed: woFailed.length, failReasons: woRows, ftp: woFtp, roots: woRoots.length };
-  return { start, end, ppc, qaPpc, qaFails, ppcTarget, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, milestones, schedule, witnessOut,
+  // REV154: status mix and witness reconciliation, programme scope, mirroring the Analytics panels
+  // so the printed report and the app agree on the same numbers.
+  const onTimeDone = (a) => !a.actualFinish || !a.start || parseD(a.actualFinish) <= finishOf(a);
+  const stOf = (k) => acts.filter((a)=>a.status===k);
+  const stPlanned = stOf("planned"), stProg = stOf("in_progress"), stDone = stOf("complete");
+  const statusData = [
+    { k:"planned", name:"Planned", color:"#94A3B8", n:stPlanned.length, subs:[
+      { label:"ready to run", color:"#0E9384", n:stPlanned.filter((a)=>openOf(a)===0).length },
+      { label:"need make-ready", color:"#C07A00", n:stPlanned.filter((a)=>openOf(a)>0).length } ] },
+    { k:"in_progress", name:"In progress", color:"#2563EB", n:stProg.length, subs:[
+      { label:"running late", color:"#C0392B", n:stProg.filter(isDelayed).length },
+      { label:"constrained", color:"#C07A00", n:stProg.filter((a)=>openOf(a)>0).length } ] },
+    { k:"complete", name:"Complete", color:"#0E9384", n:stDone.length, subs:[
+      { label:"on time", color:"#14B8A6", n:stDone.filter(onTimeDone).length },
+      { label:"finished late", color:"#C0392B", n:stDone.filter((a)=>!onTimeDone(a)).length } ] },
+  ];
+  const wfIsFailed = (a) => a.witnessInvite && (a.outcome||"pending")==="failed";
+  const commDueAll = acts.filter((a)=>a.committed && a.start && finishOf(a).getTime()<today.getTime());
+  const witFailedAll = acts.filter(wfIsFailed);
+  const witReconcile = {
+    onTime: commDueAll.filter((a)=>made(a) && wfIsFailed(a)).length,
+    late: commDueAll.filter((a)=>!made(a) && wfIsFailed(a)).length,
+    notDue: witFailedAll.filter((a)=>a.committed && !(a.start && finishOf(a).getTime()<today.getTime())).length,
+    uncommitted: witFailedAll.filter((a)=>!a.committed).length,
+    total: witFailedAll.length,
+  };
+  return { start, end, ppc, qaPpc, qaFails, ppcTarget, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, nextWeekMore, nextWeekTally, milestones, schedule, witnessOut, statusData, witReconcile,
            today, laStart:today, laEnd:addDays(today,27), finishOf, openOf, openCs, coName, LV };
 }
 
@@ -6088,6 +6163,51 @@ function draftSummary(r){
 function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml }){
   const dueColor = (d) => { if(!d) return "ok"; const t=parseD(d).getTime(), now=r.today.getTime(); if(t<now) return "over"; if(t<=addDays(r.today,2).getTime()) return "soon"; return "ok"; };
   const dueLabel = (d) => { if(!d) return ["set","need by"]; const t=parseD(d).getTime(); return [fmtD(parseD(d)), t<r.today.getTime()?"overdue":"need by"]; };
+  // REV154: analytics-parity render helpers. ppcCol matches the gauge colour rule; mixHead/mixLegend
+  // and mixSeg mirror the Analytics By Company / By Cx Stage rows; gaugeSvg is a string form of the
+  // Analytics Gauge; trendSvg carries the target line, rolling average, open week and printed
+  // denominators the on-screen trend already has (paper has no hover).
+  const ppcCol = (v) => v==null?"var(--muted)":v>=80?"var(--green)":v>=50?"var(--amber)":"var(--red)";
+  const mixHead = (first,pctLabel) => `<div class="mix-head"><span>${first}</span><span></span><span>N</span><span>${pctLabel}</span><span>Open</span></div>`;
+  const mixLegend = `<div class="mix-leg"><span><i style="background:#0E9384"></i>Complete</span><span><i style="background:#2563EB"></i>In progress</span><span><i style="background:#94A3B8"></i>Planned</span></div>`;
+  const mixSeg = (n,done,inprog) => { const dp=n?done/n*100:0, ip=n?inprog/n*100:0; return `<div style="width:${dp.toFixed(1)}%;background:#0E9384"></div><div style="width:${ip.toFixed(1)}%;background:#2563EB"></div><div style="flex:1;background:#94A3B8"></div>`; };
+  const gaugeSvg = (value,target,size=176) => {
+    const H=Math.round(size*0.68), r0=size/2-16, cx=size/2, cy=H-20;
+    const v=value==null?null:Math.max(0,Math.min(100,value));
+    const tg=target==null?null:Math.max(1,Math.min(100,target));
+    const col=v==null?"var(--muted)":(tg!=null?(v>=tg?"var(--green)":v>=tg-15?"var(--amber)":"var(--red)"):(v>=80?"var(--green)":v>=50?"var(--amber)":"var(--red)"));
+    const px=(p)=>cx+r0*Math.cos(Math.PI*(1-p/100)), py=(p)=>cy-r0*Math.sin(Math.PI*(1-p/100));
+    const track=`M ${px(0).toFixed(2)} ${cy} A ${r0} ${r0} 0 0 1 ${px(100).toFixed(2)} ${cy}`;
+    const arc=(v==null||v<=0)?"":`M ${px(0).toFixed(2)} ${cy} A ${r0} ${r0} 0 0 1 ${px(v).toFixed(2)} ${py(v).toFixed(2)}`;
+    const ta=tg==null?0:Math.PI*(1-tg/100);
+    return `<svg width="${size}" height="${H}" viewBox="0 0 ${size} ${H}"><path d="${track}" fill="none" stroke="var(--line-2)" stroke-width="14" stroke-linecap="round"/>${arc?`<path d="${arc}" fill="none" stroke="${col}" stroke-width="14" stroke-linecap="round"/>`:""}${tg!=null?`<line x1="${(cx+(r0-11)*Math.cos(ta)).toFixed(2)}" y1="${(cy-(r0-11)*Math.sin(ta)).toFixed(2)}" x2="${(cx+(r0+11)*Math.cos(ta)).toFixed(2)}" y2="${(cy-(r0+11)*Math.sin(ta)).toFixed(2)}" stroke="var(--red)" stroke-width="3" stroke-linecap="round"/>`:""}<text x="${cx}" y="${cy-16}" text-anchor="middle" font-size="${Math.round(size*0.2)}" font-weight="700" fill="var(--ink)" font-family="Space Grotesk,Inter,sans-serif">${v==null?"n/a":v+"%"}</text><text x="${cx}" y="${cy+1}" text-anchor="middle" font-size="10" fill="var(--muted)" style="letter-spacing:.12em">PPC</text>${tg!=null?`<text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="9" font-weight="800" fill="var(--red)" style="letter-spacing:.08em">TARGET ${tg}%</text>`:""}</svg>`;
+  };
+  const trendSvg = (pts,target) => {
+    const tp = pts||[];
+    if (!tp.some((p)=>p.value!=null)) return `<div class="empty">Not enough committed history to plot a trend.</div>`;
+    const w=Math.max(560,tp.length*66), h=186, padL=30, padR=14, padT=14, padB=42, iw=w-padL-padR, ih=h-padT-padB;
+    const xs=(i)=>padL+(tp.length<=1?iw/2:i/(tp.length-1)*iw);
+    const ys=(v)=>padT+ih-v/100*ih;
+    const closed=tp.filter((p)=>p.value!=null && !p.open);
+    const openP=tp.filter((p)=>p.value!=null && p.open)[0]||null;
+    const ix=(p)=>tp.indexOf(p);
+    const line=closed.map((p,k)=>`${k===0?"M":"L"}${xs(ix(p)).toFixed(1)},${ys(p.value).toFixed(1)}`).join(" ");
+    const area=closed.length?`${line} L${xs(ix(closed[closed.length-1])).toFixed(1)},${(padT+ih).toFixed(1)} L${xs(ix(closed[0])).toFixed(1)},${(padT+ih).toFixed(1)} Z`:"";
+    const dash=(openP&&closed.length)?`M${xs(ix(closed[closed.length-1])).toFixed(1)},${ys(closed[closed.length-1].value).toFixed(1)} L${xs(ix(openP)).toFixed(1)},${ys(openP.value).toFixed(1)}`:"";
+    const avg=tp.map((p,i)=>({v:p.avg,i})).filter((p)=>p.v!=null);
+    const avgLine=avg.length>1?avg.map((p,k)=>`${k===0?"M":"L"}${xs(p.i).toFixed(1)},${ys(p.v).toFixed(1)}`).join(" "):"";
+    let grid=""; [0,25,50,75,100].forEach((g)=>{ grid+=`<line x1="${padL}" y1="${ys(g).toFixed(1)}" x2="${w-padR}" y2="${ys(g).toFixed(1)}" stroke="var(--line)" stroke-width="1"/><text x="2" y="${(ys(g)+3).toFixed(1)}" font-size="9" fill="var(--muted)">${g}</text>`; });
+    const tgt=(target!=null)?`<line x1="${padL}" y1="${ys(Math.max(0,Math.min(100,target))).toFixed(1)}" x2="${w-padR}" y2="${ys(Math.max(0,Math.min(100,target))).toFixed(1)}" stroke="var(--red)" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.85"/>`:"";
+    const dots=closed.map((p)=>`<circle cx="${xs(ix(p)).toFixed(1)}" cy="${ys(p.value).toFixed(1)}" r="3.5" fill="var(--signal)"/>`).join("");
+    const openDot=openP?`<circle cx="${xs(ix(openP)).toFixed(1)}" cy="${ys(openP.value).toFixed(1)}" r="4.5" fill="var(--paper)" stroke="var(--signal)" stroke-width="2"/>`:"";
+    const labs=tp.map((p,i)=>`<text x="${xs(i).toFixed(1)}" y="${h-26}" text-anchor="middle" font-size="9.5" fill="var(--ink-2)" font-weight="600">${p.value==null?"":p.value+"%"}</text><text x="${xs(i).toFixed(1)}" y="${h-14}" text-anchor="middle" font-size="8" fill="var(--muted)">${p.due?p.kept+" of "+p.due:""}</text><text x="${xs(i).toFixed(1)}" y="${h-2}" text-anchor="middle" font-size="8.5" fill="var(--muted)">${p.label}${p.open?" *":""}</text>`).join("");
+    const areaEl=area?`<path d="${area}" fill="url(#tg1)"/>`:"";
+    const lineEl=line?`<path d="${line}" fill="none" stroke="var(--signal)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`:"";
+    const dashEl=dash?`<path d="${dash}" fill="none" stroke="var(--signal)" stroke-width="2.5" stroke-dasharray="5 4" stroke-linecap="round"/>`:"";
+    const avgEl=avgLine?`<path d="${avgLine}" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-dasharray="2 4" stroke-linejoin="round"/>`:"";
+    const leg=`<div class="tlegend"><span><i class="tl-line"></i>Weekly PPC</span>${openP?`<span><i class="tl-ring"></i>Current week, in progress</span>`:""}${avgLine?`<span><i class="tl-avg"></i>4-week average</span>`:""}${target!=null?`<span><i class="tl-tgt"></i>Target ${target}%</span>`:""}</div>`;
+    return `<div class="trendbox"><svg viewBox="0 0 ${w} ${h}" width="100%" style="height:auto;display:block"><defs><linearGradient id="tg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--signal)" stop-opacity="0.28"/><stop offset="100%" stop-color="var(--signal)" stop-opacity="0"/></linearGradient></defs>${grid}${tgt}${areaEl}${lineEl}${dashEl}${avgEl}${dots}${openDot}${labs}</svg>${openP?`<div class="trend-note">* week in progress</div>`:""}${leg}</div>`;
+  };
   // KPI tiles
   const K = r.kpis;
   const kpiTiles = [
@@ -6104,14 +6224,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const cells = r.due.length
     ? r.kept.map(()=>`<div class="cell kept"></div>`).join("") + r.missed.map(()=>`<div class="cell miss"></div>`).join("")
     : `<div class="cell" style="background:var(--line-2)"></div>`;
-  // trend sparkline
-  const tv = r.trend.map((p,i)=>({i,v:p.value})).filter((p)=>p.v!=null);
-  let spark = `<span class="lab">Not enough committed history</span>`;
-  if (tv.length>=2){ const W=220,H=36,pad=6; const xs=(i)=>pad+ (i/(r.trend.length-1))*(W-2*pad); const ys=(v)=>H-pad-(v/100)*(H-2*pad);
-    const pts = tv.map((p)=>`${xs(p.i).toFixed(0)},${ys(p.v).toFixed(0)}`).join(" ");
-    const dots = tv.map((p)=>`<circle cx="${xs(p.i).toFixed(0)}" cy="${ys(p.v).toFixed(0)}" r="3" fill="var(--signal)"/>`).join("");
-    const first=tv[0], last=tv[tv.length-1];
-    spark = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none"><polyline points="${pts}" stroke="var(--signal)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${dots}</svg><span class="lab num">${r.trend[first.i].label} ${first.v}% &rarr; ${r.trend[last.i].label} ${last.v}%</span>`; }
+  // trend sparkline moved to trendSvg helper (REV154)
   // constraint cards
   const cardsHtml = r.cards.length ? r.cards.map(({a,cons})=>{
     const loc = [a.area,a.subArea,a.tier3].filter(Boolean).join(" / ");
@@ -6129,12 +6242,42 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
     : `<div class="empty">No missed commitments this week.</div>`;
   // by contractor / cx
   const maxC = Math.max(1, ...r.byCompany.map((x)=>x.n));
-  const coHtml = r.byCompany.map((x)=>`<div class="barrow"><span class="nm">${esc(x.name)}</span><div class="track"><div class="fill" style="width:${Math.round(x.n/maxC*100)}%;background:var(--signal)"></div></div><span class="ct num">${x.n}</span></div>`).join("") || `<div class="empty">No activities in the lookahead.</div>`;
+  const coHtml = r.byCompany.length ? mixHead("Contractor","PPC") + r.byCompany.map((x)=>{ const wid=Math.max(3,Math.round(x.n/maxC*100)); const p=x.ppcDue?Math.round(x.ppcKept/x.ppcDue*100):null; return `<div class="mix-row"><span class="nm">${esc(x.name)}</span><div class="mixbar"><div class="seg3" style="width:${wid}%">${mixSeg(x.n,x.done,x.inprog)}</div></div><span class="cn num">${x.n}</span><span class="cp num" style="color:${ppcCol(p)}">${p==null?"n/a":p+"%"}</span><span class="co num${x.open>0?" warn":""}">${x.open}</span></div>`; }).join("") + mixLegend : `<div class="empty">No activities.</div>`;
   const maxX = Math.max(1, ...r.byCx.map((x)=>x.n));
-  const cxHtml = r.byCx.map((x)=>`<div class="barrow"><span class="nm">${esc(x.name)}</span><div class="track"><div class="fill" style="width:${Math.round(x.n/maxX*100)}%;background:var(--green)"></div></div><span class="ct num">${x.n}</span></div>`).join("") || `<div class="empty">No activities in the lookahead.</div>`;
-  // committed next week
-  const nwHtml = r.nextWeek.length ? r.nextWeek.map((a)=>{ const ready=r.openOf(a)===0; const lv = r.LV[a.level]?a.level+" "+r.LV[a.level].name:(a.level||"");
-    return `<div class="lrow"><div><div class="nm">${esc(a.desc||"Untitled")}</div><div class="sub">${esc(r.coName(a.companyId)||"")}${lv?" &middot; Cx "+esc(lv):""}${a.witnessInvite?" &middot; witness":""}</div></div><span class="pill ${ready?"ontrack":"risk"}">${ready?"Ready":"Make-ready"}</span><span class="when num">${fmtDoW(parseD(a.start))}</span></div>`; }).join("")
+  const cxHtml = r.byCx.length ? mixHead("Cx stage","Done") + r.byCx.map((x)=>{ const wid=Math.max(3,Math.round(x.n/maxX*100)); const dp=x.n?Math.round(x.done/x.n*100):0; return `<div class="mix-row"><span class="nm"><span class="sw" style="background:${x.color}"></span>${esc(x.name)}</span><div class="mixbar"><div class="seg3" style="width:${wid}%">${mixSeg(x.n,x.done,x.inprog)}</div></div><span class="cn num">${x.n}</span><span class="cp num" style="color:${ppcCol(dp)}">${dp}%</span><span class="co num${x.open>0?" warn":""}">${x.open}</span></div>`; }).join("") + mixLegend : `<div class="empty">No activities.</div>`;
+  // Status mix (R2): programme split with actionable sub-reads, the print form of the Analytics donut.
+  const smD = r.statusData || [];
+  const smTot = smD.reduce((s,b)=>s+b.n,0);
+  const smStack = smD.map((b)=>`<div class="b" style="width:${smTot?(b.n/smTot*100).toFixed(2):0}%;background:${b.color}">${b.n?b.name+" "+b.n:""}</div>`).join("");
+  const smCards = smD.map((b)=>{ const subs=b.subs.map((s)=>`<div class="subrow"><span class="pip" style="background:${s.color}"></span><span class="slbl">${s.label}</span><span class="smini"><i style="width:${b.n?(s.n/b.n*100).toFixed(1):0}%;background:${s.color}"></i></span><span class="sval num">${s.n}</span></div>`).join(""); return `<div class="smix-card"><div class="smh"><span class="sw" style="background:${b.color}"></span>${b.name}<span class="smtot num">${b.n}</span></div><div class="subs">${subs}</div></div>`; }).join("");
+  const statusMixHtml = smTot ? `<div class="smix-stack">${smStack}</div><div class="smix-cards">${smCards}</div><div class="smix-foot">Within In progress, running late and constrained are independent flags on the same activities and can overlap, so they are shown as counts, not a partition. Planned and Complete sub-states partition their bands.</div>` : `<div class="empty">No activities to profile.</div>`;
+  // Witness reconciliation (R5): programme-level partition of every witness failure against PPC.
+  const wr = r.witReconcile || { onTime:0, late:0, notDue:0, uncommitted:0, total:0 };
+  const reconHtml = wr.total>0 ? `<div class="recon"><div class="rc"><div class="v num" style="color:var(--amber)">${wr.onTime}</div><div class="l">On-time, failed test</div></div><div class="rc"><div class="v num" style="color:var(--red)">${wr.late}</div><div class="l">Late and failed</div></div><div class="rc"><div class="v num">${wr.notDue}</div><div class="l">Not yet due</div></div><div class="rc"><div class="v num">${wr.uncommitted}</div><div class="l">Not committed</div></div></div><div class="recon-cap">Across the programme, every witnessed test failure to date reconciled against PPC. On-time-failed are kept promises that did not pass; late-failed already count as broken promises; the remainder sit outside this week's PPC.</div>` : ``;
+  // committed next week: enriched decision snapshot (REV155)
+  const fmtWitAt = (s) => { if(!s) return ""; const d = new Date(s); if (isNaN(d.getTime())) return ""; return d.toLocaleDateString("en-GB",{weekday:"short"}) + " " + d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",hour12:false}); };
+  const witIco = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3.2"/><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/></svg>`;
+  const conIco = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5M12 17v.5"/></svg>`;
+  const predIco = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7h10M4 7l3-3M4 7l3 3"/><path d="M20 17H10M20 17l-3-3M20 17l-3 3"/></svg>`;
+  const fcastIco = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12h13M16 12l-4-4M16 12l-4 4"/><path d="M21 5v14"/></svg>`;
+  const pushIco = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg>`;
+  const stateLbl = { ready:"Ready", makeready:"Make-ready", risk:"At risk" };
+  const nwCards = (r.nextWeek||[]).map((x)=>{ const a = x.a; const d = parseD(a.start);
+    const lv = r.LV[a.level]?a.level+" "+r.LV[a.level].name:(a.level||"");
+    const chips = [];
+    if (a.witnessInvite){ const t = fmtWitAt(a.witnessAt); const dd = (a.witnessDays||1)>1?" &middot; "+a.witnessDays+" days":""; chips.push(`<span class="chip wit">${witIco}Witness${a.witnessType?" &middot; "+esc(a.witnessType):""}${t?` &middot; <span class="mono">${t}</span>`:""}${dd}</span>`); }
+    if (x.open>0){ chips.push(`<span class="chip con">${conIco}${x.open} constraint${x.open===1?"":"s"} open${x.nearestDue?` &middot; next <span class="mono">${fmtD(parseD(x.nearestDue))}</span>`:""}</span>`); }
+    if (x.preds && x.preds.length){ if (x.predWaiting>0){ const w = x.preds.filter((p)=>!p.complete).map((p)=>p.code).filter(Boolean).join(", "); chips.push(`<span class="chip pred warn">${predIco}waiting on <span class="mono">${esc(w)}</span>, not complete</span>`); } else { const codes = x.preds.map((p)=>p.code).filter(Boolean).join(", "); if (codes) chips.push(`<span class="chip pred">${predIco}after <span class="mono">${esc(codes)}</span>, done</span>`); } }
+    if (x.knockOn>0){ chips.push(`<span class="chip fcast">${fcastIco}forecast <span class="mono">+${x.knockOn}d</span>, predecessor</span>`); }
+    if (x.rs){ const last = x.rs.last||{}; chips.push(`<span class="chip push">${pushIco}pushed <span class="mono">${x.rs.count}x</span>${last.from&&last.to?`, last <span class="mono">${fmtD(parseD(last.from))} -&gt; ${fmtD(parseD(last.to))}</span>`:""}</span>`); }
+    const chipsHtml = chips.length?`<div class="nw-chips">${chips.join("")}</div>`:"";
+    const notesHtml = x.notesClean?`<div class="nw-notes"><span class="nlbl">Note</span><span>${esc(x.notesClean)}</span></div>`:"";
+    return `<div class="nw-card ${x.state}"><div class="nw-edge"></div><div class="nw-day"><span class="dow">${d.toLocaleDateString("en-GB",{weekday:"short"})}</span><span class="dnum">${String(d.getDate()).padStart(2,"0")}</span><span class="mon">${d.toLocaleDateString("en-GB",{month:"short"})}</span></div><div class="nw-body"><div class="nw-top"><div><div class="nw-title">${esc(a.desc||"Untitled")}</div><div class="nw-sub">${esc(r.coName(a.companyId)||"")}${lv?" &middot; "+esc(lv):""}</div></div><span class="nw-state">${stateLbl[x.state]||""}</span></div>${chipsHtml}${notesHtml}</div></div>`;
+  }).join("");
+  const nwt = r.nextWeekTally || { ready:0, makeready:0, risk:0, total:0 };
+  const nwSummary = nwt.total ? `<div class="nw-summary"><b>${nwt.total} activit${nwt.total===1?"y":"ies"}</b> committed for the week of ${fmtD(addDays(r.end,1))}.<span class="tally">${nwt.ready?`<span><i style="background:var(--green)"></i>${nwt.ready} ready</span>`:""}${nwt.makeready?`<span><i style="background:var(--amber)"></i>${nwt.makeready} make-ready</span>`:""}${nwt.risk?`<span><i style="background:var(--red)"></i>${nwt.risk} at risk</span>`:""}</span></div>` : "";
+  const nwMoreHtml = (r.nextWeekMore||0)>0 ? `<div class="nw-more">plus ${r.nextWeekMore} more committed for the week, shown on the board</div>` : "";
+  const nwHtml = (r.nextWeek && r.nextWeek.length) ? `${nwSummary}<div class="nw-list">${nwCards}${nwMoreHtml}</div>`
     : `<div class="empty">Nothing committed for the following week yet.</div>`;
   // milestones
   const msHtml = r.milestones.length ? r.milestones.map((a)=>{ const risk=r.openOf(a)>0;
@@ -6163,7 +6306,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const sumHtml = esc(summary).replace(/\n+/g,"<br>");
 
   // Dynamic section assembly: gate each block by `sections`, number contiguously, inject Cx block.
-  const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, invites:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true }, sections||{});
+  const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, invites:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true, statusmix:true }, sections||{});
   let _n = 0; const nn = () => String(++_n).padStart(2,"0");
   const sh = (title) => `<div class="sec-head"><span class="eyebrow">${nn()}</span><h2>${title}</h2><div class="rule"></div></div>`;
   const blocks = [];
@@ -6172,17 +6315,19 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   if (SEC.kpis) intro += `<div class="kpis">${kpiTiles}</div>`;
   if (intro) blocks.push(`<section>${intro}</section>`);
   if (SEC.ppc) blocks.push(`<section>${sh("Plan reliability")}`
-    + `<div class="hero"><div><div class="big num">${r.ppc==null?"&ndash;":r.ppc}<small>${r.ppc==null?"":"%"}</small></div><div class="caplabel"><div class="eyebrow">Percent plan complete</div><div class="sub">${r.ppc==null?"no commitments due":r.kept.length+" of "+r.due.length+" commitments kept"}</div></div></div>`
-    + (r.qaPpc!=null && r.qaFails && r.qaFails.length ? `<div><div class="big num" style="font-size:32px;color:#D97706">${r.qaPpc}<small>%</small></div><div class="caplabel"><div class="eyebrow">Quality-adjusted</div><div class="sub">${r.due.length - r.missed.length - r.qaFails.length} of ${r.due.length} kept and passed</div></div></div>` : ``)
-    + (r.ppc!=null ? `<div><span style="display:inline-block;border:1px solid var(--red);color:var(--red);border-radius:20px;padding:2px 11px;font-size:10.5px;font-weight:800;letter-spacing:.04em">TARGET ${r.ppcTarget}%</span><div class="caplabel" style="margin-top:5px"><div class="sub">${r.ppc>=r.ppcTarget?"met this week":"missed this week"}</div></div></div>` : ``)
+    + `<div class="hero"><div class="hero-l">${gaugeSvg(r.ppc, r.ppcTarget)}`
+    + (r.qaPpc!=null && r.qaFails && r.qaFails.length ? `<div class="qa"><span class="qav num">${r.qaPpc}%</span><span class="qal">Quality-adjusted, ${r.due.length - r.missed.length - r.qaFails.length} of ${r.due.length} kept and passed</span></div>` : ``)
+    + `</div>`
     + `<div class="promise"><div class="row"><span class="t">This week's commitments &nbsp;<b>(WILL)</b></span><span class="t"><b>${r.kept.length}</b> kept &nbsp; <b>${r.missed.length}</b> missed</span></div>`
     + `<div class="cells">${cells}</div>`
-    + `<div class="spark">${spark}<div style="flex:1"></div><div class="legend"><span><i class="dot" style="background:var(--green)"></i>Kept</span><span><i class="dot" style="background:var(--red)"></i>Missed</span></div></div></div></div>`
-    + (r.qaFails && r.qaFails.length ? `<div style="margin-top:10px;font-size:12px;color:var(--mut,inherit)">The gap between the figures is <b>${r.qaFails.length} on-time witness failure${r.qaFails.length===1?"":"s"}</b>: work executed as promised that did not pass its witnessed test. These carry retests.</div>` : ``)
+    + `<div class="legend" style="margin-top:5px"><span><i class="dot" style="background:var(--green)"></i>Kept</span><span><i class="dot" style="background:var(--red)"></i>Missed</span></div></div></div>`
+    + (r.qaFails && r.qaFails.length ? `<div style="margin-top:12px;font-size:12px;color:var(--ink-2)">The gap between PPC and quality-adjusted is <b>${r.qaFails.length} on-time witness failure${r.qaFails.length===1?"":"s"}</b>: work executed as promised that did not pass its witnessed test. These carry retests.</div>` : ``)
+    + reconHtml
+    + `<div class="sub-head">Weekly PPC trend</div>${trendSvg(r.trend, r.ppcTarget)}`
     + `<div style="margin-top:7px;font-size:10.5px;font-style:italic;opacity:.75">PPC counts a committed activity as kept when it completes on or before its promised finish. Quality-adjusted PPC additionally requires any witnessed outcome to be a pass. Target is a project setting (Admin, Lookahead &amp; Targets).</div></section>`);
   if (SEC.constraints) blocks.push(`<section>${sh("Open constraints")}<div class="cards">${cardsHtml}</div></section>`);
-  if (SEC.reasons && SEC.byco) blocks.push(`<section><div class="twocol"><div>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></div><div>${sh("By contractor")}<div class="bars">${coHtml}</div></div></div></section>`);
-  else { if (SEC.reasons) blocks.push(`<section>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></section>`); if (SEC.byco) blocks.push(`<section>${sh("By contractor")}<div class="bars">${coHtml}</div></section>`); }
+  if (SEC.reasons) blocks.push(`<section>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></section>`);
+  if (SEC.byco) blocks.push(`<section>${sh("By contractor")}<div class="scope-note">Programme to date, all activities. PPC is committed work due to date, kept on time.</div>${coHtml}</section>`);
   if (SEC.invites) {
     const w = r.witnessOut || { attempted:0, passed:0, failed:0, failReasons:[], ftp:null, roots:0 };
     const totWF = w.failReasons.reduce((s,x)=>s+x.n,0);
@@ -6195,8 +6340,9 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
       : `<div class="empty">No witness outcomes recorded in the period.</div>`;
     blocks.push(`<section>${sh("Invitation outcomes")}${woLead}${woBars?`<div class="bars">${woBars}</div>`:""}</section>`);
   }
-  if (SEC.bycx) blocks.push(`<section>${sh("By Cx stage")}<div class="bars">${cxHtml}</div></section>`);
-  if (SEC.nextweek) blocks.push(`<section>${sh("Committed next week")}<div class="rows">${nwHtml}</div></section>`);
+  if (SEC.bycx) blocks.push(`<section>${sh("By Cx stage")}<div class="scope-note">Programme to date, all activities. Done is the share complete.</div>${cxHtml}</section>`);
+  if (SEC.statusmix) blocks.push(`<section>${sh("Status mix")}<div class="scope-note">Programme to date, all activities.</div>${statusMixHtml}</section>`);
+  if (SEC.nextweek) blocks.push(`<section>${sh("Committed next week")}${nwHtml}</section>`);
   if (SEC.milestones) blocks.push(`<section>${sh("Milestones ahead")}<div class="rows">${msHtml}</div></section>`);
   if (cxSectionsHtml) blocks.push(String(cxSectionsHtml).replace(/__NUM__/g, () => nn()));
   if (SEC.schedule && includeSchedule && scheduleSection) blocks.push(scheduleSection.replace(/<span class="eyebrow">\d+<\/span>/, `<span class="eyebrow">${nn()}</span>`));
@@ -6288,8 +6434,61 @@ footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;f
 .cx-risk{width:100%;border-collapse:collapse;font-size:12px}.cx-risk th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:0 8px 7px 0}.cx-risk td{padding:9px 8px 9px 0;border-top:1px solid var(--line);vertical-align:middle}
 .cx-crit{font-size:9.5px;font-weight:700;color:var(--red);background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.28);border-radius:999px;padding:2px 8px;white-space:nowrap}
 .cx-att{display:flex;align-items:flex-end;gap:14px;height:130px;padding-top:8px}.cx-acol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%}.cx-abar{width:100%;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,var(--signal),rgba(30,99,214,.3));min-height:6px}.cx-awl{font-size:10px;color:var(--muted)}
+/* REV154 analytics-parity additions */
+.hero-l{display:flex;flex-direction:column;align-items:center;gap:10px}
+.qa{text-align:center}.qav{font-family:var(--display);font-weight:700;font-size:25px;color:var(--amber)}.qal{display:block;font-size:11px;color:var(--muted);margin-top:2px;max-width:210px;line-height:1.4}
+.scope-note{font-size:10.5px;color:var(--muted);margin:0 0 12px}
+.sub-head{font-family:var(--display);font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);margin:22px 0 10px}
+.trendbox{border:1px solid var(--line);border-radius:11px;padding:14px 16px 10px}
+.trend-note{font-size:9px;color:var(--muted);margin-top:2px}
+.tlegend{font-size:10.5px;color:var(--muted);display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}.tlegend span{display:inline-flex;align-items:center;gap:5px}.tlegend i{display:inline-block}
+.tl-line{width:14px;height:3px;border-radius:2px;background:var(--signal)}.tl-ring{width:9px;height:9px;border-radius:50%;border:2px solid var(--signal)}.tl-avg{width:14px;height:0;border-top:2px dashed #F59E0B}.tl-tgt{width:14px;height:0;border-top:2px dashed var(--red)}
+.recon{margin-top:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.recon .rc{background:var(--paper);padding:9px 11px}.recon .rc .v{font-family:var(--display);font-weight:700;font-size:19px}.recon .rc .l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+.recon-cap{font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:7px}
+.mix-head{display:grid;grid-template-columns:150px 1fr 34px 52px 44px;gap:10px;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}.mix-head span:nth-child(n+3){text-align:right}
+.mix-row{display:grid;grid-template-columns:150px 1fr 34px 52px 44px;gap:10px;align-items:center;font-size:12.5px;padding:3px 0}
+.mix-row .nm{color:var(--ink-2);display:flex;align-items:center;gap:6px;white-space:normal;word-wrap:break-word;line-height:1.25}
+.mix-row .sw{width:9px;height:9px;border-radius:50%;flex:none}
+.mixbar{height:16px}.mixbar .seg3{height:100%;border-radius:5px;overflow:hidden;display:flex}
+.mix-row .cn{text-align:right;font-weight:600}.mix-row .cp{text-align:right;font-weight:700}.mix-row .co{text-align:right;color:var(--muted)}.mix-row .co.warn{color:var(--amber);font-weight:700}
+.mix-leg{font-size:10.5px;color:var(--muted);display:flex;gap:14px;margin-top:9px;flex-wrap:wrap}.mix-leg span{display:inline-flex;align-items:center;gap:5px}.mix-leg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.smix-stack{height:30px;border-radius:7px;overflow:hidden;display:flex;border:1px solid var(--line)}.smix-stack .b{height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden}
+.smix-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.smix-card{border:1px solid var(--line);border-radius:10px;padding:12px 13px}.smix-card .smh{display:flex;align-items:center;gap:7px;font-weight:700;font-size:13px}.smix-card .smh .sw{width:10px;height:10px;border-radius:3px}.smix-card .smh .smtot{margin-left:auto;font-family:var(--display);font-size:18px;font-weight:700}
+.smix-card .subs{margin-top:9px;display:flex;flex-direction:column;gap:6px}
+.subrow{display:flex;align-items:center;gap:8px;font-size:11.5px}.subrow .pip{width:8px;height:8px;border-radius:50%;flex:none}.subrow .slbl{color:var(--ink-2)}.subrow .sval{margin-left:auto;font-weight:700}.subrow .smini{width:56px;height:5px;border-radius:3px;background:var(--line-2);overflow:hidden}.subrow .smini i{display:block;height:100%;border-radius:3px}
+.smix-foot{font-size:10px;color:var(--muted);font-style:italic;margin-top:10px;line-height:1.5}
+@media (max-width:720px){.smix-cards{grid-template-columns:1fr}.mix-head,.mix-row{grid-template-columns:110px 1fr 26px}.mix-head span:nth-child(n+4),.mix-row .cp,.mix-row .co{display:none}}
+/* REV155 committed-next-week snapshot */
+.nw-summary{font-size:12.5px;color:var(--ink-2);margin:0 0 14px}.nw-summary b{color:var(--ink)}
+.nw-summary .tally{display:inline-flex;gap:12px;margin-left:6px}.nw-summary .tally span{display:inline-flex;align-items:center;gap:5px;font-weight:600}.nw-summary .tally i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.nw-list{display:flex;flex-direction:column;gap:9px}
+.nw-card{display:grid;grid-template-columns:8px 52px 1fr;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--paper)}
+.nw-edge{width:8px}
+.nw-card.ready .nw-edge{background:var(--green)}.nw-card.makeready .nw-edge{background:var(--amber)}.nw-card.risk .nw-edge{background:var(--red)}
+.nw-day{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 6px;background:var(--line-2);border-right:1px solid var(--line)}
+.nw-day .dow{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.nw-day .dnum{font-family:var(--display);font-size:17px;font-weight:700;line-height:1;margin-top:2px}.nw-day .mon{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.nw-body{padding:11px 14px}
+.nw-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.nw-title{font-weight:600;font-size:14px;line-height:1.3}.nw-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.nw-state{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap;flex:none}
+.nw-card.ready .nw-state{background:rgba(14,147,132,.13);color:var(--green)}.nw-card.makeready .nw-state{background:rgba(192,122,0,.14);color:var(--amber)}.nw-card.risk .nw-state{background:rgba(192,57,43,.12);color:var(--red)}
+.nw-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:7px;border:1px solid var(--line);background:var(--line-2);color:var(--ink-2);white-space:nowrap}
+.chip .ico{width:11px;height:11px;flex:none}.chip .mono{font-variant-numeric:tabular-nums}
+.chip.wit{background:rgba(109,59,208,.09);border-color:rgba(109,59,208,.28);color:#6D3BD0}
+.chip.con{background:rgba(192,122,0,.09);border-color:rgba(192,122,0,.28);color:var(--amber)}
+.chip.pred.warn{background:rgba(192,57,43,.09);border-color:rgba(192,57,43,.28);color:var(--red)}
+.chip.fcast{background:rgba(192,57,43,.09);border-color:rgba(192,57,43,.28);color:var(--red)}
+.chip.push{color:var(--muted)}
+.nw-notes{margin-top:9px;font-size:11.5px;color:var(--ink-2);background:var(--line-2);border-radius:8px;padding:7px 10px;line-height:1.45;display:flex;gap:7px}
+.nw-notes .nlbl{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);flex:none;padding-top:1px}
+.nw-more{font-size:11.5px;color:var(--muted);text-align:center;padding:8px}
+body.dark .chip.wit{color:#9F7AEA}
+@media (max-width:720px){.nw-card{grid-template-columns:6px 46px 1fr}}
 @page{size:A4;margin:0}
-@media print{html,body{background:var(--paper)}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row{break-inside:avoid}.sec-head{break-after:avoid}}
+@media print{html,body{background:var(--paper)}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row,.mix-row,.smix-card,.recon,.trendbox,.nw-card{break-inside:avoid}.sec-head{break-after:avoid}}
 </style></head><body class="${theme === 'dark' ? 'dark' : ''}">
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
@@ -6389,9 +6588,9 @@ function draftReportSummary({ r, sections, cxSnap, cxSel }){
   return parts.join(" ");
 }
 
-const RPT_PLAN_SECTIONS = [["summary","Executive summary"],["ppc","Commitment reliability"],["kpis","Lookahead KPIs"],["constraints","Open constraint cards"],["reasons","Reasons for non-completion"],["invites","Invitation outcomes"],["breakdowns","By contractor / Cx stage"],["nextweek","Next week commitments"],["milestones","Milestones"],["schedule","Schedule snapshot"]];
+const RPT_PLAN_SECTIONS = [["summary","Executive summary"],["ppc","Commitment reliability"],["kpis","Lookahead KPIs"],["constraints","Open constraint cards"],["reasons","Reasons for non-completion"],["invites","Invitation outcomes"],["breakdowns","By contractor / Cx stage"],["statusmix","Status mix"],["nextweek","Next week commitments"],["milestones","Milestones"],["schedule","Schedule snapshot"]];
 const RPT_CX_SECTIONS = [["cxkpis","Cx attainment KPIs"],["scurve","Programme S-curve"],["funnel","Tag attainment funnel"],["bytype","Red tag by equipment"],["issues","Open issues by type"],["irl","IRL workflow"],["docs","Documentation register"],["cxmilestones","Cx milestones"],["risks","Risk register"],["attendance","Vendor attendance"]];
-const RPT_PLAN_DEFAULT = { summary:true, ppc:true, kpis:true, constraints:true, reasons:true, invites:true, breakdowns:false, nextweek:false, milestones:true, schedule:true };
+const RPT_PLAN_DEFAULT = { summary:true, ppc:true, kpis:true, constraints:true, reasons:true, invites:true, breakdowns:false, statusmix:true, nextweek:false, milestones:true, schedule:true };
 const RPT_CX_DEFAULT = { cxkpis:true, scurve:true, funnel:true, bytype:false, issues:false, irl:false, docs:true, cxmilestones:false, risks:true, attendance:false };
 
 // AI polish guard: the polished text may not introduce any number/percentage absent from the deterministic draft.
