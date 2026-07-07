@@ -9,7 +9,7 @@
 // the same width by construction at any angle. A Codes mode gives a compact,
 // horizontal alternative. The sign-off column was removed in REV141 (the
 // parser still captures overall, so no data is lost). The row vendor figure
-// counts VEN columns only.
+// counts VEN and VEN/CON columns.
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { loadDocsStatus, saveDocsMatrix, saveDocsStatusConfig, saveDocsOverride, deleteDocsOverride, computeDocsConflicts, saveDocsVendorTarget } from "./data";
 
@@ -241,7 +241,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   const vendorList = useMemo(() => [...new Set(matrix.map((r) => vendors[r.equip_type] || "TBC"))].sort(), [matrix, vendors]);
   const visibleCols = useMemo(() => columns.filter((c) => (!fLevel || c.level === fLevel) && (!fResp || (c.resp || c.responsible) === fResp)), [columns, fLevel, fResp]);
   const rowStats = (r) => { let y = 0, ap = 0; columns.forEach((c) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0, out: ap - y }; };
-  const venCols = useMemo(() => columns.filter((c) => (c.resp || c.responsible) === "VEN"), [columns]);
+  const venCols = useMemo(() => columns.filter((c) => { const rp = c.resp || c.responsible; return rp === "VEN" || rp === "VEN/CON"; }), [columns]);
   // REV144: per-column received stat and the clicked-title popover.
   const colStat = (c) => { let y = 0, ap = 0; matrix.forEach((r) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap }; };
   const openColPop = (e, c) => {
@@ -404,7 +404,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
             <span className="li"><span className="dts-d yes" />Received</span>
             <span className="li"><span className="dts-d no" />Outstanding</span>
             <span className="li"><span className="dts-d na" />Not applicable</span>
-            <span style={{ marginLeft: "auto" }}>{headerMode === "codes" ? "Codes map to full names in Reference and on hover." : "Hover a column to link it to its label."} Vendor figure counts VEN columns only.</span>
+            <span style={{ marginLeft: "auto" }}>{headerMode === "codes" ? "Codes map to full names in Reference and on hover." : "Hover a column to link it to its label."} Vendor figure counts VEN and VEN/CON columns.</span>
           </div>
 
           <div className="dts-tools">
@@ -572,12 +572,21 @@ function VendorStatusModal({ vendors, rowByType, venCols, targets, onSave, canEd
   };
   const vendorOverall = (vendor) => { let y = 0, ap = 0; STAGE_ORDER.forEach((lv) => { const s = cellStat(vendor, lv); y += s.y; ap += s.ap; }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0 }; };
   const rows = vendorNames.filter((v) => { if (!hideDone) return true; const o = vendorOverall(v); return o.ap > 0 && o.y < o.ap; });
+  // REV145: outstanding (status 'n') documents per vendor across their equipment
+  // types, grouped by level, for the info popover beside the vendor name.
+  const [pop, setPop] = useState(null);
+  const missingFor = (vendor) => {
+    const groups = {}, seen = {};
+    (byVendor[vendor] || []).forEach((et) => { const r = rowByType[et]; if (!r) return; venCols.forEach((c) => { if (r.status[c.doc_key] === "n") { const lv = c.level; groups[lv] = groups[lv] || []; seen[lv] = seen[lv] || {}; let idx = seen[lv][c.doc_key]; if (idx === undefined) { idx = groups[lv].length; seen[lv][c.doc_key] = idx; groups[lv].push({ name: c.doc_name, types: [] }); } groups[lv][idx].types.push(et); } }); });
+    return groups;
+  };
+  const openPop = (e, vendor) => { e.stopPropagation(); if (pop && pop.vendor === vendor) { setPop(null); return; } const r = e.currentTarget.getBoundingClientRect(); const w = 300, vw = (typeof window !== "undefined" ? window.innerWidth : 1200); setPop({ vendor, left: Math.max(8, Math.min(r.left, vw - w - 8)), top: r.bottom + 6, groups: missingFor(vendor) }); };
   return (
     <div className="dts-scrim" onClick={onClose}>
       <div className="dts-modal wide" onClick={(e) => e.stopPropagation()}>
         <div className="mhead"><h3>Vendor Status</h3><button onClick={onClose}>{"\u00D7"}</button></div>
         <div className="mbody">
-          <div className="notebox">Vendor owned (VEN) documents by tag level: received of applicable per level. Set a due date to track delays. Due dates are visible to all; {canEdit ? "you can edit them here." : "editing is admin only."}</div>
+          <div className="notebox">Vendor owned (VEN and VEN/CON) documents by tag level: received of applicable per level. Set a due date to track delays. Due dates are visible to all; {canEdit ? "you can edit them here." : "editing is admin only."}</div>
           <div className="vs-tools">
             <label className="vs-hide"><input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} /> Hide vendors that are fully received</label>
             <div className="vs-legend"><span className="vs-chip ok">Complete</span><span className="vs-chip soon">Due soon</span><span className="vs-chip bad">Overdue</span><span className="vs-chip warn">No due date</span></div>
@@ -588,7 +597,7 @@ function VendorStatusModal({ vendors, rowByType, venCols, targets, onSave, canEd
               <tbody>
                 {rows.map((v) => { const ov = vendorOverall(v); return (
                   <tr key={v}>
-                    <td className="vs-v"><div className="vs-vn">{v === "TBC" ? "Vendor TBC (unassigned)" : v}</div><div className="vs-vb"><span style={{ width: ov.pct + "%" }} /></div><div className="vs-vm">{ov.y} of {ov.ap} received{ov.ap ? " (" + ov.pct + "%)" : ""}</div></td>
+                    <td className="vs-v"><div className="vs-vn">{v === "TBC" ? "Vendor TBC (unassigned)" : v}<button className="vs-i" onClick={(e) => openPop(e, v)} title="Show outstanding documents for this vendor">i</button></div><div className="vs-vb"><span style={{ width: ov.pct + "%" }} /></div><div className="vs-vm">{ov.y} of {ov.ap} received{ov.ap ? " (" + ov.pct + "%)" : ""}</div></td>
                     {STAGE_ORDER.map((lv) => { const st = cellStat(v, lv); const due = targets[v] && targets[v][lv] && targets[v][lv].due_date; const dl = delay(st, due); return (
                       <td key={lv} className="vs-c">
                         {st.ap ? (<>
@@ -604,6 +613,18 @@ function VendorStatusModal({ vendors, rowByType, venCols, targets, onSave, canEd
               </tbody>
             </table>
           </div>
+          {pop && (<>
+            <div className="vs-pop-catch" onClick={() => setPop(null)} />
+            <div className="vs-pop" style={{ left: pop.left, top: pop.top }} onClick={(e) => e.stopPropagation()}>
+              <div className="vp-head"><b>Outstanding documents</b><span className="vp-sub">{pop.vendor === "TBC" ? "Vendor TBC" : pop.vendor}</span><button className="vp-x" onClick={() => setPop(null)}>{"\u00D7"}</button></div>
+              {(() => { const lvs = STAGE_ORDER.filter((lv) => pop.groups[lv] && pop.groups[lv].length); if (!lvs.length) return <div className="vp-none">All vendor documents received.</div>; return <div className="vp-body">{lvs.map((lv) => (
+                <div key={lv} className="vp-grp">
+                  <div className="vp-lvl"><span className="vp-dot" style={{ background: TAGC[lv] }} />{lv} {STAGE_NAME[lv]}</div>
+                  {pop.groups[lv].map((d, i) => <div key={i} className="vp-doc"><span className="vp-dn">{d.name}</span><span className="vp-dt">{d.types.length > 5 ? d.types.slice(0, 5).join(", ") + " +" + (d.types.length - 5) + " more" : d.types.join(", ")}</span></div>)}
+                </div>
+              ))}</div>; })()}
+            </div>
+          </>)}
         </div>
       </div>
     </div>
@@ -770,4 +791,18 @@ tr.dts-erow:hover .dts-id{background:var(--hover)}
 .vs-dl{margin-top:4px;font-size:10.5px;font-weight:700} .vs-dl.ok{color:#0f8a76} .vs-dl.soon{color:var(--accent)} .vs-dl.bad{color:var(--red)} .vs-dl.warn{color:#9a6f04} .vs-dl.none{color:var(--faint)}
 .vs-na{color:var(--faint);font-size:13px} .vs-empty{padding:22px;text-align:center;color:var(--muted)}
 .dts-dark .vs-count{color:#ff8078} .dts-dark .vs-count.done{color:#3dd7bf}
+/* REV145: vendor outstanding-documents info popover */
+.vs-i{margin-left:7px;width:15px;height:15px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:10px;font-weight:800;font-style:italic;cursor:pointer;line-height:1;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;padding:0}
+.vs-i:hover{border-color:var(--accent);color:var(--accent)}
+.vs-pop-catch{position:fixed;inset:0;z-index:71}
+.vs-pop{position:fixed;z-index:72;width:300px;max-height:60vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 16px 48px rgba(0,0,0,.3);padding:12px 14px}
+.vp-head{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
+.vp-head b{font-size:12.5px;color:var(--head)} .vp-sub{font-size:11.5px;color:var(--muted);font-weight:700}
+.vp-x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;line-height:1}
+.vp-grp{margin-bottom:9px} .vp-grp:last-child{margin-bottom:0}
+.vp-lvl{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--ink);margin-bottom:3px}
+.vp-dot{width:9px;height:9px;border-radius:50%}
+.vp-doc{padding:3px 0 3px 12px;border-left:2px solid var(--line);margin:0 0 2px 3px}
+.vp-dn{display:block;font-size:12px;font-weight:700;color:var(--ink)} .vp-dt{display:block;font-size:10.5px;color:var(--muted)}
+.vp-none{font-size:12px;color:#0f8a76;font-weight:600}
 `;
