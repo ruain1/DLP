@@ -565,6 +565,26 @@ export async function fetchActivityAudit(activityId) {
   } catch (e) { return []; }
 }
 
+// ---- Entries Created report (admin, REV159): live activities by DB insert time (created_at),
+// paginated past the PostgREST 1000-row cap. created_at is timestamptz default now(), so the
+// window is always correct; created_by is only set on app inserts, so raw-SQL rows read null and
+// the UI labels them Unattributed. Deleted rows are not returned (live table only, by design).
+export async function fetchCreatedBetween(projectId, fromISO, toISO) {
+  const out = []; const page = 1000;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await supabase.from("activities")
+      .select("*").eq("project_id", projectId)
+      .gte("created_at", fromISO).lte("created_at", toISO)
+      .order("created_at", { ascending: false })
+      .range(from, from + page - 1);
+    if (error) throw error;
+    const batch = data || [];
+    for (const r of batch) out.push({ ...fromActivity(r), createdAt: r.created_at, createdBy: r.created_by });
+    if (batch.length < page) break;
+  }
+  return out;
+}
+
 // ---- Per-project membership (project_members) ----
 export async function loadProjectMembers(projectId) {
   const { data, error } = await supabase.from("project_members").select("user_id, role").eq("project_id", projectId);

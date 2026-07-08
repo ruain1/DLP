@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -3736,6 +3736,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   const [auditUser, setAuditUser] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditQ, setAuditQ] = useState("");
+  const [createdOpen, setCreatedOpen] = useState(false);
   const [snaps, setSnaps] = useState(null);          // activity_snapshots rows (admin; RLS enforced)
   const [rv, setRv] = useState(null);                // { e, snap, mode, laterN } for the revert modal
   const [rvBusy, setRvBusy] = useState(false);
@@ -4761,6 +4762,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
           </>}
           {tab === "audit" && <>
             <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Complete history of every action by every user, admin only. In production the database writes this on every change and it cannot be edited here.</div>
+            <button className="lk-btn" style={{ marginBottom: 6 }} onClick={() => setCreatedOpen(true)}><Icon n="cal" s={14} />View Entries Created (by date range)</button>
+            {createdOpen && <CreatedEntriesModal S={S} LV={S.levels || {}} coName={(id) => (S.companies.find((c) => c.id === id) || {}).name || "Unassigned"} onClose={() => setCreatedOpen(false)} />}
             <div className="lk-f"><label>Filter By User</label>
               <select className="lk-select" value={auditUser} onChange={(e) => setAuditUser(e.target.value)}>
                 <option value="all">All users ({S.audit.length})</option>
@@ -5035,6 +5038,114 @@ function CompanyModal({ co, logo, S, onClose }) {
 
 const DRILL_ICONS = { "in lookahead": ["cal", "var(--muted)"], "total activities": ["list", "var(--muted)"], "ready to run": ["play", "#0E9384"], "need make-ready": ["wrench", "#D97706"], "committed this week": ["checkcircle", "var(--accent)"], "committed": ["checkcircle", "var(--accent)"], "delayed": ["clock", "#C0392B"], "at risk": ["alert", "#E0A106"], "complete": ["check", "#0E9384"], "in progress": ["loader", "var(--muted)"], "planned": ["cal", "var(--muted)"], "witness required": ["eye", "#7A4FD0"] };
 const drillIcon = (t) => DRILL_ICONS[(t || "").trim().toLowerCase()] || ["chart", null];
+
+// CreatedEntriesModal (REV159, admin): activities listed by the date they were inserted into the
+// database (created_at), with the person and company who created each one. Reuses drill styling.
+function CreatedEntriesModal({ S, LV, coName, onClose }) {
+  const [preset, setPreset] = useState("week");
+  const [fromD, setFromD] = useState("");
+  const [toD, setToD] = useState("");
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState("");
+
+  const userById = useMemo(() => Object.fromEntries((S.users || []).map((u) => [u.id, u])), [S.users]);
+  const creatorOf = (id) => {
+    if (!id) return { name: "Unattributed", company: "", unk: true };
+    const u = userById[id];
+    if (!u) return { name: "Unknown user", company: "", unk: true };
+    return { name: u.name || "Unnamed", company: coName(u.companyId) || "", unk: false };
+  };
+  const labelSpan = (a, b) => { const f = (d) => d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); return f(a) + " to " + f(b); };
+
+  const range = useMemo(() => {
+    const now = new Date();
+    const sod = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+    if (preset === "week") { const s = sod(now); s.setDate(now.getDate() - now.getDay()); return { from: s, to: now, label: labelSpan(s, now) }; }
+    if (preset === "lastweek") { const thisSun = sod(now); thisSun.setDate(now.getDate() - now.getDay()); const s = new Date(thisSun); s.setDate(thisSun.getDate() - 7); const e = new Date(thisSun.getTime() - 1); return { from: s, to: e, label: labelSpan(s, e) }; }
+    if (preset === "month") { const s = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0); return { from: s, to: now, label: labelSpan(s, now) }; }
+    if (!fromD || !toD) return null;
+    const s = new Date(fromD + "T00:00:00"); const e = new Date(toD + "T23:59:59.999");
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return null;
+    return { from: s, to: e, label: labelSpan(s, e) };
+  }, [preset, fromD, toD]);
+
+  useEffect(() => {
+    if (!range) { setRows([]); return; }
+    let live = true; setRows(null); setErr("");
+    fetchCreatedBetween(S.projectId, range.from.toISOString(), range.to.toISOString())
+      .then((r) => { if (live) setRows(r); })
+      .catch((e) => { if (live) { setErr((e && e.message) || "Could not load entries."); setRows([]); } });
+    return () => { live = false; };
+  }, [range, S.projectId]);
+
+  const groups = useMemo(() => {
+    const m = new Map();
+    (rows || []).forEach((a) => { const c = creatorOf(a.createdBy); const g = m.get(c.name) || { name: c.name, company: c.company, unk: c.unk, n: 0 }; g.n++; m.set(c.name, g); });
+    return Array.from(m.values()).sort((a, b) => b.n - a.n);
+  }, [rows, userById]);
+
+  const exportCsv = () => {
+    const hdr = ["Created At", "Creator", "Creator Company", "Activity", "Contractor", "Cx Stage", "Planned Start", "Days", "Status", "Committed", "Witness"];
+    const body = (rows || []).map((a) => { const c = creatorOf(a.createdBy);
+      return [a.createdAt ? new Date(a.createdAt).toISOString() : "", c.name, c.company, a.desc || "", coName(a.companyId) || "", a.level || "", a.start || "", a.duration || "", a.status || "", a.committed ? "Yes" : "No", a.witnessInvite ? "Yes" : "No"]; });
+    downloadFile("FIN04-entries-created-" + new Date().toISOString().slice(0, 10) + ".csv", toCSV(hdr, body));
+  };
+
+  const fmtStamp = (iso) => { if (!iso) return ""; try { return new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
+  const list = (rows || []).slice();
+
+  return (
+    <div className="lk-bg" onClick={onClose}>
+      <div className="ytt drill" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+        <div className="ytt-head">
+          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><span style={{ color: "var(--accent)", display: "inline-flex", flex: "none" }}><Icon n="cal" s={17} /></span><h3 style={{ margin: 0, fontSize: 15.5 }}>Entries Created</h3><span className="ytt-sub">{rows == null ? "loading" : (list.length + " activit" + (list.length === 1 ? "y" : "ies"))}</span></div>
+          <button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 16px", borderBottom: "1px solid var(--line-2)" }}>
+          {[["week", "This Week"], ["lastweek", "Last Week"], ["month", "This Month"], ["custom", "Custom"]].map(([k, l]) =>
+            <button key={k} className={"lk-btn pill" + (preset === k ? " on" : "")} onClick={() => setPreset(k)}>{l}</button>)}
+          {preset === "custom" && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <input className="lk-in" type="date" value={fromD} onChange={(e) => setFromD(e.target.value)} style={{ width: 150 }} />
+            <span style={{ color: "var(--muted)", fontSize: 11 }}>to</span>
+            <input className="lk-in" type="date" value={toD} onChange={(e) => setToD(e.target.value)} style={{ width: 150 }} />
+          </span>}
+          <span style={{ flex: 1 }} />
+          <button className="lk-btn" onClick={exportCsv} disabled={!rows || !rows.length}><Icon n="download" s={14} />Export CSV</button>
+        </div>
+
+        {range && rows && rows.length > 0 && <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", padding: "9px 16px", borderBottom: "1px solid var(--line-2)", fontSize: 11, color: "var(--muted)" }}>
+          <span>{range.label}:</span>
+          {groups.map((g) => <span key={g.name} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 999, background: g.unk ? "rgba(224,163,58,.10)" : "var(--chip)", border: "1px solid " + (g.unk ? "rgba(224,163,58,.45)" : "var(--line)"), color: g.unk ? "#E0A33A" : "var(--ink-2)" }}>
+            <b style={{ color: g.unk ? "#E0A33A" : "var(--ink)", fontWeight: 650 }}>{g.name}</b>{g.company ? (" " + "\u00b7" + " " + g.company) : ""} {"\u00b7"} {g.n}</span>)}
+        </div>}
+
+        <div className="drill-body">
+          {rows == null ? <div className="ytt-empty" style={{ padding: 16 }}>Loading entries...</div>
+            : err ? <div className="ytt-empty" style={{ padding: 16, color: "#C0392B" }}>{err}</div>
+            : !range ? <div className="ytt-empty" style={{ padding: 16 }}>Choose a valid from and to date.</div>
+            : list.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>No activities were created in this window.</div>
+            : list.map((a) => { const lv = lvOf(LV, a.level); const c = creatorOf(a.createdBy); const open = (a.constraints || []).filter((x) => !x.done).length;
+              return <div key={a.id} className="drill-row" style={{ borderLeftColor: lv.color, cursor: "default" }}>
+                <div className="drill-main" style={{ minWidth: 0 }}>
+                  <span className="drill-desc">{a.desc || "Untitled"}</span>
+                  <span className="drill-sub">{coName(a.companyId)} {"\u00b7"} {a.level || "-"} {"\u00b7"} {a.start || "no date"}{a.duration ? (" (" + a.duration + "d)") : ""}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 10.5, color: c.unk ? "#E0A33A" : "var(--ink-2)" }}>
+                    <span style={{ display: "inline-flex", flex: "none", color: c.unk ? "#E0A33A" : "var(--accent)" }}><Icon n="person" s={12} /></span>
+                    {c.unk ? c.name : <React.Fragment>Added by <b style={{ fontWeight: 650 }}>&nbsp;{c.name}</b>{c.company ? <span style={{ color: "var(--muted)" }}>&nbsp;{"\u00b7"} {c.company}</span> : null}</React.Fragment>}
+                    <span style={{ color: "var(--muted)" }}>&nbsp;{"\u00b7"} {fmtStamp(a.createdAt)}</span>
+                  </span>
+                </div>
+                <div className="drill-tags">
+                  {a.status === "complete" ? <span className="lk-chip" style={{ background: "#DBF3EC", color: "#0E6B5C", textTransform: "none" }}>done</span> : open ? <span className="lk-chip" style={{ background: "#FBEFD6", color: "#9A6A00", textTransform: "none" }}>{open} open</span> : null}
+                  {a.committed && <span className="lk-chip commit">will</span>}
+                  {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
+                </div>
+              </div>; })}
+        </div>
+      </div>
+    </div>);
+}
 
 function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
   const [dIcon, dColor] = drillIcon(title);
