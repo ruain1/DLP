@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV159",
+    "date": "2026-07-08",
+    "items": [
+      "New admin view: Settings > Audit > View Entries Created lists activities by the date they were entered into the system (their database insert time), not their planned date. Presets for This Week (Sunday to now on your browser clock), Last Week, This Month, plus a custom from and to range. Each row carries the same detail as the analytics drill popup, with one line added: who created it and their company. A summary strip counts entries per creator and there is a CSV export",
+      "Attribution note: activities inserted directly by SQL that did not record a creator (for example the original bulk import) show as Unattributed; their insert date is still accurate. Deleted activities do not appear (the view reads live rows only). Admin and owner only"
+    ]
+  },
+  {
     "rev": "REV158",
     "date": "2026-07-07",
     "items": [
