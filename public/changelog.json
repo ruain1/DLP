@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV158",
+    "date": "2026-07-07",
+    "items": [
+      "Status Mix card on the Analytics page filled out. The donut is larger, each status band now carries a full-width composition bar of its internal split (ready versus make-ready, on time versus finished late), and a health strip beneath adds three rollups the card did not surface before: readiness (share of planned work with no open constraints), on-time completion rate, and the make-ready backlog. Every element including the three tiles drills to its activities. In progress keeps its flag counts rather than a split bar, since running late and constrained can overlap."
+    ]
+  },
+  {
     "rev": "REV157",
     "date": "2026-07-07",
     "items": [
