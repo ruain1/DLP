@@ -1,5 +1,32 @@
 [
   {
+    "rev": "REV166",
+    "date": "2026-07-09",
+    "items": [
+      "Manual FOK register import engine (src/benchmarkImport.js), the path to use while ACC authorisation is pending. It reads the real multi sheet workbook: walks the discipline tabs (Electrical, Mechanical, CSA), skips the overview and list sheets, locates the header wherever it sits, pulls the ACC link off the title cell hyperlink and formats dates. It produces the same benchmark rows the ACC webhook will, so both feed one staging table. exceljs loads on demand to keep the page light.",
+      "The parser in accReconcile.js was reworked against the actual FIN04 register: it locates the header row rather than assuming row one, tags discipline from the sheet, handles the shifted CSA layout, and keeps emails lowercased while leaving name assignees as they are. Proven on the real file, 173 benchmarks parsed across the three disciplines with hyperlinks and dates correct.",
+      "New writeBenchmarks in data.js upserts an import into acc_benchmarks, marking any ref that dropped out as not present while preserving board links. Dormant until the next revision wires the Benchmarks page Import button, the table and Send to Board."
+    ]
+  },
+  {
+    "rev": "REV165",
+    "date": "2026-07-09",
+    "items": [
+      "Benchmarks foundation. New project scoped acc_benchmarks staging table (run supabase/acc-benchmarks.sql). The ACC sync upserts the parsed FOK register into it and never touches the board; the Benchmarks page reads it and Send to Board is the only bridge from a benchmark to a real activity.",
+      "Status derivation added to accReconcile.js (benchmarkStatus, benchmarksWithStatus) plus a loadBenchmarks reader in data.js, all dormant this revision. Thirteen harness assertions cover the five states: removed when a ref drops out of ACC, no_date, ready when dated but not yet on the board, changed when the board date or assignee has moved, and on_board, plus the activity join and the summary counts.",
+      "Next: the Benchmarks page and the Send to Board modal wired to the existing FOK activity creation and witness routing, then the acc-webhook receiver, delivered as a self contained single file so it deploys cleanly from the dashboard, upserting into this table."
+    ]
+  },
+  {
+    "rev": "REV164",
+    "date": "2026-07-09",
+    "items": [
+      "ACC webhook security core added (supabase/functions/_shared/accAuth.js): the auth and verification the live receiver depends on. Web Crypto only, so it runs identically in the Supabase edge runtime and in the test harness, and holds no secrets.",
+      "Three functions, fully harnessed across fifteen assertions. Inbound Autodesk webhooks are verified by HMAC-SHA1 over the raw body against the x-adsk-signature header, so tampered bodies and wrong secrets are rejected. dm.version.added events are matched to the watched FOK file by item URN or name hint, so unrelated activity in the folder is ignored. An unattended token is minted as the Secure Service Account robot via an RS256 signed JWT assertion, whose signature is verified against the public key in the harness.",
+      "This is the credential independent security layer of the webhook receiver. The handler that composes it with the fetch (acc.js) and reconcile (accReconcile.js) engines, and the live token exchange, activate once BIMMS authorises the robot and the real folder, item and secret values exist."
+    ]
+  },
+  {
     "rev": "REV163",
     "date": "2026-07-09",
     "items": [
