@@ -1149,7 +1149,13 @@ export async function loadBenchmarks(projectId) {
 export async function writeBenchmarks(projectId, rows) {
   if (!projectId) return { error: "No project selected" };
   await supabase.from("acc_benchmarks").update({ present: false }).eq("project_id", projectId);
-  const incoming = (rows || []).map((r) => ({
+  // Dedupe by fok_ref (last wins). A register can reuse an ID (e.g. 8160 appears twice on the
+  // CSA sheet), and ON CONFLICT DO UPDATE cannot touch the same key twice in one upsert, which
+  // is what the "cannot affect row a second time" error was. Report how many collapsed.
+  const byRef = new Map();
+  let duplicates = 0;
+  for (const r of (rows || [])) { const ref = String(r.fokRef); if (byRef.has(ref)) duplicates++; byRef.set(ref, r); }
+  const incoming = Array.from(byRef.values()).map((r) => ({
     project_id: projectId,
     fok_ref: String(r.fokRef),
     discipline: r.discipline || null,
@@ -1161,7 +1167,7 @@ export async function writeBenchmarks(projectId, rows) {
     present: true,
     synced_at: new Date().toISOString(),
   }));
-  if (!incoming.length) return { count: 0, error: null };
+  if (!incoming.length) return { count: 0, duplicates, error: null };
   const { error } = await supabase.from("acc_benchmarks").upsert(incoming, { onConflict: "project_id,fok_ref" });
-  return { count: incoming.length, error: error ? error.message : null };
+  return { count: incoming.length, duplicates, error: error ? error.message : null };
 }

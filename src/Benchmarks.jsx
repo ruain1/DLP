@@ -59,7 +59,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
       if (!imported.length) throw new Error("No FOK rows found. Check the workbook has the Electrical, Mechanical or CSA sheets.");
       const res = await writeBenchmarks(projectId, imported);
       if (res.error) throw new Error(res.error);
-      setMsg("Imported " + res.count + " benchmarks \u00b7 " + Object.entries(perSheet).map(([k, v]) => k + " " + v).join(", "));
+      setMsg("Imported " + res.count + " benchmarks" + (res.duplicates ? " (" + res.duplicates + " duplicate ref collapsed)" : "") + " \u00b7 " + Object.entries(perSheet).map(([k, v]) => k + " " + v).join(", "));
       reload();
     } catch (err) {
       setMsg("Import failed: " + (err && err.message ? err.message : String(err)));
