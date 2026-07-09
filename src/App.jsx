@@ -3,6 +3,19 @@ import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollecti
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
+
+// REV161: module scope so both the App body and the separate Drawer component can resolve it
+// (REV160 defined it inside App only, so Drawer's recipient preview threw and blanked the page).
+// Merges the activity's assignee (column H) into the discipline required list, deduped. No state used.
+function inviteRecipients(a) {
+  const { to, cc } = witnessRecipients((a && a.discipline) || []);
+  const extra = ((a && a.assigneeEmail) || "").trim();
+  if (!extra) return { to, cc };
+  const low = extra.toLowerCase();
+  const inTo = (to || []).some((e) => e.toLowerCase() === low);
+  const inCc = (cc || []).some((e) => e.toLowerCase() === low);
+  return inTo || inCc ? { to, cc } : { to: [...(to || []), extra], cc };
+}
 import { claimReportRun } from "./digestClaim";
 import SetPassword from "./SetPassword.jsx";
 import CxProgressPage from "./CxProgress.jsx";
@@ -2026,18 +2039,6 @@ export default function App({ session }) {
   // Snapshot of the invite-relevant fields. A later change to any of them flips the row to
   // Details Changed. Day count is handled structurally (entries vs witnessDays), not hashed,
   // so adding a day offers Send Remaining instead of re-sending everything.
-  // REV160: the column H assignee joins the required attendees for FOK invites. Resolved here so the
-  // change hash, the send, and the editor preview share one recipient set. Deduped against the
-  // discipline list and cc; an empty assigneeEmail leaves every existing invite's recipients untouched.
-  const inviteRecipients = (a) => {
-    const { to, cc } = witnessRecipients(a.discipline || []);
-    const extra = (a.assigneeEmail || "").trim();
-    if (!extra) return { to, cc };
-    const low = extra.toLowerCase();
-    const inTo = (to || []).some((e) => e.toLowerCase() === low);
-    const inCc = (cc || []).some((e) => e.toLowerCase() === low);
-    return inTo || inCc ? { to, cc } : { to: [...(to || []), extra], cc };
-  };
   const invHash = (a) => {
     const { to, cc } = inviteRecipients(a);
     // witnessType joins the hash only when set: appending it unconditionally would change the
