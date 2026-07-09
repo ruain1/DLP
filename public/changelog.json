@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV167",
+    "date": "2026-07-09",
+    "items": [
+      "New Benchmarks page. It reads the acc_benchmarks staging table and shows each FOK register row against the board with five statuses (ready, changed, on board, no date, removed in ACC), filterable by discipline and status. Import Register (Owner and Admin) loads the real multi sheet FOK workbook through the tested import engine and upserts it, so it is the manual path to use while ACC authorisation is pending.",
+      "Member visibility is admin controlled. The page is Admin and Owner only by default; a Visible to members toggle at the top, itself Owner and Admin only, opens it to all project members, persisted per project (run supabase/benchmarks-visible.sql to add settings.benchmarks_visible). Both the rail button and the route enforce the gate.",
+      "Send to Board is deliberately held for the next revision so the activity creation and witness routing are built against the live invite path rather than rushed, since that is the one step that touches real invitations."
+    ]
+  },
+  {
     "rev": "REV166",
     "date": "2026-07-09",
     "items": [
