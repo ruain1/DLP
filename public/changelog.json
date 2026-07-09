@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV180",
+    "date": "2026-07-09",
+    "items": [
+      "Design section gains Colour and Typography, alongside Icons. Colour sets a project-wide accent (preset swatches or a custom colour) used across buttons, links and highlights. Typography sets the project heading and body font from the fonts already loaded (Space Grotesk, Inter, System, Serif, Mono), with a live preview. Both have a reset to default.",
+      "These apply everywhere consistently: the theme helper now carries the overrides so they reach every page and every modal, drawer, Table, Schedule and Admin view that renders its own theme root, not just the main content. Stored in a new design column; run supabase/settings-design.sql before pushing data.js and App.jsx.",
+      "Scope note: Colour and Typography are project-wide in this tranche. Per-page overrides for them are next; they need page context threaded into the few components that render their own theme root, and the global path should be confirmed on screen first. Icons remain per-page as before."
+    ]
+  },
+  {
     "rev": "REV179",
     "date": "2026-07-09",
     "items": [
