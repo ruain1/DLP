@@ -2779,6 +2779,7 @@ export default function App({ session }) {
     if ((oS >= 0 && oS < cols) || (oE >= 0 && oE < cols)) {
       const gs = Math.max(0, oS), ge = Math.min(cols - 1, oE);
       if (a.isMilestone) out.push(<div key="gh" className="lk-ghost ms" style={{ gridColumn: `${gs + 1} / ${gs + 2}`, gridRow: row + 1 }} title={`Originally ${rs[0].from}`}><span className="dia" /></div>);
+      else if (a.witnessInvite) out.push(<div key="gh" className="lk-ghost bar" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, display: "flex", alignItems: "center", gap: 6, padding: "0 8px", overflow: "hidden" }} title={`Original witness invite ${rs[0].from}, rescheduled to ${a.start}${a.witnessSentAt ? "; needs re-sending" : ""}`}><span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textDecoration: "line-through", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.code != null ? "#" + a.code : (a.desc || "").slice(0, 16)}</span>{a.witnessSentAt && <span style={{ fontSize: 8.5, fontWeight: 800, color: "#E0A106", background: "rgba(224,161,6,.14)", border: "1px solid rgba(224,161,6,.5)", borderRadius: 999, padding: "0 5px", whiteSpace: "nowrap", flexShrink: 0 }}>re-send</span>}</div>);
       else out.push(<div key="gh" className="lk-ghost bar" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1 }} title={`Originally ${rs[0].from}`} />);
     }
     return <>{out}</>;
@@ -2947,9 +2948,14 @@ export default function App({ session }) {
           // RetestLink only draws same-row connectors, so this is also what keeps the amber link visible.
           const rows = []; const rowById = {};
           la.forEach((a) => {
-            const su = sU(a), eu = effEndU(a);
+            const cs = sU(a); let su = cs, eu = effEndU(a);
+            // REV182: reserve the reschedule origin span (dotted trail + origin ghost) so a moved
+            // bar earns its own row and a neighbour cannot overlap its trail. The retest row
+            // preference still keys on the current start, so failed-invite chains pack as before.
+            const _rs = a.reschedules || [];
+            if (_rs.length) { const _oo = Math.round((parseD(_rs[0].from) - anchor) / DAYMS); const _oS = grain === "day" ? _oo : Math.floor(_oo / 7); const _dur = a.isMilestone ? 1 : Math.max(1, a.duration || 1); const _oE = grain === "day" ? _oo + _dur - 1 : Math.floor((_oo + _dur - 1) / 7); if (_oS < su) su = _oS; if (_oE > eu) eu = _oE; }
             let r = -1;
-            if (a.retestOf && rowById[a.retestOf] != null && rows[rowById[a.retestOf]] < su) r = rowById[a.retestOf];
+            if (a.retestOf && rowById[a.retestOf] != null && rows[rowById[a.retestOf]] < cs) r = rowById[a.retestOf];
             if (r < 0) r = rows.findIndex((end) => end < su);
             if (r < 0) { r = rows.length; rows.push(eu); } else rows[r] = eu;
             a._row = r; rowById[a.id] = r; a._step = 0; a._stepMax = 0;
