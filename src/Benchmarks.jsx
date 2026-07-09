@@ -42,6 +42,8 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   const [rowAssignee, setRowAssignee] = useState({});
   const [rowDate, setRowDate] = useState({});
   const [rowInvite, setRowInvite] = useState({});
+  const [rowAction, setRowAction] = useState({});
+  const [hidePastStb, setHidePastStb] = useState(true);
 
   const reload = () => {
     if (!projectId) { setBenchmarks([]); return; }
@@ -127,14 +129,19 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
     update((p) => ({ ...p, settings: { ...p.settings, benchmarksVisible: !p.settings.benchmarksVisible } }), { action: "Change setting", detail: "Benchmarks visible to members " + (!visible ? "on" : "off") });
   };
 
+  const effDate = (r) => (rowDate[r.fok_ref] != null ? rowDate[r.fok_ref] : (r.planned_date || ""));
+  const isPast = (r) => { const d = effDate(r); return d && d < today; };
+  const modalRows = sendable.filter((r) => !hidePastStb || !isPast(r));
+  const pastCount = sendable.filter(isPast).length;
+  const willSend = (r) => sel[r.fok_ref] && !(r.status === "changed" && (rowAction[r.fok_ref] || "update") === "keep");
   const openStb = () => {
-    const m = {}, inv = {};
-    sendable.forEach((r) => { m[r.fok_ref] = true; inv[r.fok_ref] = attendees(r.discipline).length > 0; });
-    setSel(m); setRowInvite(inv); setRowTime({}); setRowHours({}); setRowTitle({}); setRowAssignee({}); setRowDate({}); setStbOpen(true);
+    const m = {}, inv = {}, act = {};
+    sendable.forEach((r) => { m[r.fok_ref] = true; inv[r.fok_ref] = attendees(r.discipline).length > 0; if (r.status === "changed") act[r.fok_ref] = "update"; });
+    setSel(m); setRowInvite(inv); setRowAction(act); setRowTime({}); setRowHours({}); setRowTitle({}); setRowAssignee({}); setRowDate({}); setHidePastStb(true); setStbOpen(true);
   };
-  const selCount = sendable.filter((r) => sel[r.fok_ref]).length;
+  const selCount = modalRows.filter(willSend).length;
   const confirmStb = () => {
-    const items = sendable.filter((r) => sel[r.fok_ref]).map((r) => ({
+    const items = modalRows.filter(willSend).map((r) => ({
       benchmark: r,
       title: rowTitle[r.fok_ref] != null ? rowTitle[r.fok_ref] : (r.title || ""),
       assigneeEmail: rowAssignee[r.fok_ref] != null ? rowAssignee[r.fok_ref] : (r.resolved_email || r.assignee_email || ""),
@@ -147,7 +154,8 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
     if (onSendToBoard) onSendToBoard(items);
     setStbOpen(false);
     const inv = items.filter((i) => i.invite).length;
-    setMsg("Sent " + items.length + " to the board, " + inv + " with a witness invite. Nothing is committed or emailed: commit them in the lookahead, then release invites with Send All Pending.");
+    const upd = modalRows.filter((r) => willSend(r) && r.status === "changed").length;
+    setMsg("Sent " + items.length + " to the board: " + upd + " updated, " + (items.length - upd) + " new, " + inv + " with an invite. Nothing is committed or emailed: commit them in the lookahead, then release invites with Send All Pending.");
   };
 
   const S = {
@@ -253,20 +261,23 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
               <input value={defTime} onChange={(e) => setDefTime(e.target.value)} style={{ ...S.inp, width: 72, textAlign: "center" }} />
               <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>Duration (h)</span>
               <input type="number" min="0.5" step="0.5" value={defHours} onChange={(e) => setDefHours(Number(e.target.value) || 2)} style={{ ...S.inp, width: 62, textAlign: "center" }} />
-              <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto" }}>Applies to every row unless overridden</span>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto", cursor: "pointer", fontSize: 12, color: "var(--muted)" }} title="Exclude benchmarks whose date is before today"><input type="checkbox" checked={hidePastStb} onChange={(e) => setHidePastStb(e.target.checked)} style={{ accentColor: "#34d1a3" }} />Hide past{pastCount ? " (" + pastCount + " hidden)" : ""}</label>
             </div>
             <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                 <thead><tr>
-                  <th style={{ ...S.th, width: 30 }}></th><th style={S.th}>FOK Ref</th><th style={S.th}>Title</th><th style={S.th}>Discipline</th><th style={S.th}>Invite</th><th style={S.th}>Assignee</th><th style={S.th}>Date</th><th style={S.th}>Time</th><th style={S.th}>Hrs</th>
+                  <th style={{ ...S.th, width: 30 }}></th><th style={S.th}>FOK Ref</th><th style={S.th}>Title</th><th style={S.th}>Discipline</th><th style={S.th}>Board</th><th style={S.th}>Invite</th><th style={S.th}>Assignee</th><th style={S.th}>Date</th><th style={S.th}>Time</th><th style={S.th}>Hrs</th>
                 </tr></thead>
                 <tbody>
-                  {sendable.map((r) => { const att = attendees(r.discipline); const inv = rowInvite[r.fok_ref] != null ? rowInvite[r.fok_ref] : att.length > 0; return (
+                  {modalRows.map((r) => { const att = attendees(r.discipline); const inv = rowInvite[r.fok_ref] != null ? rowInvite[r.fok_ref] : att.length > 0; return (
                     <tr key={r.fok_ref}>
                       <td style={S.td}><input type="checkbox" checked={!!sel[r.fok_ref]} onChange={(e) => setSel((m) => ({ ...m, [r.fok_ref]: e.target.checked }))} style={{ accentColor: "#34d1a3" }} /></td>
                       <td style={{ ...S.td, fontFamily: "ui-monospace, monospace", color: "var(--muted)", whiteSpace: "nowrap" }}>{r.fok_ref}{r.status === "changed" ? <span style={{ color: "#e0a83a", fontSize: 10, marginLeft: 6 }}>changed</span> : null}</td>
                       <td style={S.td}><input value={rowTitle[r.fok_ref] != null ? rowTitle[r.fok_ref] : (r.title || "")} onChange={(e) => setRowTitle((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 210 }} /></td>
                       <td style={{ ...S.td, whiteSpace: "nowrap" }}>{r.discipline}</td>
+                      <td style={S.td}>{r.status === "changed"
+                        ? <select value={rowAction[r.fok_ref] || "update"} onChange={(e) => setRowAction((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 120 }}><option value="update">Update{r.activityCode != null ? " #" + r.activityCode : ""}</option><option value="keep">Keep current</option></select>
+                        : <span style={{ fontSize: 11, color: "#7fe3b8" }}>New</span>}</td>
                       <td style={S.td}><label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }} title={att.join(", ")}><input type="checkbox" checked={inv} onChange={(e) => setRowInvite((m) => ({ ...m, [r.fok_ref]: e.target.checked }))} style={{ accentColor: "#34d1a3" }} /><span style={{ fontSize: 11, color: "var(--muted)" }}>{inv ? att.length + " to" : "no invite"}</span></label></td>
                       <td style={S.td}><input value={rowAssignee[r.fok_ref] != null ? rowAssignee[r.fok_ref] : (r.resolved_email || r.assignee_email || "")} onChange={(e) => setRowAssignee((m) => ({ ...m, [r.fok_ref]: e.target.value }))} placeholder="assignee" style={{ ...S.inp, width: 175 }} /></td>
                       <td style={S.td}><input type="date" value={rowDate[r.fok_ref] != null ? rowDate[r.fok_ref] : (r.planned_date || "")} onChange={(e) => setRowDate((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 132 }} /></td>
@@ -279,7 +290,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
             </div>
             <div style={{ fontSize: 11, color: "var(--muted)", padding: "10px 18px", borderTop: "1px solid var(--line)", background: "var(--bg)", lineHeight: 1.5 }}>Creates activities on the board, not committed and with no invitations sent. Commit them in the lookahead, then release invites from the Witness Schedule with Send All Pending.</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderTop: "1px solid var(--line)" }}>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>{selCount} of {sendable.length} selected</span>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>{selCount} of {modalRows.length} selected</span>
               <div style={{ flex: 1 }} />
               <button className="lk-btn" onClick={() => setStbOpen(false)}>Cancel</button>
               <button className="lk-btn primary" disabled={!selCount} onClick={confirmStb}>Send {selCount} to Board</button>
