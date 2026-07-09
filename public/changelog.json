@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV169",
+    "date": "2026-07-09",
+    "items": [
+      "Fix: importing or syncing the Weekly Cx Progress workbook no longer overwrites an existing week silently. The reporting week is keyed on the date the workbook itself reports, so re-importing a file whose Reporting week ending cell was not rolled would replace a prior week's snapshot in place. If the target week already exists and the incoming data differs, a Confirm overwrite dialog now lists the fields that changed (stored vs incoming) and requires an explicit choice. Cancelling explains that a new week needs the Reporting week ending cell rolled in the source file first. Identical re-imports still proceed without a prompt.",
+      "Note: this guard does not advance the reporting week on its own. If the source workbook is still dated to an older week, the correct fix remains rolling the Reporting week ending cell and refreshing the ACC extract at source. The Open issues by type card and the Risk overdue figures are driven by that same source data (the Calc sheet and the reporting week respectively), so they refresh once the source is current."
+    ]
+  },
+  {
     "rev": "REV168",
     "date": "2026-07-09",
     "items": [
