@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -3724,11 +3724,12 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
   const [connSp, setConnSp] = useState(null);
+  const [connAcc, setConnAcc] = useState(null);
   const [connMsg, setConnMsg] = useState("");
   useEffect(() => {
     if (tab !== "connections") return;
     let live = true;
-    setConnOl(null); setConnSp(null); setConnMsg("");
+    setConnOl(null); setConnSp(null); setConnAcc(null); setConnMsg("");
     import("./outlook").then(async (m) => { const a = await m.outlookAccount(); if (live) setConnOl(a ? (a.username || "") : ""); }).catch(() => { if (live) setConnOl(""); });
     import("./sharepoint").then(async (sp) => {
       // Default registration ids serve FIN04; a project with config overrides will already
@@ -3736,6 +3737,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
       sp.initSharePoint(undefined);
       const a = await sp.sharePointAccount(); if (live) setConnSp(a ? (a.username || "") : "");
     }).catch(() => { if (live) setConnSp(""); });
+    loadAccSync(S.projectId).then((r) => { if (live) setConnAcc(r || false); }).catch(() => { if (live) setConnAcc(false); });
     return () => { live = false; };
   }, [tab]);
   const connGo = async (which) => {
@@ -4728,6 +4730,32 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
                 : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "var(--hover)", color: "var(--muted)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Not connected</span>}
               <button className={"lk-btn" + (c.v ? "" : " primary")} onClick={() => connGo(c.k)} title="Signs in via a quick full-page Microsoft redirect and returns here">{c.v ? "Reconnect" : (c.k === "ol" ? "Connect Outlook" : "Connect SharePoint")}</button>
             </div>)}
+            {/* REV162: ACC connection card. Reads acc_sync only; the live watch, reconcile
+                and the board Sync Now button switch on in REV163 once the service identity is
+                authorised and the unattended token model is confirmed. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "13px 15px", marginBottom: 11 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>Autodesk Construction Cloud (FIN04)<span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: "#7c3aed", borderRadius: 20, padding: "2px 8px" }}>Owner &amp; Admin</span></div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>Watches the FOK Register on ACC and reflects new versions into the Planning Board. One way, ACC to DLP. DLP never writes back.</div>
+                </div>
+                {connAcc == null
+                  ? <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{"Checking\u2026"}</span>
+                  : (connAcc && connAcc.enabled)
+                    ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "rgba(52,211,153,.13)", color: "#0E9384" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Live</span>
+                    : connAcc
+                      ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "rgba(224,168,58,.14)", color: "#B7791F" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Paused</span>
+                      : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "var(--hover)", color: "var(--muted)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Not Configured</span>}
+              </div>
+              {connAcc
+                ? <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 11.5, color: "var(--muted)" }}>
+                    <div><b>Watched File</b><br />{connAcc.file_name || "Not set"}{connAcc.sheet_name ? " \u00b7 " + connAcc.sheet_name : ""}</div>
+                    <div><b>Region</b><br />{connAcc.region || "EMEA"}</div>
+                    <div><b>Webhook</b><br />{connAcc.webhook_id ? "Registered" : "Not registered"}</div>
+                    <div><b>Last Reconcile</b><br />{connAcc.last_reconcile_at ? new Date(connAcc.last_reconcile_at).toLocaleString() : "Never"}</div>
+                  </div>
+                : <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55 }}>Not configured yet. The live watch, reconcile and the board Sync Now button switch on in REV163, once the ACC service identity is authorised on the hub and the unattended token model is confirmed. This card and the acc_sync tables are the REV162 groundwork.</div>}
+            </div>
             {connMsg && <div style={{ fontSize: 11.5, color: connMsg.indexOf("failed") !== -1 ? "var(--red)" : "var(--muted)" }}>{connMsg}</div>}
           </>}
           {tab === "settings" && <>

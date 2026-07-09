@@ -1116,3 +1116,19 @@ export async function saveAssetVendor(projectId, equipType, vendor) {
   }, { onConflict: "project_id,equip_type" });
   return error ? (error.message || String(error)) : "";
 }
+
+// REV162: ACC Live Sync status readers. Credential independent; these only read the
+// project scoped acc_sync tables so the Connections card (and, in REV163, the board
+// button) can show state. Writes go through the acc-admin edge function, not here.
+export async function loadAccSync(projectId) {
+  if (!projectId) return null;
+  const { data, error } = await supabase.from("acc_sync").select("*").eq("project_id", projectId).maybeSingle();
+  if (error) return null;
+  return data || null;
+}
+export async function loadAccSyncEvents(projectId, limit = 10) {
+  if (!projectId) return [];
+  const { data, error } = await supabase.from("acc_sync_events").select("*").eq("project_id", projectId).order("ts", { ascending: false }).limit(limit);
+  if (error) return [];
+  return data || [];
+}
