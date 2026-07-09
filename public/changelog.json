@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV177",
+    "date": "2026-07-09",
+    "items": [
+      "New Register change log on the Benchmarks page (History button, Owner and Admin). Its primary view compares one import against an earlier one: it lists benchmarks added since, benchmarks removed, and benchmarks changed with the exact field that moved (title, planned date, assignee or discipline) shown old-struck-through to new. Two selectors let you compare any two imports, defaulting to the latest against the one before, and a summary counts added, removed, changed and unchanged.",
+      "Each import now writes an immutable snapshot of the register (ref, title, planned date, assignee, discipline) to a new append-only table, so the history cannot be altered after the fact and every import is auditable. The first import after this ships has nothing earlier to compare against; comparison begins from the second. Run supabase/acc-benchmark-imports.sql before pushing data.js and Benchmarks.jsx."
+    ]
+  },
+  {
     "rev": "REV176",
     "date": "2026-07-09",
     "items": [
