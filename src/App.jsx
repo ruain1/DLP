@@ -2832,6 +2832,11 @@ export default function App({ session }) {
         </div>}
         <div className="lk-spacer" />
         <div className="lk-who">
+          {page === "board" && (isOwner || isAdmin) && <span className="lk-caseseg" title="Activity name case on the board (display only; stored text is unchanged; Owners and Admins only)" style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", marginRight: 4 }}>
+            {[["original", "Orig"], ["upper", "CAPS"], ["title", "Title"]].map(([k, lbl]) => (
+              <button key={k} className="lk-caseopt" style={{ fontSize: 11.5, fontWeight: 700, padding: "5px 9px", border: 0, borderRight: k !== "title" ? "1px solid var(--line)" : 0, cursor: "pointer", background: (S.nameCase || "original") === k ? "var(--accent)" : "transparent", color: (S.nameCase || "original") === k ? "#fff" : "var(--muted)" }} onClick={() => update((pp) => ({ ...pp, nameCase: k }))}>{lbl}</button>
+            ))}
+          </span>}
           <button className="lk-btn icon" title={S.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => update((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))}><Icon n={S.theme === "dark" ? "sun" : "moon"} s={15} /></button>
           <button className="lk-btn icon lk-notifbtn" title={notifTotalWithEvents ? `${notifTotalWithEvents} item${notifTotalWithEvents === 1 ? "" : "s"} need your attention` : "Nothing needs your attention"} onClick={() => { reloadAssetEvents(); setNotifOpen(true); }}><Icon n="mail" s={16} />{notifTotalWithEvents > 0 && <span className="lk-notifbadge">{notifTotalWithEvents > 99 ? "99+" : notifTotalWithEvents}</span>}</button>
           <span style={{ fontWeight: 600 }}>{cu.name}</span>
@@ -2873,11 +2878,6 @@ export default function App({ session }) {
         <button className={"lk-btn pill" + (S.hideDone ? " on" : "")} title="Hide activities marked Complete so open work stands out. Failed witness events stay visible until their retest closes them. Board display only: KPIs, reports, exports and the Witness Schedule are unaffected." onClick={() => setS((prev) => ({ ...prev, hideDone: !prev.hideDone }))}><Icon n="check" s={14} />Hide Complete</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
         <div className="lk-spacer" />
-        <span className="lk-caseseg" title="Activity name case on the board (display only; stored text is unchanged)" style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", marginRight: 2 }}>
-          {[["original", "Orig"], ["upper", "CAPS"], ["title", "Title"]].map(([k, lbl]) => (
-            <button key={k} className="lk-caseopt" style={{ fontSize: 12, fontWeight: 700, padding: "6px 10px", border: 0, borderRight: k !== "title" ? "1px solid var(--line)" : 0, cursor: "pointer", background: (S.nameCase || "original") === k ? "var(--accent)" : "var(--card)", color: (S.nameCase || "original") === k ? "#fff" : "var(--muted)" }} onClick={() => update((pp) => ({ ...pp, nameCase: k }))}>{lbl}</button>
-          ))}
-        </span>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
         <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
