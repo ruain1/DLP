@@ -1132,3 +1132,36 @@ export async function loadAccSyncEvents(projectId, limit = 10) {
   if (error) return [];
   return data || [];
 }
+
+// REV165: Benchmarks page reader. Plain read of the acc_benchmarks staging table; the page
+// cross-references these against loaded activities to derive status (see accReconcile.js).
+export async function loadBenchmarks(projectId) {
+  if (!projectId) return [];
+  const { data, error } = await supabase.from("acc_benchmarks").select("*").eq("project_id", projectId).order("planned_date", { ascending: true, nullsFirst: false });
+  if (error) return [];
+  return data || [];
+}
+
+// REV166: manual FOK import writer. Upserts the imported register into the acc_benchmarks
+// staging table (the ACC webhook will later write the same shape). Marks everything not present
+// first, then flips the current rows back on, so a ref dropped from the register shows as
+// Removed In ACC. board_activity_id is not in the payload, so existing board links survive.
+export async function writeBenchmarks(projectId, rows) {
+  if (!projectId) return { error: "No project selected" };
+  await supabase.from("acc_benchmarks").update({ present: false }).eq("project_id", projectId);
+  const incoming = (rows || []).map((r) => ({
+    project_id: projectId,
+    fok_ref: String(r.fokRef),
+    discipline: r.discipline || null,
+    title: r.title || null,
+    planned_date: r.plannedDate || null,
+    assignee_email: r.assigneeEmail || null,
+    acc_url: r.accUrl || null,
+    notes: r.notes || null,
+    present: true,
+    synced_at: new Date().toISOString(),
+  }));
+  if (!incoming.length) return { count: 0, error: null };
+  const { error } = await supabase.from("acc_benchmarks").upsert(incoming, { onConflict: "project_id,fok_ref" });
+  return { count: incoming.length, error: error ? error.message : null };
+}

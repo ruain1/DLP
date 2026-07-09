@@ -14,13 +14,15 @@
 // Header driven, not positional. The W26 asset register taught us columns get renamed and
 // reordered between weeks, so we locate by header text against aliases and tolerate absence.
 const HEADER_ALIASES = {
-  fokRef:        ["fok register id", "register id", "fok id", "fok ref", "ref", "id"],
-  discipline:    ["discipline", "trade"],
-  title:         ["activity", "title", "description", "fok description", "activity name"],
-  plannedDate:   ["date", "planned date", "fok date", "forecast", "forecast date", "witness date"],
-  assigneeEmail: ["assignee email", "assignee", "email", "responsible", "responsible email"],
-  accUrl:        ["acc link", "acc", "link", "report", "acc url"],
-  notes:         ["notes", "comments", "remarks", "comment"],
+  fokRef:         ["fok register id", "register id", "fok id", "fok ref", "ref", "id"],
+  discipline:     ["discipline", "trade", "package / contract"],
+  title:          ["planned fok title", "fok title", "activity", "title"],
+  description:    ["new fok description description / scope", "description / scope", "description", "scope"],
+  plannedDate:    ["planned start date", "planned completion date", "planned date", "fok date", "date"],
+  assigneeEmail:  ["assignee", "assignee email", "responsible", "email"],
+  accUrl:         ["acc link", "acc url", "acc", "link", "report"],
+  registerStatus: ["fok status", "status"],
+  notes:          ["actions / comments summary linked ss_fok", "actions / comments summary", "notes", "comments", "remarks"],
 };
 
 function norm(v) { return String(v == null ? "" : v).trim(); }
@@ -41,26 +43,43 @@ export function mapFokHeaders(headerRow) {
   return idx;
 }
 
-// rows: 2D array of cell values, first row is the header. Returns clean register objects.
-// A row with no FOK reference is skipped (blank spacer rows, totals, etc).
-export function parseFokRegister(rows) {
+// rows: 2D array of cell values. The real register carries metadata rows above the table and
+// the header does not sit on row 0, so we scan for the header (the first row that yields both
+// a FOK reference and a title column). opts.discipline overrides the discipline for every row,
+// because on the real sheets discipline is the tab, not a column. opts.optional returns [] for
+// non-FOK sheets (Lists, Documentation) instead of throwing. Dates should be pre-formatted to
+// YYYY-MM-DD by the caller; the ACC hyperlink is attached by the import layer via sourceRow.
+export function parseFokRegister(rows, opts) {
+  opts = opts || {};
   if (!rows || !rows.length) return [];
-  const idx = mapFokHeaders(rows[0]);
-  if (idx.fokRef === -1) throw new Error("FOK register has no recognisable reference column. Headers seen: " + (rows[0] || []).join(", "));
+  let hIdx = -1, idx = null;
+  for (let r = 0; r < Math.min(rows.length, 30); r++) {
+    const m = mapFokHeaders(rows[r]);
+    if (m.fokRef !== -1 && m.title !== -1) { hIdx = r; idx = m; break; }
+  }
+  if (hIdx === -1) {
+    if (opts.optional) return [];
+    throw new Error("No FOK header row found (need a FOK Register ID and a Planned FOK Title column).");
+  }
   const out = [];
-  for (let r = 1; r < rows.length; r++) {
+  for (let r = hIdx + 1; r < rows.length; r++) {
     const row = rows[r] || [];
-    const at = (f) => (idx[f] === -1 ? "" : norm(row[idx[f]]));
+    const at = (f) => (idx[f] == null || idx[f] === -1 ? "" : norm(row[idx[f]]));
     const fokRef = at("fokRef");
     if (!fokRef) continue;
+    const rawAssignee = at("assigneeEmail");
     out.push({
       fokRef,
-      discipline:    at("discipline") || null,
-      title:         at("title") || null,
-      plannedDate:   at("plannedDate") || null,
-      assigneeEmail: (at("assigneeEmail") || "").toLowerCase() || null,
-      accUrl:        at("accUrl") || null,
-      notes:         at("notes") || null,
+      discipline:     opts.discipline || at("discipline") || null,
+      title:          at("title") || null,
+      description:    at("description") || null,
+      plannedDate:    at("plannedDate") || null,
+      // Electrical carries emails, Mechanical and CSA carry names; keep emails lowercased, names as-is.
+      assigneeEmail:  rawAssignee ? (rawAssignee.includes("@") ? rawAssignee.toLowerCase() : rawAssignee) : null,
+      accUrl:         at("accUrl") || null,
+      registerStatus: at("registerStatus") || null,
+      notes:          at("notes") || null,
+      sourceRow:      r,
     });
   }
   return out;
@@ -159,4 +178,41 @@ export function reconcileFok(registerRows, activities, opts) {
       invitesPending: invitesPending.length,
     },
   };
+}
+
+// --- REV165: Benchmarks page status derivation ------------------------------
+// The Benchmarks page shows each synced register row against the board. Status is pure:
+//   removed  -> the ref dropped out of the latest ACC register (present === false)
+//   no_date  -> synced but the register carries no date, so it cannot be sent
+//   ready    -> dated and not yet on the board (a Send to Board candidate)
+//   changed  -> on the board, but the ACC date or assignee has since moved (resend to update)
+//   on_board -> on the board and matching ACC
+function benchDate(v) { return v ? String(v).slice(0, 10) : null; }
+function benchEmail(v) { return v ? String(v).toLowerCase() : null; }
+
+export function benchmarkStatus(benchmark, activity) {
+  const b = benchmark || {};
+  if (b.present === false) return "removed";
+  if (!b.planned_date) return "no_date";
+  if (!activity) return "ready";
+  const dateMoved = benchDate(b.planned_date) !== benchDate(activity.witness_at || activity.witnessAt || activity.planned_date);
+  const assigneeMoved = benchEmail(b.assignee_email) !== benchEmail(activity.assignee_email || activity.assigneeEmail);
+  return (dateMoved || assigneeMoved) ? "changed" : "on_board";
+}
+
+// Attach status to each benchmark by matching it to its board activity (by stored link first,
+// then by fok_ref). Returns rows plus a summary the page header can show.
+export function benchmarksWithStatus(benchmarks, activities) {
+  const list = benchmarks || [];
+  const acts = activities || [];
+  const byId = new Map(acts.map((a) => [a.id, a]));
+  const byRef = new Map();
+  for (const a of acts) { const r = a.fok_ref || a.fokRef; if (r) byRef.set(String(r), a); }
+  const rows = list.map((b) => {
+    const act = (b.board_activity_id && byId.get(b.board_activity_id)) || byRef.get(String(b.fok_ref)) || null;
+    return { ...b, status: benchmarkStatus(b, act), activityId: act ? act.id : null };
+  });
+  const summary = rows.reduce((s, r) => { s[r.status] = (s[r.status] || 0) + 1; return s; }, {});
+  summary.sendable = rows.filter((r) => r.status === "ready" || r.status === "changed").length;
+  return { rows, summary };
 }
