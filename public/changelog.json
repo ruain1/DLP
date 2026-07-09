@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV183",
+    "date": "2026-07-09",
+    "items": [
+      "Crew is now a first-class, per-project field. Manage the crew list in Settings, Project Setup, Crews (Owner and Admin), and assign an activity to one or more crews in the editor Details tab. Renaming or deleting a crew updates every activity that used it. This replaces holding crew in free text, which was fragile to load against.",
+      "New Est hours field on the editor Schedule tab: the hours each listed crew spends on the activity. It is the input the crew Capacity view will read; nothing depends on it yet this revision, so existing activities are unaffected.",
+      "Per-project working calendar in Settings, Lookahead and Targets: choose the working week (global default Mon to Fri) and the working hours per day (default 8). These set the denominator and the greyed days for crew capacity, and stay scoped to the project you are in.",
+      "Import now recognises Crew, Est hours and Discipline columns and auto-creates any new crew, so a whole L4 programme can be seeded with its crews and hours in a single import (append mode).",
+      "Groundwork only: the Capacity view itself lands next. Run supabase/crew-capacity.sql in the SQL editor before pushing data.js and App.jsx."
+    ]
+  },
+  {
     "rev": "REV182",
     "date": "2026-07-09",
     "items": [
