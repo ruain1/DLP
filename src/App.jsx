@@ -2830,7 +2830,7 @@ export default function App({ session }) {
           {qaAll != null && qaAll !== ppcAll && <div className="railqa" style={{ fontSize: 9.5, fontWeight: 700, color: "#FBBF24" }}>QA {qaAll}%</div>}
         </div>
       </div></nav>
-      <div className="lk-page">
+      <div className="lk-page" style={pageVars(S.settings, page)}>
       <div className="lk-bar">
         {brandLogo && <img className="lk-brandlogo" src={brandLogo} alt="" style={{ height: 28, maxWidth: 130, objectFit: "contain" }} />}
         {brandLogo && <span className="lk-branddiv" />}
@@ -3213,7 +3213,14 @@ const FONT_STACKS = { grotesk: '"Space Grotesk","Inter",system-ui,sans-serif', i
 // REV180: cssVars now takes the project settings so global design overrides (accent colour,
 // heading and body font) apply on every theme root, including the modals, drawers, Table,
 // Schedule and Admin that render their own root. Unset overrides fall back to the theme/:root.
-function cssVars(theme, settings) { const t = THEMES[theme] || THEMES.light; const v = { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--head": t.head, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--todedge": t.todedge, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; const g = settings && settings.design && settings.design.global; if (g) { if (g.accent) v["--accent"] = g.accent; if (FONT_STACKS[g.headFont]) v["--display"] = FONT_STACKS[g.headFont]; if (FONT_STACKS[g.bodyFont]) v["--body"] = FONT_STACKS[g.bodyFont]; } return v; }
+function applyDesignBlock(v, blk) { if (!blk) return; if (blk.accent) v["--accent"] = blk.accent; if (FONT_STACKS[blk.headFont]) v["--display"] = FONT_STACKS[blk.headFont]; if (FONT_STACKS[blk.bodyFont]) v["--body"] = FONT_STACKS[blk.bodyFont]; }
+// REV181: cssVars takes an optional page key. Global design overrides apply first, then the
+// per-page override for that page, so a page can differ from the project default. The own-root
+// pages (Table, Schedule, Admin) pass their key; the shared content wrapper applies page vars
+// via pageVars for the inline and external pages.
+function cssVars(theme, settings, page) { const t = THEMES[theme] || THEMES.light; const v = { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--head": t.head, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--todedge": t.todedge, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; const d = settings && settings.design; if (d) { applyDesignBlock(v, d.global); if (page && d.pages) applyDesignBlock(v, d.pages[page]); } return v; }
+// Page-only override delta for the shared content wrapper (global already lives on the root).
+function pageVars(settings, page) { const v = {}; const d = settings && settings.design; if (d && d.pages && page) applyDesignBlock(v, d.pages[page]); return v; }
 
 function OwnerField({ value, ownerType, ownerId, companies, users, onChange, style, placeholder, dis }) {
   const [open, setOpen] = useState(false);
@@ -3824,20 +3831,34 @@ const DESIGN_ICON_CHOICES = ["board", "grid", "gantt", "chart", "list", "checkci
 function DesignTab({ S, update }) {
   const [tab, setTab] = useState("icons");
   const [selPage, setSelPage] = useState("board");
+  const [desScope, setDesScope] = useState("global");
   const icons = (S.settings && S.settings.pageIcons) || {};
   const defOf = (k) => { const p = DESIGN_PAGES.find((x) => x[0] === k); return p ? p[2] : "grid"; };
   const iconOf = (k) => icons[k] || defOf(k);
   const usedBy = (name) => DESIGN_PAGES.find((x) => x[0] !== selPage && iconOf(x[0]) === name);
   const setIcon = (name) => update((p) => ({ ...p, settings: { ...p.settings, pageIcons: { ...(p.settings && p.settings.pageIcons), [selPage]: name } } }), { action: "Change setting", detail: "Page icon " + selPage + " = " + name });
   const sel = DESIGN_PAGES.find((x) => x[0] === selPage) || DESIGN_PAGES[0];
-  const g = (S.settings && S.settings.design && S.settings.design.global) || {};
-  const setGlobal = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, global: { ...(cur.global || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design " + Object.keys(patch).join(", ") });
+  const design = (S.settings && S.settings.design) || {};
+  const g = design.global || {};
+  const scopeBlk = desScope === "global" ? g : ((design.pages && design.pages[desScope]) || {});
+  const scopeName = desScope === "global" ? "the whole project" : (DESIGN_PAGES.find((x) => x[0] === desScope) || ["", desScope])[1];
+  const setGlobal = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, global: { ...(cur.global || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design global " + Object.keys(patch).join(", ") });
+  const setScoped = (patch) => { if (desScope === "global") { setGlobal(patch); return; } update((p) => { const cur = (p.settings && p.settings.design) || {}; const pages = { ...(cur.pages || {}) }; const blk = { ...(pages[desScope] || {}), ...patch }; Object.keys(blk).forEach((k) => { if (blk[k] === "" || blk[k] == null) delete blk[k]; }); if (Object.keys(blk).length) pages[desScope] = blk; else delete pages[desScope]; return { ...p, settings: { ...p.settings, design: { ...cur, pages } } }; }, { action: "Change setting", detail: "Design " + desScope + " " + Object.keys(patch).join(", ") }); };
+  const hasOver = (k) => !!(design.pages && design.pages[k] && Object.keys(design.pages[k]).length);
   const themeAccent = (THEMES[S.theme] || THEMES.light).accent;
   const ACCENTS = ["#1E5FCC", "#2563EB", "#0E9384", "#16A34A", "#C07A00", "#C0392B", "#7C3AED", "#DB2777", "#0891B2", "#475569"];
   const FONTS = [["grotesk", "Space Grotesk"], ["inter", "Inter"], ["system", "System"], ["serif", "Serif"], ["mono", "Mono"]];
   const lab = { fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 };
+  const effAccent = scopeBlk.accent || (desScope === "global" ? "" : (g.accent || ""));
+  const effFont = (key, def) => scopeBlk[key] || (desScope === "global" ? def : (g[key] || def));
   const subtab = (k, l) => <button className={"lk-btn" + (tab === k ? " primary" : "")} onClick={() => setTab(k)}>{l}</button>;
-  const seg = (val, def, opts, on) => <span style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>{opts.map(([v, l]) => <button key={v} onClick={() => on(v)} style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", border: 0, borderRight: "1px solid var(--line)", background: (val || def) === v ? "var(--accent)" : "transparent", color: (val || def) === v ? "#fff" : "var(--muted)", cursor: "pointer" }}>{l}</button>)}</span>;
+  const seg = (cur, opts, on) => <span style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>{opts.map(([v, l]) => <button key={v} onClick={() => on(v)} style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", border: 0, borderRight: "1px solid var(--line)", background: cur === v ? "var(--accent)" : "transparent", color: cur === v ? "#fff" : "var(--muted)", cursor: "pointer" }}>{l}</button>)}</span>;
+  const scopeBar = () => <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+    <span style={{ fontSize: 11.5, color: "var(--muted)", marginRight: 2 }}>Applying to</span>
+    <button className={"lk-btn" + (desScope === "global" ? " primary" : "")} onClick={() => setDesScope("global")}>Global default</button>
+    {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (desScope === k ? " primary" : "")} onClick={() => setDesScope(k)}>{l}{hasOver(k) ? " \u2022" : ""}</button>)}
+  </div>;
+  const scopeNote = desScope === "global" ? "Applies across the whole project unless a page overrides it below." : (scopeName + " inherits the global setting unless you override it here.");
   return <div>
     <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}</div>
 
@@ -3854,30 +3875,32 @@ function DesignTab({ S, update }) {
     </div>}
 
     {tab === "colour" && <div>
-      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>The accent colour used across buttons, links and highlights, project wide. Per-page overrides come in the next update.</div>
-      <div style={{ ...lab }}>Accent colour{g.accent ? "" : " (theme default)"}</div>
+      {scopeBar()}
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>{scopeNote}</div>
+      <div style={{ ...lab }}>Accent colour{effAccent ? "" : " (theme default)"}{desScope !== "global" && scopeBlk.accent ? " (overridden)" : ""}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {ACCENTS.map((c) => <button key={c} title={c} onClick={() => setGlobal({ accent: c })} style={{ width: 30, height: 30, borderRadius: 8, background: c, border: (g.accent || "").toLowerCase() === c.toLowerCase() ? "2px solid var(--ink)" : "1px solid var(--line)", cursor: "pointer" }} />)}
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>Custom<input type="color" value={g.accent || themeAccent} onChange={(e) => setGlobal({ accent: e.target.value })} style={{ width: 28, height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "none", cursor: "pointer", padding: 0 }} /></label>
+        {ACCENTS.map((c) => <button key={c} title={c} onClick={() => setScoped({ accent: c })} style={{ width: 30, height: 30, borderRadius: 8, background: c, border: (effAccent || "").toLowerCase() === c.toLowerCase() ? "2px solid var(--ink)" : "1px solid var(--line)", cursor: "pointer" }} />)}
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>Custom<input type="color" value={effAccent || themeAccent} onChange={(e) => setScoped({ accent: e.target.value })} style={{ width: 28, height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "none", cursor: "pointer", padding: 0 }} /></label>
       </div>
       <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
         <button className="lk-btn primary">Sample button</button>
         <span style={{ color: "var(--accent)", fontWeight: 600 }}>Sample link</span>
-        {g.accent && <button className="lk-btn" onClick={() => setGlobal({ accent: "" })}>Reset to theme default</button>}
+        {(desScope === "global" ? g.accent : scopeBlk.accent) && <button className="lk-btn" onClick={() => setScoped({ accent: "" })}>{desScope === "global" ? "Reset to theme default" : "Reset to global"}</button>}
       </div>
     </div>}
 
     {tab === "typography" && <div>
-      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>Heading and body fonts, project wide. Only fonts already available are offered, so nothing needs to load. Per-page overrides come in the next update.</div>
+      {scopeBar()}
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>{scopeNote} Only fonts already available are offered, so nothing needs to load.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div><div style={{ ...lab }}>Heading font</div>{seg(g.headFont, "grotesk", FONTS, (v) => setGlobal({ headFont: v }))}</div>
-        <div><div style={{ ...lab }}>Body font</div>{seg(g.bodyFont, "inter", FONTS, (v) => setGlobal({ bodyFont: v }))}</div>
+        <div><div style={{ ...lab }}>Heading font{desScope !== "global" && scopeBlk.headFont ? " (overridden)" : ""}</div>{seg(effFont("headFont", "grotesk"), FONTS, (v) => setScoped({ headFont: v }))}</div>
+        <div><div style={{ ...lab }}>Body font{desScope !== "global" && scopeBlk.bodyFont ? " (overridden)" : ""}</div>{seg(effFont("bodyFont", "inter"), FONTS, (v) => setScoped({ bodyFont: v }))}</div>
       </div>
       <div style={{ marginTop: 18, padding: 16, border: "1px solid var(--line)", borderRadius: 10, maxWidth: 520, background: "var(--card)" }}>
-        <div style={{ fontFamily: "var(--display)", fontSize: 20, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>Weekly Cx Progress</div>
-        <div style={{ fontFamily: "var(--body)", fontSize: 13, color: "var(--muted)" }}>The quick brown fox jumps over the lazy dog. Asset commissioning attainment across the FIN04 board.</div>
+        <div style={{ fontFamily: FONT_STACKS[effFont("headFont", "grotesk")], fontSize: 20, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>Weekly Cx Progress</div>
+        <div style={{ fontFamily: FONT_STACKS[effFont("bodyFont", "inter")], fontSize: 13, color: "var(--muted)" }}>The quick brown fox jumps over the lazy dog. Asset commissioning attainment across the FIN04 board.</div>
       </div>
-      {(g.headFont || g.bodyFont) && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setGlobal({ headFont: "", bodyFont: "" })}>Reset fonts to default</button>}
+      {(scopeBlk.headFont || scopeBlk.bodyFont) && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setScoped({ headFont: "", bodyFont: "" })}>{desScope === "global" ? "Reset fonts to default" : "Reset fonts to global"}</button>}
     </div>}
   </div>;
 }
@@ -4340,7 +4363,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
     ["About", [["changelog", "Changelog"]]],
   ].filter(([, items]) => items.length);
   return (
-    <div className="lk-adminwrap2" style={cssVars(S.theme, S.settings)}><style>{css}</style>
+    <div className="lk-adminwrap2" style={cssVars(S.theme, S.settings, "admin")}><style>{css}</style>
         <div className="lk-subnav">
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
@@ -5611,7 +5634,7 @@ function SchedulePage({ S, coName, onOpen }) {
   const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
 
   return (
-    <div className="lk-sch" style={cssVars(S.theme, S.settings)}><style>{css}</style>
+    <div className="lk-sch" style={cssVars(S.theme, S.settings, "schedule")}><style>{css}</style>
       <div className="lk-sch-bar">
         <div className="grp"><label>View</label><div className="seg">{[["gantt", "Gantt"], ["calendar", "Calendar"], ["workload", "Workload"]].map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}</div></div>
         {view === "gantt" && hasBaseline && <div className="grp"><label>Schedule</label><div className="seg">{[["live", "Live"], ["p6", "P6 Baseline"], ["compare", "Compare"]].map(([k, l]) => <button key={k} className={source === k ? "on" : ""} onClick={() => setSource(k)}>{l}</button>)}</div></div>}
@@ -5899,7 +5922,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   };
   const visCount = 2 + TBL_COLS.filter(([k]) => cols[k]).length;
   return (
-    <div className="lk-tblwrap" style={cssVars(S.theme, S.settings)}><style>{css}</style>
+    <div className="lk-tblwrap" style={cssVars(S.theme, S.settings, "table")}><style>{css}</style>
       <div className="lk-ufilter" style={{ padding: "10px 16px 0", alignItems: "flex-end" }}>
         <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
