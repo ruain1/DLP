@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV179",
+    "date": "2026-07-09",
+    "items": [
+      "Fix: per-page sidebar icons chosen in Settings, Design did not persist and reverted to default almost immediately. The choice was held in memory but the settings writer had no field for it, so the realtime settings reload rebuilt the row without it. Added a page_icons column and mapped it on both read and write, so the icon now sticks. Run supabase/settings-page-icons.sql before pushing data.js."
+    ]
+  },
+  {
     "rev": "REV178",
     "date": "2026-07-09",
     "items": [
