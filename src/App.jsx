@@ -2794,7 +2794,7 @@ export default function App({ session }) {
   const palette = ["hc", "cb"].includes(S.palette) ? S.palette : (["hc", "cb"].includes(prefs().palette) ? prefs().palette : "default");
   const pageIcon = (k, def) => (S.settings && S.settings.pageIcons && S.settings.pageIcons[k]) || def;
   return (
-    <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme)}><style>{css}</style>
+    <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
@@ -3026,7 +3026,7 @@ export default function App({ session }) {
         const seen = {}; const byAct = [];
         myConstraints.forEach(({ a, c }) => { if (!seen[a.id]) { seen[a.id] = { a, cons: [] }; byAct.push(seen[a.id]); } seen[a.id].cons.push(c); });
         return <div className="lk-modal-bg" onClick={() => setNotifOpen(false)}>
-          <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
+          <div className="ytt drill" style={{ ...cssVars(S.theme, S.settings), maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
             <div className="ytt-head">
               <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><Icon n="mail" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Notifications</h3><span className="ytt-sub">{[readyEvents.length ? `${readyEvents.length} ready for energisation` : "", notifCount ? `${notifCount} open constraint${notifCount === 1 ? "" : "s"}` : "", pendingInvites.length ? `${pendingInvites.length} invite request${pendingInvites.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" \u00b7 ") || "Nothing right now"}</span></div>
               <button className="lk-btn icon" onClick={() => setNotifOpen(false)}><Icon n="x" /></button>
@@ -3085,7 +3085,7 @@ export default function App({ session }) {
           .sort((x, y) => (y.open.length > 0) - (x.open.length > 0) || (y.a.committed ? 1 : 0) - (x.a.committed ? 1 : 0));
         return (
           <div className="lk-bg" onClick={() => setYtt(false)}>
-            <div className="ytt" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+            <div className="ytt" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
               <div className="ytt-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>YTT Focus</h3><span className="ytt-sub">Yesterday, today and tomorrow, with open constraints. Tick a constraint to clear it.</span></div>
                 <button className="lk-btn icon" onClick={() => setYtt(false)}><Icon n="x" /></button>
@@ -3133,7 +3133,7 @@ export default function App({ session }) {
         const periodOpts = [["1w", "This week"], ["2w", "Next 2 weeks"], ["4w", "Next 4 weeks (lookahead)"], ["all", "All upcoming"]];
         return (
           <div className="lk-bg" onClick={() => setWitSched(false)}>
-            <div className="ytt" style={{ ...cssVars(S.theme), width: "min(720px,96vw)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="ytt" style={{ ...cssVars(S.theme, S.settings), width: "min(720px,96vw)" }} onClick={(e) => e.stopPropagation()}>
               <div className="ytt-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cal" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>Witness Schedule</h3><span className="ytt-sub">Activities marked for witness in the selected period, with open constraints.</span></div>
                 <button className="lk-btn icon" onClick={() => setWitSched(false)}><Icon n="x" /></button>
@@ -3209,7 +3209,11 @@ export default function App({ session }) {
     </div>);
 }
 
-function cssVars(theme) { const t = THEMES[theme] || THEMES.light; return { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--head": t.head, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--todedge": t.todedge, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; }
+const FONT_STACKS = { grotesk: '"Space Grotesk","Inter",system-ui,sans-serif', inter: '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif', system: 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif', serif: 'Georgia,Cambria,"Times New Roman",serif', mono: 'ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace' };
+// REV180: cssVars now takes the project settings so global design overrides (accent colour,
+// heading and body font) apply on every theme root, including the modals, drawers, Table,
+// Schedule and Admin that render their own root. Unset overrides fall back to the theme/:root.
+function cssVars(theme, settings) { const t = THEMES[theme] || THEMES.light; const v = { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--head": t.head, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--todedge": t.todedge, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; const g = settings && settings.design && settings.design.global; if (g) { if (g.accent) v["--accent"] = g.accent; if (FONT_STACKS[g.headFont]) v["--display"] = FONT_STACKS[g.headFont]; if (FONT_STACKS[g.bodyFont]) v["--body"] = FONT_STACKS[g.bodyFont]; } return v; }
 
 function OwnerField({ value, ownerType, ownerId, companies, users, onChange, style, placeholder, dis }) {
   const [open, setOpen] = useState(false);
@@ -3344,7 +3348,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   return (
     <div className="lk-bg"><style>{css}</style>
       {rtOpen && <div className="lk-modal-bg" style={{ zIndex: 60 }} onClick={() => setRtOpen(false)}>
-        <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
           <div className="lk-dh"><h3>Create Retest</h3><button className="lk-btn icon" onClick={() => setRtOpen(false)}><Icon n="x" /></button></div>
           <div className="bd" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
             <div className="lk-row">
@@ -3360,7 +3364,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" onClick={() => setRtOpen(false)}>Cancel</button><button className="lk-btn primary" disabled={!rtStart || !rtName.trim()} onClick={doCreateRetest}><Icon n="check" s={14} />Create</button></div>
         </div>
       </div>}
-      <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+      <div className="lk-drawer" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : canPercent ? "Record Progress" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
           {!canEdit && !canPercent && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
@@ -3818,6 +3822,7 @@ const DESIGN_ICON_CHOICES = ["board", "grid", "gantt", "chart", "list", "checkci
 // is a project-level default. Deeper theming (colour, type, density, board, effects) follows in
 // its own tranches, since each needs CSS-variable plumbing across the app.
 function DesignTab({ S, update }) {
+  const [tab, setTab] = useState("icons");
   const [selPage, setSelPage] = useState("board");
   const icons = (S.settings && S.settings.pageIcons) || {};
   const defOf = (k) => { const p = DESIGN_PAGES.find((x) => x[0] === k); return p ? p[2] : "grid"; };
@@ -3825,16 +3830,55 @@ function DesignTab({ S, update }) {
   const usedBy = (name) => DESIGN_PAGES.find((x) => x[0] !== selPage && iconOf(x[0]) === name);
   const setIcon = (name) => update((p) => ({ ...p, settings: { ...p.settings, pageIcons: { ...(p.settings && p.settings.pageIcons), [selPage]: name } } }), { action: "Change setting", detail: "Page icon " + selPage + " = " + name });
   const sel = DESIGN_PAGES.find((x) => x[0] === selPage) || DESIGN_PAGES[0];
+  const g = (S.settings && S.settings.design && S.settings.design.global) || {};
+  const setGlobal = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, global: { ...(cur.global || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design " + Object.keys(patch).join(", ") });
+  const themeAccent = (THEMES[S.theme] || THEMES.light).accent;
+  const ACCENTS = ["#1E5FCC", "#2563EB", "#0E9384", "#16A34A", "#C07A00", "#C0392B", "#7C3AED", "#DB2777", "#0891B2", "#475569"];
+  const FONTS = [["grotesk", "Space Grotesk"], ["inter", "Inter"], ["system", "System"], ["serif", "Serif"], ["mono", "Mono"]];
+  const lab = { fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 };
+  const subtab = (k, l) => <button className={"lk-btn" + (tab === k ? " primary" : "")} onClick={() => setTab(k)}>{l}</button>;
+  const seg = (val, def, opts, on) => <span style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>{opts.map(([v, l]) => <button key={v} onClick={() => on(v)} style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", border: 0, borderRight: "1px solid var(--line)", background: (val || def) === v ? "var(--accent)" : "transparent", color: (val || def) === v ? "#fff" : "var(--muted)", cursor: "pointer" }}>{l}</button>)}</span>;
   return <div>
-    <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Choose the sidebar icon for each page. An icon already used by another page is greyed out, so no two pages can share a mark. This is where the two identical ticks on Weekly Cx Progress and Benchmarks are resolved.</div>
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
-      {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (selPage === k ? " primary" : "")} style={{ display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => setSelPage(k)}><Icon n={iconOf(k)} s={15} />{l}</button>)}
-    </div>
-    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Icon for {sel[1]}{icons[selPage] ? "" : " (default)"}</div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))", gap: 8, maxWidth: 620 }}>
-      {DESIGN_ICON_CHOICES.map((name) => { const used = usedBy(name); const on = iconOf(selPage) === name; return <button key={name} disabled={!!used} title={used ? "Used by " + used[1] : name} onClick={() => setIcon(name)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon n={name} s={19} /></button>; })}
-    </div>
-    {icons[selPage] && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setIcon(defOf(selPage))}>Reset {sel[1]} to default</button>}
+    <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}</div>
+
+    {tab === "icons" && <div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Choose the sidebar icon for each page. An icon already used by another page is greyed out, so no two pages can share a mark.</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
+        {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (selPage === k ? " primary" : "")} style={{ display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => setSelPage(k)}><Icon n={iconOf(k)} s={15} />{l}</button>)}
+      </div>
+      <div style={{ ...lab }}>Icon for {sel[1]}{icons[selPage] ? "" : " (default)"}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))", gap: 8, maxWidth: 620 }}>
+        {DESIGN_ICON_CHOICES.map((name) => { const used = usedBy(name); const on = iconOf(selPage) === name; return <button key={name} disabled={!!used} title={used ? "Used by " + used[1] : name} onClick={() => setIcon(name)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon n={name} s={19} /></button>; })}
+      </div>
+      {icons[selPage] && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setIcon(defOf(selPage))}>Reset {sel[1]} to default</button>}
+    </div>}
+
+    {tab === "colour" && <div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>The accent colour used across buttons, links and highlights, project wide. Per-page overrides come in the next update.</div>
+      <div style={{ ...lab }}>Accent colour{g.accent ? "" : " (theme default)"}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        {ACCENTS.map((c) => <button key={c} title={c} onClick={() => setGlobal({ accent: c })} style={{ width: 30, height: 30, borderRadius: 8, background: c, border: (g.accent || "").toLowerCase() === c.toLowerCase() ? "2px solid var(--ink)" : "1px solid var(--line)", cursor: "pointer" }} />)}
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>Custom<input type="color" value={g.accent || themeAccent} onChange={(e) => setGlobal({ accent: e.target.value })} style={{ width: 28, height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "none", cursor: "pointer", padding: 0 }} /></label>
+      </div>
+      <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <button className="lk-btn primary">Sample button</button>
+        <span style={{ color: "var(--accent)", fontWeight: 600 }}>Sample link</span>
+        {g.accent && <button className="lk-btn" onClick={() => setGlobal({ accent: "" })}>Reset to theme default</button>}
+      </div>
+    </div>}
+
+    {tab === "typography" && <div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>Heading and body fonts, project wide. Only fonts already available are offered, so nothing needs to load. Per-page overrides come in the next update.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div><div style={{ ...lab }}>Heading font</div>{seg(g.headFont, "grotesk", FONTS, (v) => setGlobal({ headFont: v }))}</div>
+        <div><div style={{ ...lab }}>Body font</div>{seg(g.bodyFont, "inter", FONTS, (v) => setGlobal({ bodyFont: v }))}</div>
+      </div>
+      <div style={{ marginTop: 18, padding: 16, border: "1px solid var(--line)", borderRadius: 10, maxWidth: 520, background: "var(--card)" }}>
+        <div style={{ fontFamily: "var(--display)", fontSize: 20, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>Weekly Cx Progress</div>
+        <div style={{ fontFamily: "var(--body)", fontSize: 13, color: "var(--muted)" }}>The quick brown fox jumps over the lazy dog. Asset commissioning attainment across the FIN04 board.</div>
+      </div>
+      {(g.headFont || g.bodyFont) && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setGlobal({ headFont: "", bodyFont: "" })}>Reset fonts to default</button>}
+    </div>}
   </div>;
 }
 
@@ -4296,7 +4340,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
     ["About", [["changelog", "Changelog"]]],
   ].filter(([, items]) => items.length);
   return (
-    <div className="lk-adminwrap2" style={cssVars(S.theme)}><style>{css}</style>
+    <div className="lk-adminwrap2" style={cssVars(S.theme, S.settings)}><style>{css}</style>
         <div className="lk-subnav">
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
@@ -4331,7 +4375,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             const n = S.users.filter((u) => u.companyId === c.id).length;
             const headLg = c.logoUrl ? { url: c.logoUrl, dark: false } : (c.logoDark ? { url: c.logoDark, dark: true } : null);
             return <div className="lk-modal-bg" onClick={() => setCoManageId(null)}>
-              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
                 <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className={"lk-cologo sm" + (headLg ? (headLg.dark ? " dk" : "") : " empty")}>{headLg ? <img src={headLg.url} alt="" /> : <span className="lk-cologo-ph">{avInit(c.name)}</span>}</span>{c.name || "Manage company"}</h3><button className="lk-btn icon" onClick={() => setCoManageId(null)}><Icon n="x" /></button></div>
                 <div className="bd">
                   <div className="lk-f"><label>Company Name</label><input className="lk-in" key={c.id + ":" + c.name} defaultValue={c.name} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); else if (e.key === "Escape") { e.target.value = c.name; e.target.blur(); } }} onBlur={(e) => renameCompany(c.id, e.target.value)} /></div>
@@ -4483,7 +4527,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             const u = S.users.find((x) => x.id === manageId); if (!u) return null;
             const pr = u.platformRole || "user"; const seen = !!(ustat[u.id] && ustat[u.id].lastSignIn); const np = mcount[u.id] || 0; const isSelf = u.id === S.currentUserId;
             return <div className="lk-modal-bg" onClick={() => setManageId(null)}>
-              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
                 <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className="lk-uava" style={{ background: avBg(u.id), width: 30, height: 30, fontSize: 11 }}>{avInit(u.name)}</span>{u.name || "Manage person"}{isSelf ? <span className="lk-you">you</span> : null}</h3><button className="lk-btn icon" onClick={() => setManageId(null)}><Icon n="x" /></button></div>
                 <div className="bd">
                   <div className="lk-f"><label>Display Name</label><input className="lk-in" key={u.id + ":" + u.name} defaultValue={u.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== u.name) userOp({ op: "update", id: u.id, name: v }).then(() => setUserMsg("Name updated")).catch((x) => setUserMsg("Failed: " + (x.message || x))); }} /></div>
@@ -4512,7 +4556,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             const seen = !!(ustat[u.id] && ustat[u.id].lastSignIn); const np = mcount[u.id] || 0; const isSelf = u.id === S.currentUserId;
             const adminCount = (members || []).filter((x) => x.role === "admin").length;
             return <div className="lk-modal-bg" onClick={() => setPmManageId(null)}>
-              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
                 <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className="lk-uava" style={{ background: avBg(u.id), width: 30, height: 30, fontSize: 11 }}>{avInit(u.name)}</span>{u.name || "Manage member"}{isSelf ? <span className="lk-you">you</span> : null}</h3><button className="lk-btn icon" onClick={() => setPmManageId(null)}><Icon n="x" /></button></div>
                 <div className="bd">
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 11.5, color: "var(--muted)", marginBottom: 12 }}><span className="lk-cochip">{cn(u.companyId) || "No company"}</span><span className={"lk-stat " + (seen ? "act" : "pend")}>{seen ? "Active" : "Invite pending"}</span><span>&middot;</span><span>On {np} project{np === 1 ? "" : "s"}</span></div>
@@ -4981,7 +5025,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             const title = rv.mode === "restore" ? "Restore Activity" : rv.mode === "remove" ? "Remove Created Activity" : isOvr ? "Revert Change (Override)" : "Revert Change";
             const keyRow = (k, l, src) => <div key={k} style={{ display: "contents" }}><div>{l}</div><div style={{ color: "#0E9384" }}>{rvFmt(k, src[k])}</div></div>;
             return <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => !rvBusy && setRv(null)}>
-              <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 540 }} onClick={(ev) => ev.stopPropagation()}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 540 }} onClick={(ev) => ev.stopPropagation()}>
                 <div className="lk-dh"><h3>{title}</h3><button className="lk-btn icon" onClick={() => setRv(null)}><Icon n="x" /></button></div>
                 <div className="bd" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, fontSize: 13 }}>
                   {rv.mode === "restore" && <>
@@ -5026,7 +5070,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         </div></div>
       {jsonPreview && <ImportReview obj={jsonPreview} S={S} onClose={() => setJsonPreview(null)} onApply={(producer, detail) => { update(producer, { action: "Import JSON (merge)", detail }); setJsonPreview(null); setImpMsg("Imported JSON with your conflict choices."); }} />}
       {confirmAsk && <div className="lk-modal-bg" onClick={() => setConfirmAsk(null)}>
-        <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
           <div className="lk-dh"><h3>Are you sure?</h3><button className="lk-btn icon" onClick={() => setConfirmAsk(null)}><Icon n="x" /></button></div>
           <div className="bd"><div style={{ fontSize: 14, lineHeight: 1.5 }}>{confirmAsk.msg}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>This cannot be undone.</div></div>
           <div className="rep-foot"><button className="lk-btn" onClick={() => setConfirmAsk(null)}>No</button><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => { const fn = confirmAsk.fn; setConfirmAsk(null); fn && fn(); }}><Icon n="trash" s={14} />Yes, delete</button></div>
@@ -5038,7 +5082,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         const selCo = S.companies.find((c) => c.id === approve.companyId);
         const showRemember = !!d && !free && (approve.createNew || (approve.companyId && !(selCo && (selCo.domain || "").toLowerCase() === d)));
         return <div className="lk-modal-bg" onClick={() => !reqBusy && setApprove(null)}>
-          <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+          <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
             <div className="lk-dh"><h3>Approve Access</h3><button className="lk-btn icon" onClick={() => setApprove(null)}><Icon n="x" /></button></div>
             <div className="bd">
               <div className="lk-f"><label>Full Name</label><input className="lk-in" value={approve.name} onChange={(e) => setApprove((a) => ({ ...a, name: e.target.value }))} /></div>
@@ -5069,7 +5113,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         </div>;
       })()}
       {rejecting && <div className="lk-modal-bg" onClick={() => !reqBusy && setRejecting(null)}>
-        <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
           <div className="lk-dh"><h3>Reject Request</h3><button className="lk-btn icon" onClick={() => setRejecting(null)}><Icon n="x" /></button></div>
           <div className="bd">
             <div style={{ fontSize: 14 }}>Reject the request from <b>{rejecting.req.name || rejecting.req.email}</b>?</div>
@@ -5137,7 +5181,7 @@ function ImportReview({ obj, S, onClose, onApply }) {
 
   return (
     <div className="lk-bg" onClick={onClose}><style>{css}</style>
-      <div style={{ background: "var(--card)", color: "var(--ink)", borderRadius: 14, border: "1px solid var(--line)", width: "min(720px,94vw)", maxHeight: "88vh", overflow: "auto", padding: "20px 22px", margin: "auto", ...cssVars(S.theme) }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: "var(--card)", color: "var(--ink)", borderRadius: 14, border: "1px solid var(--line)", width: "min(720px,94vw)", maxHeight: "88vh", overflow: "auto", padding: "20px 22px", margin: "auto", ...cssVars(S.theme, S.settings) }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><h3 style={{ margin: 0 }}>Review Project Import</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55, marginBottom: 12 }}>New project setup data is merged in automatically. Where the file collides with something already here, choose what to do. Overwrite replaces the existing item, Ignore keeps what you have, Clone adds the incoming one alongside under a new name.</div>
 
@@ -5181,7 +5225,7 @@ function ImportReview({ obj, S, onClose, onApply }) {
 function CompanyModal({ co, logo, S, onClose }) {
   return (
     <div className="lk-bg" onClick={onClose}>
-      <div className="ytt drill" style={{ ...cssVars(S.theme), maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+      <div className="ytt drill" style={{ ...cssVars(S.theme, S.settings), maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
         <div className="ytt-head">
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
             {logo ? <img src={logo} alt="" style={{ height: 30, maxWidth: 150, objectFit: "contain" }} /> : <Icon n="shield" s={18} />}
@@ -5259,7 +5303,7 @@ function CreatedEntriesModal({ S, LV, coName, onClose }) {
 
   return (
     <div className="lk-bg" onClick={onClose}>
-      <div className="ytt drill" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+      <div className="ytt drill" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
         <div className="ytt-head">
           <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><span style={{ color: "var(--accent)", display: "inline-flex", flex: "none" }}><Icon n="cal" s={17} /></span><h3 style={{ margin: 0, fontSize: 15.5 }}>Entries Created</h3><span className="ytt-sub">{rows == null ? "loading" : (list.length + " activit" + (list.length === 1 ? "y" : "ies"))}</span></div>
           <button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button>
@@ -5314,7 +5358,7 @@ function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
   const [dIcon, dColor] = drillIcon(title);
   return (
     <div className="lk-bg" onClick={onClose}>
-      <div className="ytt drill" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+      <div className="ytt drill" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
         <div className="ytt-head">
           <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}><span style={{ color: dColor || "inherit", display: "inline-flex", flex: "none" }}><Icon n={dIcon} s={17} /></span><h3 style={{ margin: 0, fontSize: 15.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</h3><span className="ytt-sub">{items.length} activit{items.length === 1 ? "y" : "ies"}</span></div>
           <button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button>
@@ -5567,7 +5611,7 @@ function SchedulePage({ S, coName, onOpen }) {
   const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
 
   return (
-    <div className="lk-sch" style={cssVars(S.theme)}><style>{css}</style>
+    <div className="lk-sch" style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className="lk-sch-bar">
         <div className="grp"><label>View</label><div className="seg">{[["gantt", "Gantt"], ["calendar", "Calendar"], ["workload", "Workload"]].map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}</div></div>
         {view === "gantt" && hasBaseline && <div className="grp"><label>Schedule</label><div className="seg">{[["live", "Live"], ["p6", "P6 Baseline"], ["compare", "Compare"]].map(([k, l]) => <button key={k} className={source === k ? "on" : ""} onClick={() => setSource(k)}>{l}</button>)}</div></div>}
@@ -5855,7 +5899,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   };
   const visCount = 2 + TBL_COLS.filter(([k]) => cols[k]).length;
   return (
-    <div className="lk-tblwrap" style={cssVars(S.theme)}><style>{css}</style>
+    <div className="lk-tblwrap" style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className="lk-ufilter" style={{ padding: "10px 16px 0", alignItems: "flex-end" }}>
         <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -7067,7 +7111,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   return (<>
     <button className={variant==="cx" ? "cxp-btn" : "lk-btn primary"} onClick={openModal}><Icon n="chart" s={14} />{label||"Weekly Report"}</button>
     {open && <div className="lk-modal-bg" onClick={() => setOpen(false)}>
-      <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
+      <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Generate Weekly DLP Report</h3><button className="lk-btn icon" onClick={() => setOpen(false)}><Icon n="x" /></button></div>
         <div className="bd">
           <div className="rep-fld"><label>Reporting Period</label>
@@ -7115,7 +7159,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
       </div>
     </div>}
     {recipOpen && <div className="lk-modal-bg" onClick={() => setRecipOpen(false)}>
-      <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
+      <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Report Recipients</h3><button className="lk-btn icon" onClick={() => setRecipOpen(false)}><Icon n="x" /></button></div>
         <div className="bd" style={{ maxHeight: "62vh", overflow: "auto" }}>
           <div className="rep-fld"><label>Selected ({recips.length})</label>
@@ -7568,7 +7612,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       </div>
       <div className="lk-rep-sec"><h3>By Cx Stage</h3><MixHead first="Cx stage" pct="Done" />{byLevel.map((x) => { const dp = x.n ? Math.round((x.done / x.n) * 100) : 0; return <MixRow key={x.name} swatch={x.color} label={x.name} n={x.n} max={maxLv} done={x.done} inprog={x.inprog} pct={dp} open={x.open} tip={dp + "% complete (" + x.done + " of " + x.n + ") \u00b7 " + x.inprog + " in progress \u00b7 " + x.open + " open constraint" + (x.open === 1 ? "" : "s")} onClick={() => openDrill(x.name, acts.filter((a) => a.level === x.k))} />; })}<MixLegend /></div>
       {repOpen && <div className="lk-modal-bg" onClick={() => setRepOpen(false)}>
-        <div className="lk-modal" style={{ ...cssVars(S.theme), maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
           <div className="lk-dh"><h3>Generate Weekly DLP Report</h3><button className="lk-btn icon" onClick={() => setRepOpen(false)}><Icon n="x" /></button></div>
           <div className="bd">
             <div className="rep-fld"><label>Reporting Period</label>
@@ -7706,7 +7750,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
   };
   return (
     <div className="lk-modal-bg" onClick={onClose}>
-      <div className="lk-modal" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
+      <div className="lk-modal" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Import Activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. Members import under their own company; admins can set any existing company per row.</div>

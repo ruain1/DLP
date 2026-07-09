@@ -60,7 +60,7 @@ export async function loadAll(session, projectId, projectName) {
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
     levels: levelsObj,
-    settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, pageIcons: settings.data?.page_icons ?? {} },
+    settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, pageIcons: settings.data?.page_icons ?? {}, design: settings.data?.design ?? {} },
     users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, platformRole: p.platform_role || "user", mustReset: !!p.must_reset })),
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail, entity: e.entity, entityId: e.entity_id })),
@@ -257,7 +257,7 @@ export async function syncCollections(prev, next, session, projectId) {
   }
   // settings (one row per project)
   if (next.settings !== prev.settings) {
-    ops.push(supabase.from("settings").update({ weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays, ppc_target: next.settings.ppcTarget ?? 80, benchmarks_visible: !!next.settings.benchmarksVisible, page_icons: next.settings.pageIcons ?? {} }).eq("project_id", projectId));
+    ops.push(supabase.from("settings").update({ weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays, ppc_target: next.settings.ppcTarget ?? 80, benchmarks_visible: !!next.settings.benchmarksVisible, page_icons: next.settings.pageIcons ?? {}, design: next.settings.design ?? {} }).eq("project_id", projectId));
   }
   const results = await Promise.all(ops);
   const err = results.find((r) => r && r.error);
