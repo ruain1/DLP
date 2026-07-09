@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV181",
+    "date": "2026-07-09",
+    "items": [
+      "Colour and Typography are now per-page as well as global. Each has an Applying to selector: pick Global default to set the project-wide look, or pick a page to override just that page's accent, heading font or body font. A page shows a dot when it differs from the default, overridden controls are labelled, and a page can be reset back to inheriting the global value. Global stays the base that every page inherits.",
+      "Applied consistently: the theme helper takes an optional page key and merges the global override then the page override, so the per-page look reaches the own-root pages (Table, Schedule, Admin) as well as the inline and external pages via the shared content wrapper. No new column; the pages block lives in the existing design setting reserved for it in REV180.",
+      "This completes the Colour and Typography categories (global plus per-page). Remaining Design categories still to come: Layout, Board, Effects and Naming."
+    ]
+  },
+  {
     "rev": "REV180",
     "date": "2026-07-09",
     "items": [
