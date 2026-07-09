@@ -20,6 +20,7 @@ import { claimReportRun } from "./digestClaim";
 import SetPassword from "./SetPassword.jsx";
 import CxProgressPage from "./CxProgress.jsx";
 import AssetStatusPage from "./AssetStatus.jsx";
+import BenchmarksPage from "./Benchmarks.jsx";
 import DocsStatusPage from "./DocsStatus.jsx";
 import RffeCompose from "./RffeCompose.jsx";
 import { loadAssetEventsNamed, setAssetEventState } from "./data";
@@ -1816,7 +1817,7 @@ export default function App({ session }) {
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
+  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs", "benchmarks"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
   // ---- multi-project ----
@@ -1863,7 +1864,7 @@ export default function App({ session }) {
       const fa = DEEPLINK_ACT; DEEPLINK_ACT = "";
       const fasset = DEEPLINK_ASSET; DEEPLINK_ASSET = "";
       let fpage = DEEPLINK_PAGE; DEEPLINK_PAGE = "";
-      const PAGES = ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs"];
+      const PAGES = ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs", "benchmarks"];
       if (!PAGES.includes(fpage)) fpage = "";
       if (target) {
         const ip = fpage || (fasset ? "assets" : undefined);
@@ -2725,6 +2726,7 @@ export default function App({ session }) {
         <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
         <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n="checkcircle" s={20} /><span className="lbl">Weekly Cx Progress</span></button>
         <button title="Asset Status" className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n="package" s={20} /><span className="lbl">Asset Status</span></button>
+        {(isAdmin || (S.settings && S.settings.benchmarksVisible)) && <button title="Benchmarks" className={page === "benchmarks" ? "on" : ""} onClick={() => setPage("benchmarks")}><Icon n="checkcircle" s={20} /><span className="lbl">Benchmarks</span></button>}
         <button title="Documentation Tracker" className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n="file" s={20} /><span className="lbl">Documentation</span></button>
         <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
@@ -2926,6 +2928,7 @@ export default function App({ session }) {
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
+      {page === "benchmarks" && (isAdmin || (S.settings && S.settings.benchmarksVisible)) && <div className="lk-fillpage"><BenchmarksPage projectId={selProj} isAdmin={isAdmin} isOwner={isOwner} cu={cu} activities={S.activities} settings={S.settings} update={update} /></div>}
       {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
