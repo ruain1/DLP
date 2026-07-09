@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV163",
+    "date": "2026-07-09",
+    "items": [
+      "ACC reconcile engine added (src/accReconcile.js): the logic that turns the FOK register into board changes. It is pure and dormant this revision, makes no ACC call and is not yet wired in. A header driven parser (tolerant of column renames and reorders, the same lesson as the asset register) feeds a fok_ref keyed diff that produces adds, changes and removed candidates using canonical change signatures.",
+      "Two guardrails are built in and tested: invites are only ever produced as pending, so releasing them stays a human action through Send All Pending, and a row dropping out of the register is a removed candidate, never an auto delete. Fourteen harness assertions cover header order tolerance, idempotent re-runs, witness versus non witness changes and the no send and no delete guarantees.",
+      "This is the credential independent brain of REV163. The activation layer (Secure Service Account auth, the acc-webhook receiver, the pg_cron reconcile and the board Sync Now button) is held until BIMMS authorises the app on their ACC account, because those need the robot key, the real folder and item URNs and the webhook secret, none of which exist yet."
+    ]
+  },
+  {
     "rev": "REV162",
     "date": "2026-07-09",
     "items": [
