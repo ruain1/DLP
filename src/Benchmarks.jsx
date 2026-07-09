@@ -169,8 +169,10 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   };
 
   const pill = (r) => {
-    const m = STATUS_META[r.completed_at ? "completed" : r.status] || STATUS_META.no_date;
-    return <span style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 10px", color: m.fg, background: m.bg }}>{m.label}</span>;
+    const key = r.completed_at ? "completed" : r.status;
+    const m = STATUS_META[key] || STATUS_META.no_date;
+    const code = (key === "on_board" || key === "changed") && r.activityCode != null ? " #" + r.activityCode : "";
+    return <span title={code ? "On the planning board as activity #" + r.activityCode : ""} style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 10px", color: m.fg, background: m.bg }}>{m.label}{code}</span>;
   };
 
   return (

@@ -2470,7 +2470,8 @@ export default function App({ session }) {
       const dur = Number(it.durationMin) || 120;
       const title = (it.title != null ? it.title : (b.title || "")) || b.fok_ref;
       const assignee = it.assigneeEmail != null ? it.assigneeEmail : (b.assignee_email || "");
-      const ex = acts.find((a) => (a.fokRef && a.fokRef === b.fok_ref) || (b.board_activity_id && a.id === b.board_activity_id));
+      const bt = String(b.title || "").trim().toLowerCase().replace(/\s+/g, " ");
+      const ex = acts.find((a) => (a.fokRef && a.fokRef === b.fok_ref) || (b.board_activity_id && a.id === b.board_activity_id) || (bt && String(a.desc || "").trim().toLowerCase().replace(/\s+/g, " ") === bt));
       if (ex) {
         const i = acts.indexOf(ex);
         acts[i] = { ...ex, desc: title, discipline: [disc], assigneeEmail: assignee, accUrl: b.acc_url || ex.accUrl || "", witnessInvite: invite, witnessType: invite ? (ex.witnessType || "L2 FOK") : "", witnessAt, witnessDurationMin: dur, start: date || ex.start, committed: false };

@@ -200,17 +200,25 @@ export function benchmarkStatus(benchmark, activity) {
   return (dateMoved || assigneeMoved) ? "changed" : "on_board";
 }
 
-// Attach status to each benchmark by matching it to its board activity (by stored link first,
-// then by fok_ref). Returns rows plus a summary the page header can show.
+// Attach status to each benchmark by matching it to its board activity: stored link first,
+// then fok_ref, then an exact normalised title match so a FOK already on the board without a
+// ref is still detected (prevents duplicates on Send to Board). Exposes the matched code.
 export function benchmarksWithStatus(benchmarks, activities) {
   const list = benchmarks || [];
   const acts = activities || [];
   const byId = new Map(acts.map((a) => [a.id, a]));
   const byRef = new Map();
-  for (const a of acts) { const r = a.fok_ref || a.fokRef; if (r) byRef.set(String(r), a); }
+  const byTitle = new Map();
+  for (const a of acts) {
+    const r = a.fok_ref || a.fokRef; if (r) byRef.set(String(r), a);
+    const t = normKey(a.desc || a.descr || ""); if (t && !byTitle.has(t)) byTitle.set(t, a);
+  }
   const rows = list.map((b) => {
-    const act = (b.board_activity_id && byId.get(b.board_activity_id)) || byRef.get(String(b.fok_ref)) || null;
-    return { ...b, status: benchmarkStatus(b, act), activityId: act ? act.id : null };
+    const act = (b.board_activity_id && byId.get(b.board_activity_id))
+      || byRef.get(String(b.fok_ref))
+      || byTitle.get(normKey(b.title || ""))
+      || null;
+    return { ...b, status: benchmarkStatus(b, act), activityId: act ? act.id : null, activityCode: act && act.code != null ? act.code : null };
   });
   const summary = rows.reduce((s, r) => { s[r.status] = (s[r.status] || 0) + 1; return s; }, {});
   summary.sendable = rows.filter((r) => r.status === "ready" || r.status === "changed").length;
