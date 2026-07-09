@@ -1,10 +1,19 @@
 [
   {
+    "rev": "REV175",
+    "date": "2026-07-09",
+    "items": [
+      "Members can now record Percent complete on any activity, including another company's, so a trade can report progress on work that is not tagged to their own company. Only percent is opened: status, actual dates, witness outcome, reasons and the whole plan stay read-only for other companies' activities, and setting percent to 100 does not mark the activity Complete because status is unchanged. The activity editor shows Record Progress with a Save progress button for these cases.",
+      "How it is kept safe: the activities update policy stays company scoped, so nothing else opens up. A single SECURITY DEFINER function, set_activity_percent, is the only route by which a member reaches another company's activity, and it can change nothing but percent. The change is audited to the member who made it. Run supabase/member-percent.sql before pushing data.js and App.jsx.",
+      "Own-company and admin editing is unchanged and still goes through the normal save path."
+    ]
+  },
+  {
     "rev": "REV174",
     "date": "2026-07-09",
     "items": [
-      "Send to Board modal: a Hide past toggle (on by default) drops benchmarks whose date is before today out of the send and shows how many are hidden; turn it off to include and re-date them. It keys off the row edited date, so fixing a past date to a future one brings the row back.",
-      "For benchmarks already on the board (Changed In ACC), a new Board column offers Update, which pushes the register change to the existing activity and shows its code, or Keep current, which leaves the board activity untouched and skips it. New benchmarks show as New. The confirmation reports how many were updated versus new."
+      "New Case control on the board toolbar (Orig, CAPS, Title): sets how activity names render on the planning board. It is display only and remembered with your other board preferences; the stored text is never changed, so search, exports, witness invites and the audit log are unaffected. Title case preserves acronyms and codes: any word that is already all caps (EPODS, UPS, PLC, MV), mixed case (iDCM) or contains a digit (RET615, GY03/04) is left as written, minor words (and, for, of, x as a multiplier) are lowered, and ordinary words are capitalised. A name typed entirely in capitals is left as it is, since an all-caps word cannot be told apart from an acronym without a dictionary.",
+      "Fix: the Display palette flyout was clipped off the left of the screen when the sidebar was expanded, because it was a fixed width pinned to the rail's right edge. It now pops out to the right of the rail in both the collapsed and expanded states, so it is always fully visible."
     ]
   },
   {
