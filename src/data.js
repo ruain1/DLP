@@ -7,7 +7,7 @@ const fromActivity = (r) => ({
   // Milestones are binary (Planned / Complete); any legacy in_progress row is coerced at load
   committed: !!r.committed, status: (r.is_milestone && r.status === "in_progress") ? "planned" : (r.status || "planned"), actualStart: r.actual_start || "", actualFinish: r.actual_finish || "", percent: (r.percent == null ? null : Number(r.percent)),
   outcome: r.outcome || "pending", outcomeReason: r.outcome_reason || "", outcomeNotes: r.outcome_notes || "", outcomeAt: r.outcome_at || "", retestOf: r.retest_of || null,
-  subArea: r.sub_area || "", tier3: r.tier3 || "", asset: r.asset || "", discipline: (r.discipline ? String(r.discipline).split(/\s*;\s*/).filter(Boolean) : []), witnessInvite: !!r.witness_invite, witnessType: r.witness_type || "", witnessAt: r.witness_at || "", witnessDurationMin: (r.witness_duration_min == null ? 60 : Number(r.witness_duration_min)), witnessDays: (r.witness_days == null ? 1 : Math.max(1, Number(r.witness_days))), witnessSentAt: r.witness_sent_at || "", notes: r.notes || "", slipReason: r.slip_reason || "", accUrl: r.acc_url || "", fokRef: r.fok_ref || "", assigneeEmail: r.assignee_email || "",
+  subArea: r.sub_area || "", tier3: r.tier3 || "", asset: r.asset || "", discipline: (r.discipline ? String(r.discipline).split(/\s*;\s*/).filter(Boolean) : []), witnessInvite: !!r.witness_invite, witnessType: r.witness_type || "", witnessAt: r.witness_at || "", witnessDurationMin: (r.witness_duration_min == null ? 60 : Number(r.witness_duration_min)), witnessDays: (r.witness_days == null ? 1 : Math.max(1, Number(r.witness_days))), witnessSentAt: r.witness_sent_at || "", crew: (r.crew ? String(r.crew).split(/\s*;\s*/).filter(Boolean) : []), estHours: (r.est_hours == null ? "" : Number(r.est_hours)), notes: r.notes || "", slipReason: r.slip_reason || "", accUrl: r.acc_url || "", fokRef: r.fok_ref || "", assigneeEmail: r.assignee_email || "",
   code: r.code ?? null, predecessors: Array.isArray(r.predecessors) ? r.predecessors : [],
   constraints: Array.isArray(r.constraints) ? r.constraints : [],
   reschedules: Array.isArray(r.reschedules) ? r.reschedules : [],
@@ -19,7 +19,7 @@ const toActivity = (a, session, isNew) => {
     level: a.level, is_milestone: !!a.isMilestone, start_date: a.start || null, duration: a.duration || 1,
     committed: !!a.committed, status: a.status, actual_start: a.actualStart || null, actual_finish: a.actualFinish || null, percent: (a.percent == null || a.percent === "" ? null : Math.max(0, Math.min(100, Math.round(Number(a.percent))))),
     outcome: a.outcome || "pending", outcome_reason: a.outcomeReason || null, outcome_notes: a.outcomeNotes || null, outcome_at: a.outcomeAt || null, retest_of: a.retestOf || null,
-    sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, discipline: (Array.isArray(a.discipline) ? a.discipline.join("; ") : (a.discipline || "")) || null, witness_invite: !!a.witnessInvite, witness_type: a.witnessType || null, witness_at: a.witnessAt || null, witness_duration_min: (a.witnessDurationMin == null ? 60 : a.witnessDurationMin), witness_days: (a.witnessDays == null ? 1 : Math.max(1, a.witnessDays)), witness_sent_at: a.witnessSentAt || null, notes: a.notes || null, slip_reason: a.slipReason || null, acc_url: a.accUrl || null, fok_ref: a.fokRef || null, assignee_email: a.assigneeEmail || null,
+    sub_area: a.subArea || null, tier3: a.tier3 || null, asset: a.asset || null, discipline: (Array.isArray(a.discipline) ? a.discipline.join("; ") : (a.discipline || "")) || null, witness_invite: !!a.witnessInvite, witness_type: a.witnessType || null, witness_at: a.witnessAt || null, witness_duration_min: (a.witnessDurationMin == null ? 60 : a.witnessDurationMin), witness_days: (a.witnessDays == null ? 1 : Math.max(1, a.witnessDays)), witness_sent_at: a.witnessSentAt || null, crew: (Array.isArray(a.crew) ? a.crew.join("; ") : (a.crew || "")) || null, est_hours: (a.estHours === "" || a.estHours == null ? null : Number(a.estHours)), notes: a.notes || null, slip_reason: a.slipReason || null, acc_url: a.accUrl || null, fok_ref: a.fokRef || null, assignee_email: a.assigneeEmail || null,
     code: isNew ? null : (a.code ?? null), predecessors: a.predecessors || [],
     constraints: a.constraints || [], reschedules: a.reschedules || [], witness_events: a.witnessEvents || [], updated_by: session.user.id, updated_at: new Date().toISOString(),
   };
@@ -38,10 +38,11 @@ const fromInviteRequest = (r) => ({
 
 // ---- load everything into the client state shape ----
 export async function loadAll(session, projectId, projectName) {
-  const [companies, areas, systems, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs, privRows] = await Promise.all([
+  const [companies, areas, systems, crews, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs, privRows] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("systems").select("*").eq("project_id", projectId).order("name"),
+    supabase.from("crews").select("*").eq("project_id", projectId).order("name"),
     supabase.from("levels").select("*").eq("project_id", projectId).order("sort"),
     supabase.from("settings").select("*").eq("project_id", projectId).maybeSingle(),
     supabase.from("profiles").select("*").order("name"),
@@ -59,8 +60,9 @@ export async function loadAll(session, projectId, projectName) {
     companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "", description: c.description || "", domain: c.domain || "" })),
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
+    crews: (crews.data || []).map((c) => c.name),
     levels: levelsObj,
-    settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, pageIcons: settings.data?.page_icons ?? {}, design: settings.data?.design ?? {} },
+    settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, workingDays: settings.data?.working_days ?? [1, 2, 3, 4, 5], hoursPerDay: settings.data?.hours_per_day ?? 8, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, pageIcons: settings.data?.page_icons ?? {}, design: settings.data?.design ?? {} },
     users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, platformRole: p.platform_role || "user", mustReset: !!p.must_reset })),
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail, entity: e.entity, entityId: e.entity_id })),
@@ -218,7 +220,7 @@ export async function syncCollections(prev, next, session, projectId) {
     if (del.length) ops.push(supabase.from("companies").delete().in("id", del));
   }
   // areas / systems (string arrays keyed by name, per project)
-  for (const key of ["areas", "systems"]) {
+  for (const key of ["areas", "systems", "crews"]) {
     if (next[key] !== prev[key]) {
       const add = next[key].filter((x) => !prev[key].includes(x)).map((name) => ({ name, project_id: projectId }));
       const rem = prev[key].filter((x) => !next[key].includes(x));
@@ -257,7 +259,7 @@ export async function syncCollections(prev, next, session, projectId) {
   }
   // settings (one row per project)
   if (next.settings !== prev.settings) {
-    ops.push(supabase.from("settings").update({ weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays, ppc_target: next.settings.ppcTarget ?? 80, benchmarks_visible: !!next.settings.benchmarksVisible, page_icons: next.settings.pageIcons ?? {}, design: next.settings.design ?? {} }).eq("project_id", projectId));
+    ops.push(supabase.from("settings").update({ weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays, working_days: next.settings.workingDays ?? [1, 2, 3, 4, 5], hours_per_day: next.settings.hoursPerDay ?? 8, ppc_target: next.settings.ppcTarget ?? 80, benchmarks_visible: !!next.settings.benchmarksVisible, page_icons: next.settings.pageIcons ?? {}, design: next.settings.design ?? {} }).eq("project_id", projectId));
   }
   const results = await Promise.all(ops);
   const err = results.find((r) => r && r.error);
