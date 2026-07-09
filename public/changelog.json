@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV176",
+    "date": "2026-07-09",
+    "items": [
+      "The board Case control (Orig, CAPS, Title) has moved off the toolbar and up into the top bar next to the theme toggle. It was widening the toolbar enough to wrap, which pushed Export and the Activity button onto a second row; the toolbar is now back to a single row. The control renders only on the board and only for Owners and Admins, so members no longer see it and their board shows original-case names."
+    ]
+  },
+  {
     "rev": "REV175",
     "date": "2026-07-09",
     "items": [
