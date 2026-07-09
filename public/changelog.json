@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV178",
+    "date": "2026-07-09",
+    "items": [
+      "New Design section in Settings (Admin, under Appearance), first tranche: a per-page sidebar icon picker. Each page picks its own icon, and any icon already used by another page is greyed out so no two pages can share a mark. This resolves the two identical ticks: Weekly Cx Progress keeps the tick and Benchmarks now defaults to a shield, and either can be changed. Choices are stored as a project-level default and the sidebar renders from them, falling back to the built-in defaults.",
+      "The built-in icon set grew from 33 to 54 (target, layers, clipboard, database, flag, bell, sliders, folder, truck, award, hexagon, compass, gauge, hammer, users and more), all in the same line-icon family so nothing looks out of place.",
+      "Scope note: this is the Design home plus the icon system. The deeper theming (colour, typography, density, board and effects, with the global-default-plus-per-page-override model) follows in its own tranches, because each needs CSS-variable plumbing across the app and should not ship in one unverified lump. Adding the full external icon library is a separate follow-up so it can be lazy-loaded rather than bloating the main bundle."
+    ]
+  },
+  {
     "rev": "REV177",
     "date": "2026-07-09",
     "items": [
