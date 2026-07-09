@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV182",
+    "date": "2026-07-09",
+    "items": [
+      "Board reschedule fixes. A rescheduled activity now earns its own lane row: the packer reserves the reschedule origin span (the dotted trail and the origin ghost), not just the new start, so a neighbour can no longer be packed on top of the trail. Failed-invite and retest chains are unaffected: the change applies only to activities carrying a reschedule, and the retest row preference still keys on the current start.",
+      "The origin ghost of a rescheduled witness invite now reads as the superseded invite rather than an empty dashed box: the activity code struck through, and a re-send flag when the original invite had been sent, so it is clear the moved event still needs re-issuing. Nothing in the data or the sent Outlook invite changes; re-sending stays a deliberate action from the editor."
+    ]
+  },
+  {
     "rev": "REV181",
     "date": "2026-07-09",
     "items": [
