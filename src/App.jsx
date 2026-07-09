@@ -771,6 +771,27 @@ const I = {
   checkcircle: <><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></>,
   loader: <><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 4 21 9 16 9"/></>,
   eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
+  target: <><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>,
+  layers: <><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>,
+  clipboard: <><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></>,
+  database: <><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></>,
+  zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
+  flag: <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>,
+  bookmark: <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>,
+  pin: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></>,
+  bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>,
+  sliders: <><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></>,
+  folder: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>,
+  gitbranch: <><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></>,
+  truck: <><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>,
+  award: <><circle cx="12" cy="8" r="6"/><path d="M15.5 12.9 17 22l-5-3-5 3 1.5-9.1"/></>,
+  hexagon: <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>,
+  flame: <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>,
+  activity: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>,
+  compass: <><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></>,
+  gauge: <><path d="M3.34 19a10 10 0 1 1 17.32 0"/><line x1="12" y1="16" x2="16" y2="10"/></>,
+  hammer: <><path d="M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h.86c.85 0 1.65.33 2.25.93l1.25 1.25"/></>,
+  users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>,
 };
 const Icon = ({ n, s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
@@ -2771,22 +2792,23 @@ export default function App({ session }) {
     </div>);
 
   const palette = ["hc", "cb"].includes(S.palette) ? S.palette : (["hc", "cb"].includes(prefs().palette) ? prefs().palette : "default");
+  const pageIcon = (k, def) => (S.settings && S.settings.pageIcons && S.settings.pageIcons[k]) || def;
   return (
     <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
-        <button title="Planning Board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n="board" s={20} /><span className="lbl">Planning Board</span></button>
-        <button title="Activity Table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n="grid" s={20} /><span className="lbl">Activity Table</span></button>
-        <button title="Constraints Log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n="alert" s={20} /><span className="lbl">Constraints Log</span></button>
-        <button title="Schedule" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n="gantt" s={20} /><span className="lbl">Schedule</span></button>
-        <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n="chart" s={20} /><span className="lbl">Analytics</span></button>
-        <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n="checkcircle" s={20} /><span className="lbl">Weekly Cx Progress</span></button>
-        <button title="Asset Status" className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n="package" s={20} /><span className="lbl">Asset Status</span></button>
-        {(isAdmin || (S.settings && S.settings.benchmarksVisible)) && <button title="Benchmarks" className={page === "benchmarks" ? "on" : ""} onClick={() => setPage("benchmarks")}><Icon n="checkcircle" s={20} /><span className="lbl">Benchmarks</span></button>}
-        <button title="Documentation Tracker" className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n="file" s={20} /><span className="lbl">Documentation</span></button>
-        <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n="help" s={20} /><span className="lbl">Help</span></button>
-        {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n="cog" s={20} /><span className="lbl">Admin</span></button>}
+        <button title="Planning Board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n={pageIcon("board", "board")} s={20} /><span className="lbl">Planning Board</span></button>
+        <button title="Activity Table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n={pageIcon("table", "grid")} s={20} /><span className="lbl">Activity Table</span></button>
+        <button title="Constraints Log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n={pageIcon("constraints", "alert")} s={20} /><span className="lbl">Constraints Log</span></button>
+        <button title="Schedule" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n={pageIcon("schedule", "gantt")} s={20} /><span className="lbl">Schedule</span></button>
+        <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n={pageIcon("reports", "chart")} s={20} /><span className="lbl">Analytics</span></button>
+        <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n={pageIcon("cx", "checkcircle")} s={20} /><span className="lbl">Weekly Cx Progress</span></button>
+        <button title="Asset Status" className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n={pageIcon("assets", "package")} s={20} /><span className="lbl">Asset Status</span></button>
+        {(isAdmin || (S.settings && S.settings.benchmarksVisible)) && <button title="Benchmarks" className={page === "benchmarks" ? "on" : ""} onClick={() => setPage("benchmarks")}><Icon n={pageIcon("benchmarks", "shield")} s={20} /><span className="lbl">Benchmarks</span></button>}
+        <button title="Documentation Tracker" className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n={pageIcon("docs", "file")} s={20} /><span className="lbl">Documentation</span></button>
+        <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n={pageIcon("help", "help")} s={20} /><span className="lbl">Help</span></button>
+        {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n={pageIcon("admin", "cog")} s={20} /><span className="lbl">Admin</span></button>}
         <div className="lk-disp">
           {dispOpen && <div className="lk-dispback" onClick={() => setDispOpen(false)} />}
           <button className="lk-dispbtn" title="Display, palette and contrast" onClick={() => setDispOpen((v) => !v)}>
@@ -3789,6 +3811,33 @@ function VendorsTab({ projectId }) {
   </div>);
 }
 
+const DESIGN_PAGES = [["board", "Planning Board", "board"], ["table", "Activity Table", "grid"], ["constraints", "Constraints Log", "alert"], ["schedule", "Schedule", "gantt"], ["reports", "Analytics", "chart"], ["cx", "Weekly Cx Progress", "checkcircle"], ["assets", "Asset Status", "package"], ["benchmarks", "Benchmarks", "shield"], ["docs", "Documentation", "file"], ["help", "Help", "help"], ["admin", "Admin", "cog"]];
+const DESIGN_ICON_CHOICES = ["board", "grid", "gantt", "chart", "list", "checkcircle", "package", "shield", "file", "cal", "clock", "alert", "cog", "help", "eye", "office", "person", "users", "wrench", "hammer", "target", "layers", "clipboard", "database", "zap", "flag", "bookmark", "pin", "bell", "sliders", "folder", "gitbranch", "truck", "award", "hexagon", "flame", "activity", "compass", "gauge"];
+// REV178: Design settings, tranche 1. Per-page sidebar icon, picked from the expanded built-in
+// set, with a duplicate guard so no two pages can share a mark. Stored on project settings so it
+// is a project-level default. Deeper theming (colour, type, density, board, effects) follows in
+// its own tranches, since each needs CSS-variable plumbing across the app.
+function DesignTab({ S, update }) {
+  const [selPage, setSelPage] = useState("board");
+  const icons = (S.settings && S.settings.pageIcons) || {};
+  const defOf = (k) => { const p = DESIGN_PAGES.find((x) => x[0] === k); return p ? p[2] : "grid"; };
+  const iconOf = (k) => icons[k] || defOf(k);
+  const usedBy = (name) => DESIGN_PAGES.find((x) => x[0] !== selPage && iconOf(x[0]) === name);
+  const setIcon = (name) => update((p) => ({ ...p, settings: { ...p.settings, pageIcons: { ...(p.settings && p.settings.pageIcons), [selPage]: name } } }), { action: "Change setting", detail: "Page icon " + selPage + " = " + name });
+  const sel = DESIGN_PAGES.find((x) => x[0] === selPage) || DESIGN_PAGES[0];
+  return <div>
+    <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Choose the sidebar icon for each page. An icon already used by another page is greyed out, so no two pages can share a mark. This is where the two identical ticks on Weekly Cx Progress and Benchmarks are resolved.</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
+      {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (selPage === k ? " primary" : "")} style={{ display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => setSelPage(k)}><Icon n={iconOf(k)} s={15} />{l}</button>)}
+    </div>
+    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Icon for {sel[1]}{icons[selPage] ? "" : " (default)"}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))", gap: 8, maxWidth: 620 }}>
+      {DESIGN_ICON_CHOICES.map((name) => { const used = usedBy(name); const on = iconOf(selPage) === name; return <button key={name} disabled={!!used} title={used ? "Used by " + used[1] : name} onClick={() => setIcon(name)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon n={name} s={19} /></button>; })}
+    </div>
+    {icons[selPage] && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setIcon(defOf(selPage))}>Reset {sel[1]} to default</button>}
+  </div>;
+}
+
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient }) {
   const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
@@ -4239,6 +4288,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
+    ["Appearance", [["design", "Design"]]],
     ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
     ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
@@ -4252,6 +4302,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         </div>
         <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "") + (tab === "privileges" ? " wide full" : "")}><div className="lk-db">
           {tab === "privileges" && <PrivilegesTab S={S} cu={cu} isOwner={isOwner} projClient={projClient} />}
+          {tab === "design" && <DesignTab S={S} update={update} />}
           {tab === "systems" && <>
             <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
               <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
