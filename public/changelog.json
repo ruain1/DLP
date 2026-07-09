@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV173",
+    "date": "2026-07-09",
+    "items": [
+      "On-board lookup is now robust and visible. A benchmark is matched to the planning board by its stored link, then its FOK ref, then an exact normalised title match, so a FOK already on the board without a ref is still detected. The On Board and Changed In ACC pills now show the matched activity code (for example On Board #42, hover for detail) so you can verify and find it on the board.",
+      "Send to Board uses the same three way match, so it updates an existing board activity instead of creating a duplicate even when the match is by title rather than ref. Purely a matching and display change; no schema or push order change beyond the three files."
+    ]
+  },
+  {
     "rev": "REV172",
     "date": "2026-07-09",
     "items": [
