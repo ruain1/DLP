@@ -262,6 +262,38 @@ async function parseWorkbook(file) {
   return out;
 }
 
+/* REV169: compare an incoming parse against an already-stored week of the same
+   week_ending. Returns a human-readable list of the fields that changed. Compares
+   headline scalars and array lengths only, so jsonb key ordering from Postgres
+   never produces a false diff. Empty list means the import is identical. */
+function weekImportDiffs(existing, parsed) {
+  const H = (parsed && parsed.headline) || {};
+  const nd = (parsed && parsed.detail) || {};
+  const od = (existing && existing.detail) || {};
+  const show = (v) => (v == null || v === "" ? "-" : String(v));
+  const len = (a) => (Array.isArray(a) ? a.length : 0);
+  const ibtSig = (d) => { const o = (d && d.issuesByType) || {}; return Object.keys(o).sort().map((k) => k + ":" + o[k]).join(","); };
+  const checks = [
+    ["Cx assets", existing.assets, H.assets],
+    ["Red tag %", existing.red_pct, H.red_pct],
+    ["Yellow tag %", existing.yellow_pct, H.yellow_pct],
+    ["Green tag %", existing.green_pct, H.green_pct],
+    ["Open issues", existing.open_issues, H.open_issues],
+    ["Awaiting verification", existing.awaiting_verification, H.awaiting_verification],
+    ["Issues raised (7d)", existing.issues_raised_7d, H.issues_raised_7d],
+    ["Issues resolved (7d)", existing.issues_resolved_7d, H.issues_resolved_7d],
+    ["Risk rows", len(od.risks), len(nd.risks)],
+    ["Issue sample rows", len(od.issues), len(nd.issues)],
+    ["Document vendors", len((od.docs || {}).rows), len((nd.docs || {}).rows)],
+    ["Attendance weeks", len(od.attendance), len(nd.attendance)],
+    ["Milestones", len(od.milestones), len(nd.milestones)],
+    ["Issues by type", ibtSig(od), ibtSig(nd)],
+  ];
+  const out = [];
+  for (const [label, a, b] of checks) { if (show(a) !== show(b)) out.push({ label: label, from: show(a), to: show(b) }); }
+  return out;
+}
+
 /* =====================================================================
    CHART BUILDERS (SVG / HTML strings, injected; click handled by delegation)
    ===================================================================== */
@@ -517,6 +549,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
   const [spAcct, setSpAcct] = useState(null);      // REV143: connected Quantum MC tenant account (same module Asset Status uses)
   const [syncOpen, setSyncOpen] = useState(false); // SharePoint sync window
   const [spUrl, setSpUrl] = useState("");          // editable file URL inside the sync window
+  const [overwrite, setOverwrite] = useState(null); // REV169: {row, parsed, diffs} when an existing week would be overwritten with different data
 
   const loadWeeks = useCallback(async (selectWeek) => {
     setLoading(true); setErr("");
@@ -539,6 +572,19 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
 
   const data = useMemo(() => snap ? { ...snap, config: cfg } : null, [snap, cfg]);
 
+  const commitImport = async (row, parsed) => {
+    try {
+      const { error } = await supabase.from("cx_week").upsert(row, { onConflict: "project_id,week_ending" });
+      if (error) throw error;
+      await loadWeeks(parsed.week_ending);
+      const dv = (parsed.detail.docs && parsed.detail.docs.rows && parsed.detail.docs.rows.length) || 0;
+      const aw = (parsed.detail.attendance && parsed.detail.attendance.length) || 0;
+      const rk = (parsed.detail.risks && parsed.detail.risks.length) || 0;
+      setInfo("Imported week ending " + fmtFull(parsed.week_ending) + ": " + dv + " document vendors, " + aw + " attendance week(s), " + rk + " risk(s)." + (parsed.warnings.length ? " Notes: " + parsed.warnings.join(" | ") : ""));
+    } catch (e) { setErr("Import failed: " + (e.message || String(e))); }
+    setBusy(false);
+  };
+
   const onImport = async (file) => {
     if (!file) return; setBusy(true); setErr(""); setInfo("");
     try {
@@ -554,15 +600,17 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
         irl_opened: H.irl_opened, irl_started: H.irl_started, irl_delivered: H.irl_delivered, irl_verified: H.irl_verified,
         detail: parsed.detail,
       };
-      const { error } = await supabase.from("cx_week").upsert(row, { onConflict: "project_id,week_ending" });
-      if (error) throw error;
-      await loadWeeks(parsed.week_ending);
-      const dv = (parsed.detail.docs && parsed.detail.docs.rows && parsed.detail.docs.rows.length) || 0;
-      const aw = (parsed.detail.attendance && parsed.detail.attendance.length) || 0;
-      const rk = (parsed.detail.risks && parsed.detail.risks.length) || 0;
-      setInfo("Imported week ending " + fmtFull(parsed.week_ending) + ": " + dv + " document vendors, " + aw + " attendance week(s), " + rk + " risk(s)." + (parsed.warnings.length ? " Notes: " + parsed.warnings.join(" | ") : ""));
-    } catch (e) { setErr("Import failed: " + (e.message || String(e))); }
-    setBusy(false);
+      // REV169: silent-overwrite guard. The week is keyed on the date the workbook reports,
+      // so re-importing a file whose Reporting week ending was not rolled would overwrite an
+      // existing week in place. If the week already exists and the incoming data differs,
+      // stop and make the human confirm rather than clobbering a prior snapshot silently.
+      const { data: existing } = await supabase.from("cx_week").select("*").eq("project_id", projectId).eq("week_ending", parsed.week_ending).maybeSingle();
+      if (existing) {
+        const diffs = weekImportDiffs(existing, parsed);
+        if (diffs.length) { setOverwrite({ row: row, parsed: parsed, diffs: diffs }); setBusy(false); return; }
+      }
+      await commitImport(row, parsed);
+    } catch (e) { setErr("Import failed: " + (e.message || String(e))); setBusy(false); }
   };
 
   const saveCfg = async (next) => { setCfg(next); try { await supabase.from("cx_config").upsert({ project_id: projectId, config: next, updated_at: new Date().toISOString(), updated_by: cu && cu.name }, { onConflict: "project_id" }); } catch (e) { setErr("Config save failed: " + (e.message || e)); } };
@@ -718,6 +766,26 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
       {/* configure */}
       {cfgOpen && <Configure cfg={cfg} weeks={weeks} cur={snap && snap.week_ending} onWeek={(we) => setSnap(weeks.find((w) => w.week_ending === we) || null)} onSave={saveCfg} onClose={() => setCfgOpen(false)} />}
       {syncOpen && <SyncModal theme={theme} spAcct={spAcct} busy={busy} spUrl={spUrl} setSpUrl={setSpUrl} savedUrl={(cfg && cfg.sp && cfg.sp.file_url) || ""} onConnect={onConnectSp} onRun={onSyncSp} onPull={pullUrlFromAssets} onClose={() => setSyncOpen(false)} />}
+      {overwrite && <>
+        <div className="cxp-scrim show" onClick={() => { setInfo("Import cancelled. Week ending " + fmtFull(overwrite.parsed.week_ending) + " already exists and the incoming data differs. If this is a new week, roll the Reporting week ending cell in the source file, then import again."); setOverwrite(null); }} />
+        <div className={"cxp-sync" + (theme === "dark" ? " cxp-dark" : "")} onClick={(e) => e.stopPropagation()}>
+          <div className="sh"><h3>Confirm overwrite</h3><button className="cxp-x" onClick={() => setOverwrite(null)}>{"\u2715"}</button></div>
+          <div className="sb">
+            <div className="cxp-note2">Week ending <b>{fmtFull(overwrite.parsed.week_ending)}</b> already exists for this project, and the workbook you are importing has different data. This usually means the source file was updated but the Reporting week ending cell was not rolled to the new week. Overwriting replaces the stored snapshot for that week in place.</div>
+            <div style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}><tbody>
+                <tr><th style={{ textAlign: "left", fontWeight: 600, color: "var(--muted)", padding: "8px 10px" }}>Field</th><th style={{ textAlign: "left", fontWeight: 600, color: "var(--muted)", padding: "8px 10px" }}>Stored</th><th style={{ textAlign: "left", fontWeight: 600, color: "var(--muted)", padding: "8px 10px" }}>Incoming</th></tr>
+                {overwrite.diffs.map((d, i) => <tr key={i}><td style={{ padding: "8px 10px", borderTop: "1px solid var(--line)" }}>{d.label}</td><td style={{ padding: "8px 10px", borderTop: "1px solid var(--line)", color: "var(--muted)" }}>{d.from}</td><td style={{ padding: "8px 10px", borderTop: "1px solid var(--line)", color: "var(--ink)", fontWeight: 600 }}>{d.to}</td></tr>)}
+              </tbody></table>
+            </div>
+            <p className="cxp-note">If you meant to import a new week, cancel, roll the Reporting week ending cell in the source file, then import again. Overwrite only if you are correcting this same week.</p>
+          </div>
+          <div className="sf">
+            <button className="cxp-btn" onClick={() => { setInfo("Import cancelled. Week ending " + fmtFull(overwrite.parsed.week_ending) + " already exists and the incoming data differs. If this is a new week, roll the Reporting week ending cell in the source file, then import again."); setOverwrite(null); }}>Cancel</button>
+            <button className="cxp-btn" style={{ background: "var(--red)", borderColor: "var(--red)", color: "#fff" }} disabled={busy} onClick={async () => { const o = overwrite; setOverwrite(null); setBusy(true); await commitImport(o.row, o.parsed); }}>{busy ? "Overwriting\u2026" : "Overwrite " + fmtFull(overwrite.parsed.week_ending)}</button>
+          </div>
+        </div>
+      </>}
     </div>
   );
 }
