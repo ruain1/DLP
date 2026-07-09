@@ -1171,3 +1171,31 @@ export async function writeBenchmarks(projectId, rows) {
   const { error } = await supabase.from("acc_benchmarks").upsert(incoming, { onConflict: "project_id,fok_ref" });
   return { count: incoming.length, duplicates, error: error ? error.message : null };
 }
+
+// REV170: after Send to Board promotes benchmarks to activities, record the link so the
+// benchmark shows as On Board even if its ref is later edited. Best effort; status also
+// derives from the activity carrying the same fok_ref, so a failed link is not fatal.
+export async function linkBenchmarksToActivities(projectId, links) {
+  if (!projectId || !links || !links.length) return { error: null };
+  const res = await Promise.all(links.map((l) =>
+    supabase.from("acc_benchmarks").update({ board_activity_id: l.id }).eq("project_id", projectId).eq("fok_ref", l.ref)
+  ));
+  const err = res.find((r) => r.error);
+  return { error: err ? err.error.message : null };
+}
+
+// REV172: Match Assignees writes the resolved company (and email, for name matches) per ref.
+export async function resolveBenchmarkCompanies(projectId, updates) {
+  if (!projectId || !updates || !updates.length) return { error: null };
+  const res = await Promise.all(updates.map((u) =>
+    supabase.from("acc_benchmarks").update({ company_id: u.company_id || null, resolved_email: u.resolved_email || null }).eq("project_id", projectId).eq("fok_ref", u.fok_ref)
+  ));
+  const err = res.find((r) => r.error);
+  return { error: err ? err.error.message : null };
+}
+// REV172: archive/restore a benchmark. Completed rows drop out of the default view.
+export async function setBenchmarkComplete(projectId, fokRef, done) {
+  if (!projectId || !fokRef) return { error: "missing" };
+  const { error } = await supabase.from("acc_benchmarks").update({ completed_at: done ? new Date().toISOString() : null }).eq("project_id", projectId).eq("fok_ref", fokRef);
+  return { error: error ? error.message : null };
+}

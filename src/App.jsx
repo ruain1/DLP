@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -2457,6 +2457,33 @@ export default function App({ session }) {
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
+  const sendBenchmarksToBoard = (items) => {
+    if (!items || !items.length) return;
+    const acts = S.activities.slice();
+    let created = 0, updated = 0; const links = [];
+    items.forEach((it) => {
+      const b = it.benchmark;
+      const disc = String(b.discipline || "").toUpperCase();
+      const date = String(it.date != null ? it.date : (b.planned_date || "")).slice(0, 10);
+      const invite = !!it.invite;
+      const witnessAt = (invite && date) ? (date + "T" + (it.time || "10:00") + ":00") : "";
+      const dur = Number(it.durationMin) || 120;
+      const title = (it.title != null ? it.title : (b.title || "")) || b.fok_ref;
+      const assignee = it.assigneeEmail != null ? it.assigneeEmail : (b.assignee_email || "");
+      const ex = acts.find((a) => (a.fokRef && a.fokRef === b.fok_ref) || (b.board_activity_id && a.id === b.board_activity_id));
+      if (ex) {
+        const i = acts.indexOf(ex);
+        acts[i] = { ...ex, desc: title, discipline: [disc], assigneeEmail: assignee, accUrl: b.acc_url || ex.accUrl || "", witnessInvite: invite, witnessType: invite ? (ex.witnessType || "L2 FOK") : "", witnessAt, witnessDurationMin: dur, start: date || ex.start, committed: false };
+        updated++; links.push({ ref: b.fok_ref, id: ex.id });
+      } else {
+        const id = uid("a");
+        acts.push({ id, code: nextCode(acts), predecessors: [], desc: title, companyId: b.company_id || csnCompanyId || (S.companies[0] || {}).id || null, area: "L0 & L1 - Site General", subArea: "", tier3: "", asset: "", system: "", level: "L2", start: date, duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [disc], witnessInvite: invite, witnessType: invite ? "L2 FOK" : "", witnessAt, witnessDurationMin: dur, witnessDays: 1, notes: b.notes || "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null, fokRef: b.fok_ref, accUrl: b.acc_url || "", assigneeEmail: assignee });
+        created++; links.push({ ref: b.fok_ref, id });
+      }
+    });
+    update((prev) => ({ ...prev, activities: acts }), { action: "Send benchmarks to board", detail: created + " created, " + updated + " updated" });
+    if (selProj) linkBenchmarksToActivities(selProj, links);
+  };
   const exportActivities = () => {
     const headers = ["Code", "Description", "Company", "Location code", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Milestone", "Witness invite", "Witness outcome", "Failure reason", "Outcome date", "Retest of", "Predecessors", "Planned start", "Planned finish", "Duration (d)", "Actual start", "Actual finish", "Delay (d)", "Forecast start", "Forecast finish", "Knock-on (d)", "Status", "Percent (%)", "Committed", "Reason for non-completion", "Open constraints", "Constraints", "Notes"];
     const predCodes = (a) => (a.predecessors || []).map((pid) => { const p = S.activities.find((x) => x.id === pid); return p && p.code != null ? "#" + p.code : null; }).filter(Boolean).join("; ");
@@ -2928,7 +2955,7 @@ export default function App({ session }) {
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
-      {page === "benchmarks" && (isAdmin || (S.settings && S.settings.benchmarksVisible)) && <div className="lk-fillpage"><BenchmarksPage projectId={selProj} isAdmin={isAdmin} isOwner={isOwner} cu={cu} activities={S.activities} settings={S.settings} update={update} /></div>}
+      {page === "benchmarks" && (isAdmin || (S.settings && S.settings.benchmarksVisible)) && <div className="lk-fillpage"><BenchmarksPage projectId={selProj} isAdmin={isAdmin} isOwner={isOwner} cu={cu} activities={S.activities} settings={S.settings} update={update} onSendToBoard={sendBenchmarksToBoard} users={S.users} companies={S.companies} /></div>}
       {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
       {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
