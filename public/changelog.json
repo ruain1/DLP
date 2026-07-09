@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV168",
+    "date": "2026-07-09",
+    "items": [
+      "Fix: the FOK import failed with \"ON CONFLICT DO UPDATE command cannot affect row a second time\" when the register reused a FOK Register ID (ref 8160 appears twice on the CSA sheet). writeBenchmarks now dedupes by ref before the upsert, last wins, and the import message reports how many duplicates were collapsed so a data-entry dup in the register is visible rather than silent."
+    ]
+  },
+  {
     "rev": "REV167",
     "date": "2026-07-09",
     "items": [
