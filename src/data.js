@@ -668,6 +668,14 @@ export async function saveReportRecipients(projectId, recipients) {
 // Keys and grouping for the User Privileges matrix. Baselines mirror live
 // behaviour as of REV103 (see has_priv in supabase/user-privileges-REV104.sql;
 // the two resolvers must stay in lockstep).
+// REV175: set only an activity's percent complete via the SECURITY DEFINER RPC, so a
+// member can record progress on any company's activity without touching any other field.
+export async function setActivityPercent(id, percent) {
+  const p = percent == null ? null : Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+  const { error } = await supabase.rpc("set_activity_percent", { p_id: id, p_percent: p });
+  if (error) throw error;
+}
+
 export const PRIV_GROUPS = [
   ["Planning Board", [["create", "Create Activities"], ["editOwn", "Edit Own Company Work"], ["editAny", "Edit Any Company Work"], ["del", "Delete Activities"], ["commit", "Commit Weekly Plan"], ["editCommitted", "Edit Committed Work"], ["delay", "Record Delays"]]],
   ["Witnessing", [["witnessReq", "Set Witness Requirements"], ["witnessSend", "Send Witness Invitations"], ["requestInv", "Request Invites"], ["witnessOutcome", "Record Witness Outcomes"], ["retest", "Declare Retests"]]],

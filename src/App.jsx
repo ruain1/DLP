@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -330,7 +330,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-rail.open .lk-dispbtn .lbl{display:inline;font-size:13px;font-weight:600}
 .lk-dispback{position:fixed;inset:0;z-index:59}
 .lk-dispfly{position:absolute;left:calc(100% + 16px);bottom:0;width:242px;background:#232c38;border:1px solid #384556;border-radius:12px;box-shadow:6px 12px 20px rgba(0,0,0,.5);padding:8px 8px 9px;z-index:60}
-.lk-rail.open .lk-dispfly{left:auto;right:8px;bottom:44px}
+.lk-rail.open .lk-dispfly{left:calc(100% + 12px);right:auto;bottom:0}
 .lk-dispfly h5{margin:3px 12px 8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#8b98ab;font-weight:800}
 .lk-dispfly .lk-dispopt{display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;height:auto;min-height:34px;text-align:left;background:transparent;border:0;border-radius:8px;padding:5px 10px;color:#dbe3ee;font-family:inherit;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
 .lk-dispfly .lk-dispopt:hover{background:#2c3644}
@@ -780,6 +780,26 @@ const fmtISO = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart
 const addDays = (dt, n) => { const x = new Date(dt); x.setDate(x.getDate() + n); return x; };
 const pctOf = (a) => (a && a.percent != null) ? Math.max(0, Math.min(100, Math.round(a.percent))) : ((a && a.status === "complete") ? 100 : 0);
 const statusWord = (a) => a.status === "complete" ? "Complete" : a.status === "in_progress" ? "In progress" : "Planned";
+const CASE_MINOR = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "of", "on", "or", "the", "to", "vs", "via", "with", "x"]);
+// REV174: display-only name casing for the board. Any token that is all-caps (2+ letters),
+// mixed-case (iDCM), or contains a digit (RET615, GY03/04) is left untouched so acronyms and
+// codes survive; everything else is title-cased with minor words lowered. Never mutates stored
+// text, so search, exports, invites and the audit log are unaffected.
+function castName(s, mode) {
+  if (!s || !mode || mode === "original") return s;
+  if (mode === "upper") return String(s).toUpperCase();
+  return String(s).split(/(\s+)/).map((tok, i) => {
+    if (!tok || /^\s+$/.test(tok)) return tok;
+    if (/\d/.test(tok)) return tok;
+    const letters = tok.replace(/[^A-Za-z]/g, "");
+    if (!letters) return tok;
+    if (letters.length >= 2 && letters === letters.toUpperCase()) return tok;
+    if (/[A-Z]/.test(tok.slice(1))) return tok;
+    const low = tok.toLowerCase();
+    if (i > 0 && CASE_MINOR.has(low.replace(/[^a-z]/g, ""))) return low;
+    return low.charAt(0).toUpperCase() + low.slice(1);
+  }).join("");
+}
 const tipOf = (a) => `${a.desc || (a.isMilestone ? "Milestone" : "Untitled activity")} \u00B7 ${statusWord(a)} \u00B7 ${pctOf(a)}% complete`;
 const mondayOf = (dt) => { const x = new Date(dt); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x; };
 const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const ft = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); const fd = (ft.getUTCDay() + 6) % 7; ft.setUTCDate(ft.getUTCDate() - fd + 3); return 1 + Math.round((t - ft) / 6048e5); };
@@ -1847,7 +1867,7 @@ export default function App({ session }) {
     try {
       const data = await loadAll(session, projectId, proj?.name);
       const p = prefs();
-      setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company", hideDone: !!p.hideDone, viewWeeks: [1, 2, 4, 6, 8, 12].includes(p.viewWeeks) ? p.viewWeeks : (data.settings && data.settings.weeks) || 4 });
+      setS({ ...data, projectId, projectRole: proj?.role || "member", currentUserId: session.user.id, theme: p.theme || "light", view: p.view || "swimlane", grain: p.grain || "day", laneBy: p.laneBy || "company", nameCase: ["upper", "title"].includes(p.nameCase) ? p.nameCase : "original", hideDone: !!p.hideDone, viewWeeks: [1, 2, 4, 6, 8, 12].includes(p.viewWeeks) ? p.viewWeeks : (data.settings && data.settings.weeks) || 4 });
       if (initialPage) setPage(initialPage);
     } catch (e) { console.error("Load failed:", e); }
   };
@@ -1894,7 +1914,7 @@ export default function App({ session }) {
   useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
-  const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks", "palette"];
+  const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks", "palette", "nameCase"];
   const cu = S && (() => {
     const base = S.users.find((u) => u.id === S.currentUserId) || { id: session.user.id, name: session.user.email, role: "member", companyId: null };
     return { ...base, role: (isSuper || S.projectRole === "admin") ? "admin" : "member" };
@@ -1904,7 +1924,7 @@ export default function App({ session }) {
   // intentionally ignored and kept only as inline documentation of intent.
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
-    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks, palette: n.palette })); } catch (e) {} }
+    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks, palette: n.palette, nameCase: n.nameCase })); } catch (e) {} }
     syncCollections(prev, n, session, prev.projectId);
     return n;
   });
@@ -2403,6 +2423,15 @@ export default function App({ session }) {
       { action: isNew ? "Create activity" : "Edit activity", detail: `${a.desc} (${coName(a.companyId)})` });
     setEditing(null);
   };
+  // REV175: cross-company members can record percent complete only, via the RPC
+  // (the normal upsert path is blocked for them by the company-scoped RLS policy).
+  const savePercent = async (id, percent) => {
+    try {
+      await setActivityPercent(id, percent);
+      setS((prev) => ({ ...prev, activities: prev.activities.map((x) => x.id === id ? { ...x, percent } : x) }));
+      setEditing(null);
+    } catch (e) { window.alert("Could not save progress: " + (e.message || String(e))); }
+  };
   const removeActivity = (a) => { update((p) => ({ ...p, activities: p.activities.filter((x) => x.id !== a.id).map((x) => (x.predecessors && x.predecessors.includes(a.id)) ? { ...x, predecessors: x.predecessors.filter((pid) => pid !== a.id) } : x) }), { action: "Delete activity", detail: a.desc }); setEditing(null); };
   // Save the failed attempt and create its linked retest in one state update, so the pair persists together.
   const saveWithRetest = (fa, ra) => {
@@ -2584,7 +2613,7 @@ export default function App({ session }) {
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "") + (failedInv ? " ghostfail" : "")}
         style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : lv.color), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
         draggable={movable && !rz && !failedInv} onDragStart={() => movable && !failedInv && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={failedInv ? `Witness failed${a.outcomeAt ? " " + a.outcomeAt : ""}${a.outcomeReason ? " \u00b7 " + a.outcomeReason : ""} \u00b7 ${tipOf(a)}` : carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
-        <div className="desc">{(carried || failCarried) && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{a.desc || "Untitled activity"}</div>
+        <div className="desc">{(carried || failCarried) && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{castName(a.desc || "Untitled activity", S.nameCase)}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
           {a.committed && <span className="lk-chip commit">will</span>}
@@ -2844,6 +2873,11 @@ export default function App({ session }) {
         <button className={"lk-btn pill" + (S.hideDone ? " on" : "")} title="Hide activities marked Complete so open work stands out. Failed witness events stay visible until their retest closes them. Board display only: KPIs, reports, exports and the Witness Schedule are unaffected." onClick={() => setS((prev) => ({ ...prev, hideDone: !prev.hideDone }))}><Icon n="check" s={14} />Hide Complete</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
         <div className="lk-spacer" />
+        <span className="lk-caseseg" title="Activity name case on the board (display only; stored text is unchanged)" style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", marginRight: 2 }}>
+          {[["original", "Orig"], ["upper", "CAPS"], ["title", "Title"]].map(([k, lbl]) => (
+            <button key={k} className="lk-caseopt" style={{ fontSize: 12, fontWeight: 700, padding: "6px 10px", border: 0, borderRight: k !== "title" ? "1px solid var(--line)" : 0, cursor: "pointer", background: (S.nameCase || "original") === k ? "var(--accent)" : "var(--card)", color: (S.nameCase || "original") === k ? "#fff" : "var(--muted)" }} onClick={() => update((pp) => ({ ...pp, nameCase: k }))}>{lbl}</button>
+          ))}
+        </span>
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
         <button className="lk-btn primary" onClick={() => newActivity()}><Icon n="plus" s={15} />Activity</button>
@@ -2964,7 +2998,7 @@ export default function App({ session }) {
       </div>
 
       {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "rgba(14,147,132,.14)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "#0E9384" : "#C0392B"), color: digestNote.ok ? "#0E9384" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onSavePercent={savePercent} canPercent={can("editOwn") && !isClientViewer} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -3178,7 +3212,7 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onClose, onDelete, hasLiveInvite, onCancelInvite, onTestInvite, olConnected }) {
+function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onSavePercent, onClose, onDelete, hasLiveInvite, onCancelInvite, onTestInvite, olConnected }) {
   const [a, setA] = useState(act);
   const [twBusy, setTwBusy] = useState(false);   // Test Invite To Me in-flight
   const [twNote, setTwNote] = useState(null);    // its result line, local to this drawer
@@ -3228,6 +3262,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
     if (onSaveRetest && can("retest")) onSaveRetest(a, clone); else onSave(a, isNew);
   };
   const setReason = (v) => { if (!canEdit) return; setA((p) => ({ ...p, slipReason: v })); };
+  const setPct = (v) => { if (locked || !canPercent) return; setA((p) => ({ ...p, percent: v })); };
   const isNew = !act.desc && act.constraints.length === 0;
   const doReschedule = () => { if (!can("delay") || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
@@ -3304,9 +3339,10 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
         </div>
       </div>}
       <div className="lk-drawer" style={cssVars(S.theme)} onClick={(e) => e.stopPropagation()}>
-        <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
+        <div className="lk-dh"><h3>{isNew ? "New Activity" : canEdit ? "Edit Activity" : canPercent ? "Record Progress" : "Activity (View Only)"}</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="lk-db">
-          {!canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
+          {!canEdit && !canPercent && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can view it but not change it.</div>}
+          {!canEdit && canPercent && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />This activity belongs to another company. You can record percent complete on the Schedule tab; everything else is read-only.</div>}
           {planLocked && canEdit && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Committed promise: the plan is locked. Progress, percent, reasons for non-completion and witness outcomes can still be recorded. Ask an admin to change or delete this commitment.</div>}
           <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
             {[["details", "Details"], ["schedule", "Schedule"], ["ready", "Readiness"]].concat(can("delay") && !isNew ? [["delay", "Delay"]] : []).map(([k, l]) => (
@@ -3511,7 +3547,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
             ? <div className="lk-f"><label>Percent complete</label>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--muted)" }}><span>{a.status === "complete" ? "100" : "0"}%</span><span style={{ fontSize: 9.5, border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>locked for milestones</span></div>
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>0 while Planned, 100 on Complete. Keeps the Gantt fill and exports clean.</span></div>
-            : <div className="lk-f"><label>Percent complete</label><input className="lk-in mono" type="number" min="0" max="100" step="5" value={a.percent == null ? "" : a.percent} disabled={dis} placeholder={a.status === "complete" ? "100" : "0"} onChange={(e) => { const v = e.target.value; set("percent", v === "" ? null : Math.max(0, Math.min(100, Math.round(Number(v) || 0)))); }} />
+            : <div className="lk-f"><label>Percent complete</label><input className="lk-in mono" type="number" min="0" max="100" step="5" value={a.percent == null ? "" : a.percent} disabled={locked || !canPercent} placeholder={a.status === "complete" ? "100" : "0"} onChange={(e) => { const v = e.target.value; setPct(v === "" ? null : Math.max(0, Math.min(100, Math.round(Number(v) || 0)))); }} />
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Manual progress you set. Left blank it reads {a.status === "complete" ? "100" : "0"}% from the status.</span></div>}
           {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "#0E9384" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
           {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
@@ -3580,6 +3616,10 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
             : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
           <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
           <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
+        </div>}
+        {!canEdit && canPercent && !isNew && <div className="lk-df">
+          <div className="lk-spacer" /><span style={{ fontSize: 11.5, color: "var(--muted)", alignSelf: "center", marginRight: 8 }}>Recording percent complete only</span><button className="lk-btn" onClick={onClose}>Cancel</button>
+          <button className="lk-btn primary" onClick={() => onSavePercent(act.id, a.percent)} disabled={a.percent === act.percent}><Icon n="check" s={15} />Save progress</button>
         </div>}
         {!canEdit && clientViewer && !isNew && <div className="lk-df">
           <span style={{ fontSize: 11.5, color: "var(--muted)" }}>Want to attend? Request an invite and an admin will forward it to you.</span>
