@@ -247,6 +247,7 @@ const dRow = (label, valueHtml) => valueHtml ? `<tr><td width="130" style="paddi
 //      activityUrl (link back to the activity in DLP; omitted when absent),
 //      fokRef (external FOK register id, shown as its own row; omitted when absent),
 //      accUrl (Autodesk ACC field report link, rendered as a LINK TO ACC FILES button; omitted when absent),
+//      assigneeEmail (column H assignee; shown as an Assignee row and added to required attendees; omitted when absent),
 //      notes, dayLabel, organiser, logo: { width, alt } | null }
 // REV119: the amber block itemises the open constraints (approved mockup) instead of a bare
 // count. Rows arrive pre-sorted from the caller (overdue first, soonest need-by next, undated
@@ -305,6 +306,7 @@ export function buildInviteBodyHtml(p) {
     + dRow("Cx Stage", eH(p.cxStage))
     + dRow("System", eH(p.system))
     + dRow("Discipline", eH(p.discipline))
+    + dRow("Assignee", p.assigneeEmail ? eH(p.assigneeEmail) : "")
     + dRow("Sessions", eH(p.sessionsLine))
     + `</table></td></tr>`
     + constraintsBlock(p)

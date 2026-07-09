@@ -2026,8 +2026,20 @@ export default function App({ session }) {
   // Snapshot of the invite-relevant fields. A later change to any of them flips the row to
   // Details Changed. Day count is handled structurally (entries vs witnessDays), not hashed,
   // so adding a day offers Send Remaining instead of re-sending everything.
-  const invHash = (a) => {
+  // REV160: the column H assignee joins the required attendees for FOK invites. Resolved here so the
+  // change hash, the send, and the editor preview share one recipient set. Deduped against the
+  // discipline list and cc; an empty assigneeEmail leaves every existing invite's recipients untouched.
+  const inviteRecipients = (a) => {
     const { to, cc } = witnessRecipients(a.discipline || []);
+    const extra = (a.assigneeEmail || "").trim();
+    if (!extra) return { to, cc };
+    const low = extra.toLowerCase();
+    const inTo = (to || []).some((e) => e.toLowerCase() === low);
+    const inCc = (cc || []).some((e) => e.toLowerCase() === low);
+    return inTo || inCc ? { to, cc } : { to: [...(to || []), extra], cc };
+  };
+  const invHash = (a) => {
+    const { to, cc } = inviteRecipients(a);
     // witnessType joins the hash only when set: appending it unconditionally would change the
     // hash formula for every already-sent invite and flip them all to Details Changed on deploy.
     const parts = [a.desc || "", locCode(a), a.witnessAt || "", a.witnessDurationMin || 60, a.accUrl || "", a.fokRef || "", (to || []).slice().sort(), (cc || []).slice().sort()];
@@ -2063,7 +2075,7 @@ export default function App({ session }) {
   // Plain fields per session day; the styled HTML body is assembled by the shared template in
   // outlook.js (buildInviteBodyHtml), in the email-safe subset, with the vendor logo as a CID.
   const invFields = (a, dayIdx) => {
-    const { to, cc } = witnessRecipients(a.discipline || []);
+    const { to, cc } = inviteRecipients(a);
     const n = Math.max(1, a.witnessDays || 1);
     const sd = new Date(a.witnessAt); sd.setDate(sd.getDate() + dayIdx);   // calendar arithmetic, DST-safe (REV82)
     const mins = a.witnessDurationMin || 60;
@@ -2093,7 +2105,7 @@ export default function App({ session }) {
       sessionsLine: (n > 1 ? `${n} daily sessions, ` : "") + `${hm(sd)} to ${hm(ed)} (Europe/Helsinki)`,
       openCount: openCons.length, openConstraints: openCons,
       activityUrl: (typeof window !== "undefined" && window.location && window.location.origin ? window.location.origin : "") + "/?p=" + encodeURIComponent(S.projectId || "") + "&act=" + encodeURIComponent(a.id),
-      notes: (a.notes || "").replace(/\n*LINK TO ACC FILES:[^\n]*/gi, "").trim(), fokRef: a.fokRef || "", accUrl: a.accUrl || "", retest,
+      notes: (a.notes || "").replace(/\n*LINK TO ACC FILES:[^\n]*/gi, "").trim(), fokRef: a.fokRef || "", accUrl: a.accUrl || "", assigneeEmail: a.assigneeEmail || "", retest,
       headerChip: retest ? `Attempt ${att}` + (dayChip ? " \u00b7 " + dayChip : "") : dayChip,
       startLocal: sd, durationMin: mins, required: to || [], optional: cc || [],
     };
@@ -3414,7 +3426,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, inviteForMe, 
             </div>
             {twNote && <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 8, border: "1px solid " + (twNote.ok ? "rgba(14,147,132,.5)" : "rgba(192,57,58,.5)"), color: twNote.ok ? "#0E9384" : "#C0392B", background: twNote.ok ? "rgba(14,147,132,.07)" : "rgba(192,57,58,.07)" }}>{twNote.text}</div>}
           </div>}
-          {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = witnessRecipients(a.discipline); return (
+          {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = inviteRecipients(a); return (
             <div className="lk-f"><label>Invite recipients <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(set by discipline)</span></label>
               <div style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)", padding: "8px 10px", maxHeight: 170, overflow: "auto" }}>
                 <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 5 }}>Required ({rcp.to.length})</div>
