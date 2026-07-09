@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV174",
+    "date": "2026-07-09",
+    "items": [
+      "Send to Board modal: a Hide past toggle (on by default) drops benchmarks whose date is before today out of the send and shows how many are hidden; turn it off to include and re-date them. It keys off the row edited date, so fixing a past date to a future one brings the row back.",
+      "For benchmarks already on the board (Changed In ACC), a new Board column offers Update, which pushes the register change to the existing activity and shows its code, or Keep current, which leaves the board activity untouched and skips it. New benchmarks show as New. The confirmation reports how many were updated versus new."
+    ]
+  },
+  {
     "rev": "REV173",
     "date": "2026-07-09",
     "items": [
