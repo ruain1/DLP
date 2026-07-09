@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV161",
+  "date": "2026-07-08",
+  "items": [
+   "Hotfix: the Readiness drawer went blank for any witness activity with a discipline. REV160 defined the assignee-aware recipient resolver inside the App component only, but the Drawer is a separate component, so its recipient preview hit an undefined reference and unmounted the page. The resolver is now a module-level function, in scope for both App and Drawer. No data or invite behaviour changes; recipients resolve identically."
+  ]
+ },
+ {
   "rev": "REV160",
   "date": "2026-07-08",
   "items": [
