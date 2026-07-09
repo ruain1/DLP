@@ -1,5 +1,31 @@
 [
   {
+    "rev": "REV172",
+    "date": "2026-07-09",
+    "items": [
+      "Benchmarks page reworked (cumulative with REV170 and REV171). CSA now stays on the benchmark board and never goes to the planning board: Send to Board only offers disciplines that have witness routing, which excludes CSA. New Match Assignees button resolves each assignee to a company (an email by domain, a name against the user directory) and stores it, shown in a new Company column and used as the activity company when sent. Buttons now use the planning board lk-btn styles.",
+      "New Hide Past toggle zooms the board to the present and future; benchmarks can be marked Complete to drop out of the default view and Restored from a Show Completed filter. Sticky header no longer bleeds (z-index fix). New activities default their area to L0 & L1 - Site General. Run supabase/acc-benchmarks-fields.sql to add company_id, resolved_email and completed_at.",
+      "Sending still never commits or emails: activities are created uncommitted with invites Not Sent (or none where the per row Invite toggle is off), released later through Send All Pending."
+    ]
+  },
+  {
+    "rev": "REV171",
+    "date": "2026-07-09",
+    "items": [
+      "Send to Board is now a confirm and fix step. The modal shows the assignee clearly and lets you correct it, the title and the date, and add or confirm the time and duration per row, with defaults applied to all rows unless overridden. A per row Invite toggle controls whether a witness invite is created: it defaults on for disciplines that have routing and off for CSA, so CSA benchmarks are added to the board without an invite as requested.",
+      "Sending never commits and never emails. Activities are created uncommitted with invites in the Not Sent state, or with no invite where the toggle is off. You commit them in the lookahead, then release invites through Send All Pending. The confirmation message states the uncommitted, unsent state explicitly. Cumulative with REV170 (the Send to Board feature itself), so pushing these files applies both."
+    ]
+  },
+  {
+    "rev": "REV170",
+    "date": "2026-07-09",
+    "items": [
+      "Send to Board on the Benchmarks page (Owner and Admin). It opens a modal of the dated benchmarks that are ready or changed, with a default witness time and duration plus per row overrides, an attendees preview from the discipline routing, and per row selection. Confirming creates board activities, or updates the existing one for a changed benchmark, as L2 FOK witness activities with invites in the Not Sent state, then links the benchmark. Nothing is emailed; invites are released as usual through Send All Pending.",
+      "Faithful to the mockup: only dated, sendable benchmarks are listed; the time and duration defaults apply to every row unless a row overrides them; changed benchmarks are relabelled and update in place rather than duplicate; the footer count and the Send button track the selection. Creation runs through the same update path and toActivity mapping the board already uses, with witnessType L2 FOK and the register discipline routed via witnessContacts.",
+      "Note: witnessContacts has no TO list for CSA, so CSA benchmarks currently route to CC and organiser only until a CSA discipline list is added. Electrical and Mechanical route to their full lists."
+    ]
+  },
+  {
     "rev": "REV169",
     "date": "2026-07-09",
     "items": [
