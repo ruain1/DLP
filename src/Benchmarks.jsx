@@ -5,7 +5,7 @@
 // visibility toggle are Owner and Admin only. CSA stays here and never goes to the planning
 // board. Buttons use the planning board's lk-btn styles.
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadBenchmarks, writeBenchmarks, resolveBenchmarkCompanies, setBenchmarkComplete } from "./data";
+import { loadBenchmarks, writeBenchmarks, resolveBenchmarkCompanies, setBenchmarkComplete, loadBenchmarkImports, diffBenchmarkSnapshots } from "./data";
 import { benchmarksWithStatus } from "./accReconcile";
 import { importFokWorkbook } from "./benchmarkImport";
 import { witnessRecipients } from "./witnessContacts";
@@ -44,6 +44,10 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   const [rowInvite, setRowInvite] = useState({});
   const [rowAction, setRowAction] = useState({});
   const [hidePastStb, setHidePastStb] = useState(true);
+  const [histOpen, setHistOpen] = useState(false);   // REV177: register change log
+  const [imports, setImports] = useState([]);
+  const [idxA, setIdxA] = useState(0);
+  const [idxB, setIdxB] = useState(1);
 
   const reload = () => {
     if (!projectId) { setBenchmarks([]); return; }
@@ -81,7 +85,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
       const ab = await f.arrayBuffer();
       const { rows: imported, perSheet } = await importFokWorkbook(ab);
       if (!imported.length) throw new Error("No FOK rows found. Check the workbook has the Electrical, Mechanical or CSA sheets.");
-      const res = await writeBenchmarks(projectId, imported);
+      const res = await writeBenchmarks(projectId, imported, cu && cu.name);
       if (res.error) throw new Error(res.error);
       setMsg("Imported " + res.count + " benchmarks" + (res.duplicates ? " (" + res.duplicates + " duplicate ref collapsed)" : "") + " \u00b7 " + Object.entries(perSheet).map(([k, v]) => k + " " + v).join(", "));
       reload();
@@ -89,6 +93,12 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
       setMsg("Import failed: " + (err && err.message ? err.message : String(err)));
     }
     setBusy(false);
+  };
+
+  const openHistory = async () => {
+    setHistOpen(true);
+    const ims = await loadBenchmarkImports(projectId);
+    setImports(ims); setIdxA(0); setIdxB(ims.length > 1 ? 1 : 0);
   };
 
   // Match each assignee to a company: an email by domain, a name against the user directory.
@@ -196,6 +206,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
           <div style={S.switch()} onClick={toggleVisibility} title="When on, project members can see the Benchmarks page">
             <span style={S.track(visible)}><span style={S.knob(visible)} /></span>Visible to members
           </div>
+          <button className="lk-btn" onClick={openHistory}>History</button>
           <button className="lk-btn" disabled={busy || !(benchmarks && benchmarks.length)} onClick={matchAssignees}>Match Assignees</button>
           <input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={onFile} />
           <button className="lk-btn" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>{busy ? "Working\u2026" : "Import Register"}</button>
@@ -249,6 +260,41 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
         )}
       </div>
 
+      {histOpen && admin && (() => {
+        const A = imports[idxA], B = imports[idxB];
+        const d = (A && B) ? diffBenchmarkSnapshots(B.snapshot || [], A.snapshot || []) : { added: [], removed: [], changed: [], unchanged: 0 };
+        const fmt = (im) => im ? new Date(im.imported_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) + (im.imported_by_name ? " \u00b7 " + im.imported_by_name : "") : "";
+        const pill = (bg, fg) => ({ fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 999, background: bg, color: fg });
+        const glabel = (c) => ({ fontSize: 11, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: c, margin: "16px 0 6px" });
+        const row = { display: "flex", gap: 10, padding: "8px 0", borderTop: "1px solid var(--line)", fontSize: 12.5 };
+        const refCell = { color: "var(--accent)", fontVariantNumeric: "tabular-nums", width: 54, flexShrink: 0, fontWeight: 600 };
+        return <div style={{ position: "fixed", inset: 0, background: "rgba(4,8,12,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", zIndex: 60 }} onClick={() => setHistOpen(false)}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, width: "min(880px, 96vw)", maxHeight: "84vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ ...S.head, position: "sticky", top: 0, background: "var(--card)", zIndex: 2 }}>
+              <div><h1 style={S.h1}>Register change log</h1><div style={S.sub}>Compare an import against an earlier one</div></div>
+              <div style={{ flex: 1 }} />
+              <button className="lk-btn" onClick={() => setHistOpen(false)}>Close</button>
+            </div>
+            {imports.length < 2 ? <div style={{ padding: 24, color: "var(--muted)", fontSize: 13 }}>Only one import on record so far. The next import will compare against this one.</div> : <div style={{ padding: "14px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                <select className="lk-select" value={idxA} onChange={(e) => setIdxA(Number(e.target.value))}>{imports.map((im, i) => <option key={im.id} value={i}>{fmt(im)}</option>)}</select>
+                <span style={{ color: "var(--muted)", fontSize: 12 }}>vs</span>
+                <select className="lk-select" value={idxB} onChange={(e) => setIdxB(Number(e.target.value))}>{imports.map((im, i) => <option key={im.id} value={i}>{fmt(im)}</option>)}</select>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span style={pill("#0f2a20", "#5fd0a6")}>{d.added.length} added</span>
+                <span style={pill("#2f1a1c", "#ff8079")}>{d.removed.length} removed</span>
+                <span style={pill("#2e2713", "#e6b23a")}>{d.changed.length} changed</span>
+                <span style={pill("var(--card2)", "var(--muted)")}>{d.unchanged} unchanged</span>
+              </div>
+              {d.added.length > 0 && <><div style={glabel("#5fd0a6")}>Added ({d.added.length})</div>{d.added.map((r) => <div key={r.ref} style={row}><span style={refCell}>{r.ref}</span><span style={{ flex: 1, color: "var(--ink)" }}>{r.title}</span><span style={{ color: "var(--muted)" }}>{[r.discipline, r.planned].filter(Boolean).join(" \u00b7 ")}</span></div>)}</>}
+              {d.removed.length > 0 && <><div style={glabel("#ff8079")}>Removed ({d.removed.length})</div>{d.removed.map((r) => <div key={r.ref} style={row}><span style={refCell}>{r.ref}</span><span style={{ flex: 1, color: "var(--ink)" }}>{r.title}</span><span style={{ color: "var(--muted)" }}>no longer in the register</span></div>)}</>}
+              {d.changed.length > 0 && <><div style={glabel("#e6b23a")}>Changed ({d.changed.length})</div>{d.changed.map((r) => <div key={r.ref} style={row}><span style={refCell}>{r.ref}</span><span style={{ flex: 1 }}><div style={{ color: "var(--ink)" }}>{r.title}</div>{r.fields.map((f, i) => <div key={i} style={{ color: "var(--muted)", marginTop: 2 }}>{f.label}: <span style={{ textDecoration: "line-through" }}>{f.from || "(blank)"}</span> {"\u2192"} <span style={{ color: "#e6d08a", fontWeight: 600 }}>{f.to || "(blank)"}</span></div>)}</span></div>)}</>}
+              {d.added.length + d.removed.length + d.changed.length === 0 && <div style={{ padding: "18px 0", color: "var(--muted)", fontSize: 13 }}>No differences between these two imports.</div>}
+            </div>}
+          </div>
+        </div>;
+      })()}
       {stbOpen && admin && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(4,8,12,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", zIndex: 60 }} onClick={() => setStbOpen(false)}>
           <div style={{ width: 920, maxWidth: "100%", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>

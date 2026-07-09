@@ -1154,7 +1154,7 @@ export async function loadBenchmarks(projectId) {
 // staging table (the ACC webhook will later write the same shape). Marks everything not present
 // first, then flips the current rows back on, so a ref dropped from the register shows as
 // Removed In ACC. board_activity_id is not in the payload, so existing board links survive.
-export async function writeBenchmarks(projectId, rows) {
+export async function writeBenchmarks(projectId, rows, importedByName) {
   if (!projectId) return { error: "No project selected" };
   await supabase.from("acc_benchmarks").update({ present: false }).eq("project_id", projectId);
   // Dedupe by fok_ref (last wins). A register can reuse an ID (e.g. 8160 appears twice on the
@@ -1177,7 +1177,45 @@ export async function writeBenchmarks(projectId, rows) {
   }));
   if (!incoming.length) return { count: 0, duplicates, error: null };
   const { error } = await supabase.from("acc_benchmarks").upsert(incoming, { onConflict: "project_id,fok_ref" });
+  if (!error) {
+    // REV177: append an immutable snapshot of this import for register comparison (best effort;
+    // a snapshot failure never fails the import itself).
+    try {
+      const snapshot = incoming.map((r) => ({ ref: r.fok_ref, title: r.title || "", planned: r.planned_date || "", assignee: r.assignee_email || "", discipline: r.discipline || "" }));
+      await supabase.from("acc_benchmark_imports").insert({ project_id: projectId, imported_by_name: importedByName || null, count: snapshot.length, snapshot });
+    } catch (e) { /* snapshot is not critical */ }
+  }
   return { count: incoming.length, duplicates, error: error ? error.message : null };
+}
+
+// REV177: load the import snapshots for the register change log, newest first.
+export async function loadBenchmarkImports(projectId) {
+  if (!projectId) return [];
+  const { data, error } = await supabase.from("acc_benchmark_imports")
+    .select("id, imported_at, imported_by_name, count, snapshot")
+    .eq("project_id", projectId).order("imported_at", { ascending: false }).limit(50);
+  if (error) return [];
+  return data || [];
+}
+
+// REV177: pure diff of two register snapshots. prev and curr are arrays of
+// { ref, title, planned, assignee, discipline }. Returns added/removed/changed and an
+// unchanged count. Compares by ref; changed lists the exact fields that moved.
+export function diffBenchmarkSnapshots(prev, curr) {
+  const P = new Map((prev || []).map((r) => [String(r.ref), r]));
+  const C = new Map((curr || []).map((r) => [String(r.ref), r]));
+  const FIELDS = [["title", "Title"], ["planned", "Planned date"], ["assignee", "Assignee"], ["discipline", "Discipline"]];
+  const added = [], removed = [], changed = [];
+  let unchanged = 0;
+  for (const [ref, c] of C) { if (!P.has(ref)) { added.push(c); continue; }
+    const p = P.get(ref); const fields = [];
+    for (const [k, label] of FIELDS) { const a = p[k] == null ? "" : String(p[k]); const b = c[k] == null ? "" : String(c[k]); if (a !== b) fields.push({ label, from: a, to: b }); }
+    if (fields.length) changed.push({ ref, title: c.title || "", fields }); else unchanged++;
+  }
+  for (const [ref, p] of P) { if (!C.has(ref)) removed.push(p); }
+  const byRef = (x, y) => String(x.ref).localeCompare(String(y.ref), undefined, { numeric: true });
+  added.sort(byRef); removed.sort(byRef); changed.sort(byRef);
+  return { added, removed, changed, unchanged };
 }
 
 // REV170: after Send to Board promotes benchmarks to activities, record the link so the
