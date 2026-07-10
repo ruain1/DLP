@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV195",
+  "date": "2026-07-10",
+  "items": [
+   "Hotfix: Generate report died silently after REV194. The narrative helper was declared partway through the report builder while the Schedule Snapshot, which uses it, is assembled earlier, so building the report hit the constant before its initialization and the exception killed the click without a trace. The helper now sits at the top of the builder, verified by executing the extracted builder end to end in a harness rather than by compile checks alone, which is how this one slipped through."
+  ]
+ },
+ {
   "rev": "REV194",
   "date": "2026-07-10",
   "items": [
