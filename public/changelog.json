@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV196",
+  "date": "2026-07-10",
+  "items": [
+   "The Risk Register on the latest imported week now counts overdue from today instead of the pack's declared reporting week, because risks are live obligations and a stale pack must not make the register look calmer than reality; today that difference was 4 overdue shown against 6 real. Historical weeks stay frozen to their reporting week, every view now states its anchor (as of today, or as of week ending 26 Jun), and an amber chip appears on the latest week whenever the imported pack declares a week more than 7 days old, matching the existing ACC staleness signal. The insights bar signal and the row popups follow the card's anchor so no two numbers on one screen disagree. Render-time only: every previously imported snapshot corrects itself, no re-import needed.",
+   "Every Cx pack import, uploaded or synced from SharePoint, now asks the importer to declare the reporting week before anything is written. The field pre-fills from the workbook's detected week cell, the declared value wins and is what the snapshot is filed and anchored under, and amber notes flag a declaration that differs from the workbook or a week that ended more than 7 days ago. This closes the gap where a pack whose week cell was never rolled silently re-imported as an old week."
+  ]
+ },
+ {
   "rev": "REV195",
   "date": "2026-07-10",
   "items": [
