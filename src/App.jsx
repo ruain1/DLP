@@ -3252,7 +3252,7 @@ export default function App({ session }) {
               {isAdmin && !olAcct && authDiag && (!authDiag.ok || (authDiag.hadHash && !authDiag.account)) && <div className="wsch-olmsg err">Sign-in return: {authDiag.ok ? "response processed but no account arrived" : (authDiag.code || "error") + ": " + authDiag.message}</div>}
               <div className="wsch-list">
                 {list.length === 0 ? <div className="ytt-empty" style={{ textAlign: "center", padding: 18 }}>No witness activities in this period.</div> :
-                  list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt);
+                  list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt); const st = (isAdmin && !isClientViewer) ? invState(a) : null;
                     return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: (isClientViewer || isAdmin) ? "118px 1fr auto" : undefined }}>
                       <div className="wsch-when">
                         <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d); ed2.setDate(ed2.getDate() + (n - 1)); return f(d) + " - " + f(ed2); })()}</span>
@@ -3271,9 +3271,14 @@ export default function App({ session }) {
                           ? <><div className="wsch-conhdr">{open.length} open constraint{open.length === 1 ? "" : "s"}</div>
                               {open.map((c) => <div key={c.id} className="wsch-con"><span className="cdot" /><span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span></div>)}</>
                           : <div className="ytt-ready">No open constraints</div>}
+                        {st === "behindplan" && (() => {
+                          const fmt = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+                          const ps = parseD(a.start);
+                          return <div style={{ marginTop: 6, padding: "6px 9px", borderRadius: 8, background: "rgba(224,161,6,.08)", border: "1px solid rgba(224,161,6,.4)", fontSize: 11.5, color: "#E7C874", lineHeight: 1.45 }}>Plan moved to <b style={{ color: "#f2d98a" }}>{isNaN(ps.getTime()) ? a.start : fmt(ps)}</b>. The invite is still on <b style={{ color: "#f2d98a" }}>{fmt(d)}</b>; Realign to move the witness session and send the update.</div>;
+                        })()}
                       </div>
                       {isAdmin && !isClientViewer && (() => {
-                        const st = invState(a); const nD = Math.max(1, a.witnessDays || 1); const es = invActive(a);
+                        const nD = Math.max(1, a.witnessDays || 1); const es = invActive(a);
                         const busy = !!olBusy && (olBusy === a.id || olBusy === "bulk");
                         const lbl = st === "sent" ? "Sent " + new Date((es[0] || {}).sentAt || Date.now()).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
                           : st === "changed" ? "Details Changed" : st === "behindplan" ? "Behind Plan" : st === "partial" ? "Partially Sent" : st === "cancelled" ? "Cancellation Sent" : "Not Sent";
