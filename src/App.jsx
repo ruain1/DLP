@@ -166,7 +166,6 @@ const css = `
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
 .lk-chip.fail{background:rgba(192,57,58,.18);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
 .lk-chip.pass{background:rgba(14,147,132,.16);color:#0E9384;border:1px solid rgba(14,147,132,.5)}
-.lk-chip.hrs{background:var(--chipbg);color:var(--accent);text-transform:none;font-weight:700}
 .lk-chip.retest{background:rgba(224,161,6,.14);color:#9A6A00;border:1px solid rgba(224,161,6,.45)}
 .lk-ticket.ghostfail{background:repeating-linear-gradient(135deg,rgba(192,57,58,.14) 0 6px,rgba(192,57,58,.04) 6px 12px);border-left-color:#C0392B;cursor:pointer;overflow:visible}
 .lk-ticket.ghostfail .desc,.lk-ticket.ghostfail .meta{opacity:.45}
@@ -965,7 +964,7 @@ function defaults() {
     ],
     areas: ["Data Hall 1", "Data Hall 2", "MV Room", "Electrical Room", "Generator Yard", "Cooling Plant", "Pump Room"],
     systems: ["MV Switchgear", "LV Distribution", "Generators", "UPS", "Chilled Water", "CRAH/CRAC", "BMS", "EPMS"],
-    settings: { weeks: 4, makeReadyDays: 7, ppcTarget: 80, workingDays: [1, 2, 3, 4, 5], hoursPerDay: 8 },
+    settings: { weeks: 4, makeReadyDays: 7, ppcTarget: 80 },
     levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)),
     audit: [],
     activities: [
@@ -1801,11 +1800,9 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
 export default function App({ session }) {
   const [S, setS] = useState(null);
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
-  const [syncErr, setSyncErr] = useState("");
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
   const [witSched, setWitSched] = useState(false);
-  const [capOpen, setCapOpen] = useState(false);
   const [witPeriod, setWitPeriod] = useState("4w");
   const [olAcct, setOlAcct] = useState(null);      // connected Outlook account (email) or null
   const [olBusy, setOlBusy] = useState(null);      // activity id currently sending, or "bulk"
@@ -1949,7 +1946,7 @@ export default function App({ session }) {
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
     if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks, palette: n.palette, nameCase: n.nameCase })); } catch (e) {} }
-    syncCollections(prev, n, session, prev.projectId).then((e) => { if (e) setSyncErr((e.message || String(e)) + (e.details ? " (" + e.details + ")" : "") + (e.hint ? " Hint: " + e.hint : "")); }).catch((e) => setSyncErr(String((e && e.message) || e)));
+    syncCollections(prev, n, session, prev.projectId);
     return n;
   });
 
@@ -2506,7 +2503,7 @@ export default function App({ session }) {
   };
   const newActivity = (lane, dayIdx) => {
     const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: can("editAny") ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
-      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], crew: [], estHours: "", witnessInvite: false, witnessType: "", witnessAt: "", witnessDurationMin: 60, witnessDays: 1, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
+      start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], witnessInvite: false, witnessType: "", witnessAt: "", witnessDurationMin: 60, witnessDays: 1, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
   };
@@ -2646,7 +2643,6 @@ export default function App({ session }) {
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
           {a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
-          {a.estHours !== "" && a.estHours != null && +a.estHours > 0 && <span className="lk-chip hrs" title={"Estimated " + a.estHours + "h" + ((a.crew || []).length ? " for " + a.crew.join(" + ") : "") + (a.duration > 1 ? " spread over " + a.duration + " days" : "")}>{+a.estHours}h{(a.crew || []).length ? " \u00b7 " + a.crew.join("+") : ""}</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
         {failedInv && !tailFail && <div className="lk-failx" title="Witness failed">{"\u2715"}</div>}
@@ -2801,7 +2797,6 @@ export default function App({ session }) {
   return (
     <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
-        {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#C0392B", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)", display: "flex", gap: 10, alignItems: "center" }}><b style={{ whiteSpace: "nowrap" }}>Database error</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{syncErr ? "Save failed: " + syncErr : "Load failed. " + S.loadErrors.join(" | ")}</span>{!!syncErr && <button onClick={() => setSyncErr("")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>}
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
         <button title="Planning Board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n={pageIcon("board", "board")} s={20} /><span className="lbl">Planning Board</span></button>
@@ -2905,7 +2900,6 @@ export default function App({ session }) {
         <button className={"lk-btn pill" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
         <button className={"lk-btn pill" + (S.hideDone ? " on" : "")} title="Hide activities marked Complete so open work stands out. Failed witness events stay visible until their retest closes them. Board display only: KPIs, reports, exports and the Witness Schedule are unaffected." onClick={() => setS((prev) => ({ ...prev, hideDone: !prev.hideDone }))}><Icon n="check" s={14} />Hide Complete</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
-        <button className={"lk-btn pill" + (capOpen ? " on" : "")} title="Crew Capacity: estimated hours per crew per day in the board window, against the project working calendar" onClick={() => setCapOpen((v) => !v)}><Icon n="chart" s={14} />Capacity</button>
         <div className="lk-spacer" />
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
@@ -3132,52 +3126,6 @@ export default function App({ session }) {
             </div>
           </div>);
       })()}
-      {page === "board" && capOpen && (() => {
-        const crews = S.crews || [];
-        const wd = (S.settings.workingDays || [1, 2, 3, 4, 5]);
-        const cap = Math.max(1, +(S.settings.hoursPerDay ?? 8) || 8);
-        const isWork = (d) => wd.includes(((d.getDay() + 6) % 7) + 1);
-        const loads = crews.map(() => days.map(() => ({ h: 0, n: 0 })));
-        S.activities.forEach((a) => {
-          if (!a.start || a.status === "complete") return;
-          const eh = +a.estHours; if (!eh || eh <= 0 || !(a.crew || []).length) return;
-          const dur = Math.max(1, a.duration || 1); const per = eh / dur; const ps = parseD(a.start);
-          for (let i = 0; i < dur; i++) {
-            const off = Math.round((addDays(ps, i) - anchor) / DAYMS); if (off < 0 || off >= DAYS) continue;
-            a.crew.forEach((c) => { const ci = crews.indexOf(c); if (ci >= 0) { loads[ci][off].h += per; loads[ci][off].n += 1; } });
-          }
-        });
-        const cellBg = (h, work) => { if (!h) return work ? "transparent" : "var(--hover)"; const r = h / cap; if (r > 1) return "rgba(192,57,58,.22)"; if (r >= 0.85) return "rgba(224,161,6,.22)"; return "rgba(14,147,132,.16)"; };
-        const cellFg = (h) => { const r = h / cap; if (r > 1) return "#C0392B"; if (r >= 0.85) return "#9A6A00"; return "#0E9384"; };
-        const fmtH = (h) => (Math.round(h * 10) / 10) + "h";
-        return (
-          <div className="lk-bg" onClick={() => setCapOpen(false)}>
-            <div className="ytt" style={{ ...cssVars(S.theme, S.settings), width: "min(1100px,96vw)" }} onClick={(e) => e.stopPropagation()}>
-              <div className="ytt-head">
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="chart" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>Crew Capacity</h3><span className="ytt-sub">Estimated hours per crew per day across the board window, against {cap}h working days. Multi-day activities spread their hours evenly across their planned days; joint activities load every listed crew in full.</span></div>
-                <button className="lk-btn icon" onClick={() => setCapOpen(false)}><Icon n="x" /></button>
-              </div>
-              {!crews.length && <div style={{ padding: 18, fontSize: 12.5, color: "var(--muted)" }}>No crews defined for this project yet. Add them in Settings, Project Setup, Crews, then assign activities to crews in the editor.</div>}
-              {!!crews.length && <div style={{ padding: "10px 14px 14px", overflowX: "auto" }}>
-                <div style={{ display: "grid", gridTemplateColumns: `130px repeat(${DAYS}, minmax(34px, 1fr))`, gap: 2, fontSize: 10.5, minWidth: DAYS * 36 + 130 }}>
-                  <div />
-                  {days.map((d, i) => <div key={"h" + i} style={{ textAlign: "center", color: isWork(d) ? "var(--muted)" : "var(--line)", fontWeight: 700, padding: "2px 0", borderBottom: "1px solid var(--line)" }}>{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][d.getDay()]}<br />{d.getDate()}</div>)}
-                  {crews.map((c, ci) => (<React.Fragment key={c}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 11.5, paddingRight: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={c + " \u00b7 " + fmtH(loads[ci].reduce((m, x) => m + x.h, 0)) + " in this window"}>{c}<span style={{ color: "var(--muted)", fontWeight: 500 }}>{fmtH(loads[ci].reduce((m, x) => m + x.h, 0))}</span></div>
-                    {loads[ci].map((cell, di) => { const work = isWork(days[di]); return <div key={di} title={c + " \u00b7 " + days[di].toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) + " \u00b7 " + (cell.h ? fmtH(cell.h) + " across " + cell.n + (cell.n === 1 ? " activity" : " activities") + " \u00b7 " + Math.round(cell.h / cap * 100) + "% of " + cap + "h" : "no load") + (work ? "" : " \u00b7 non-working day")} style={{ textAlign: "center", padding: "5px 1px", borderRadius: 4, background: cellBg(cell.h, work), color: cell.h ? cellFg(cell.h) : "var(--muted)", fontWeight: cell.h ? 700 : 400, outline: !work && cell.h ? "1px dashed rgba(192,57,58,.55)" : "none" }}>{cell.h ? fmtH(cell.h) : (work ? "" : "\u00b7")}</div>; })}
-                  </React.Fragment>))}
-                </div>
-                <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 10.5, color: "var(--muted)", alignItems: "center", flexWrap: "wrap" }}>
-                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(14,147,132,.16)", marginRight: 4, verticalAlign: "-1px" }} />under 85%</span>
-                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(224,161,6,.22)", marginRight: 4, verticalAlign: "-1px" }} />85 to 100%</span>
-                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(192,57,58,.22)", marginRight: 4, verticalAlign: "-1px" }} />over 100%</span>
-                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "var(--hover)", marginRight: 4, verticalAlign: "-1px" }} />non-working day</span>
-                  <span style={{ marginLeft: "auto" }}>Working week and hours per day are set in Settings, Lookahead and Targets. Completed activities are excluded.</span>
-                </div>
-              </div>}
-            </div>
-          </div>);
-      })()}
       {page === "board" && witSched && (() => {
         const DAYW = { "1w": 7, "2w": 14, "4w": 28 };
         const startToday = todayMid();
@@ -3348,7 +3296,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   };
   const doCreateRetest = () => {
     if (!rtStart || !rtName.trim()) return;
-    const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], crew: [...(a.crew || [])], estHours: a.estHours || "", witnessInvite: true, witnessType: a.witnessType || "", witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessDays: a.witnessDays || 1, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
+    const clone = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: rtName.trim(), companyId: a.companyId, area: a.area, subArea: a.subArea || "", tier3: a.tier3 || "", asset: a.asset || "", system: a.system, level: a.level, isMilestone: false, discipline: [...(a.discipline || [])], witnessInvite: true, witnessType: a.witnessType || "", witnessAt: "", witnessDurationMin: a.witnessDurationMin || 60, witnessDays: a.witnessDays || 1, witnessSentAt: "", notes: "", slipReason: "", start: rtStart, duration: Math.max(1, a.duration || 1), committed: false, status: "planned", actualStart: "", actualFinish: "", percent: null, constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: a.id };
     setRtOpen(false);
     if (onSaveRetest && can("retest")) onSaveRetest(a, clone); else onSave(a, isNew);
   };
@@ -3467,8 +3415,6 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           <div className="lk-f"><label>Discipline{a.witnessInvite && <span style={{ color: "#C0392B" }}> *</span>}</label>
             <div className="lk-levels">{DISCIPLINES.map((d) => { const on = (a.discipline || []).includes(d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.discipline || []; set("discipline", on ? cur.filter((x) => x !== d) : [...cur, d]); }}>{d}</div>; })}</div>
             {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "#C0392B" }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
-          <div className="lk-f"><label>Crew</label>
-            <div className="lk-levels">{(S.crews || []).map((c) => { const on = (a.crew || []).includes(c); return <div key={c} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.crew || []; set("crew", on ? cur.filter((x) => x !== c) : [...cur, c]); }}>{c}</div>; })}{!(S.crews || []).length && <span style={{ fontSize: 11, color: "var(--muted)" }}>No crews defined yet. Add them in Settings, Project Setup, Crews.</span>}</div></div>
           <div className="lk-f"><label>System</label>
             {lockS ? roBox(a.system) : <><select className="lk-select" value={a.system} disabled={disPlan} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
@@ -3495,7 +3441,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {tab === "schedule" && <>
           <div className="lk-row">
             <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={disPlan} onChange={(e) => set("start", e.target.value)} /></div>
-            <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={disPlan} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div><div className="lk-f"><label>Est hours (per crew)</label><input className="lk-in mono" type="number" min="0" step="0.5" value={a.estHours ?? ""} disabled={disPlan} placeholder="e.g. 4" onChange={(e) => set("estHours", e.target.value === "" ? "" : Math.max(0, +e.target.value || 0))} /><span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Hours each listed crew spends. Drives crew day-load capacity.</span></div>
+            <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={disPlan} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div>
           </div>
           {isAdmin && !isNew && <div className="lk-f" style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon n="loader" s={13} />Reschedule <span style={{ fontWeight: 400, color: "var(--muted)" }}>(keeps the original date on record)</span></label>
@@ -4110,8 +4056,6 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
     return n;
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
   const renameSystem = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if (S.systems.some((s) => s !== oldName && s.toLowerCase() === name.toLowerCase())) { alert(`System "${name}" already exists.`); return; } update((p) => ({ ...p, systems: p.systems.map((s) => s === oldName ? name : s), activities: p.activities.map((a) => a.system === oldName ? { ...a, system: name } : a) }), { action: "Rename system", detail: `${oldName} -> ${name}` }); };
-  const renameCrew = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if ((S.crews || []).some((c) => c !== oldName && c.toLowerCase() === name.toLowerCase())) { alert(`Crew "${name}" already exists.`); return; } update((p) => ({ ...p, crews: (p.crews || []).map((c) => c === oldName ? name : c), activities: p.activities.map((a) => (a.crew || []).includes(oldName) ? { ...a, crew: a.crew.map((c) => c === oldName ? name : c) } : a) }), { action: "Rename crew", detail: `${oldName} -> ${name}` }); };
-  const delCrew = (name) => update((p) => ({ ...p, crews: (p.crews || []).filter((c) => c !== name), activities: p.activities.map((a) => (a.crew || []).includes(name) ? { ...a, crew: a.crew.filter((c) => c !== name) } : a) }), { action: "Remove crew", detail: name });
   const renameCompany = (id, raw) => { const name = (raw || "").trim(); const cur = S.companies.find((c) => c.id === id); if (!cur || !name || name === cur.name) return; if (S.companies.some((c) => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) { alert(`Company "${name}" already exists.`); return; } update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, name } : c) }), { action: "Rename company", detail: `${cur.name} -> ${name}` }); };
   const setCompanyDesc = (id, raw) => { const description = (raw || "").trim(); const cur = S.companies.find((c) => c.id === id); if (!cur || (cur.description || "") === description) return; update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, description } : c) }), { action: "Edit company description", detail: cur.name }); };
   const addLevel = () => { const used = Object.keys(S.levels); let key = (lvKey || "").trim().toUpperCase().replace(/\s+/g, ""); if (!key) { let n = used.length + 1; key = "L" + n; while (S.levels[key]) { n++; key = "L" + n; } } if (S.levels[key]) { alert(`Cx stage "${key}" already exists.`); return; } const name = (lvName || "").trim() || "New stage"; update((p) => ({ ...p, levels: { ...p.levels, [key]: { name, color: lvColor || "#64748B", sort: Object.keys(p.levels).length } } }), { action: "Add Cx stage", detail: `${key} ${name}` }); setLvKey(""); setLvName(""); setLvColor("#64748B"); };
@@ -4366,21 +4310,18 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness date & time"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]), crew: idx(["crew"]), esth: idx(["est hours", "estimated hours", "hours", "hrs"]), disc: idx(["discipline"]) };
+    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness date & time"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
     const normDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
-    let built = 0, crewsNew = 0;
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
       let systems = impMode === "override" ? [] : [...p.systems];
       let subAreas = impMode === "override" ? [] : [...(p.subAreas || [])];
       let tier3s = impMode === "override" ? [] : [...(p.tier3s || [])];
-      let crews = impMode === "override" ? [] : [...(p.crews || [])];
       const findCo = (name) => { if (!name) return (companies[0] || {}).id || null; let c = companies.find((x) => x.name.toLowerCase() === name.toLowerCase()); if (!c) { c = { id: uid("co"), name }; companies.push(c); } return c.id; };
       const ensure = (arr, val) => { if (val && !arr.some((x) => x.toLowerCase() === val.toLowerCase())) arr.push(val); };
       const ensureSub = (area, name) => { if (area && name && !subAreas.some((s) => s.area === area && s.name.toLowerCase() === name.toLowerCase())) subAreas.push({ area, name }); };
       const ensureT3 = (area, subArea, name) => { if (area && subArea && name && !tier3s.some((t) => t.area === area && t.subArea === subArea && t.name.toLowerCase() === name.toLowerCase())) tier3s.push({ area, subArea, name }); };
-      const ensureCrew = (name) => { if (name && !crews.some((x) => x.toLowerCase() === name.toLowerCase())) crews.push(name); };
       const newActs = []; let codeC = impMode === "override" ? 0 : p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
       for (let r = 1; r < rows.length; r++) { const row = rows[r]; const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : "");
         const desc = g(ci.desc); if (!desc) continue;
@@ -4390,14 +4331,12 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
         const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
         const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        const crew = g(ci.crew).split(/\s*;\s*/).filter(Boolean); crew.forEach(ensureCrew); const estHours = (() => { const v = g(ci.esth); return v && +v > 0 ? +v : ""; })(); const discipline = g(ci.disc).split(/\s*;\s*/).filter(Boolean);
-        newActs.push({ id: uid("a"), code: ++codeC, predecessors: [], desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), witnessAt: normDT(g(ci.witat)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), crew, estHours, discipline, constraints });
+        newActs.push({ id: uid("a"), code: ++codeC, predecessors: [], desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), witnessAt: normDT(g(ci.witat)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
       }
-      built = newActs.length; crewsNew = crews.length - (impMode === "override" ? 0 : (p.crews || []).length);
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
-      return { ...p, companies, areas, subAreas, tier3s, systems, crews, activities };
+      return { ...p, companies, areas, subAreas, tier3s, systems, activities };
     }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
-    setImpMsg(`Built ${built} activities from ${rows.length - 1} rows (${impMode})${crewsNew > 0 ? ", " + crewsNew + " new crew" + (crewsNew === 1 ? "" : "s") : ""}. Saving to the database; if the save is rejected a red Database error banner will appear.`);
+    setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
   };
   const cellToStr = (v) => { if (v == null) return ""; if (v instanceof Date) { const p = (n) => String(n).padStart(2, "0"); const dd = `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`; const hh = v.getUTCHours(), mm = v.getUTCMinutes(); return (hh || mm) ? `${dd}T${p(hh)}:${p(mm)}` : dd; } if (typeof v === "object") { if (v.text != null) return String(v.text); if (v.result != null) return String(v.result); if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join(""); if (v.hyperlink) return String(v.hyperlink); return ""; } return String(v); };
   const rowsToCSV = (rows) => rows.map((r) => r.map((c) => { const s = cellToStr(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");
@@ -4420,7 +4359,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   };
   const canv = can || (() => true);
   const navGroups = [
-    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["crews", "Crews"], ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
+    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
     ["Appearance", [["design", "Design"]]],
     ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
@@ -4443,14 +4382,6 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
               <button onClick={() => askDel('Delete "' + name + '"?', () => delList("systems", name, "system"))}><Icon n="trash" s={14} /></button>
             </div>)}</div>
             <div className="lk-add"><input className="lk-in" placeholder="Add system…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("systems", "system")} /><button className="lk-btn primary" onClick={() => addList("systems", "system")}><Icon n="plus" s={15} /></button></div>
-          </>}
-          {tab === "crews" && <>
-            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Crews are the resources the Capacity view loads against. Add each crew once here, then assign activities to one or more crews in the activity editor. Renaming updates every activity using the crew.</div>
-            <div className="lk-list">{(S.crews || []).map((name) => <div key={name} className="lk-li">
-              <input className="lk-in" key={"crew:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename crew (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameCrew(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameCrew(name, e.target.value)} />
-              <button onClick={() => askDel('Delete crew "' + name + '"?', () => delCrew(name))}><Icon n="trash" s={14} /></button>
-            </div>)}{!(S.crews || []).length && <div style={{ fontSize: 11.5, color: "var(--muted)", padding: "4px 2px" }}>No crews yet.</div>}</div>
-            <div className="lk-add"><input className="lk-in" placeholder="Add crew, e.g. Elec 1\u2026" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("crews", "crew")} /><button className="lk-btn primary" onClick={() => addList("crews", "crew")}><Icon n="plus" s={15} />Add</button></div>
           </>}
           {tab === "vendors" && <VendorsTab projectId={S.projectId} />}
           {tab === "companies" && <>
@@ -5031,12 +4962,6 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             <div className="lk-f"><label>PPC Target (%)</label>
               <input className="lk-in mono" type="number" min="1" max="100" value={S.settings.ppcTarget ?? 80} onChange={(e) => { const v = Math.max(1, Math.min(100, +e.target.value || 80)); update((p) => ({ ...p, settings: { ...p.settings, ppcTarget: v } }), { action: "Change setting", detail: `PPC target ${v}%` }); }} />
               <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Shown as a red marker on the Analytics gauge, a dashed line on the Weekly PPC Trend and a chip on the weekly report. It also drives the sidebar PPC colour: green at or above target, amber within 15 points below, red beyond.</div></div>
-            <div className="lk-f"><label>Working Week</label>
-              <div className="lk-levels">{[["1", "Mon"], ["2", "Tue"], ["3", "Wed"], ["4", "Thu"], ["5", "Fri"], ["6", "Sat"], ["7", "Sun"]].map(([d, lbl]) => { const on = (S.settings.workingDays || [1, 2, 3, 4, 5]).includes(+d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { const cur = S.settings.workingDays || [1, 2, 3, 4, 5]; const nx = on ? cur.filter((x) => x !== +d) : [...cur, +d].sort((a, b) => a - b); update((p) => ({ ...p, settings: { ...p.settings, workingDays: nx } }), { action: "Change setting", detail: "Working week" }); }}>{lbl}</div>; })}</div>
-              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Which days count as working days for crew capacity. Non-working days are greyed and excluded from the load denominator.</div></div>
-            <div className="lk-f"><label>Working Hours / Day</label>
-              <input className="lk-in mono" type="number" min="1" max="24" step="0.5" value={S.settings.hoursPerDay ?? 8} onChange={(e) => { const v = Math.max(1, Math.min(24, +e.target.value || 8)); update((p) => ({ ...p, settings: { ...p.settings, hoursPerDay: v } }), { action: "Change setting", detail: `Hours per day ${v}` }); }} />
-              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>The capacity each crew has per working day. In the Capacity view a crew is amber at 85% of this and red above it.</div></div>
           </>}
           {tab === "levels" && <div className="lk-list">
             {Object.entries(S.levels).map(([k, v]) => <div key={k} className="lk-li">
