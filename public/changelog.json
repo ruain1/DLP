@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV193",
+  "date": "2026-07-10",
+  "items": [
+   "Match Assignees on the Benchmarks page now resolves the way a person would: the local part of an assignee email is treated as a name (jukka.mechelin matches Jukka Mechelin in Global Contacts), which resolves both the person and their company; explicit company domains still apply; and every person match teaches the run that domain's company, so an unfamiliar address at a known domain resolves in the same pass. The result message now says what matched by person, what by domain, and names any domains it could not place, with the two ways to fix them.",
+   "The Assignee column shows the resolved person's name where one exists, with the raw email on hover, instead of the bare address.",
+   "The Benchmarks and Register change log titles now carry the same heading colour as every other page, and the change log states exactly what it compares (Title, Planned date, Assignee, Discipline per FOK ref), so a no-differences verdict on a re-saved but content-identical workbook reads as the evidence it is."
+  ]
+ },
+ {
   "rev": "REV192",
   "date": "2026-07-10",
   "items": [
