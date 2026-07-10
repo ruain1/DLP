@@ -166,6 +166,7 @@ const css = `
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
 .lk-chip.fail{background:rgba(192,57,58,.18);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
 .lk-chip.pass{background:rgba(14,147,132,.16);color:#0E9384;border:1px solid rgba(14,147,132,.5)}
+.lk-chip.hrs{background:var(--chipbg);color:var(--accent);text-transform:none;font-weight:700}
 .lk-chip.retest{background:rgba(224,161,6,.14);color:#9A6A00;border:1px solid rgba(224,161,6,.45)}
 .lk-ticket.ghostfail{background:repeating-linear-gradient(135deg,rgba(192,57,58,.14) 0 6px,rgba(192,57,58,.04) 6px 12px);border-left-color:#C0392B;cursor:pointer;overflow:visible}
 .lk-ticket.ghostfail .desc,.lk-ticket.ghostfail .meta{opacity:.45}
@@ -1804,6 +1805,7 @@ export default function App({ session }) {
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
   const [witSched, setWitSched] = useState(false);
+  const [capOpen, setCapOpen] = useState(false);
   const [witPeriod, setWitPeriod] = useState("4w");
   const [olAcct, setOlAcct] = useState(null);      // connected Outlook account (email) or null
   const [olBusy, setOlBusy] = useState(null);      // activity id currently sending, or "bulk"
@@ -2644,6 +2646,7 @@ export default function App({ session }) {
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
           {a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
+          {a.estHours !== "" && a.estHours != null && +a.estHours > 0 && <span className="lk-chip hrs" title={"Estimated " + a.estHours + "h" + ((a.crew || []).length ? " for " + a.crew.join(" + ") : "") + (a.duration > 1 ? " spread over " + a.duration + " days" : "")}>{+a.estHours}h{(a.crew || []).length ? " \u00b7 " + a.crew.join("+") : ""}</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
         {failedInv && !tailFail && <div className="lk-failx" title="Witness failed">{"\u2715"}</div>}
@@ -2902,6 +2905,7 @@ export default function App({ session }) {
         <button className={"lk-btn pill" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
         <button className={"lk-btn pill" + (S.hideDone ? " on" : "")} title="Hide activities marked Complete so open work stands out. Failed witness events stay visible until their retest closes them. Board display only: KPIs, reports, exports and the Witness Schedule are unaffected." onClick={() => setS((prev) => ({ ...prev, hideDone: !prev.hideDone }))}><Icon n="check" s={14} />Hide Complete</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
+        <button className={"lk-btn pill" + (capOpen ? " on" : "")} title="Crew Capacity: estimated hours per crew per day in the board window, against the project working calendar" onClick={() => setCapOpen((v) => !v)}><Icon n="chart" s={14} />Capacity</button>
         <div className="lk-spacer" />
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
@@ -3125,6 +3129,52 @@ export default function App({ session }) {
                     </div>
                   </div>; })}
               </div>
+            </div>
+          </div>);
+      })()}
+      {page === "board" && capOpen && (() => {
+        const crews = S.crews || [];
+        const wd = (S.settings.workingDays || [1, 2, 3, 4, 5]);
+        const cap = Math.max(1, +(S.settings.hoursPerDay ?? 8) || 8);
+        const isWork = (d) => wd.includes(((d.getDay() + 6) % 7) + 1);
+        const loads = crews.map(() => days.map(() => ({ h: 0, n: 0 })));
+        S.activities.forEach((a) => {
+          if (!a.start || a.status === "complete") return;
+          const eh = +a.estHours; if (!eh || eh <= 0 || !(a.crew || []).length) return;
+          const dur = Math.max(1, a.duration || 1); const per = eh / dur; const ps = parseD(a.start);
+          for (let i = 0; i < dur; i++) {
+            const off = Math.round((addDays(ps, i) - anchor) / DAYMS); if (off < 0 || off >= DAYS) continue;
+            a.crew.forEach((c) => { const ci = crews.indexOf(c); if (ci >= 0) { loads[ci][off].h += per; loads[ci][off].n += 1; } });
+          }
+        });
+        const cellBg = (h, work) => { if (!h) return work ? "transparent" : "var(--hover)"; const r = h / cap; if (r > 1) return "rgba(192,57,58,.22)"; if (r >= 0.85) return "rgba(224,161,6,.22)"; return "rgba(14,147,132,.16)"; };
+        const cellFg = (h) => { const r = h / cap; if (r > 1) return "#C0392B"; if (r >= 0.85) return "#9A6A00"; return "#0E9384"; };
+        const fmtH = (h) => (Math.round(h * 10) / 10) + "h";
+        return (
+          <div className="lk-bg" onClick={() => setCapOpen(false)}>
+            <div className="ytt" style={{ ...cssVars(S.theme, S.settings), width: "min(1100px,96vw)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="ytt-head">
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="chart" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>Crew Capacity</h3><span className="ytt-sub">Estimated hours per crew per day across the board window, against {cap}h working days. Multi-day activities spread their hours evenly across their planned days; joint activities load every listed crew in full.</span></div>
+                <button className="lk-btn icon" onClick={() => setCapOpen(false)}><Icon n="x" /></button>
+              </div>
+              {!crews.length && <div style={{ padding: 18, fontSize: 12.5, color: "var(--muted)" }}>No crews defined for this project yet. Add them in Settings, Project Setup, Crews, then assign activities to crews in the editor.</div>}
+              {!!crews.length && <div style={{ padding: "10px 14px 14px", overflowX: "auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: `130px repeat(${DAYS}, minmax(34px, 1fr))`, gap: 2, fontSize: 10.5, minWidth: DAYS * 36 + 130 }}>
+                  <div />
+                  {days.map((d, i) => <div key={"h" + i} style={{ textAlign: "center", color: isWork(d) ? "var(--muted)" : "var(--line)", fontWeight: 700, padding: "2px 0", borderBottom: "1px solid var(--line)" }}>{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][d.getDay()]}<br />{d.getDate()}</div>)}
+                  {crews.map((c, ci) => (<React.Fragment key={c}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 11.5, paddingRight: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={c + " \u00b7 " + fmtH(loads[ci].reduce((m, x) => m + x.h, 0)) + " in this window"}>{c}<span style={{ color: "var(--muted)", fontWeight: 500 }}>{fmtH(loads[ci].reduce((m, x) => m + x.h, 0))}</span></div>
+                    {loads[ci].map((cell, di) => { const work = isWork(days[di]); return <div key={di} title={c + " \u00b7 " + days[di].toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) + " \u00b7 " + (cell.h ? fmtH(cell.h) + " across " + cell.n + (cell.n === 1 ? " activity" : " activities") + " \u00b7 " + Math.round(cell.h / cap * 100) + "% of " + cap + "h" : "no load") + (work ? "" : " \u00b7 non-working day")} style={{ textAlign: "center", padding: "5px 1px", borderRadius: 4, background: cellBg(cell.h, work), color: cell.h ? cellFg(cell.h) : "var(--muted)", fontWeight: cell.h ? 700 : 400, outline: !work && cell.h ? "1px dashed rgba(192,57,58,.55)" : "none" }}>{cell.h ? fmtH(cell.h) : (work ? "" : "\u00b7")}</div>; })}
+                  </React.Fragment>))}
+                </div>
+                <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 10.5, color: "var(--muted)", alignItems: "center", flexWrap: "wrap" }}>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(14,147,132,.16)", marginRight: 4, verticalAlign: "-1px" }} />under 85%</span>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(224,161,6,.22)", marginRight: 4, verticalAlign: "-1px" }} />85 to 100%</span>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(192,57,58,.22)", marginRight: 4, verticalAlign: "-1px" }} />over 100%</span>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "var(--hover)", marginRight: 4, verticalAlign: "-1px" }} />non-working day</span>
+                  <span style={{ marginLeft: "auto" }}>Working week and hours per day are set in Settings, Lookahead and Targets. Completed activities are excluded.</span>
+                </div>
+              </div>}
             </div>
           </div>);
       })()}
