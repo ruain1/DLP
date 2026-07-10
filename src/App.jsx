@@ -1800,6 +1800,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
 export default function App({ session }) {
   const [S, setS] = useState(null);
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
+  const [syncErr, setSyncErr] = useState("");
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
   const [witSched, setWitSched] = useState(false);
@@ -1946,7 +1947,7 @@ export default function App({ session }) {
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
     if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks, palette: n.palette, nameCase: n.nameCase })); } catch (e) {} }
-    syncCollections(prev, n, session, prev.projectId);
+    syncCollections(prev, n, session, prev.projectId).then((e) => { if (e) setSyncErr((e.message || String(e)) + (e.details ? " (" + e.details + ")" : "") + (e.hint ? " Hint: " + e.hint : "")); }).catch((e) => setSyncErr(String((e && e.message) || e)));
     return n;
   });
 
@@ -2797,6 +2798,7 @@ export default function App({ session }) {
   return (
     <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
+        {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#C0392B", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)", display: "flex", gap: 10, alignItems: "center" }}><b style={{ whiteSpace: "nowrap" }}>Database error</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{syncErr ? "Save failed: " + syncErr : "Load failed. " + S.loadErrors.join(" | ")}</span>{!!syncErr && <button onClick={() => setSyncErr("")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>}
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
         <button title="Planning Board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n={pageIcon("board", "board")} s={20} /><span className="lbl">Planning Board</span></button>
@@ -4316,6 +4318,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
     const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
     const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness date & time"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]), crew: idx(["crew"]), esth: idx(["est hours", "estimated hours", "hours", "hrs"]), disc: idx(["discipline"]) };
     const normDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+    let built = 0, crewsNew = 0;
     update((p) => {
       let companies = impMode === "override" ? [] : [...p.companies];
       let areas = impMode === "override" ? [] : [...p.areas];
@@ -4340,10 +4343,11 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         const crew = g(ci.crew).split(/\s*;\s*/).filter(Boolean); crew.forEach(ensureCrew); const estHours = (() => { const v = g(ci.esth); return v && +v > 0 ? +v : ""; })(); const discipline = g(ci.disc).split(/\s*;\s*/).filter(Boolean);
         newActs.push({ id: uid("a"), code: ++codeC, predecessors: [], desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), witnessAt: normDT(g(ci.witat)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), crew, estHours, discipline, constraints });
       }
+      built = newActs.length; crewsNew = crews.length - (impMode === "override" ? 0 : (p.crews || []).length);
       const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
       return { ...p, companies, areas, subAreas, tier3s, systems, crews, activities };
     }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
-    setImpMsg(`Imported ${rows.length - 1} CSV rows (${impMode}).`);
+    setImpMsg(`Built ${built} activities from ${rows.length - 1} rows (${impMode})${crewsNew > 0 ? ", " + crewsNew + " new crew" + (crewsNew === 1 ? "" : "s") : ""}. Saving to the database; if the save is rejected a red Database error banner will appear.`);
   };
   const cellToStr = (v) => { if (v == null) return ""; if (v instanceof Date) { const p = (n) => String(n).padStart(2, "0"); const dd = `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`; const hh = v.getUTCHours(), mm = v.getUTCMinutes(); return (hh || mm) ? `${dd}T${p(hh)}:${p(mm)}` : dd; } if (typeof v === "object") { if (v.text != null) return String(v.text); if (v.result != null) return String(v.result); if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join(""); if (v.hyperlink) return String(v.hyperlink); return ""; } return String(v); };
   const rowsToCSV = (rows) => rows.map((r) => r.map((c) => { const s = cellToStr(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");

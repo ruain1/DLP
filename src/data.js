@@ -54,6 +54,8 @@ export async function loadAll(session, projectId, projectName) {
     supabase.from("invite_requests").select("*").eq("project_id", projectId),
     supabase.from("user_privileges").select("*").eq("project_id", projectId),
   ]);
+  const loadErrors = [["companies", companies], ["areas", areas], ["systems", systems], ["crews", crews], ["levels", levels], ["settings", settings], ["profiles", profiles], ["activities", activities], ["audit_log", audit], ["branding", branding], ["sub_areas", subAreas], ["tier3_areas", tier3s], ["invite_requests", inviteReqs], ["user_privileges", privRows]].filter(([, r]) => r && r.error).map(([t, r]) => t + ": " + (r.error.message || String(r.error)));
+  if (loadErrors.length) console.error("DLP load errors:", loadErrors);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
   return {
@@ -64,6 +66,7 @@ export async function loadAll(session, projectId, projectName) {
     levels: levelsObj,
     settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, workingDays: settings.data?.working_days ?? [1, 2, 3, 4, 5], hoursPerDay: settings.data?.hours_per_day ?? 8, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, pageIcons: settings.data?.page_icons ?? {}, design: settings.data?.design ?? {} },
     users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, platformRole: p.platform_role || "user", mustReset: !!p.must_reset })),
+    loadErrors,
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail, entity: e.entity, entityId: e.entity_id })),
     brand: brandFrom(branding.data, projectName),
