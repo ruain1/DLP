@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV198",
+  "date": "2026-07-10",
+  "items": [
+   "Show Completed now actually shows completed. The past filter (Showing Present & Future) was silently overruling it: completed work is past-dated by nature, so every completed row failed the past filter no matter what the toggle said, and the switch read as dead. Completed rows are now exempt from the past filter entirely; their visibility is governed by the Show Completed toggle alone, while the past filter keeps suppressing stale pending work exactly as before."
+  ]
+ },
+ {
   "rev": "REV197",
   "date": "2026-07-10",
   "items": [
