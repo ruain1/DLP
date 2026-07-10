@@ -6627,6 +6627,12 @@ function computeReport({ S, LV, coName, start, end }){
   };
   fbase.forEach((x)=>projEnd(x.a.id));
   const knockOnOf = (a)=>{ const x=fById[a.id]; if(!x) return 0; return Math.max(0,(x._ps!=null?x._ps:x.startOff)-(x._base!=null?x._base:x.startOff)); };
+  // REV194: for a pushed activity, name the predecessor that pushes it (the one whose
+  // forecast finish lands latest past this activity's baseline start).
+  const pushInfoOf = (a)=>{ const d = knockOnOf(a); if(!d) return null; const x=fById[a.id]; const base=(x&&(x._base!=null?x._base:x.startOff))||0;
+    let root=null, worst=-1;
+    (a.predecessors||[]).forEach((pid)=>{ const p=acts.find((q)=>q.id===pid); const fp=fById[pid]; if(!p||!fp) return; const fEnd=(fp._ps!=null?fp._ps:fp.startOff)+Math.max(1,p.duration||1)-1; const over=fEnd+1-base; if(over>worst){ worst=over; root=p; } });
+    return { d, code: root&&root.code!=null?("#"+root.code):"", desc: root?root.desc:"a predecessor" }; };
   const cleanNotes = (s)=>(s||"").replace(/\n*LINK TO ACC FILES:[^\n]*/gi,"").trim();
   const nwRaw = dated.filter((a)=>a.committed && parseD(a.start).getTime()>=nw0 && parseD(a.start).getTime()<=nw1).sort((a,b)=>(a.start||"").localeCompare(b.start||""));
   const mkNext = (a)=>{
@@ -6687,7 +6693,7 @@ function computeReport({ S, LV, coName, start, end }){
     uncommitted: witFailedAll.filter((a)=>!a.committed).length,
     total: witFailedAll.length,
   };
-  return { start, end, ppc, qaPpc, qaFails, ppcTarget, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, nextWeekMore, nextWeekTally, milestones, schedule, witnessOut, statusData, witReconcile,
+  return { knockOnOf, pushInfoOf, start, end, ppc, qaPpc, qaFails, ppcTarget, due, kept, missed, trend, kpis, cards, reasons, byCompany, byCx, nextWeek, nextWeekMore, nextWeekTally, milestones, schedule, witnessOut, statusData, witReconcile,
            today, laStart:today, laEnd:addDays(today,27), finishOf, openOf, openCs, coName, LV };
 }
 
@@ -6843,10 +6849,10 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
       const lv = a.level||"";
       const bar = a.isMilestone ? `<span class="g-dia" style="left:${left.toFixed(2)}%;background:${col}"></span>`
         : `<div class="g-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${col}"></div>`;
-      return `<div class="g-row"><div class="g-lab"><span class="g-nm">${esc(a.desc||"Untitled")}</span><span class="g-sub">${esc(r.coName(a.companyId)||"")}${lv?" &middot; "+esc(lv):""}</span></div><div class="g-track">${bar}</div></div>`; }).join("");
+      return `<div class="g-row"><div class="g-lab"><span class="g-nm">${esc(a.desc||"Untitled")}</span><span class="g-sub">${esc(r.coName(a.companyId)||"")}${lv?" &middot; "+esc(lv):""}</span></div><div class="g-track">${bar}</div>${(()=>{const pi=r.pushInfoOf?r.pushInfoOf(a):null; return pi?`<span class="g-push">pushed +${pi.d}d by ${esc(pi.code||pi.desc)}</span>`:"";})()}</div>`; }).join("");
     const schedLvs = [...new Set(r.schedule.map((a)=>a.level).filter(Boolean))].sort();
     const schedLegend = schedLvs.map((k)=>`<span><i class="dot" style="background:${(r.LV[k]&&r.LV[k].color)||"#7C8BA0"}"></i>${k}${r.LV[k]?" "+r.LV[k].name:""}</span>`).join("");
-    scheduleSection = `<section class="snap"><div class="sec-head"><span class="eyebrow">08</span><h2>Schedule snapshot</h2><div class="rule"></div></div>
+    scheduleSection = `<section class="snap"><div class="sec-head"><span class="eyebrow">08</span><h2>Schedule snapshot</h2><div class="rule"></div></div>${nar("schedule")}
       <div class="gantt"><div class="g-head"><div class="g-lab"></div><div class="g-track g-grid">${weekMarks}</div></div>${rows||'<div class="empty">No committed or active work in the lookahead.</div>'}</div>
       <div class="g-legend">${schedLegend}</div></section>`;
   }
@@ -6860,12 +6866,15 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, invites:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true, statusmix:true }, sections||{});
   let _n = 0; const nn = () => String(++_n).padStart(2,"0");
   const sh = (title) => `<div class="sec-head"><span class="eyebrow">${nn()}</span><h2>${title}</h2><div class="rule"></div></div>`;
+  // REV194: per-section narrative block. Reads the module-level RPT_NARR map the
+  // launcher fills before building; missing key renders nothing.
+  const nar = (k) => { const t = RPT_NARR && RPT_NARR[k]; if(!t||!t.text) return ""; return `<div class="ai-nar">${t.ai?'<span class="ai-tag">AI NARRATIVE</span>':''}${esc(t.text)}${t.note?`<div class="ai-note scr-only">${esc(t.note)}</div>`:""}</div>`; };
   const blocks = [];
   let intro = "";
   if (SEC.summary) intro += `${sh("Executive summary")}<p class="lede">${sumHtml}</p>`;
   if (SEC.kpis) intro += `<div class="kpis">${kpiTiles}</div>`;
   if (intro) blocks.push(`<section>${intro}</section>`);
-  if (SEC.ppc) blocks.push(`<section>${sh("Plan reliability")}`
+  if (SEC.ppc) blocks.push(`<section>${sh("Plan reliability")}${nar("ppc")}`
     + `<div class="hero"><div class="hero-l">${gaugeSvg(r.ppc, r.ppcTarget)}`
     + (r.qaPpc!=null && r.qaFails && r.qaFails.length ? `<div class="qa"><span class="qav num">${r.qaPpc}%</span><span class="qal">Quality-adjusted, ${r.due.length - r.missed.length - r.qaFails.length} of ${r.due.length} kept and passed</span></div>` : ``)
     + `</div>`
@@ -6878,7 +6887,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
     + `<div style="margin-top:7px;font-size:10.5px;font-style:italic;opacity:.75">PPC counts a committed activity as kept when it completes on or before its promised finish. Quality-adjusted PPC additionally requires any witnessed outcome to be a pass. Target is a project setting (Admin, Lookahead &amp; Targets).</div></section>`);
   if (SEC.constraints) blocks.push(`<section>${sh("Open constraints")}<div class="cards">${cardsHtml}</div></section>`);
   if (SEC.reasons) blocks.push(`<section>${sh("Why work slipped")}<div class="bars">${reasonsHtml}</div></section>`);
-  if (SEC.byco) blocks.push(`<section>${sh("By contractor")}<div class="scope-note">Programme to date, all activities. PPC is committed work due to date, kept on time.</div>${coHtml}</section>`);
+  if (SEC.byco) blocks.push(`<section>${sh("By contractor")}${nar("byco")}<div class="scope-note">Programme to date, all activities. PPC is committed work due to date, kept on time.</div>${coHtml}</section>`);
   if (SEC.invites) {
     const w = r.witnessOut || { attempted:0, passed:0, failed:0, failReasons:[], ftp:null, roots:0 };
     const totWF = w.failReasons.reduce((s,x)=>s+x.n,0);
@@ -6892,7 +6901,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
     blocks.push(`<section>${sh("Invitation outcomes")}${woLead}${woBars?`<div class="bars">${woBars}</div>`:""}</section>`);
   }
   if (SEC.bycx) blocks.push(`<section>${sh("By Cx stage")}<div class="scope-note">Programme to date, all activities. Done is the share complete.</div>${cxHtml}</section>`);
-  if (SEC.statusmix) blocks.push(`<section>${sh("Status mix")}<div class="scope-note">Programme to date, all activities.</div>${statusMixHtml}</section>`);
+  if (SEC.statusmix) blocks.push(`<section>${sh("Status mix")}${nar("statusmix")}<div class="scope-note">Programme to date, all activities.</div>${statusMixHtml}</section>`);
   if (SEC.nextweek) blocks.push(`<section>${sh("Committed next week")}${nwHtml}</section>`);
   if (SEC.milestones) blocks.push(`<section>${sh("Milestones ahead")}<div class="rows">${msHtml}</div></section>`);
   if (cxSectionsHtml) blocks.push(String(cxSectionsHtml).replace(/__NUM__/g, () => nn()));
@@ -6964,7 +6973,7 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .empty{font-size:12.5px;color:var(--muted);padding:14px 4px}
 .gantt{border:1px solid var(--line);border-radius:11px;padding:6px 14px 12px}
 .g-head{position:relative;height:18px;margin-bottom:4px}.g-row{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:center;padding:5px 0;border-top:1px solid var(--line-2)}
-.g-lab{display:flex;flex-direction:column;min-width:0}.g-nm{font-size:12px;font-weight:600;white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.25}.g-sub{font-size:10px;color:var(--muted);white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.3}
+.ai-nar{border-left:3px solid rgba(74,125,219,.4);background:rgba(74,125,219,.07);padding:9px 13px;margin:4px 0 14px;font-style:italic;font-size:12px;border-radius:0 8px 8px 0;line-height:1.55}.ai-tag{display:inline-block;font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.06em;color:#4A7DDB;border:1px solid rgba(74,125,219,.4);border-radius:999px;padding:1px 7px;margin-right:8px;vertical-align:1px}.ai-note{font-size:10.5px;color:#8b93a7;font-style:normal;margin-top:5px}.g-push{font-size:9px;font-weight:700;color:#B8860B;border:1px solid rgba(224,161,6,.45);border-radius:999px;padding:1px 7px;margin-left:8px;white-space:nowrap;align-self:center}@media print{.scr-only{display:none}}.g-lab{display:flex;flex-direction:column;min-width:0}.g-nm{font-size:12px;font-weight:600;white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.25}.g-sub{font-size:10px;color:var(--muted);white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.3}
 .g-track{position:relative;height:16px}.g-grid{height:18px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
 .g-wk{position:absolute;top:2px;font-size:9.5px;color:var(--muted);transform:translateX(3px);border-left:1px solid var(--line-2);padding-left:3px;height:14px}
 .g-bar{position:absolute;top:3px;height:10px;border-radius:3px;min-width:3px}.g-dia{position:absolute;top:3px;width:10px;height:10px;transform:translateX(-5px) rotate(45deg)}
@@ -7158,6 +7167,8 @@ function draftReportSummary({ r, sections, cxSnap, cxSel }){
 
 const RPT_PLAN_SECTIONS = [["summary","Executive summary"],["ppc","Commitment reliability"],["kpis","Lookahead KPIs"],["constraints","Open constraint cards"],["reasons","Reasons for non-completion"],["invites","Invitation outcomes"],["breakdowns","By contractor / Cx stage"],["statusmix","Status mix"],["nextweek","Next week commitments"],["milestones","Milestones"],["schedule","Schedule snapshot"]];
 const RPT_CX_SECTIONS = [["cxkpis","Cx attainment KPIs"],["scurve","Programme S-curve"],["funnel","Tag attainment funnel"],["bytype","Red tag by equipment"],["issues","Open issues by type"],["irl","IRL workflow"],["docs","Documentation register"],["cxmilestones","Cx milestones"],["risks","Risk register"],["attendance","Vendor attendance"]];
+let RPT_NARR = {}; // REV194: narratives handed from the launcher to the html builder
+const RPT_AI_DEFAULT = { on:false, tone:"", secs:{ schedule:{on:true,steer:""}, ppc:{on:false,steer:""}, statusmix:{on:false,steer:""}, byco:{on:false,steer:""} } };
 const RPT_PLAN_DEFAULT = { summary:true, ppc:true, kpis:true, constraints:true, reasons:true, invites:true, breakdowns:false, statusmix:true, nextweek:false, milestones:true, schedule:true };
 const RPT_CX_DEFAULT = { cxkpis:true, scurve:true, funnel:true, bytype:false, issues:false, irl:false, docs:true, cxmilestones:false, risks:true, attendance:false };
 
@@ -7169,7 +7180,7 @@ const rptNumbersOk = (draft, out) => { const D = new Set(rptNumTokens(draft)); r
 function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, label, variant }){
   const defWeek = useMemo(() => { const t = new Date(todayMid()); const dow = t.getDay(); const back = (dow - 5 + 7) % 7; const fri = addDays(t, -back); const mon = mondayOf(fri); return { start: mon, end: addDays(mon, 6) }; }, []);
   const prefKey = "dlp_report_sections_" + (projectId||"x");
-  const loadPref = () => { try { const j = JSON.parse(localStorage.getItem(prefKey)||"null"); if (j && j.plan && j.cx) return { plan: { ...RPT_PLAN_DEFAULT, ...j.plan }, cx: { ...RPT_CX_DEFAULT, ...j.cx } }; } catch(e){} return { plan:{...RPT_PLAN_DEFAULT}, cx:{...RPT_CX_DEFAULT} }; };
+  const loadPref = () => { try { const j = JSON.parse(localStorage.getItem(prefKey)||"null"); if (j && j.plan && j.cx) return { plan: { ...RPT_PLAN_DEFAULT, ...j.plan }, cx: { ...RPT_CX_DEFAULT, ...j.cx }, ai: { ...RPT_AI_DEFAULT, ...(j.ai||{}), secs: { ...RPT_AI_DEFAULT.secs, ...((j.ai&&j.ai.secs)||{}) } } }; } catch(e){} return { plan:{...RPT_PLAN_DEFAULT}, cx:{...RPT_CX_DEFAULT}, ai: JSON.parse(JSON.stringify(RPT_AI_DEFAULT)) }; };
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState("week");
   const [from, setFrom] = useState(fmtISO(defWeek.start));
@@ -7178,12 +7189,65 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   const [theme, setTheme] = useState("light");
   const [plan, setPlan] = useState(() => loadPref().plan);
   const [cx, setCx] = useState(() => loadPref().cx);
+  const [ai, setAi] = useState(() => loadPref().ai);
+  const [narr, setNarr] = useState({});
+  const [narrNote, setNarrNote] = useState("");
   const [cxSnap, setCxSnap] = useState(null);
   const [cxBaseline, setCxBaseline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [polishing, setPolishing] = useState(false);
   const [polishNote, setPolishNote] = useState("");
   const [steer, setSteer] = useState("");
+  // REV194: deterministic fact builders. The fact text is both the AI's only input and
+  // the rendered fallback, so a narrative can never say more than the data does.
+  const factsFor = (key) => {
+    const r = rData; if (!r) return "";
+    if (key === "schedule") {
+      const rows = (r.schedule||[]); const pushed = rows.map((a)=>({ a, pi: r.pushInfoOf?r.pushInfoOf(a):null })).filter((x)=>x.pi);
+      if (!rows.length) return "";
+      if (!pushed.length) return `All ${rows.length} snapshot activities hold their planned dates; no start in the window is pushed by a predecessor.`;
+      const parts = pushed.map((x)=>`${x.a.desc} (+${x.pi.d}d, pushed by ${x.pi.code||x.pi.desc})`);
+      return `Late predecessors push ${pushed.length} of ${rows.length} snapshot activities: ${parts.join("; ")}. ${rows.length-pushed.length} of ${rows.length} hold their planned dates.`;
+    }
+    if (key === "byco") {
+      const top = (r.byCompany||[]).slice(0,6);
+      if (!top.length) return "";
+      return top.map((c)=>`${c.name}: ${c.n} activities, ${c.done} complete, ${c.inprog} in progress, ${c.open} open constraints${c.ppcDue?`, kept ${c.ppcKept} of ${c.ppcDue} committed`:""}`).join(". ") + ".";
+    }
+    if (key === "statusmix") {
+      const acts = S.activities||[]; const n=acts.length;
+      const pl=acts.filter((a)=>a.status==="planned").length, ip=acts.filter((a)=>a.status==="in_progress").length, co=acts.filter((a)=>a.status==="complete").length;
+      const oc=acts.reduce((t,a)=>t+((a.constraints||[]).filter((c)=>!c.done).length),0);
+      const wa=acts.filter((a)=>(a.constraints||[]).some((c)=>!c.done)).length;
+      return `Programme of ${n} activities: ${pl} planned, ${ip} in progress, ${co} complete. ${oc} open constraints across ${wa} activities.`;
+    }
+    if (key === "ppc") {
+      const due=(r.due||[]).length, missed=(r.missed||[]).length;
+      return `PPC this week ${r.ppc!=null?r.ppc:"n/a"}% against a target of ${r.ppcTarget!=null?r.ppcTarget:"n/a"}%: ${Math.max(0,due-missed)} of ${due} committed activities kept, ${missed} missed.${r.qaPpc!=null?` Quality adjusted PPC ${r.qaPpc}%.`:""}`;
+    }
+    return "";
+  };
+  const SEC_LABEL = { schedule:"Schedule snapshot", ppc:"Plan reliability", statusmix:"Status mix", byco:"By contractor" };
+  const genNarratives = async () => {
+    if (!ai || !ai.on || !rData) { setNarr({}); RPT_NARR = {}; return; }
+    const keys = ["schedule","ppc","statusmix","byco"].filter((k)=>ai.secs[k] && ai.secs[k].on && factsFor(k));
+    if (!keys.length) { setNarr({}); RPT_NARR = {}; setNarrNote(""); return; }
+    const out = {}; let fb = 0;
+    for (let i=0;i<keys.length;i++){
+      const k = keys[i]; setNarrNote(`Generating narratives ${i+1} of ${keys.length}\u2026`);
+      const facts = factsFor(k);
+      out[k] = { text: facts, ai: false };
+      try {
+        const { data, error } = await supabase.functions.invoke("super-action", { body: { mode: "section", section: SEC_LABEL[k], facts, steer: (ai.secs[k].steer||"").trim() || undefined, tone: (ai.tone||"").trim() || undefined } });
+        if (!error && data && data.text && rptNumbersOk(facts, data.text)) out[k] = { text: data.text, ai: true };
+        else { out[k].note = "AI narrative unavailable; showing drafted facts."; fb++; }
+      } catch (e) { out[k].note = "AI narrative unavailable; showing drafted facts."; fb++; }
+      setNarr({ ...out }); RPT_NARR = { ...out };
+    }
+    setNarrNote(`Narratives ready${fb?` (${fb} fallback${fb===1?"":"s"})`:""}.`);
+  };
+  useEffect(() => { try { const j = JSON.parse(localStorage.getItem(prefKey) || "{}"); localStorage.setItem(prefKey, JSON.stringify({ ...j, plan, cx, ai })); } catch (e) {} }, [ai]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open && ai && ai.on) genNarratives(); else { setNarr({}); RPT_NARR = {}; setNarrNote(""); } }, [open, ai && ai.on]); // eslint-disable-line react-hooks/exhaustive-deps
   const [recips, setRecips] = useState([]);
   const [emails, setEmails] = useState({});
   const [recipOpen, setRecipOpen] = useState(false);
@@ -7200,7 +7264,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   const secObj = () => ({ ...plan, byco: plan.breakdowns, bycx: plan.breakdowns });
   const autoSummary = useMemo(() => rData ? draftReportSummary({ r: rData, sections: secObj(), cxSnap, cxSel: cx }) : "", [rData, plan, cx, cxSnap]);
   const summaryVal = summary != null ? summary : autoSummary;
-  const persist = (p, c) => { try { localStorage.setItem(prefKey, JSON.stringify({ plan:p, cx:c })); } catch(e){} };
+  const persist = (p, c) => { try { localStorage.setItem(prefKey, JSON.stringify({ plan:p, cx:c , ai })); } catch(e){} };
   const togPlan = (k) => { const nx = { ...plan, [k]: !plan[k] }; setPlan(nx); setSummary(null); persist(nx, cx); };
   const togCx = (k) => { const nx = { ...cx, [k]: !cx[k] }; setCx(nx); setSummary(null); persist(plan, nx); };
   const openModal = async () => {
@@ -7358,6 +7422,18 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
               </div>
             </div>
             <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>{busy ? "Loading latest Cx week..." : cxSnap ? ("Cx sections read the week ending " + fmtFull(new Date(cxSnap.week_ending)) + ".") : "No Cx week imported yet; Cx sections will be skipped."}</div>
+          </div>
+          <div className="rep-fld" style={{ marginTop: 14 }}>
+            <label style={{ display:"flex", alignItems:"center", gap:8 }}><input type="checkbox" checked={!!ai.on} onChange={(e) => setAi((t) => ({ ...t, on: e.target.checked }))} /> AI narratives <span className="rep-mut">(a short model-written paragraph under each enabled section; every figure verified against the drafted facts, deterministic fallback if unavailable)</span></label>
+            {ai.on && <div style={{ border:"1px solid var(--line)", borderRadius:8, padding:"8px 10px", marginTop:6 }}>
+              <input className="lk-in" style={{ fontSize:12, marginBottom:6 }} placeholder="Global tone, optional, e.g. board tone, concise, lead with electrical scope" value={ai.tone} onChange={(e) => setAi((t) => ({ ...t, tone: e.target.value }))} />
+              {[["schedule","Schedule snapshot (link logic: pushed by late predecessors)"],["ppc","Plan reliability"],["statusmix","Status mix"],["byco","By contractor"]].map(([k, l]) => <div key={k} style={{ display:"flex", alignItems:"center", gap:8, margin:"4px 0" }}>
+                <input type="checkbox" checked={!!(ai.secs[k] && ai.secs[k].on)} onChange={(e) => setAi((t) => ({ ...t, secs: { ...t.secs, [k]: { ...(t.secs[k]||{steer:""}), on: e.target.checked } } }))} />
+                <span style={{ minWidth: 170, fontSize: 12 }}>{l}</span>
+                <input className="lk-in" style={{ flex:1, fontSize:11.5 }} placeholder="optional steer for this section" value={(ai.secs[k] && ai.secs[k].steer) || ""} onChange={(e) => setAi((t) => ({ ...t, secs: { ...t.secs, [k]: { ...(t.secs[k]||{on:false}), steer: e.target.value } } }))} />
+              </div>)}
+              <div className="rep-mut" style={{ fontSize:11, marginTop:4, display:"flex", alignItems:"center", gap:10 }}>{narrNote || "Narratives generate when the report opens."}<button type="button" className="lk-btn" style={{ padding:"3px 9px", fontSize:11 }} onClick={genNarratives}>Regenerate</button></div>
+            </div>}
           </div>
           <div className="rep-fld" style={{ marginTop: 14 }}><label style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}><span>Executive Summary <span className="rep-mut">(auto-drafted from included sections, editable)</span></span><button type="button" className="lk-btn" style={{ padding:"4px 10px", fontSize:11.5 }} disabled={polishing} onClick={polish}>{polishing ? "Polishing\u2026" : "Polish with AI"}</button></label>
             <input className="lk-in" style={{ marginBottom:8, fontSize:12.5 }} value={steer} onChange={(e) => setSteer(e.target.value)} placeholder="Optional: steer the polish, e.g. more concise, lead with the MV risk, formal board tone" />
