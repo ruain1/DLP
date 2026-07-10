@@ -220,7 +220,12 @@ export async function syncCollections(prev, next, session, projectId) {
     const ups = next.companies.filter((c) => !pm[c.id] || pm[c.id].name !== c.name || (pm[c.id].logoUrl || "") !== (c.logoUrl || "") || (pm[c.id].logoDark || "") !== (c.logoDark || "") || (pm[c.id].description || "") !== (c.description || "")).map((c) => ({ id: c.id, name: c.name, logo_url: c.logoUrl || null, logo_url_dark: c.logoDark || null, description: c.description || null }));
     const del = prev.companies.filter((c) => !nm[c.id]).map((c) => c.id);
     if (ups.length) ops.push(supabase.from("companies").upsert(ups));
-    if (del.length) ops.push(supabase.from("companies").delete().in("id", del));
+    // REV192: companies are a global directory shared by every project. A state
+    // diff may delete AT MOST ONE company (the deliberate Manage-button path);
+    // any bulk delete is suppressed, because this single line once converted a
+    // FIN3021 import into a global directory wipe across all projects.
+    if (del.length === 1) ops.push(supabase.from("companies").delete().in("id", del));
+    else if (del.length > 1) console.warn(`[DLP] bulk company delete suppressed (${del.length} ids):`, del);
   }
   // areas / systems (string arrays keyed by name, per project)
   for (const key of ["areas", "systems", "crews"]) {
@@ -526,6 +531,21 @@ export function subscribeAll(onChange, getProjectId) {
       } catch (e) { debounced(); }
     })
     .subscribe();
+}
+
+// ---- REV192: import fingerprints ----
+export async function importFingerprint(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(text || "")));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+export async function checkImportFingerprint(projectId, hash) {
+  const { data } = await supabase.from("import_fingerprints").select("ts, by_name, mode, row_count")
+    .eq("project_id", projectId).eq("hash", hash).order("ts", { ascending: false }).limit(1);
+  return (data && data[0]) || null;
+}
+export async function recordImportFingerprint(projectId, hash, rowCount, mode, byName) {
+  // Best-effort: a failed fingerprint write must never block an import.
+  try { await supabase.from("import_fingerprints").insert({ project_id: projectId, hash, row_count: rowCount || 0, mode: mode || "append", by_name: byName || "" }); } catch (e) { console.warn("[DLP] fingerprint record failed", e); }
 }
 
 // ---- presence ("Latest online") ----

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -4165,6 +4165,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   useEffect(() => { setMapDraft((bl && bl.mappings) || {}); }, [bl]);
   const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
+  const [impGate, setImpGate] = useState(null); // REV192: staged import awaiting confirmation
+  const [impGateText, setImpGateText] = useState("");
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
   const [nu, setNu] = useState({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" });
@@ -4415,17 +4417,18 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (s == null || s === "") return ""; if (s instanceof Date) return isNaN(s) ? "" : fmtISO(s); s = String(s).trim(); if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/); if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0"); m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); } m = s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3,9})[-\/ ](\d{2}|\d{4})$/); if (m) { const mo = ({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 })[m[2].slice(0, 3).toLowerCase()]; if (mo) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + String(mo).padStart(2, "0") + "-" + m[1].padStart(2, "0"); } } const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
-  const importJSON = (obj) => {
+  const commitImportJSON = (obj) => {
     update((p) => { let n = { ...p };
       if (impMode === "override") {
-        if (obj.companies) n.companies = obj.companies;
+        const coMap = {}; // REV192: merge companies add-only and remap incoming ids onto existing vendors by name
+        if (obj.companies) { const cur = [...n.companies]; obj.companies.forEach((c) => { const nm = (c.name || "").toLowerCase(); const ex = cur.find((x) => x.name.toLowerCase() === nm); if (ex) { coMap[c.id] = ex.id; } else { const id = c.id && !cur.some((x) => x.id === c.id) ? c.id : uid("co"); coMap[c.id] = id; cur.push({ ...c, id }); } }); n.companies = cur; }
         if (obj.areas) n.areas = obj.areas;
         if (obj.subAreas) n.subAreas = obj.subAreas;
         if (obj.tier3s) n.tier3s = obj.tier3s;
         if (obj.systems) n.systems = obj.systems;
         if (obj.levels) n.levels = obj.levels;
         if (obj.settings) n.settings = { ...n.settings, ...obj.settings };
-        if (obj.activities) { let c = obj.activities.reduce((m, a) => Math.max(m, a.code || 0), 0); n.activities = obj.activities.map((a) => ({ ...a, id: a.id || uid("a"), predecessors: Array.isArray(a.predecessors) ? a.predecessors : [], code: a.code != null ? a.code : ++c })); }
+        if (obj.activities) { let c = obj.activities.reduce((m, a) => Math.max(m, a.code || 0), 0); n.activities = obj.activities.map((a) => ({ ...a, id: a.id || uid("a"), companyId: coMap[a.companyId] || a.companyId, predecessors: Array.isArray(a.predecessors) ? a.predecessors : [], code: a.code != null ? a.code : ++c })); }
       } else {
         const map = {};
         if (obj.companies) { const companies = [...n.companies]; obj.companies.forEach((c) => { const ex = companies.find((x) => x.name.toLowerCase() === (c.name || "").toLowerCase()); if (ex) map[c.id] = ex.id; else { const nid = uid("co"); companies.push({ id: nid, name: c.name }); map[c.id] = nid; } }); n.companies = companies; }
@@ -4439,7 +4442,21 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
     }, { action: `Import JSON (${impMode})`, detail: `${(obj.activities || []).length} activities` });
     setImpMsg(`Imported project JSON (${impMode}).`);
   };
-  const importCSV = (text) => {
+  // REV192: every import is fingerprinted; Override and repeat files are gated
+  // behind an explicit confirmation before anything is committed.
+  const stageImport = async (kind, payload, fpText, rowCount) => {
+    let hash = "", dup = null;
+    try { hash = await importFingerprint(fpText); dup = await checkImportFingerprint(S.projectId, hash); } catch (e) {}
+    const g = { kind, payload, hash, rowCount, dup, mode: impMode };
+    if (impMode === "override" || dup) { setImpGateText(""); setImpGate(g); return; }
+    commitStagedImport(g);
+  };
+  const commitStagedImport = (g) => {
+    setImpGate(null);
+    if (g.kind === "csv") commitImportCSV(g.payload); else commitImportJSON(g.payload);
+    if (g.hash) recordImportFingerprint(S.projectId, g.hash, g.rowCount, g.mode, (cu && cu.name) || "");
+  };
+  const commitImportCSV = (text) => {
     const rows = parseCSV(text).filter((r) => r.length && r.some((c) => c.trim() !== ""));
     if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
     const hdr = rows[0].map((h) => h.trim().toLowerCase());
@@ -4448,7 +4465,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
     const normDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
     let built = 0, crewsNew = 0;
     update((p) => {
-      let companies = impMode === "override" ? [] : [...p.companies];
+      let companies = [...p.companies]; // REV192: companies are global; imports only ever add, never reset
       let areas = impMode === "override" ? [] : [...p.areas];
       let systems = impMode === "override" ? [] : [...p.systems];
       let subAreas = impMode === "override" ? [] : [...(p.subAreas || [])];
@@ -4488,10 +4505,10 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
         const ws = wb.getWorksheet("Activities") || wb.worksheets[0];
         const rows = []; ws.eachRow({ includeEmpty: false }, (row) => { const arr = []; row.eachCell({ includeEmpty: true }, (cell) => arr.push(cell.value)); rows.push(arr); });
-        importCSV(rowsToCSV(rows));
+        const csvText = rowsToCSV(rows); await stageImport("csv", csvText, csvText, Math.max(0, rows.length - 1));
       } else {
         const txt = (await file.text()).replace(/^\uFEFF/, "");
-        if (name.endsWith(".json")) { const parsed = JSON.parse(txt); if (impMode === "override") importJSON(parsed); else setJsonPreview(parsed); } else importCSV(txt);
+        if (name.endsWith(".json")) { const parsed = JSON.parse(txt); if (impMode === "override") await stageImport("json", parsed, txt, (parsed.activities || []).length); else setJsonPreview(parsed); } else await stageImport("csv", txt, txt, Math.max(0, txt.split(/\r?\n/).filter((l) => l.trim()).length - 1));
       }
     } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); }
     e.target.value = "";
@@ -4514,6 +4531,30 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
         </div>
         <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "") + (tab === "privileges" ? " wide full" : "")}><div className="lk-db">
           {tab === "privileges" && <PrivilegesTab S={S} cu={cu} isOwner={isOwner} projClient={projClient} />}
+          {impGate && <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => setImpGate(null)}>
+            <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+              {impGate.mode === "override" ? <>
+                <h3 style={{ marginTop: 0 }}>Confirm Override import</h3>
+                <div style={{ border: "1px solid rgba(192,57,43,.5)", background: "rgba(192,57,43,.08)", borderRadius: 9, padding: "11px 13px", fontSize: 12.5, color: "#e07a6d", marginBottom: 10 }}><b>Override replaces this project's planning data.</b> Proceeding will delete and rebuild {(S.brand && S.brand.projectName) || "this project"}'s buildings, systems, levels, zones and crews, and replace all {S.activities.length} current activities with the {impGate.rowCount} rows in this file. The global company directory is never deleted by an import; new vendors are added alongside the existing ones.</div>
+                {impGate.dup && <div style={{ border: "1px solid rgba(36,86,166,.55)", background: "rgba(36,86,166,.10)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#7EA6E0", marginBottom: 10 }}>An identical file ({impGate.dup.row_count} rows) was already imported into this project on {new Date(impGate.dup.ts).toLocaleString("en-GB")} by {impGate.dup.by_name || "unknown"} in {impGate.dup.mode} mode.</div>}
+                <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", margin: "6px 0" }}>Type the project code to confirm</label>
+                <input className="lk-in mono" style={{ width: 200 }} placeholder={(S.brand && S.brand.projectName) || "FIN04"} value={impGateText} onChange={(e) => setImpGateText(e.target.value)} />
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>Case-sensitive. Append mode never shows this gate.</div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+                  <button className="lk-btn" onClick={() => setImpGate(null)}>Cancel</button>
+                  <button className="lk-btn" disabled={impGateText !== ((S.brand && S.brand.projectName) || "FIN04")} style={{ background: "#5c1d1d", borderColor: "#8a2f2f", color: "#ffb4ad", opacity: impGateText === ((S.brand && S.brand.projectName) || "FIN04") ? 1 : 0.45 }} onClick={() => commitStagedImport(impGate)}>Wipe and import</button>
+                </div>
+              </> : <>
+                <h3 style={{ marginTop: 0 }}>This file was already imported</h3>
+                <div style={{ border: "1px solid rgba(36,86,166,.55)", background: "rgba(36,86,166,.10)", borderRadius: 9, padding: "11px 13px", fontSize: 12.5, color: "#7EA6E0", marginBottom: 8 }}>An identical file (<b>{impGate.dup && impGate.dup.row_count} rows</b>, same content fingerprint) was imported into this project on <b>{impGate.dup && new Date(impGate.dup.ts).toLocaleString("en-GB")}</b> by <b>{(impGate.dup && impGate.dup.by_name) || "unknown"}</b> in <b>{impGate.dup && impGate.dup.mode}</b> mode. Importing again in append mode will create {impGate.rowCount} duplicates.</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Fingerprints hash the file's parsed content per project, so the check works across browsers and users; renaming the file does not defeat it.</div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+                  <button className="lk-btn" onClick={() => setImpGate(null)}>Cancel</button>
+                  <button className="lk-btn" style={{ background: "#5c1d1d", borderColor: "#8a2f2f", color: "#ffb4ad" }} onClick={() => commitStagedImport(impGate)}>Import anyway</button>
+                </div>
+              </>}
+            </div>
+          </div>}
           {tab === "design" && <DesignTab S={S} update={update} />}
           {tab === "systems" && <>
             <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
