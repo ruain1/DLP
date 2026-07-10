@@ -1,0 +1,40 @@
+name: db-backup
+# Zero-cost substitute for PITR (declined at USD 100/month).
+# Nightly logical dump of the full database, kept 14 days as a workflow
+# artifact, plus on-demand runs before risky operations.
+#
+# Setup (one time):
+#   GitHub repo > Settings > Secrets and variables > Actions > New secret
+#   Name:  SUPABASE_DB_URL
+#   Value: postgresql://postgres:[DB_PASSWORD]@db.nbukhiaczzebfsyxofga.supabase.co:5432/postgres
+#
+# Honest limits vs PITR: restore granularity is the last nightly run (or the
+# last manual run you remembered to trigger), and restoring is a manual
+# psql < dump, not a dashboard button. Against a 100/month saving, acceptable.
+
+on:
+  schedule:
+    - cron: "15 0 * * *"   # 00:15 UTC nightly, 03:15 Helsinki
+  workflow_dispatch: {}     # Actions tab > db-backup > Run workflow, before anything risky
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install postgres client 15
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-15
+      - name: Dump database
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          STAMP=$(date -u +%Y%m%d-%H%M)
+          pg_dump "$DB_URL" --no-owner --no-privileges -F c -f "dlp-$STAMP.dump"
+          ls -la dlp-*.dump
+      - name: Keep 14 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: dlp-db-${{ github.run_id }}
+          path: dlp-*.dump
+          retention-days: 14
