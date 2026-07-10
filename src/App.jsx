@@ -800,6 +800,11 @@ const todayMid = () => new Date().setHours(0, 0, 0, 0);
 const parseD = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
 const fmtISO = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 const addDays = (dt, n) => { const x = new Date(dt); x.setDate(x.getDate() + n); return x; };
+// REV186: completion window. Planned finish is start + duration - 1 calendar days; once that
+// day has passed, marking complete is admin-only (mirrored by the enforce_completion_window DB trigger).
+const plannedFinish = (a) => addDays(parseD(a.start), Math.max(0, (a.duration || 1) - 1));
+const pastCompletionWindow = (a) => !!(a && a.start) && plannedFinish(a).getTime() < todayMid();
+const finishVsPlan = (a) => { if (!a.start || !a.actualFinish) return null; return Math.round((parseD(a.actualFinish) - plannedFinish(a)) / DAYMS); };
 const pctOf = (a) => (a && a.percent != null) ? Math.max(0, Math.min(100, Math.round(a.percent))) : ((a && a.status === "complete") ? 100 : 0);
 const statusWord = (a) => a.status === "complete" ? "Complete" : a.status === "in_progress" ? "In progress" : "Planned";
 const CASE_MINOR = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "of", "on", "or", "the", "to", "vs", "via", "with", "x"]);
@@ -2443,8 +2448,23 @@ export default function App({ session }) {
   })();
 
   const saveActivity = (a, isNew) => {
+    // REV186: completion transitions get explicit, self-describing audit actions.
+    const prev = isNew ? null : S.activities.find((x) => x.id === a.id);
+    const toComplete = a.status === "complete" && (!prev || prev.status !== "complete");
+    const reopened = !!prev && prev.status === "complete" && a.status !== "complete";
+    let action = isNew ? "Create activity" : "Edit activity";
+    let detail = `${a.desc} (${coName(a.companyId)})`;
+    if (toComplete) {
+      action = "Marked complete";
+      const d = finishVsPlan(a);
+      const timing = a.actualFinish ? (d > 0 ? `overdue +${d}d` : "on time") : "actual finish not yet set";
+      detail = `${a.desc} (${coName(a.companyId)}) - planned finish ${a.start ? fmtISO(plannedFinish(a)) : "n/a"}, actual finish ${a.actualFinish || "unset"} (${timing})${pastCompletionWindow(a) && isAdmin ? ", recorded by admin after window" : ""}`;
+    } else if (reopened) {
+      action = "Reopened activity";
+      detail = `${a.desc} (${coName(a.companyId)}) complete -> ${a.status.replace("_", " ")}`;
+    }
     update((p) => ({ ...p, activities: isNew ? [...p.activities, a] : p.activities.map((x) => x.id === a.id ? a : x) }),
-      { action: isNew ? "Create activity" : "Edit activity", detail: `${a.desc} (${coName(a.companyId)})` });
+      { action, detail });
     setEditing(null);
   };
   // REV175: cross-company members can record percent complete only, via the RPC
@@ -3604,8 +3624,10 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {tab === "schedule" && <>
           {locked && canEdit && a.status === "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit them. The reason for non-completion can still be recorded.</div>}
           {locked && canEdit && failedOnRecord && a.status !== "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Witness outcome recorded as Failed, so the record is locked. An admin can reopen the outcome by setting it back to Pending.</div>}
-          <div className="lk-f"><label>Status</label><div className="lk-status">{(a.isMilestone ? [["planned", "Planned"], ["complete", "Complete"]] : [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]).map(([k, l]) => <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); n.percent = 100; } else if (k === "planned") n.percent = 0; return n; })}>{l}</button>)}</div>
+          <div className="lk-f"><label>Status</label><div className="lk-status">{(a.isMilestone ? [["planned", "Planned"], ["complete", "Complete"]] : [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]).map(([k, l]) => { const blockLate = k === "complete" && pastCompletionWindow(a) && !isAdmin; return <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit || blockLate} title={blockLate ? "Past its planned finish; overdue completion is admin-only" : undefined} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish && !pastCompletionWindow(p)) n.actualFinish = fmtISO(new Date()); n.percent = 100; } else if (k === "planned") n.percent = 0; return n; })}>{l}</button>; })}</div>
             {a.isMilestone && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Milestones are binary: a point event is either Planned or Complete.</span>}</div>
+          {pastCompletionWindow(a) && !isAdmin && a.status !== "complete" && <div style={{ border: "1px solid rgba(224,161,6,.45)", background: "rgba(224,161,6,.07)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "#E0A106", marginTop: -4 }}><Icon n="alert" s={13} /> <b>Past its planned finish ({fmtISO(plannedFinish(a))}), so Complete is now admin-only.</b> Record the Reason for Non-Completion below, then ask an admin to record the actual completion. This keeps the completion date honest in PPC.</div>}
+          {pastCompletionWindow(a) && isAdmin && a.status !== "complete" && <div style={{ border: "1px solid rgba(36,86,166,.55)", background: "rgba(36,86,166,.10)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "#7EA6E0", marginTop: -4 }}><Icon n="alert" s={13} /> You are recording an <b>overdue completion</b> (planned finish {fmtISO(plannedFinish(a))}). The audit log will name you and show the overrun. Set the true Actual finish date; it does not default to today on an overdue completion.</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness Outcome</label>
             <div className="lk-status">{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || locked || !can("witnessOutcome")} onClick={() => setOutcome(k)}>{l}</button>)}</div>
             <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The result of the witnessed event, separate from the schedule status above.</span></div>}
@@ -5944,14 +5966,14 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   const clickRow = (e, idx, id) => { if (e.shiftKey && lastIdx.current != null) { const lo = Math.min(lastIdx.current, idx), hi = Math.max(lastIdx.current, idx); const ids = list.slice(lo, hi + 1).map((x) => x.id); setSel((s) => { const n = new Set(s); ids.forEach((x) => n.add(x)); return n; }); } else { toggleSel(id); lastIdx.current = idx; } };
   const setSelCommitted = (val) => { if (!sel.size) return; const ids = sel; const n = ids.size; update((p) => ({ ...p, activities: p.activities.map((x) => ids.has(x.id) ? { ...x, committed: val } : x) }), { action: "Bulk set committed (table)", detail: `${n} activit${n === 1 ? "y" : "ies"} -> committed ${val ? "Yes" : "No"}` }); setSavedMsg(`Set committed = ${val ? "Yes" : "No"} on ${n} activit${n === 1 ? "y" : "ies"}`); setTimeout(() => setSavedMsg(""), 3000); setSel(new Set()); setBulkCommitted(""); };
   const delSelected = () => { const ids = sel; if (!ids.size) return; update((p) => ({ ...p, activities: p.activities.filter((x) => !ids.has(x.id)).map((x) => (x.predecessors && x.predecessors.some((pid) => ids.has(pid))) ? { ...x, predecessors: x.predecessors.filter((pid) => !ids.has(pid)) } : x) }), { action: "Delete activities (table)", detail: ids.size + " activit" + (ids.size === 1 ? "y" : "ies") }); setSel(new Set()); setConfirmBulk(false); };
-  const setSelStatus = () => { if (!sel.size || !bulkStatus) return; const ids = sel; const n = ids.size; const today = fmtISO(new Date()); update((p) => ({ ...p, activities: p.activities.map((x) => { if (!ids.has(x.id)) return x; const nn = { ...x, status: bulkStatus }; if (bulkStatus === "in_progress" && !nn.actualStart) nn.actualStart = today; if (bulkStatus === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish) nn.actualFinish = today; } return nn; }) }), { action: "Bulk set status (table)", detail: `${n} activit${n === 1 ? "y" : "ies"} -> ${bulkStatus.replace("_", " ")}` }); setSavedMsg(`Set ${n} activit${n === 1 ? "y" : "ies"} to ${bulkStatus.replace("_", " ")}`); setTimeout(() => setSavedMsg(""), 3000); setSel(new Set()); setBulkStatus(""); };
+  const setSelStatus = () => { if (!sel.size || !bulkStatus) return; const ids = sel; const today = fmtISO(new Date()); let skipped = 0; update((p) => ({ ...p, activities: p.activities.map((x) => { if (!ids.has(x.id)) return x; if (bulkStatus === "complete" && pastCompletionWindow(x) && !isAdmin && x.status !== "complete") { skipped++; return x; } const nn = { ...x, status: bulkStatus }; if (bulkStatus === "in_progress" && !nn.actualStart) nn.actualStart = today; if (bulkStatus === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish && !pastCompletionWindow(x)) nn.actualFinish = today; } return nn; }) }), { action: bulkStatus === "complete" ? "Bulk marked complete (table)" : "Bulk set status (table)", detail: `${ids.size - skipped} activit${ids.size - skipped === 1 ? "y" : "ies"} -> ${bulkStatus.replace("_", " ")}${skipped ? `, ${skipped} skipped (past planned finish, admin required)` : ""}` }); setSavedMsg(`Set ${ids.size - skipped} activit${ids.size - skipped === 1 ? "y" : "ies"} to ${bulkStatus.replace("_", " ")}${skipped ? `. ${skipped} skipped: past planned finish, admin required` : ""}`); setTimeout(() => setSavedMsg(""), 5000); setSel(new Set()); setBulkStatus(""); };
   const [cols, setCols] = useState(() => ({ ...TBL_DEFAULT_COLS, ...(savedView.cols || {}) }));
   const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
   const rowEditable = (a) => a.status === "complete" ? can("editCommitted") : (canEdit(a) && (!a.committed || can("editCommitted") || can("commit")));
   const begin = (a) => { setEditId(a.id); setDraft({ ...a }); };
   const cancel = () => { setEditId(null); setDraft(null); };
   const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
-  const setStatus = (v) => setDraft((d) => { const n = { ...d, status: v }; if (v === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (v === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish) n.actualFinish = fmtISO(new Date()); } return n; });
+  const setStatus = (v) => setDraft((d) => { if (v === "complete" && pastCompletionWindow(d) && !isAdmin) return d; const n = { ...d, status: v }; if (v === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (v === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish && !pastCompletionWindow(d)) n.actualFinish = fmtISO(new Date()); } return n; });
   const save = () => { if (!draft.desc.trim() || !draft.start) return; const d = draft; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === d.id ? d : x) }), { action: "Edit activity (table)", detail: `${d.desc} (${coName(d.companyId)})` }); cancel(); };
   const saveView = () => { try { localStorage.setItem("fin04_tblview", JSON.stringify({ cols, fCo, fAr, fLv, fStatus })); setSavedMsg("Saved as your default view"); setTimeout(() => setSavedMsg(""), 2200); } catch (e) {} };
   const resetView = () => { setCols({ ...TBL_DEFAULT_COLS }); setFCo("all"); setFAr("all"); setFLv("all"); setFStatus("all"); setFFrom(""); setFTo(""); try { localStorage.removeItem("fin04_tblview"); } catch (e) {} setSavedMsg("Reset to defaults"); setTimeout(() => setSavedMsg(""), 2200); };
@@ -5994,12 +6016,13 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
       if (frType === "bool") return { ...x, [frField]: frRepl === "true" };
       if (frType === "area") return { ...x, area: frRepl, subArea: "", tier3: "" };
       if (frType === "company") return { ...x, companyId: frRepl || null };
-      if (frType === "status") { const nn = { ...x, status: frRepl }; if (frRepl === "in_progress" && !nn.actualStart) nn.actualStart = today; if (frRepl === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish) nn.actualFinish = today; } return nn; }
+      if (frType === "status") { if (frRepl === "complete" && pastCompletionWindow(x) && !isAdmin && x.status !== "complete") { frSkip.n++; return x; } const nn = { ...x, status: frRepl }; if (frRepl === "in_progress" && !nn.actualStart) nn.actualStart = today; if (frRepl === "complete") { if (!nn.actualStart) nn.actualStart = today; if (!nn.actualFinish && !pastCompletionWindow(x)) nn.actualFinish = today; } return nn; }
       return { ...x, [frField]: frRepl };
     };
+    const frSkip = { n: 0 };
     const det = frIsText ? `"${frFind}" -> "${frRepl}" in ${fl}` : `${fl} set to "${frLbl(frRepl)}"${frFind === "__any__" ? "" : ` (where ${fl} = "${frLbl(frFind)}")`}`;
     update((p) => ({ ...p, activities: p.activities.map((x) => ids.has(x.id) ? apply(x) : x) }), { action: "Find & replace (table)", detail: `${det} on ${n} activit${n === 1 ? "y" : "ies"}` });
-    setSavedMsg(`Updated ${n} activit${n === 1 ? "y" : "ies"}${frIsText ? ` (${frOccur} occurrence${frOccur === 1 ? "" : "s"})` : ""}`); setTimeout(() => setSavedMsg(""), 3000); setFrConfirm(false); setFrOpen(false); if (frIsText) { setFrFind(""); setFrRepl(""); }
+    setSavedMsg(`Updated ${n - frSkip.n} activit${n - frSkip.n === 1 ? "y" : "ies"}${frIsText ? ` (${frOccur} occurrence${frOccur === 1 ? "" : "s"})` : ""}${frSkip.n ? `. ${frSkip.n} skipped: past planned finish, admin required` : ""}`); setTimeout(() => setSavedMsg(""), 5000); setFrConfirm(false); setFrOpen(false); if (frIsText) { setFrFind(""); setFrRepl(""); }
   };
   const visCount = 2 + TBL_COLS.filter(([k]) => cols[k]).length;
   return (
@@ -6084,7 +6107,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
                 {C("start") && <td>{ed ? <input className="lk-in mono" style={cell} type="date" value={d.start} disabled={plk} onChange={(e) => set("start", e.target.value)} /> : a.start}</td>}
                 {C("days") && <td>{ed ? <input className="lk-in mono" style={{ ...cell, width: 54 }} type="number" min="1" value={d.duration} disabled={plk} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} /> : a.duration}</td>}
                 {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} disabled={plk} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
-                {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select> : a.status.replace("_", " ")}</td>}
+                {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete" disabled={pastCompletionWindow(a) && !isAdmin}>Complete</option></select> : a.status.replace("_", " ")}</td>}
                 {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={plk || !can("witnessReq")} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
                 {C("witnessat") && <td>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={plk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
                 {C("notes") && <td style={{ width: 320, maxWidth: 320 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <div style={{ maxWidth: 320, whiteSpace: "normal", overflowWrap: "break-word", color: "var(--muted)" }}>{a.notes || ""}</div>}</td>}
