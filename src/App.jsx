@@ -6715,6 +6715,11 @@ function draftSummary(r){
 }
 
 function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml }){
+  // REV195: per-section narrative block, defined first because scheduleSection uses it
+  // long before the blocks assembly (REV194 declared it mid-body, so building the
+  // schedule hit the const in its temporal dead zone and Generate died silently).
+  // Reads the module-level RPT_NARR map the launcher fills; missing key renders nothing.
+  const nar = (k) => { const t = RPT_NARR && RPT_NARR[k]; if(!t||!t.text) return ""; return `<div class="ai-nar">${t.ai?'<span class="ai-tag">AI NARRATIVE</span>':''}${esc(t.text)}${t.note?`<div class="ai-note scr-only">${esc(t.note)}</div>`:""}</div>`; };
   const dueColor = (d) => { if(!d) return "ok"; const t=parseD(d).getTime(), now=r.today.getTime(); if(t<now) return "over"; if(t<=addDays(r.today,2).getTime()) return "soon"; return "ok"; };
   const dueLabel = (d) => { if(!d) return ["set","need by"]; const t=parseD(d).getTime(); return [fmtD(parseD(d)), t<r.today.getTime()?"overdue":"need by"]; };
   // REV154: analytics-parity render helpers. ppcCol matches the gauge colour rule; mixHead/mixLegend
@@ -6866,9 +6871,6 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, invites:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true, statusmix:true }, sections||{});
   let _n = 0; const nn = () => String(++_n).padStart(2,"0");
   const sh = (title) => `<div class="sec-head"><span class="eyebrow">${nn()}</span><h2>${title}</h2><div class="rule"></div></div>`;
-  // REV194: per-section narrative block. Reads the module-level RPT_NARR map the
-  // launcher fills before building; missing key renders nothing.
-  const nar = (k) => { const t = RPT_NARR && RPT_NARR[k]; if(!t||!t.text) return ""; return `<div class="ai-nar">${t.ai?'<span class="ai-tag">AI NARRATIVE</span>':''}${esc(t.text)}${t.note?`<div class="ai-note scr-only">${esc(t.note)}</div>`:""}</div>`; };
   const blocks = [];
   let intro = "";
   if (SEC.summary) intro += `${sh("Executive summary")}<p class="lede">${sumHtml}</p>`;
