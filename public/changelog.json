@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV184",
+    "date": "2026-07-09",
+    "items": [
+      "Database errors are no longer silent. If loading a project fails on any table, or a save is rejected by the database, a red Database error banner now appears at the top of the app naming the table and the exact error. Previously a failed load rendered an empty project and a failed save was quietly reverted by the live refresh, both with no message anywhere.",
+      "The import result message now reports what was actually built (activities and new crews), not just how many rows were parsed, and states that a rejected save will surface in the banner.",
+      "Diagnostic revision: no behaviour changes beyond error visibility and the import message."
+    ]
+  },
+  {
     "rev": "REV183",
     "date": "2026-07-09",
     "items": [
