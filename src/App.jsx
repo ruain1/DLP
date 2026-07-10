@@ -2121,6 +2121,14 @@ export default function App({ session }) {
     const h = invHash(a);
     if (es.some((e) => e.hash !== h) || es.some((e) => e.day >= n)) return "changed";
     if (es.length < n) return "partial";
+    // REV188: an already-sent invite whose witness date has drifted outside the current plan
+    // (the activity was rescheduled before this feature shipped, so witnessAt never followed) is
+    // surfaced as behindplan so it can be realigned and re-sent rather than sitting silently as sent.
+    if (a.start && a.witnessAt) {
+      const ws = (a.witnessAt || "").slice(0, 10);
+      const pf = fmtISO(addDays(parseD(a.start), Math.max(1, a.duration || 1) - 1));
+      if (ws < a.start || ws > pf) return "behindplan";
+    }
     return "sent";
   };
   // Plain fields per session day; the styled HTML body is assembled by the shared template in
@@ -2183,7 +2191,7 @@ export default function App({ session }) {
       cache[co.id] = out; return out;
     } catch (e) { cache[co.id] = null; return null; }
   };
-  const persistInv = (a, witnessEvents, action, detail) => update((p) => ({ ...p, activities: p.activities.map((x) => (x.id === a.id ? { ...x, witnessEvents, witnessSentAt: witnessEvents.some((e) => e.status !== "cancelled") ? (x.witnessSentAt || new Date().toISOString()) : x.witnessSentAt } : x)) }), { action, detail });
+  const persistInv = (a, witnessEvents, action, detail) => update((p) => ({ ...p, activities: p.activities.map((x) => (x.id === a.id ? { ...x, witnessAt: a.witnessAt, witnessEvents, witnessSentAt: witnessEvents.some((e) => e.status !== "cancelled") ? (x.witnessSentAt || new Date().toISOString()) : x.witnessSentAt } : x)) }), { action, detail });
   // mode: "send" reconciles (create missing days, update mismatched, cancel surplus); "cancel" cancels all active sessions.
   const runInv = async (a, mode) => {
     if (!can("witnessSend") || olBusy) return;
@@ -2249,6 +2257,10 @@ export default function App({ session }) {
     }
     setOlBusy(null);
   };
+  // REV188: repair an invite left behind by a pre-fix reschedule. Realign the witness date to the
+  // current start (time of day kept), then reconcile so the corrected event reaches attendees. No
+  // email is sent until this explicit action, matching every other send path.
+  const realignAndSend = (a) => runInv({ ...a, witnessAt: realignWitnessAt(a.witnessAt, a.start) }, "send");
   // ---- REV95: client-side digest scheduler ----
   const DIGEST_SENDER = "ruain.b@cs-nordics.com";
   const digestTick = async () => {
@@ -2492,7 +2504,8 @@ export default function App({ session }) {
     if (!can("editAny") && S.laneBy === "company" && lane != null) { const c = S.companies.find((c) => c.name === lane); if (c && c.id !== a.companyId) { dragId.current = null; return; } }
     update((p) => ({ ...p, activities: p.activities.map((x) => {
       if (x.id !== id) return x;
-      const u = { ...x, start: fmtISO(addDays(anchor, dayIdx)) };
+      const ns = fmtISO(addDays(anchor, dayIdx));
+      const u = { ...x, start: ns, witnessAt: x.witnessInvite ? shiftWitnessAt(x.witnessAt, x.start, ns) : x.witnessAt };
       if (lane != null) { if (p.laneBy === "level") u.level = lane; else if (p.laneBy === "area") u.area = lane; else if (p.laneBy === "subarea") u.subArea = lane === "Unassigned" ? "" : lane; else if (p.laneBy === "tier3") u.tier3 = lane === "Unassigned" ? "" : lane; else { const c = p.companies.find((c) => c.name === lane); if (isAdmin && c) u.companyId = c.id; } }
       return u;
     }) }), { action: "Move activity", detail: `${a.desc} to ${fmtISO(addDays(anchor, dayIdx))}` });
@@ -3230,7 +3243,7 @@ export default function App({ session }) {
                         <span style={{ marginLeft: "auto" }} />
                         <button className="lk-btn primary" style={{ fontSize: 12 }} disabled={!!olBusy || pending.length === 0} onClick={bulkSend}>{olBusy === "bulk" ? "Sending..." : `Send All Pending (${pending.length})`}</button>
                         <button className="lk-btn" style={{ fontSize: 12 }} disabled={!!olBusy} onClick={disconnectOl}>Disconnect</button></>
-                    : <><span className="wsch-olhint">Send invites directly from DLP through your CSN Outlook account. One click per event; reschedules send updates and cancellations follow automatically. Test To Me puts the event in your own calendar first.</span>
+                    : <><span className="wsch-olhint">Send invites directly from DLP through your CSN Outlook account, one click per event. Rescheduling an activity moves its witness time and flags the invite as changed; press Update Invite to send the correction, or Cancel to withdraw it. Test To Me puts the event in your own calendar first.</span>
                         <span style={{ marginLeft: "auto" }} />
                         <button className="lk-btn primary" style={{ fontSize: 12 }} onClick={connectOl} title="Signs in via a quick full-page Microsoft redirect and returns here">Connect Outlook</button></>}
                 </div>;
@@ -3263,13 +3276,13 @@ export default function App({ session }) {
                         const st = invState(a); const nD = Math.max(1, a.witnessDays || 1); const es = invActive(a);
                         const busy = !!olBusy && (olBusy === a.id || olBusy === "bulk");
                         const lbl = st === "sent" ? "Sent " + new Date((es[0] || {}).sentAt || Date.now()).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-                          : st === "changed" ? "Details Changed" : st === "partial" ? "Partially Sent" : st === "cancelled" ? "Cancellation Sent" : "Not Sent";
+                          : st === "changed" ? "Details Changed" : st === "behindplan" ? "Behind Plan" : st === "partial" ? "Partially Sent" : st === "cancelled" ? "Cancellation Sent" : "Not Sent";
                         const btn = { fontSize: 11.5, padding: "4px 10px" };
                         return <div className="wsch-act">
-                          <span className={"wsch-st " + st}>{lbl}</span>
+                          <span className={"wsch-st " + (st === "behindplan" ? "changed" : st)}>{lbl}</span>
                           {nD > 1 && st !== "notsent" && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 150 }}>{Array.from({ length: nD }, (_, d) => { const e = es.find((x) => x.day === d); return <span key={d} className={"wsch-dpill" + (e ? " s" : "")}>{"D" + (d + 1) + (e ? " sent" : " pending")}</span>; })}</div>}
                           <div className="wsch-btnrow">
-                            {["notsent", "partial", "changed", "cancelled"].includes(st) && <button className="lk-btn primary" style={btn} disabled={!olAcct || busy} title={!olAcct ? "Connect Outlook first" : undefined} onClick={() => runInv(a, "send")}>{busy ? "Working..." : st === "changed" ? "Update Invite" : st === "partial" ? "Send Remaining" : st === "cancelled" ? "Send Again" : "Send"}</button>}
+                            {["notsent", "partial", "changed", "cancelled", "behindplan"].includes(st) && <button className="lk-btn primary" style={btn} disabled={!olAcct || busy} title={!olAcct ? "Connect Outlook first" : st === "behindplan" ? "The witness date drifted out of the plan; realign it to the current start and send the update" : undefined} onClick={() => st === "behindplan" ? realignAndSend(a) : runInv(a, "send")}>{busy ? "Working..." : st === "changed" ? "Update Invite" : st === "behindplan" ? "Realign & Update" : st === "partial" ? "Send Remaining" : st === "cancelled" ? "Send Again" : "Send"}</button>}
                             {st === "sent" && <button className="lk-btn" style={btn} disabled title="Nothing has changed since this invite was sent">Update</button>}
                             {es.length > 0 && st !== "cancelled" && <button className="lk-btn" style={{ ...btn, color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} disabled={!olAcct || busy} onClick={() => runInv(a, "cancel")}>Cancel</button>}
                             <button className="lk-btn" style={btn} disabled={!olAcct || busy} title="Creates this event in your calendar only, with the real template and vendor logo. Nothing goes to the witnesses and no status changes; delete it from your calendar after checking." onClick={() => testInv(a)}>Test To Me</button>
@@ -3287,6 +3300,30 @@ export default function App({ session }) {
     </div>);
 }
 
+// REV188: keep the witness session aligned with the activity when it moves. shiftWitnessAt moves
+// the witness datetime by the same whole-day delta as a reschedule or drag, preserving the time of
+// day and the day offset (so a witness on day 2 of a 3-day job stays on day 2). realignWitnessAt
+// clamps a stranded witness back onto the current start (time of day kept) for the one-click repair
+// of invites broken before this feature existed. Both are DST-safe: they set the date component and
+// read local wall-clock hours and minutes back, which Exchange then owns.
+function shiftWitnessAt(witnessAt, oldStartISO, newStartISO) {
+  if (!witnessAt || !oldStartISO || !newStartISO) return witnessAt;
+  const a = new Date(oldStartISO + "T00:00:00"), b = new Date(newStartISO + "T00:00:00");
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return witnessAt;
+  const delta = Math.round((b.getTime() - a.getTime()) / 86400000);
+  if (!delta) return witnessAt;
+  const m = String(witnessAt).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return witnessAt;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+  d.setDate(d.getDate() + delta);
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+function realignWitnessAt(witnessAt, startISO) {
+  if (!startISO) return witnessAt;
+  const t = String(witnessAt || "").match(/T(\d{2}):(\d{2})/);
+  return startISO + "T" + (t ? t[1] : "10") + ":" + (t ? t[2] : "00");
+}
 const FONT_STACKS = { grotesk: '"Space Grotesk","Inter",system-ui,sans-serif', inter: '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif', system: 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif', serif: 'Georgia,Cambria,"Times New Roman",serif', mono: 'ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace' };
 // REV180: cssVars now takes the project settings so global design overrides (accent colour,
 // heading and body font) apply on every theme root, including the modals, drawers, Table,
@@ -3375,7 +3412,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   const setReason = (v) => { if (!canEdit) return; setA((p) => ({ ...p, slipReason: v })); };
   const setPct = (v) => { if (locked || !canPercent) return; setA((p) => ({ ...p, percent: v })); };
   const isNew = !act.desc && act.constraints.length === 0;
-  const doReschedule = () => { if (!can("delay") || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
+  const doReschedule = () => { if (!can("delay") || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, witnessAt: p.witnessInvite ? shiftWitnessAt(p.witnessAt, p.start, rsDate) : p.witnessAt, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
   const dis = !canEdit || locked;
   // Phase 1 commit lock: the plan of a committed activity (dates, duration, scope, identity,
