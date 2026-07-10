@@ -395,6 +395,11 @@ function buildSignals(snap, prev, weeksDesc, cfg) {
   const S = []; const push = (sev, text, pop, pin) => S.push({ sev, text, pop, pin: !!pin });
   if (!snap) return S;
   const H = snap, D = snap.detail || {}, we = new Date(snap.week_ending);
+  // REV196: risks are live obligations. On the latest imported week they count overdue
+  // from today; historical weeks stay frozen to their reporting week.
+  const __latestWe = weeksDesc && weeksDesc.length ? weeksDesc.map((w) => w.week_ending).sort().slice(-1)[0] : null;
+  const __latest = __latestWe != null && __latestWe === snap.week_ending;
+  const __anchor = __latest ? isoDate(new Date()) : snap.week_ending;
   const A = H.assets || 0, redN = H.red_n || 0;
   const idx = weeksDesc.findIndex((w) => w.week_ending === snap.week_ending);
   // 1. pace vs required
@@ -439,11 +444,11 @@ function buildSignals(snap, prev, weeksDesc, cfg) {
   }
   // 5. risks overdue
   const rk = D.risks || [];
-  const od = rk.map((r) => ({ r, d: r[5] ? riskDaysOver(r, snap.week_ending) : null })).filter((x) => x.r[5]).sort((a, b) => (b.d || 0) - (a.d || 0));
+  const od = rk.map((r) => ({ r, d: riskDaysOver(r, __anchor) })).filter((x) => (__latest ? x.d != null : x.r[5])).sort((a, b) => (b.d || 0) - (a.d || 0));
   if (od.length) {
     const crit = od.filter((x) => /crit/i.test(String(x.r[4] || ""))).length;
     const top = od[0];
-    push(crit ? "red" : "amber", od.length + " of " + rk.length + " open risks " + (od.length === 1 ? "is" : "are") + " past due" + (crit ? ", " + (crit === od.length ? "all" : crit) + " Critical" : "") + (top.d != null ? ", the oldest by " + top.d + " days (" + (top.r[1] || "unowned") + ")" : "") + ".", { t: "Overdue risks", b: "Open risks whose due date has passed as at the reporting week.", calc: od.length + " overdue of " + rk.length + " open", src: "Risk Register", dt: ptable(["Risk", "Responsible", "Due", "Days over"], od.map((x) => [esc(x.r[0]), esc(x.r[1] || "-"), esc(x.r[3] || "-"), x.d != null ? x.d + "d" : "-"])) });
+    push(crit ? "red" : "amber", od.length + " of " + rk.length + " open risks " + (od.length === 1 ? "is" : "are") + " past due" + (crit ? ", " + (crit === od.length ? "all" : crit) + " Critical" : "") + (top.d != null ? ", the oldest by " + top.d + " days (" + (top.r[1] || "unowned") + ")" : "") + ".", { t: "Overdue risks", b: __latest ? "Open risks whose due date has passed as of today." : "Open risks whose due date has passed as at the reporting week.", calc: od.length + " overdue of " + rk.length + " open", src: "Risk Register", dt: ptable(["Risk", "Responsible", "Due", "Days over"], od.map((x) => [esc(x.r[0]), esc(x.r[1] || "-"), esc(x.r[3] || "-"), x.d != null ? x.d + "d" : "-"])) });
   }
   // 6. milestone slip growth
   const slipSum = (d) => (((d || {}).milestones) || []).reduce((t, r) => t + (r[3] > 0 ? r[3] : 0), 0);
@@ -508,8 +513,8 @@ function buildDrill(key, ds, data) {
     return { t: esc(a.wk) + "  -  " + a.rate + "%", b: `<b>Present:</b> ${esc(a.present.join(", ")) || "-"}.<br><b>Absent:</b> ${esc(a.absent.join(", ")) || "-"}.`, calc: a.present.length + " of " + inv + " invited = " + a.rate + "%", src: "Vendor Attendance", dt: ptable(["Vendor", "Attended"], a.present.map((p) => [esc(p), "Y"]).concat(a.absent.map((p) => [esc(p), "N"]))) }; }
   if (k.indexOf("ms-") === 0) { const r = (D.milestones || [])[+k.replace("ms-", "")]; if (!r) return null;
     return { t: esc(r[0]), b: "Programme milestone (provisional until the baseline is agreed).", calc: `Baseline ${r[5] ? fmtFull(r[5]) : "-"}  -  Forecast ${fmtFull(r[1])}  -  Slip ${r[3] == null ? "-" : "+" + r[3] + "d"}  -  ${esc(r[2])}`, src: "Programme", dt: ptable(["Field", "Value"], [["Baseline", r[5] ? fmtFull(r[5]) : "-"], ["Forecast", fmtFull(r[1])], ["Actual", r[6] ? fmtFull(r[6]) : "not set"], ["Slip", r[3] == null ? "-" : "+" + r[3] + " days"], ["Status", esc(r[2])], ["RAG", ragWord[r[4]]]]) }; }
-  if (k === "rk") { const r = (D.risks || [])[+ds.ri]; if (!r) return null;
-    return { t: "Risk (" + esc(r[4] || "-") + ")", b: `<b>${esc(r[0])}</b><br>Owner ${esc(r[1] || "-")}. Raised ${esc(r[2] || "-")}, due ${esc(r[3] || "-")}.${r[5] ? ' <span style="color:var(--red);font-weight:700">Overdue.</span>' : ""}`, calc: "Priority " + esc(r[4] || "-") + (r[5] ? "  -  Overdue" : ""), src: "Risk Register", dt: ptable(["Field", "Value"], [["Risk", esc(r[0])], ["Responsible", esc(r[1])], ["Raised", esc(r[2])], ["Due", r[5] ? `<span style="color:var(--red)">${esc(r[3])}</span>` : esc(r[3])], ["Priority", esc(r[4])], ["Overdue", r[5] ? "Yes" : "No"]]) }; }
+  if (k === "rk") { const r = (D.risks || [])[+ds.ri]; if (!r) return null; const __ov = __latest ? riskDaysOver(r, __anchor) != null : !!r[5];
+    return { t: "Risk (" + esc(r[4] || "-") + ")", b: `<b>${esc(r[0])}</b><br>Owner ${esc(r[1] || "-")}. Raised ${esc(r[2] || "-")}, due ${esc(r[3] || "-")}.${__ov ? ' <span style="color:var(--red);font-weight:700">Overdue.</span>' : ""}`, calc: "Priority " + esc(r[4] || "-") + (__ov ? "  -  Overdue (as of " + (__latest ? "today" : "week ending " + fmtFull(snap.week_ending)) + ")" : ""), src: "Risk Register", dt: ptable(["Field", "Value"], [["Risk", esc(r[0])], ["Responsible", esc(r[1])], ["Raised", esc(r[2])], ["Due", __ov ? `<span style="color:var(--red)">${esc(r[3])}</span>` : esc(r[3])], ["Priority", esc(r[4])], ["Overdue", __ov ? "Yes" : "No"]]) }; }
   // KPI + funnel + irl static-ish keys
   const A = H.assets || 0;
   const typeT = () => (D.byType || []).slice(0, 12).map((r) => [esc(r[0]), r[2], r[3] != null ? r[3] : Math.round(r[1] / 100 * r[2]), r[1] + "%"]);
@@ -548,6 +553,8 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
   const fileRef = useRef(null);
   const [spAcct, setSpAcct] = useState(null);      // REV143: connected Quantum MC tenant account (same module Asset Status uses)
   const [syncOpen, setSyncOpen] = useState(false); // SharePoint sync window
+  const [pendImp, setPendImp] = useState(null);   // REV196: parsed import awaiting week declaration
+  const [declWeek, setDeclWeek] = useState("");
   const [spUrl, setSpUrl] = useState("");          // editable file URL inside the sync window
   const [overwrite, setOverwrite] = useState(null); // REV169: {row, parsed, diffs} when an existing week would be overwritten with different data
 
@@ -585,6 +592,11 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
     setBusy(false);
   };
 
+  const confirmImport = async () => {
+    const g = pendImp; if (!g || !declWeek) return;
+    setPendImp(null); setBusy(true);
+    await commitImport({ ...g.row, week_ending: declWeek }, { ...g.parsed, week_ending: declWeek });
+  };
   const onImport = async (file) => {
     if (!file) return; setBusy(true); setErr(""); setInfo("");
     try {
@@ -609,7 +621,10 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
         const diffs = weekImportDiffs(existing, parsed);
         if (diffs.length) { setOverwrite({ row: row, parsed: parsed, diffs: diffs }); setBusy(false); return; }
       }
-      await commitImport(row, parsed);
+      // REV196: the importer declares the reporting week before anything is written.
+      // Pre-filled from the workbook's detected cell; the declared value wins and is
+      // what the snapshot is keyed and anchored by.
+      setPendImp({ row, parsed }); setDeclWeek(parsed.week_ending || ""); setBusy(false); setSyncOpen(false); return;
     } catch (e) { setErr("Import failed: " + (e.message || String(e))); setBusy(false); }
   };
 
@@ -738,7 +753,7 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
           if (key !== "risks") return null;
           return (
             <div className="cxp-grid" key="row4">
-              {show("risks") && <Risks s={snap} />}
+              {show("risks") && <Risks s={snap} latest={weeks && weeks.length ? weeks.map((w) => w.week_ending).sort().slice(-1)[0] === snap.week_ending : true} />}
               {show("attendance") && <Attendance s={snap} />}
             </div>
           );
@@ -766,6 +781,23 @@ export default function CxProgressPage({ projectId, isAdmin, can, theme, cu, rep
       {/* configure */}
       {cfgOpen && <Configure cfg={cfg} weeks={weeks} cur={snap && snap.week_ending} onWeek={(we) => setSnap(weeks.find((w) => w.week_ending === we) || null)} onSave={saveCfg} onClose={() => setCfgOpen(false)} />}
       {syncOpen && <SyncModal theme={theme} spAcct={spAcct} busy={busy} spUrl={spUrl} setSpUrl={setSpUrl} savedUrl={(cfg && cfg.sp && cfg.sp.file_url) || ""} onConnect={onConnectSp} onRun={onSyncSp} onPull={pullUrlFromAssets} onClose={() => setSyncOpen(false)} />}
+      {pendImp && <>
+        <div className="cxp-scrim show" onClick={(e) => { e.stopPropagation(); setPendImp(null); }} />
+        <div className={"cxp-sync" + (theme === "dark" ? " cxp-dark" : "")} onClick={(e) => e.stopPropagation()}>
+          <div className="sh"><h3>Declare the reporting week</h3><button className="cxp-x" onClick={() => setPendImp(null)}>{"\u2715"}</button></div>
+          <div className="sb">
+            <div className="cxp-note2">{pendImp.parsed.week_ending ? "The workbook declares week ending " + fmtFull(pendImp.parsed.week_ending) + "." : "The workbook does not declare a reporting week."} Confirm or correct it; the declared week is what this snapshot is filed and anchored under, and re-importing an existing week updates that week.</div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, margin: "10px 0 4px", opacity: .75 }}>Week ending</label>
+            <input type="date" className="url" style={{ maxWidth: 200 }} value={declWeek} onChange={(e) => setDeclWeek(e.target.value)} />
+            {pendImp.parsed.week_ending && declWeek && declWeek !== pendImp.parsed.week_ending && <div className="cxp-note2" style={{ color: "#E0A106", marginTop: 8 }}>{"\u26A0"} Differs from the workbook's declared week ({fmtFull(pendImp.parsed.week_ending)}). Your declaration wins and is stored on the snapshot.</div>}
+            {declWeek && Math.floor((new Date(isoDate(new Date())) - new Date(declWeek)) / 864e5) > 7 && <div className="cxp-note2" style={{ color: "#E0A106", marginTop: 8 }}>{"\u26A0"} This week ended {Math.floor((new Date(isoDate(new Date())) - new Date(declWeek)) / 864e5)} days ago; the risk register on the latest week counts overdue from today regardless.</div>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+              <button className="cxp-btn" onClick={() => setPendImp(null)}>Cancel</button>
+              <button className="cxp-btn sp" disabled={!declWeek} style={{ opacity: declWeek ? 1 : .45 }} onClick={confirmImport}>{busy ? "Importing\u2026" : "Import as this week"}</button>
+            </div>
+          </div>
+        </div>
+      </>}
       {overwrite && <>
         <div className="cxp-scrim show" onClick={() => { setInfo("Import cancelled. Week ending " + fmtFull(overwrite.parsed.week_ending) + " already exists and the incoming data differs. If this is a new week, roll the Reporting week ending cell in the source file, then import again."); setOverwrite(null); }} />
         <div className={"cxp-sync" + (theme === "dark" ? " cxp-dark" : "")} onClick={(e) => e.stopPropagation()}>
@@ -899,17 +931,22 @@ function Milestones({ s }) {
         <tr data-pop={"ms-" + i} key={i}><td className="cxp-nm">{r[0]}</td><td>{fmtDay(r[1])}</td><td><span className={"cxp-tag t-" + r[4].toLowerCase()}>{r[2] || "-"}</span></td><td className={"cxp-slip" + (r[3] > 0 ? "" : " ok")}>{r[3] == null ? "-" : "+" + r[3] + "d"}</td></tr>
       ))}</tbody></table>}</div>;
 }
-function Risks({ s }) {
-  const rk = s.detail.risks || []; const overdue = rk.filter((r) => r[5]).length;
-  // days overdue is computed at render against the reporting week (year inferred for old
-  // snapshots whose due dates were stored without a year); overdue rows sort first, oldest first
-  const rows = rk.map((r, i) => ({ r, i, od: r[5] ? riskDaysOver(r, s.week_ending) : null }));
+function Risks({ s, latest }) {
+  const rk = s.detail.risks || [];
+  // REV196: on the latest imported week, overdue is counted from today, because risks are
+  // live obligations and a stale pack must not make the register look calmer than reality.
+  // Historical weeks stay frozen to their reporting week. Days derive from each risk's
+  // stored due date at render time, so previously imported snapshots need no re-import.
+  const anchorISO = latest ? isoDate(new Date()) : s.week_ending;
+  const packAge = latest ? Math.floor((new Date(isoDate(new Date())) - new Date(s.week_ending)) / 864e5) : 0;
+  const rows = rk.map((r, i) => { const od = riskDaysOver(r, anchorISO); return { r, i, od: (latest ? od != null : r[5]) ? od : null, over: latest ? od != null : !!r[5] }; });
+  const overdue = rows.filter((x) => x.over).length;
   rows.sort((a, b) => ((b.od != null ? b.od : b.r[5] ? 0 : -1) - (a.od != null ? a.od : a.r[5] ? 0 : -1)) || a.i - b.i);
-  return <div className="cxp-panel"><div className="cxp-phead"><h3>Risk register</h3><div className="cxp-meta">{rk.length} open{overdue ? " \u00B7 " + overdue + " overdue \u00B7 sorted by days overdue" : ""}</div></div>
+  return <div className="cxp-panel"><div className="cxp-phead"><h3>Risk register{latest && packAge > 7 && <span className="cxp-stale" title="The imported pack declares a reporting week more than 7 days old; overdue below is counted from today.">{"\u26A0"} pack declares week ending {fmtFull(s.week_ending)}, {packAge} days old</span>}</h3><div className="cxp-meta">{rk.length} open{overdue ? " \u00B7 " + overdue + " overdue" : ""} {" \u00B7 "}{latest ? "as of today" : "as of week ending " + fmtFull(s.week_ending)}{overdue ? " \u00B7 sorted by days overdue" : ""}</div></div>
     {rk.length === 0 ? <div className="cxp-note">No Risks sheet in the import. Add a sheet named Risks with columns Risk, Responsible, Raised, Due, Priority.</div> :
       <table className="cxp-rtable"><tbody><tr><th>Risk</th><th>Responsible</th><th>Raised</th><th>Due</th><th>Overdue</th><th>Priority</th></tr>
-        {rows.map(({ r, i, od }) => (
-          <tr data-pop="rk" data-ri={i} key={i}><td className="cxp-rk">{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td className={r[5] ? "cxp-od" : ""}>{r[3]}</td><td className={r[5] ? "cxp-od" : ""}>{od != null ? od + "d" : r[5] ? "yes" : "-"}</td><td><span className={"cxp-tag t-" + (/crit/i.test(r[4]) ? "r" : /high/i.test(r[4]) ? "a" : "g")}>{r[4] || "-"}</span></td></tr>
+        {rows.map(({ r, i, od, over }) => (
+          <tr data-pop="rk" data-ri={i} key={i}><td className="cxp-rk">{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td className={over ? "cxp-od" : ""}>{r[3]}</td><td className={over ? "cxp-od" : ""}>{od != null ? od + "d" : r[5] ? "yes" : "-"}</td><td><span className={"cxp-tag t-" + (/crit/i.test(r[4]) ? "r" : /high/i.test(r[4]) ? "a" : "g")}>{r[4] || "-"}</span></td></tr>
         ))}</tbody></table>}</div>;
 }
 function Attendance({ s }) {
@@ -1062,7 +1099,7 @@ body.dark .cxp,.cxp.cxp-dark{--ink:#e9eff6;--muted:#93a1b3;--faint:#5d6a7a;--acc
 .cxp-vchip.behind{color:var(--red);background:rgba(226,86,78,.14)} .cxp-vchip.ahead{color:var(--green);background:rgba(24,182,155,.14)} .cxp-vchip.on{color:var(--muted);background:var(--chipbg)}
 .cxp-advisory{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--muted);background:var(--headtint);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:10px;line-height:1.4}
 .cxp-advico{flex:0 0 auto;width:17px;height:17px;border-radius:50%;background:var(--head);color:#fff;font-size:11px;font-weight:800;font-style:italic;display:flex;align-items:center;justify-content:center}
-.cxp-meta{font-size:11px;color:var(--muted)}
+.cxp-stale{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;color:#E0A106;border:1px solid rgba(224,161,6,.5);background:rgba(224,161,6,.08);border-radius:999px;padding:1px 8px;margin-left:10px;vertical-align:2px}.cxp-meta{font-size:11px;color:var(--muted)}
 .cxp-legend{display:flex;gap:12px;font-size:11px;color:var(--muted)}
 .cxp-legend span{display:inline-flex;align-items:center;gap:6px}
 .cxp-legend i{width:11px;height:3px;border-radius:2px}
