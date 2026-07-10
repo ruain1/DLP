@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV188",
+  "date": "2026-07-10",
+  "items": [
+   "Witness invites now follow the plan. Rescheduling an activity, whether from the Schedule tab or by dragging it on the board, moves its witness session by the same number of days and keeps the time of day, so the invite no longer stays silently anchored to the old date. The row on the Witness Schedule flips to Details Changed and Update Invite lights up; press it to send the correction to attendees. Nothing is emailed automatically on a reschedule or a drag, the explicit Update Invite click still governs every send.",
+   "Invites that were left behind by a reschedule made before this change are now caught rather than sitting as Sent. Any sent invite whose witness date has drifted outside the current plan is flagged Behind Plan with a one-click Realign and Update that snaps the witness time onto the new start (time of day kept) and sends the update in the same pass.",
+   "Corrected the Witness Schedule connect hint, which previously claimed reschedules sent updates automatically. It now describes the real behaviour."
+  ]
+ },
+ {
   "rev": "REV187",
   "date": "2026-07-10",
   "items": [
