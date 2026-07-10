@@ -102,28 +102,44 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   };
 
   // Match each assignee to a company: an email by domain, a name against the user directory.
-  const matchCompany = (assignee) => {
-    const a = String(assignee || "").trim();
-    if (!a) return null;
-    if (a.indexOf("@") !== -1) {
-      const dom = a.split("@")[1].toLowerCase();
-      const c = companies.find((c) => c.domain && (dom === c.domain.toLowerCase() || dom.indexOf(c.domain.toLowerCase()) !== -1));
-      return { companyId: c ? c.id : null, email: a };
-    }
-    const u = users.find((u) => norm(u.name) === norm(a));
-    return u ? { companyId: u.companyId, email: "" } : { companyId: null, email: "" };
+  // REV193: three-layer matcher. (1) The local part of an assignee email is a person's
+  // name (jukka.mechelin -> Jukka Mechelin), matched against the user directory, which
+  // resolves both the person and their company. (2) Explicit company domains. (3) A domain
+  // map learned during the run: every person match teaches assignee-domain -> company, so
+  // an unknown address at a known domain still resolves. Names without an @ match as before.
+  const localName = (email) => norm(String(email).split("@")[0].replace(/[._-]+/g, " "));
+  const matchAll = () => {
+    const list = benchmarks || [];
+    const learned = {};
+    companies.forEach((c) => { if (c.domain) learned[c.domain.toLowerCase()] = c.id; });
+    list.forEach((b) => { const a = String(b.assignee_email || ""); if (b.company_id && a.indexOf("@") !== -1) learned[a.split("@")[1].toLowerCase()] = b.company_id; });
+    const out = []; let byPerson = 0, byDomain = 0; const unknownDomains = new Set();
+    const pass = (learnOnly) => list.forEach((b) => {
+      if (out.some((u) => u.fok_ref === b.fok_ref)) return;
+      const a = String(b.assignee_email || "").trim();
+      if (!a) return;
+      if (a.indexOf("@") !== -1) {
+        const dom = a.split("@")[1].toLowerCase();
+        const u = users.find((x) => norm(x.name) === localName(a));
+        if (u) { byPerson++; if (u.companyId) learned[dom] = u.companyId; out.push({ fok_ref: b.fok_ref, company_id: u.companyId || null, resolved_email: a }); return; }
+        if (!learnOnly && learned[dom]) { byDomain++; out.push({ fok_ref: b.fok_ref, company_id: learned[dom], resolved_email: a }); return; }
+        if (!learnOnly) unknownDomains.add(dom);
+      } else if (!learnOnly) {
+        const u = users.find((x) => norm(x.name) === norm(a));
+        if (u) { byPerson++; out.push({ fok_ref: b.fok_ref, company_id: u.companyId || null, resolved_email: "" }); }
+      }
+    });
+    pass(true); pass(false);
+    return { updates: out, byPerson, byDomain, unknownDomains: Array.from(unknownDomains) };
   };
   const matchAssignees = async () => {
-    setBusy(true); setMsg("Matching assignees to companies\u2026");
-    const updates = [];
-    (benchmarks || []).forEach((b) => {
-      const m = matchCompany(b.assignee_email);
-      if (m && (m.companyId || m.email)) updates.push({ fok_ref: b.fok_ref, company_id: m.companyId, resolved_email: m.email });
-    });
-    const res = await resolveBenchmarkCompanies(projectId, updates);
+    setBusy(true); setMsg("Matching assignees to people and companies\u2026");
+    const { updates, byPerson, byDomain, unknownDomains } = matchAll();
+    const res = await resolveBenchmarkCompanies(projectId, updates.filter((u) => u.company_id || u.resolved_email));
     setBusy(false);
     const matched = updates.filter((u) => u.company_id).length;
-    setMsg(res.error ? ("Match failed: " + res.error) : ("Matched " + matched + " of " + (benchmarks || []).length + " benchmarks to a company. Unmatched names are not in the user directory."));
+    const tail = unknownDomains.length ? (" Unknown domains left as-is: " + unknownDomains.join(", ") + ". Set the domain on the company (Settings, Companies, Manage) or add the person to Global Contacts and re-run.") : "";
+    setMsg(res.error ? ("Match failed: " + res.error) : ("Matched " + matched + " of " + (benchmarks || []).length + " (" + byPerson + " by person, " + byDomain + " by domain)." + tail));
     reload();
   };
 
@@ -171,7 +187,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   const S = {
     wrap: { display: "flex", flexDirection: "column", height: "100%", minHeight: 0, background: "var(--card)" },
     head: { display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: "1px solid var(--line)", flexWrap: "wrap" },
-    h1: { fontSize: 18, fontWeight: 700, margin: 0 },
+    h1: { fontSize: 18, fontWeight: 700, margin: 0, color: "var(--head)" },
     sub: { fontSize: 11.5, color: "var(--muted)" },
     ownerPill: { fontSize: 10, fontWeight: 700, color: "#fff", background: "#7c3aed", borderRadius: 20, padding: "3px 9px" },
     filters: { display: "flex", alignItems: "center", gap: 10, padding: "11px 20px", borderBottom: "1px solid var(--line)", flexWrap: "wrap", fontSize: 12 },
@@ -248,7 +264,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                   <td style={S.td}>{r.discipline || ""}</td>
                   <td style={S.td}>{r.title || ""}</td>
                   <td style={S.td}>{r.planned_date || "Not set"}</td>
-                  <td style={S.td}>{r.resolved_email || r.assignee_email || ""}</td>
+                  <td style={S.td} title={r.resolved_email || r.assignee_email || ""}>{(() => { const a = String(r.resolved_email || r.assignee_email || ""); if (!a) return ""; const u = a.indexOf("@") !== -1 ? users.find((x) => norm(x.name) === localName(a)) : users.find((x) => norm(x.name) === norm(a)); return u ? u.name : a; })()}</td>
                   <td style={S.td}>{companyName(r.company_id) || <span style={{ color: "var(--faint)" }}>-</span>}</td>
                   <td style={S.td}>{r.acc_url ? <a href={r.acc_url} target="_blank" rel="noreferrer" style={{ color: "#4f9bd9", textDecoration: "none" }}>Open</a> : ""}</td>
                   <td style={S.td}>{pill(r)}</td>
@@ -271,7 +287,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
         return <div style={{ position: "fixed", inset: 0, background: "rgba(4,8,12,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", zIndex: 60 }} onClick={() => setHistOpen(false)}>
           <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, width: "min(880px, 96vw)", maxHeight: "84vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ ...S.head, position: "sticky", top: 0, background: "var(--card)", zIndex: 2 }}>
-              <div><h1 style={S.h1}>Register change log</h1><div style={S.sub}>Compare an import against an earlier one</div></div>
+              <div><h1 style={S.h1}>Register change log</h1><div style={S.sub}>Compare an import against an earlier one. Compares Title, Planned date, Assignee and Discipline per FOK ref; a re-saved workbook with identical content correctly shows no differences.</div></div>
               <div style={{ flex: 1 }} />
               <button className="lk-btn" onClick={() => setHistOpen(false)}>Close</button>
             </div>
