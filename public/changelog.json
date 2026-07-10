@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV189",
+  "date": "2026-07-10",
+  "items": [
+   "Behind Plan witness rows now say where the plan went. A rescheduled invite that is still anchored to its old date shows an amber line naming the new planned date and the date the invite is still on, so it is clear the reschedule was picked up and Realign and Update will move the witness session onto the new date and send the correction. Closes the gap where a Behind Plan card looked as though nothing had changed."
+  ]
+ },
+ {
   "rev": "REV188",
   "date": "2026-07-10",
   "items": [
