@@ -65,7 +65,10 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
     .filter((r) => ((r.completed_at || r.status === "completed") ? showDone : true)) // REV197: board-complete counts as completed
     .filter((r) => disc === "all" || r.discipline === disc)
     .filter((r) => stat === "all" || r.status === stat)
-    .filter((r) => !hidePast || !r.planned_date || r.planned_date >= today)
+    // REV198: completed rows are exempt from the past filter; finished work is past by
+    // nature, so hiding the past silently overruled Show Completed and the toggle read
+    // as dead. Completed visibility is governed by its own toggle alone.
+    .filter((r) => !hidePast || r.completed_at || r.status === "completed" || !r.planned_date || r.planned_date >= today)
     .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || String(a.planned_date || "9999").localeCompare(String(b.planned_date || "9999")));
 
   // CSA has no witness routing, so it never goes to the planning board; it stays here only.
