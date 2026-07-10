@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV190",
+  "date": "2026-07-10",
+  "items": [
+   "Witness invite repair no longer dies when the calendar event is missing. If Realign and Update or Update Invite tries to update an event that has been deleted or was created under a different Outlook account, DLP now creates a fresh event for that day and swaps it in, rather than failing the whole action with an object-not-found error. The result line says plainly when a day was re-sent because its previous event no longer existed. Cancel is tolerant the same way: an event that is already gone is treated as cancelled instead of erroring."
+  ]
+ },
+ {
   "rev": "REV189",
   "date": "2026-07-10",
   "items": [
