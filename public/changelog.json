@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV197",
+  "date": "2026-07-10",
+  "items": [
+   "The Register change log was blind to most of what a register actually changes week to week: its stored snapshots kept only Title, Planned date, Assignee and Discipline per ref, so edits to Notes or ACC links between imports honestly reported as no differences. Snapshots now carry ACC link and Notes as well, the diff compares all six fields, long values truncate in the display, and comparisons against imports taken before today judge only the original four fields rather than inventing phantom changes.",
+   "A benchmark whose board activity is complete now reads Completed, wins over No Date, sorts to the bottom, appears in the status filter, and is hidden by the Show Completed toggle exactly like a manually archived row. Previously board-finished FOKs sat as On Board forever, so with past dates filtered out the toggle appeared to change almost nothing.",
+   "Import hardening, defensive only, no behaviour change on healthy files: the planned date column header now has a substring fallback if it is ever reworded, the import result states how many planned dates it found, a file carrying zero planned dates where the previous import carried many is interrupted for explicit confirmation before overwriting, and the change log flags any date-blind import it is asked to compare."
+  ]
+ },
+ {
   "rev": "REV196",
   "date": "2026-07-10",
   "items": [
