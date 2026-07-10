@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV191",
+  "date": "2026-07-10",
+  "items": [
+   "Realtime is now scoped to the project you have open. Previously any change by anyone in any project reloaded every connected client; with two live projects that meant FIN04 and Vantaa users constantly reloading each other. Now a change on a project-scoped table only reloads clients viewing that project, while shared directories (companies, people, memberships, privileges, branding) still refresh everyone.",
+   "Reload churn removed at the source: presence heartbeats, digest run claims, audit rows and revert snapshots no longer trigger reloads at all. Each either rides alongside a primary data change that already fires its own scoped event, or (presence) has always been polled on its own 30 second cycle. Deletes and unrecognised payloads still reload conservatively, so nothing can be missed, only skipped when provably irrelevant."
+  ]
+ },
+ {
   "rev": "REV190",
   "date": "2026-07-10",
   "items": [
