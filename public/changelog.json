@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV185",
+    "date": "2026-07-09",
+    "items": [
+      "New Capacity pill on the board toolbar: a crews-by-days grid of estimated hours across the board window, coloured against the project working calendar (green under 85% of the working day, amber 85 to 100%, red over). Non-working days are greyed, and hours planned onto one are flagged with a dashed red outline. Each crew row totals its hours for the window; every cell explains itself on hover.",
+      "Activity cards now carry an hours chip when Est hours is set, showing the hours and the assigned crews at a glance.",
+      "Load rules, stated plainly: multi-day activities spread their estimated hours evenly across their planned days; joint activities load every listed crew with the full hours; completed activities drop out of the load. Working week and hours per day come from Settings, Lookahead and Targets."
+    ]
+  },
+  {
     "rev": "REV184",
     "date": "2026-07-09",
     "items": [
