@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV192",
+  "date": "2026-07-10",
+  "items": [
+   "Override imports are now gated behind an explicit confirmation: a modal states exactly what will be wiped and rebuilt, how many activities will be replaced by how many incoming rows, and requires the project code to be typed, case-sensitive, before the button enables. Append mode never sees the gate.",
+   "Every import (CSV, xlsx and JSON) is content-fingerprinted per project. Importing a file whose parsed content matches a previous import is interrupted with when, by whom, in which mode and how many rows, before any duplicates are created; the check is stored in the database (new import-safety.sql migration, run before the app files) so it holds across users and browsers, and renaming the file does not defeat it. Fingerprints prune to the newest 50 per project automatically.",
+   "The global company directory can no longer be damaged by an import or a bulk save: imports only ever add companies (Override no longer resets the vendor list, and JSON imports remap incoming vendors onto existing ones by name so activity links hold), and the database sync now refuses any state diff that would delete more than one company at a time, keeping the deliberate single-company delete via Manage intact. This closes the root cause of the 10 July incident."
+  ]
+ },
+ {
   "rev": "REV191",
   "date": "2026-07-10",
   "items": [
