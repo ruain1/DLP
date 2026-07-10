@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV194",
+  "date": "2026-07-10",
+  "items": [
+   "The Schedule Snapshot in the weekly report now shows its link logic. Every activity whose start is pushed by a late predecessor carries an amber tag naming the days and the driver (pushed +5d by #12), computed by the same forward pass the board's forecast chips use, and the section opens with a short narrative naming the chains: which predecessor drives the movement, what it pushes, and how many activities hold their planned dates.",
+   "AI narratives across the report, not just the executive summary: Schedule Snapshot, Plan Reliability, Status Mix and By Contractor can each carry a short model-written paragraph under the section header, switched per section in Configure with an optional per-section steer and a report-wide tone line, all saved with the report settings. The model only ever sees a block of drafted facts, its output is rejected if any figure, date or name drifts from those facts, and when AI is off or unavailable the drafted facts themselves render as the narrative, so a printed report never blanks and never says more than the data does.",
+   "The exec summary Polish flow is unchanged. Requires the updated super-action edge function (section mode, additive, polish path untouched); until it is deployed, narratives render their deterministic fallbacks."
+  ]
+ },
+ {
   "rev": "REV193",
   "date": "2026-07-10",
   "items": [
