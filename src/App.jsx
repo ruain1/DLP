@@ -2666,7 +2666,7 @@ export default function App({ session }) {
           {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
           {a.delayed && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
           {a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
-          {a.estHours !== "" && a.estHours != null && +a.estHours > 0 && <span className="lk-chip hrs" title={"Estimated " + a.estHours + "h" + ((a.crew || []).length ? " for " + a.crew.join(" + ") : "") + (a.duration > 1 ? " spread over " + a.duration + " days" : "")}>{+a.estHours}h{(a.crew || []).length ? " \u00b7 " + a.crew.join("+") : ""}</span>}
+          {!!S.settings.crewsEnabled && a.estHours !== "" && a.estHours != null && +a.estHours > 0 && <span className="lk-chip hrs" title={"Estimated " + a.estHours + "h" + ((a.crew || []).length ? " for " + a.crew.join(" + ") : "") + (a.duration > 1 ? " spread over " + a.duration + " days" : "")}>{+a.estHours}h{(a.crew || []).length ? " \u00b7 " + a.crew.join("+") : ""}</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
         </div>
         {failedInv && !tailFail && <div className="lk-failx" title="Witness failed">{"\u2715"}</div>}
@@ -2925,7 +2925,7 @@ export default function App({ session }) {
         <button className={"lk-btn pill" + (ytt ? " on" : "")} title="YTT Focus: yesterday, today and tomorrow with open constraints" onClick={() => setYtt((v) => !v)}><Icon n="cross" s={14} />YTT</button>
         <button className={"lk-btn pill" + (S.hideDone ? " on" : "")} title="Hide activities marked Complete so open work stands out. Failed witness events stay visible until their retest closes them. Board display only: KPIs, reports, exports and the Witness Schedule are unaffected." onClick={() => setS((prev) => ({ ...prev, hideDone: !prev.hideDone }))}><Icon n="check" s={14} />Hide Complete</button>
         <button className={"lk-btn pill" + (witSched ? " on" : "")} title="Witness Schedule: witnessable activities for the selected period, with open constraints" onClick={() => setWitSched((v) => !v)}><Icon n="cal" s={14} />Witness Schedule</button>
-        <button className={"lk-btn pill" + (capOpen ? " on" : "")} title="Crew Capacity: estimated hours per crew per day in the board window, against the project working calendar" onClick={() => setCapOpen((v) => !v)}><Icon n="chart" s={14} />Capacity</button>
+        {!!S.settings.crewsEnabled && <button className={"lk-btn pill" + (capOpen ? " on" : "")} title="Crew Capacity: estimated hours per crew per day in the board window, against the project working calendar" onClick={() => setCapOpen((v) => !v)}><Icon n="chart" s={14} />Capacity</button>}
         <div className="lk-spacer" />
         <button className="lk-btn" onClick={() => setShowImport(true)}><Icon n="upload" s={14} />Import</button>
         <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export</button>
@@ -3152,7 +3152,7 @@ export default function App({ session }) {
             </div>
           </div>);
       })()}
-      {page === "board" && capOpen && (() => {
+      {page === "board" && capOpen && !!S.settings.crewsEnabled && (() => {
         const crews = S.crews || [];
         const wd = (S.settings.workingDays || [1, 2, 3, 4, 5]);
         const cap = Math.max(1, +(S.settings.hoursPerDay ?? 8) || 8);
@@ -3487,8 +3487,8 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           <div className="lk-f"><label>Discipline{a.witnessInvite && <span style={{ color: "#C0392B" }}> *</span>}</label>
             <div className="lk-levels">{DISCIPLINES.map((d) => { const on = (a.discipline || []).includes(d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.discipline || []; set("discipline", on ? cur.filter((x) => x !== d) : [...cur, d]); }}>{d}</div>; })}</div>
             {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "#C0392B" }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
-          <div className="lk-f"><label>Crew</label>
-            <div className="lk-levels">{(S.crews || []).map((c) => { const on = (a.crew || []).includes(c); return <div key={c} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.crew || []; set("crew", on ? cur.filter((x) => x !== c) : [...cur, c]); }}>{c}</div>; })}{!(S.crews || []).length && <span style={{ fontSize: 11, color: "var(--muted)" }}>No crews defined yet. Add them in Settings, Project Setup, Crews.</span>}</div></div>
+          {!!S.settings.crewsEnabled && <div className="lk-f"><label>Crew</label>
+            <div className="lk-levels">{(S.crews || []).map((c) => { const on = (a.crew || []).includes(c); return <div key={c} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.crew || []; set("crew", on ? cur.filter((x) => x !== c) : [...cur, c]); }}>{c}</div>; })}{!(S.crews || []).length && <span style={{ fontSize: 11, color: "var(--muted)" }}>No crews defined yet. Add them in Settings, Project Setup, Crews.</span>}</div></div>}
           <div className="lk-f"><label>System</label>
             {lockS ? roBox(a.system) : <><select className="lk-select" value={a.system} disabled={disPlan} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("system"); } else set("system", e.target.value); }}>
               <option value="">--</option>{S.systems.map((x) => <option key={x}>{x}</option>)}{isAdmin && !dis && ADD_OPT}</select>
@@ -3515,7 +3515,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {tab === "schedule" && <>
           <div className="lk-row">
             <div className="lk-f"><label>Start</label><input className="lk-in mono" type="date" value={a.start} disabled={disPlan} onChange={(e) => set("start", e.target.value)} /></div>
-            <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={disPlan} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div><div className="lk-f"><label>Est hours (per crew)</label><input className="lk-in mono" type="number" min="0" step="0.5" value={a.estHours ?? ""} disabled={disPlan} placeholder="e.g. 4" onChange={(e) => set("estHours", e.target.value === "" ? "" : Math.max(0, +e.target.value || 0))} /><span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Hours each listed crew spends. Drives crew day-load capacity.</span></div>
+            <div className="lk-f"><label>Days (Calendar)</label><input className="lk-in mono" type="number" min="1" value={a.duration} disabled={disPlan} onChange={(e) => set("duration", Math.max(1, +e.target.value || 1))} />{a.start && a.duration >= 1 && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Ends {addDays(parseD(a.start), a.duration - 1).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · weekends counted</span>}</div>{!!S.settings.crewsEnabled && <div className="lk-f"><label>Est hours (per crew)</label><input className="lk-in mono" type="number" min="0" step="0.5" value={a.estHours ?? ""} disabled={disPlan} placeholder="e.g. 4" onChange={(e) => set("estHours", e.target.value === "" ? "" : Math.max(0, +e.target.value || 0))} /><span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Hours each listed crew spends. Drives crew day-load capacity.</span></div>}
           </div>
           {isAdmin && !isNew && <div className="lk-f" style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon n="loader" s={13} />Reschedule <span style={{ fontWeight: 400, color: "var(--muted)" }}>(keeps the original date on record)</span></label>
@@ -4442,7 +4442,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   };
   const canv = can || (() => true);
   const navGroups = [
-    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["crews", "Crews"], ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
+    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ...(S.settings.crewsEnabled ? [["crews", "Crews"]] : []), ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
     ["Appearance", [["design", "Design"]]],
     ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
@@ -5053,12 +5053,15 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
             <div className="lk-f"><label>PPC Target (%)</label>
               <input className="lk-in mono" type="number" min="1" max="100" value={S.settings.ppcTarget ?? 80} onChange={(e) => { const v = Math.max(1, Math.min(100, +e.target.value || 80)); update((p) => ({ ...p, settings: { ...p.settings, ppcTarget: v } }), { action: "Change setting", detail: `PPC target ${v}%` }); }} />
               <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Shown as a red marker on the Analytics gauge, a dashed line on the Weekly PPC Trend and a chip on the weekly report. It also drives the sidebar PPC colour: green at or above target, amber within 15 points below, red beyond.</div></div>
+            <div className={"lk-tog" + (S.settings.crewsEnabled ? " on" : "")} onClick={() => update((p) => ({ ...p, settings: { ...p.settings, crewsEnabled: !p.settings.crewsEnabled } }), { action: "Change setting", detail: "Crew Capacity " + (S.settings.crewsEnabled ? "off" : "on") })}><span>Crew Capacity <span style={{ fontWeight: 400, color: "var(--muted)" }}>(crew assignment, estimated hours and the board Capacity view for this project; off hides them here only, existing crew data is kept and returns if re-enabled)</span></span><span className="lk-sw2" /></div>
+            {!!S.settings.crewsEnabled && <>
             <div className="lk-f"><label>Working Week</label>
               <div className="lk-levels">{[["1", "Mon"], ["2", "Tue"], ["3", "Wed"], ["4", "Thu"], ["5", "Fri"], ["6", "Sat"], ["7", "Sun"]].map(([d, lbl]) => { const on = (S.settings.workingDays || [1, 2, 3, 4, 5]).includes(+d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { const cur = S.settings.workingDays || [1, 2, 3, 4, 5]; const nx = on ? cur.filter((x) => x !== +d) : [...cur, +d].sort((a, b) => a - b); update((p) => ({ ...p, settings: { ...p.settings, workingDays: nx } }), { action: "Change setting", detail: "Working week" }); }}>{lbl}</div>; })}</div>
               <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Which days count as working days for crew capacity. Non-working days are greyed and excluded from the load denominator.</div></div>
             <div className="lk-f"><label>Working Hours / Day</label>
               <input className="lk-in mono" type="number" min="1" max="24" step="0.5" value={S.settings.hoursPerDay ?? 8} onChange={(e) => { const v = Math.max(1, Math.min(24, +e.target.value || 8)); update((p) => ({ ...p, settings: { ...p.settings, hoursPerDay: v } }), { action: "Change setting", detail: `Hours per day ${v}` }); }} />
               <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>The capacity each crew has per working day. In the Capacity view a crew is amber at 85% of this and red above it.</div></div>
+            </>}
           </>}
           {tab === "levels" && <div className="lk-list">
             {Object.entries(S.levels).map(([k, v]) => <div key={k} className="lk-li">
