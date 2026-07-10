@@ -1226,7 +1226,10 @@ export async function writeBenchmarks(projectId, rows, importedByName) {
     // REV177: append an immutable snapshot of this import for register comparison (best effort;
     // a snapshot failure never fails the import itself).
     try {
-      const snapshot = incoming.map((r) => ({ ref: r.fok_ref, title: r.title || "", planned: r.planned_date || "", assignee: r.assignee_email || "", discipline: r.discipline || "" }));
+      // REV197: snapshots carry every field the import persists. The original five-field
+      // snapshot was blind to ACC link and notes edits, so the change log reported no
+      // differences between imports whose notes and links had genuinely moved.
+      const snapshot = incoming.map((r) => ({ ref: r.fok_ref, title: r.title || "", planned: r.planned_date || "", assignee: r.assignee_email || "", discipline: r.discipline || "", acc_url: r.acc_url || "", notes: r.notes || "" }));
       await supabase.from("acc_benchmark_imports").insert({ project_id: projectId, imported_by_name: importedByName || null, count: snapshot.length, snapshot });
     } catch (e) { /* snapshot is not critical */ }
   }
@@ -1249,12 +1252,12 @@ export async function loadBenchmarkImports(projectId) {
 export function diffBenchmarkSnapshots(prev, curr) {
   const P = new Map((prev || []).map((r) => [String(r.ref), r]));
   const C = new Map((curr || []).map((r) => [String(r.ref), r]));
-  const FIELDS = [["title", "Title"], ["planned", "Planned date"], ["assignee", "Assignee"], ["discipline", "Discipline"]];
+  const FIELDS = [["title", "Title"], ["planned", "Planned date"], ["assignee", "Assignee"], ["discipline", "Discipline"], ["acc_url", "ACC link"], ["notes", "Notes"]];
   const added = [], removed = [], changed = [];
   let unchanged = 0;
   for (const [ref, c] of C) { if (!P.has(ref)) { added.push(c); continue; }
     const p = P.get(ref); const fields = [];
-    for (const [k, label] of FIELDS) { const a = p[k] == null ? "" : String(p[k]); const b = c[k] == null ? "" : String(c[k]); if (a !== b) fields.push({ label, from: a, to: b }); }
+    for (const [k, label] of FIELDS) { if (p[k] === undefined || c[k] === undefined) continue; /* REV197: field absent from an older snapshot format, cannot judge */ const a = p[k] == null ? "" : String(p[k]); const b = c[k] == null ? "" : String(c[k]); if (a !== b) fields.push({ label, from: a, to: b }); }
     if (fields.length) changed.push({ ref, title: c.title || "", fields }); else unchanged++;
   }
   for (const [ref, p] of P) { if (!C.has(ref)) removed.push(p); }

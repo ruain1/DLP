@@ -18,7 +18,7 @@ const STATUS_META = {
   removed:   { label: "Removed In ACC", fg: "#c7b3ea", bg: "rgba(124,58,237,.16)" },
   completed: { label: "Completed",      fg: "#7fe3b8", bg: "rgba(52,209,163,.16)" },
 };
-const STATUS_ORDER = ["ready", "changed", "on_board", "no_date", "removed"];
+const STATUS_ORDER = ["ready", "changed", "on_board", "no_date", "completed", "removed"];
 const norm = (x) => String(x || "").trim().toLowerCase();
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -62,7 +62,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
 
   const today = todayISO();
   const shown = rows
-    .filter((r) => (r.completed_at ? showDone : true))
+    .filter((r) => ((r.completed_at || r.status === "completed") ? showDone : true)) // REV197: board-complete counts as completed
     .filter((r) => disc === "all" || r.discipline === disc)
     .filter((r) => stat === "all" || r.status === stat)
     .filter((r) => !hidePast || !r.planned_date || r.planned_date >= today)
@@ -85,9 +85,21 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
       const ab = await f.arrayBuffer();
       const { rows: imported, perSheet } = await importFokWorkbook(ab);
       if (!imported.length) throw new Error("No FOK rows found. Check the workbook has the Electrical, Mechanical or CSA sheets.");
+      // REV197: a register that previously carried planned dates and suddenly carries none
+      // is almost always a renamed date column, not a real change. Losing 173 dates must
+      // never be silent again; the importer decides with the facts in front of them.
+      const newWith = imported.filter((r) => r.plannedDate).length;
+      if (newWith === 0) {
+        let prevWith = 0;
+        try { const ims = await loadBenchmarkImports(projectId); const snap = (ims && ims[0] && ims[0].snapshot) || []; prevWith = snap.filter((x) => x && x.planned).length; } catch (e2) {}
+        if (prevWith >= 10 && !window.confirm("This file carries no planned dates at all, but the previous import carried " + prevWith + ". That usually means the register's date column header changed and the parser missed it. Import anyway and wipe every planned date?")) {
+          setMsg("Import cancelled: the file carried no planned dates (previous import had " + prevWith + "). Existing data untouched.");
+          setBusy(false); return;
+        }
+      }
       const res = await writeBenchmarks(projectId, imported, cu && cu.name);
       if (res.error) throw new Error(res.error);
-      setMsg("Imported " + res.count + " benchmarks" + (res.duplicates ? " (" + res.duplicates + " duplicate ref collapsed)" : "") + " \u00b7 " + Object.entries(perSheet).map(([k, v]) => k + " " + v).join(", "));
+      setMsg("Imported " + res.count + " benchmarks" + (res.duplicates ? " (" + res.duplicates + " duplicate ref collapsed)" : "") + " \u00b7 " + Object.entries(perSheet).map(([k, v]) => k + " " + v).join(", ") + " \u00b7 planned dates on " + newWith + " of " + res.count + " rows" + (newWith === 0 ? " \u26A0" : ""));
       reload();
     } catch (err) {
       setMsg("Import failed: " + (err && err.message ? err.message : String(err)));
@@ -239,6 +251,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
         </select>
         <select style={S.sel} value={stat} onChange={(e) => setStat(e.target.value)}>
           <option value="all">All Statuses</option>
+          <option value="completed">Completed</option>
           {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
         </select>
         <button className={"lk-btn" + (hidePast ? " primary" : "")} onClick={() => setHidePast((v) => !v)} title="Hide anything in the past and focus on present and future">{hidePast ? "Showing Present & Future" : "Hide Past"}</button>
@@ -287,7 +300,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
         return <div style={{ position: "fixed", inset: 0, background: "rgba(4,8,12,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", zIndex: 60 }} onClick={() => setHistOpen(false)}>
           <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, width: "min(880px, 96vw)", maxHeight: "84vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ ...S.head, position: "sticky", top: 0, background: "var(--card)", zIndex: 2 }}>
-              <div><h1 style={S.h1}>Register change log</h1><div style={S.sub}>Compare an import against an earlier one. Compares Title, Planned date, Assignee and Discipline per FOK ref; a re-saved workbook with identical content correctly shows no differences.</div></div>
+              <div><h1 style={S.h1}>Register change log</h1><div style={S.sub}>Compare an import against an earlier one. Compares Title, Planned date, Assignee, Discipline, ACC link and Notes per FOK ref; a re-saved workbook with identical content correctly shows no differences. Notes and ACC links are only tracked from 10 Jul 2026 onward, so comparisons against older imports judge the original four fields.</div></div>
               <div style={{ flex: 1 }} />
               <button className="lk-btn" onClick={() => setHistOpen(false)}>Close</button>
             </div>
@@ -303,9 +316,10 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                 <span style={pill("#2e2713", "#e6b23a")}>{d.changed.length} changed</span>
                 <span style={pill("var(--card2)", "var(--muted)")}>{d.unchanged} unchanged</span>
               </div>
+              {(() => { const blind = (im) => im && Array.isArray(im.snapshot) && im.snapshot.length > 0 && !im.snapshot.some((x) => x && x.planned); const bA = blind(A), bB = blind(B); return (bA || bB) ? <div style={{ border: "1px solid rgba(224,161,6,.5)", background: "rgba(224,161,6,.08)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#E0A106", marginBottom: 12 }}>{"\u26A0"} The {bA && bB ? "compared imports carry" : (bA ? "newer import carries" : "older import carries")} no planned dates at all, which usually means the register's date column header changed and the parser missed it. A comparison against a date-blind import understates real change.</div> : null; })()}
               {d.added.length > 0 && <><div style={glabel("#5fd0a6")}>Added ({d.added.length})</div>{d.added.map((r) => <div key={r.ref} style={row}><span style={refCell}>{r.ref}</span><span style={{ flex: 1, color: "var(--ink)" }}>{r.title}</span><span style={{ color: "var(--muted)" }}>{[r.discipline, r.planned].filter(Boolean).join(" \u00b7 ")}</span></div>)}</>}
               {d.removed.length > 0 && <><div style={glabel("#ff8079")}>Removed ({d.removed.length})</div>{d.removed.map((r) => <div key={r.ref} style={row}><span style={refCell}>{r.ref}</span><span style={{ flex: 1, color: "var(--ink)" }}>{r.title}</span><span style={{ color: "var(--muted)" }}>no longer in the register</span></div>)}</>}
-              {d.changed.length > 0 && <><div style={glabel("#e6b23a")}>Changed ({d.changed.length})</div>{d.changed.map((r) => <div key={r.ref} style={row}><span style={refCell}>{r.ref}</span><span style={{ flex: 1 }}><div style={{ color: "var(--ink)" }}>{r.title}</div>{r.fields.map((f, i) => <div key={i} style={{ color: "var(--muted)", marginTop: 2 }}>{f.label}: <span style={{ textDecoration: "line-through" }}>{f.from || "(blank)"}</span> {"\u2192"} <span style={{ color: "#e6d08a", fontWeight: 600 }}>{f.to || "(blank)"}</span></div>)}</span></div>)}</>}
+              {d.changed.length > 0 && <><div style={glabel("#e6b23a")}>Changed ({d.changed.length})</div>{d.changed.map((r) => <div key={r.ref} style={row}><span style={refCell}>{r.ref}</span><span style={{ flex: 1 }}><div style={{ color: "var(--ink)" }}>{r.title}</div>{r.fields.map((f, i) => <div key={i} style={{ color: "var(--muted)", marginTop: 2 }}>{f.label}: <span style={{ textDecoration: "line-through" }}>{(f.from || "(blank)").length > 90 ? (f.from || "").slice(0, 90) + "..." : (f.from || "(blank)")}</span> {"\u2192"} <span style={{ color: "#e6d08a", fontWeight: 600 }}>{(f.to || "(blank)").length > 90 ? (f.to || "").slice(0, 90) + "..." : (f.to || "(blank)")}</span></div>)}</span></div>)}</>}
               {d.added.length + d.removed.length + d.changed.length === 0 && <div style={{ padding: "18px 0", color: "var(--muted)", fontSize: 13 }}>No differences between these two imports.</div>}
             </div>}
           </div>

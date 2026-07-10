@@ -40,6 +40,11 @@ export function mapFokHeaders(headerRow) {
     }
     idx[field] = found;
   }
+  // REV197: the planned date column gets a substring fallback. Its header has been
+  // reworded between weeks; an exact-alias miss silently nulled every date on 10 Jul,
+  // which cascaded into every status reading No Date. Any header containing "date"
+  // alongside "planned" or "target" now matches.
+  if (idx.plannedDate === -1) idx.plannedDate = cells.findIndex((c) => c.includes("date") && (c.includes("planned") || c.includes("target")));
   return idx;
 }
 
@@ -193,6 +198,9 @@ function benchEmail(v) { return v ? String(v).toLowerCase() : null; }
 export function benchmarkStatus(benchmark, activity) {
   const b = benchmark || {};
   if (b.present === false) return "removed";
+  // REV197: a finished board activity makes its benchmark Completed, and completion
+  // wins over a missing date; a done FOK is done regardless of register hygiene.
+  if (activity && activity.status === "complete") return "completed";
   if (!b.planned_date) return "no_date";
   if (!activity) return "ready";
   const dateMoved = benchDate(b.planned_date) !== benchDate(activity.witness_at || activity.witnessAt || activity.planned_date);
