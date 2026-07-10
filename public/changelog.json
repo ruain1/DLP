@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV187",
+  "date": "2026-07-10",
+  "items": [
+   "Crew Capacity is now a per-project setting, off by default and enabled only where crew-hour planning is in use (FIN3021 Vantaa is switched on by the migration; every other project starts clean). The toggle lives at the top of Settings, Lookahead and Targets, admin only.",
+   "With the toggle off, every crew surface disappears on that project: the Crew chips and Est hours field in the activity editor, the Crews tab under Project Setup, the Capacity pill on the board, the hours chips on activity cards, and the Working Week and Working Hours per Day controls that exist only to feed capacity. Turning it off hides, never deletes: saved crew and estimated-hours data is kept and returns intact if the toggle comes back on.",
+   "The importer is deliberately unchanged: Crew and Est hours columns in a file still parse and store silently on any project, so an import cannot fail over a column the project does not display. Needs the crews-toggle.sql migration before data.js and App.jsx."
+  ]
+ },
+ {
   "rev": "REV186",
   "date": "2026-07-10",
   "items": [
