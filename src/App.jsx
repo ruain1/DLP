@@ -1930,7 +1930,7 @@ export default function App({ session }) {
     await enterProject(id, list);
   };
   useEffect(() => { boot(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const ch = subscribeAll(() => { if (selProjRef.current) enterProject(selProjRef.current); }); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const ch = subscribeAll(() => { if (selProjRef.current) enterProject(selProjRef.current); }, () => selProjRef.current); return () => { try { ch.unsubscribe(); } catch (e) {} }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { heartbeat(); const t = setInterval(heartbeat, 60000); const onVis = () => { if (document.visibilityState === "visible") heartbeat(); }; document.addEventListener("visibilitychange", onVis); return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); }; }, []);
   useEffect(() => { if (S?.brand) applyBrandToTab(S.brand); }, [S?.brand]);
   useEffect(() => { if (!pendingFocus || !S) return; const a = (S.activities || []).find((x) => x.id === pendingFocus); if (a) setEditing(a); setPendingFocus(null); }, [S, pendingFocus]);

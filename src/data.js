@@ -499,12 +499,32 @@ export async function uploadCompanyLogo(file, companyId) {
   return data.publicUrl;
 }
 
-export function subscribeAll(onChange) {
+// REV191: realtime scoped to the open project. Project-scoped tables trigger a
+// reload only when the changed row belongs to this project; global tables always
+// do. Audit, snapshots, presence and digest claims are ignored here because each
+// either accompanies a primary data change that fires its own scoped event, or
+// (presence) is polled on its own 30s interval; reloading everyone for them was
+// pure churn. DELETE payloads carry only the primary key, so a delete on a
+// project table reloads conservatively (project_id unknowable without replica
+// identity full). Unknown table shapes also reload conservatively.
+const RT_IGNORE = new Set(["presence", "report_runs", "audit_log", "activity_snapshots"]);
+const RT_GLOBAL = new Set(["companies", "profiles", "projects", "project_members", "user_privileges", "invite_requests", "access_requests", "branding"]);
+export function subscribeAll(onChange, getProjectId) {
   let t;
   const debounced = () => { clearTimeout(t); t = setTimeout(onChange, 250); };
   return supabase
     .channel("fin04-all")
-    .on("postgres_changes", { event: "*", schema: "public" }, debounced)
+    .on("postgres_changes", { event: "*", schema: "public" }, (payload) => {
+      try {
+        const tbl = payload && payload.table;
+        if (RT_IGNORE.has(tbl)) return;
+        const pid = typeof getProjectId === "function" ? getProjectId() : getProjectId;
+        if (!pid || RT_GLOBAL.has(tbl)) return debounced();
+        const rec = (payload.new && Object.keys(payload.new).length ? payload.new : payload.old) || {};
+        if (rec.project_id === undefined || rec.project_id === null) return debounced();
+        if (rec.project_id === pid) debounced();
+      } catch (e) { debounced(); }
+    })
     .subscribe();
 }
 
