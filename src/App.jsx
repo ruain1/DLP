@@ -2206,8 +2206,11 @@ export default function App({ session }) {
       const active = invActive(a).slice().sort((x, y) => x.day - y.day);
       const cancelled = invEntries(a).filter((e) => e.status === "cancelled");
       const done = [];
+      // REV190: a stored event may already be gone (deleted, or created under another Outlook
+      // account). Treat a not-found on cancel as success: there is nothing left to cancel.
+      const cancelSafe = async (id, comment) => { try { await ol.cancelWitnessEvent(id, comment); } catch (cerr) { if (!(cerr && (cerr.status === 404 || cerr.graphCode === "ErrorItemNotFound"))) throw cerr; } };
       if (mode === "cancel") {
-        for (const e of active) { await ol.cancelWitnessEvent(e.eventId, cancelComment(a)); }
+        for (const e of active) { await cancelSafe(e.eventId, cancelComment(a)); }
         persistInv(a, [...cancelled, ...active.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled witness invites", `${a.desc || ""} (${active.length} session${active.length === 1 ? "" : "s"})`);
         setOlMsg({ ok: true, text: `Cancellation sent for ${a.desc || "activity"} (${active.length} session${active.length === 1 ? "" : "s"}).` });
       } else {
@@ -2227,18 +2230,29 @@ export default function App({ session }) {
           const par = (S.activities || []).find((x) => x.id === a.retestOf);
           const pAct = par ? invActive(par) : [];
           if (par && pAct.length && window.confirm(`Also cancel the failed attempt's invitation for "${par.desc || "the previous attempt"}"? Attendees receive a cancellation referencing this retest (recommended).`)) {
-            for (const e of pAct) await ol.cancelWitnessEvent(e.eventId, cancelComment(par));
+            for (const e of pAct) await cancelSafe(e.eventId, cancelComment(par));
             persistInv(par, [...invEntries(par).filter((e) => e.status === "cancelled"), ...pAct.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled failed attempt invites", `${par.desc || ""} (retest issued)`);
             done.push("failed attempt's invitation cancelled");
           }
         }
         const keep = [];
         for (const e of active) {
-          if (e.day >= n) { await ol.cancelWitnessEvent(e.eventId, "Session removed: witness days reduced in DLP."); cancelled.push({ ...e, status: "cancelled" }); done.push(`day ${e.day + 1} cancelled`); continue; }
+          if (e.day >= n) { await cancelSafe(e.eventId, "Session removed: witness days reduced in DLP."); cancelled.push({ ...e, status: "cancelled" }); done.push(`day ${e.day + 1} cancelled`); continue; }
           if (e.hash !== h) {
             const f = mk(e.day, !!e.logo);
-            await ol.updateWitnessEvent(e.eventId, { ...f, bodyHtml: e.logo && logo ? f.bodyHtml : f.bodyHtmlNoLogo });
-            keep.push({ ...e, hash: h, sentAt: new Date().toISOString(), organiser: acct.username }); done.push(`day ${e.day + 1} updated`);
+            try {
+              await ol.updateWitnessEvent(e.eventId, { ...f, bodyHtml: e.logo && logo ? f.bodyHtml : f.bodyHtmlNoLogo });
+              keep.push({ ...e, hash: h, sentAt: new Date().toISOString(), organiser: acct.username }); done.push(`day ${e.day + 1} updated`);
+            } catch (uerr) {
+              // REV190: the stored calendar event is gone (deleted, or created under a different
+              // Outlook account). Rather than abort the whole reconcile, create a fresh event for
+              // this day and swap the id in, so a rescheduled invite can always be repaired.
+              if (uerr && (uerr.status === 404 || uerr.graphCode === "ErrorItemNotFound")) {
+                const r = await ol.sendWitnessEvent(mk(e.day, true));
+                keep.push({ day: e.day, eventId: r.id, logo: !!r.logo, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
+                done.push(`day ${e.day + 1} re-sent (previous calendar event no longer existed)`);
+              } else throw uerr;
+            }
           }
           else keep.push(e);
         }

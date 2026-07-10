@@ -118,7 +118,7 @@ async function graph(path, method, body) {
   });
   if (res.status === 202 || res.status === 204) return null;
   const j = await res.json().catch(() => null);
-  if (!res.ok) throw new Error((j && j.error && j.error.message) || "Graph " + (method || "GET") + " " + path + " failed (" + res.status + ")");
+  if (!res.ok) { const ge = new Error((j && j.error && j.error.message) || "Graph " + (method || "GET") + " " + path + " failed (" + res.status + ")"); ge.status = res.status; ge.graphCode = j && j.error && j.error.code; throw ge; }
   return j;
 }
 
