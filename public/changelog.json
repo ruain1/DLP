@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV231",
+    "date": "2026-07-11",
+    "items": [
+      "Project Team gains Resend invites to pending: one button emails a fresh 30-day set-password link to every member who has not yet signed in, sent from your connected Outlook account, three at a time with one summary naming any failures. Members with no email on file are skipped; the button shows the pending count and asks once before sending."
+    ]
+  },
+  {
     "rev": "REV230",
     "date": "2026-07-11",
     "items": [

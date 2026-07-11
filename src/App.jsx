@@ -4943,6 +4943,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [lvColor, setLvColor] = useState("#64748B");
   const [jsonPreview, setJsonPreview] = useState(null);
   const [ustat, setUstat] = useState({});
+  // REV231: bulk resend of onboarding invites to pending members (never signed in).
+  const [rsBusy, setRsBusy] = useState(false);
+  const [rsMsg, setRsMsg] = useState(null);
   useEffect(() => { fetchUserStatus().then(setUstat).catch(() => {}); }, []);
   const [pres, setPres] = useState({});
   useEffect(() => { let on = true; const go = () => loadPresence().then((p) => { if (on) setPres(p); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, []);
@@ -5600,6 +5603,33 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               const adminCount = all.filter((r) => r.role === "admin").length;
               const orphan = (members || []).length - all.length;
               const seenOf = (id) => !!(ustat[id] && ustat[id].lastSignIn);
+              // REV231: pending = on the team but the onboarding link was never used, and we
+              // hold an email for them. Each gets a fresh 30-day set-password link, emailed
+              // from the connected Outlook account, three at a time like bulk witness sends.
+              const rsPend = (all || []).filter((r) => !seenOf(r.user_id) && /@/.test((ustat[r.user_id] || {}).email || ""));
+              const hResendAll = async () => {
+                if (rsBusy || !rsPend.length) return;
+                if (!window.confirm("Resend onboarding invites to " + rsPend.length + " pending member" + (rsPend.length === 1 ? "" : "s") + "? Each receives a fresh set-password link by email from your connected Outlook account.")) return;
+                setRsBusy(true); setRsMsg(null);
+                try {
+                  const ol = await import("./outlook");
+                  const acct = await ol.outlookAccount();
+                  if (!acct) throw new Error("Connect Outlook first: open the Witness Schedule or the Weekly Report window, press Connect Outlook, then retry.");
+                  const results = await runPool(rsPend, 3, async (r) => {
+                    const res = await userOp({ op: "link", id: r.user_id, redirect: window.location.origin });
+                    const email = (ustat[r.user_id] || {}).email;
+                    const html = ol.buildUserInviteEmailHtml({ mode: "link", email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: cn(r.u.companyId) || "", link: res.link, sentByName: acct.username, validityDays: 30 });
+                    await ol.sendMailMessage({ subject: "Your DLP sign-in link", html, to: [email] });
+                    return email;
+                  });
+                  const okN = results.filter((x) => x.ok).length;
+                  const bad = results.map((x, i) => ({ x, r: rsPend[i] })).filter((y) => !y.x.ok);
+                  setRsMsg(bad.length
+                    ? { ok: false, text: okN + " of " + results.length + " sent; failed: " + bad.map((y) => ((y.r.u.name || (ustat[y.r.user_id] || {}).email || "member") + " (" + String((y.x.error && y.x.error.message) || y.x.error) + ")")).join("; ") }
+                    : { ok: true, text: okN + " invite" + (okN === 1 ? "" : "s") + " re-sent from " + acct.username + "." });
+                } catch (err) { setRsMsg({ ok: false, text: (err && err.message) || String(err) }); }
+                setRsBusy(false);
+              };
               const q = mfQ.trim().toLowerCase();
               const rows = all.filter((r) => {
                 if (mfRole !== "all" && r.role !== mfRole) return false;
@@ -5613,7 +5643,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   <div style={{ fontSize: 13, fontWeight: 700 }}>Project team</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{members ? all.length + " member" + (all.length === 1 ? "" : "s") + " \u00b7 " + adminCount + " admin" + (adminCount === 1 ? "" : "s") : ""}</div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 8px" }}><button className="lk-btn" disabled={!all.length} title="Download everyone on this project with email, company, project role, projects, status and last seen" onClick={() => downloadFile(`${(projCode || "DLP")}-team-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Project role", "Projects", "Status", "Last seen"], buildTeamExportRows(all, cn, ustat, mcount)))}><Icon n="download" s={14} />Export Users (CSV)</button></div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, margin: "0 0 8px" }}><button className="lk-btn" disabled={rsBusy || !rsPend.length} title={rsPend.length ? "Email a fresh set-password link to every member who has not signed in yet" : "No pending members"} onClick={hResendAll}><Icon n="mail" s={14} />{rsBusy ? "Re-sending\u2026" : "Resend invites to pending (" + rsPend.length + ")"}</button><button className="lk-btn" disabled={!all.length} title="Download everyone on this project with email, company, project role, projects, status and last seen" onClick={() => downloadFile(`${(projCode || "DLP")}-team-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Project role", "Projects", "Status", "Last seen"], buildTeamExportRows(all, cn, ustat, mcount)))}><Icon n="download" s={14} />Export Users (CSV)</button></div>
+                {rsMsg && <div style={{ fontSize: 12, color: rsMsg.ok ? "var(--green)" : "var(--red)", margin: "0 0 8px" }}>{rsMsg.text}</div>}
                 <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Adding someone here grants access to this project immediately, with no invite to accept. Removing them revokes only this project; they keep their account and any other projects.</div>
                 {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : <>
                   <div className="lk-ufilter">
