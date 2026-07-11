@@ -991,13 +991,13 @@ function portalVars(theme) {
   return { ...(theme === "dark" ? D : L), "--display": '"Space Grotesk","Inter",system-ui,sans-serif', "--body": '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif' };
 }
 const PORTAL_CSS = `
-.qp{min-height:100vh;background:var(--backdrop);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.qp{min-height:100vh;padding-top:139px;background:var(--backdrop);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .qp h2{font-family:var(--display);margin:0}
 .qp .mono{font-variant-numeric:tabular-nums}
-.qp .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;height:74px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
+.qp .top{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:16px;height:74px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
 .qp .brandmark{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:-.01em;font-family:var(--display)}
 .qp .brandmark .glyphimg{height:52px;width:auto;display:block}
-.qp .pvbar{position:sticky;top:74px;z-index:29;display:flex;align-items:center;gap:14px;padding:10px 22px;background:var(--backdrop);border-bottom:1px solid var(--line)}
+.qp .pvbar{position:fixed;top:74px;left:0;right:0;height:65px;box-sizing:border-box;z-index:29;display:flex;align-items:center;gap:14px;padding:10px 22px;background:var(--backdrop);border-bottom:1px solid var(--line)}
 .qp .pvt{display:flex;gap:4px;background:var(--chip);border:1px solid var(--line);padding:3px;border-radius:10px}
 .qp .pvt button{font-family:var(--body);font-size:13px;font-weight:600;border:0;background:transparent;color:var(--muted);padding:8px 15px;border-radius:7px;cursor:pointer}
 .qp .pvt button:hover{color:var(--ink)}
@@ -1073,7 +1073,7 @@ const PORTAL_CSS = `
 .qp .drow-bar{height:5px;border-radius:3px;background:var(--chip);overflow:hidden;margin-top:5px;width:140px}
 .qp .drow-bar i{display:block;height:100%;background:#1FB6A6;border-radius:3px}
 .qp .drow-chip{flex:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;border:1px solid;background:transparent;white-space:nowrap}
-.qp .qp-foot{text-align:center;font-size:11.5px;color:var(--muted);padding:26px 22px 34px;border-top:1px solid var(--line);margin-top:34px}
+.qp .qp-foot{position:fixed;left:0;right:0;bottom:0;z-index:28;margin:0;text-align:right;font-size:10.5px;line-height:1;color:var(--muted);padding:9px 18px;background:var(--paper);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qp .brandmark .sub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-left:2px}
 .qp .switcher{position:relative;margin-left:6px}
 .qp .switcher>button{display:flex;align-items:center;gap:9px;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
@@ -1093,7 +1093,7 @@ const PORTAL_CSS = `
 .qp .user .nm{font-size:13px;font-weight:600;line-height:1.1}
 .qp .user .rl{font-size:10px;color:var(--muted)}
 .qp .pill-plat{font-size:9.5px;font-weight:800;letter-spacing:.06em;background:#7C4DFF1f;color:#9B7BFF;border-radius:999px;padding:3px 8px;text-transform:uppercase}
-.qp .wrap{max-width:1240px;margin:0 auto;padding:26px 22px 60px}
+.qp .wrap{max-width:1240px;margin:0 auto;padding:26px 22px 76px}
 .qp .scene{display:none}.qp .scene.on{display:block}
 .qp .hello{font-size:24px;font-weight:700;letter-spacing:-.02em;font-family:var(--display)}
 .qp .subhello{color:var(--muted);font-size:13px;margin-top:3px}
@@ -1290,7 +1290,8 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 // outside the project shell, and scopes the required lk styles via HUB_LK_CSS. Global Companies
 // and Global Vendors arrive with Phases 3 and 4.
 function HubGlobalSettings({ theme, userName }) {
-  const [sub, setSub] = useState("contacts");
+  const [sub, setSub] = useState(() => { try { const s0 = localStorage.getItem("dlp_hub_sub"); return ["contacts"].includes(s0) ? s0 : "contacts"; } catch (e) { return "contacts"; } });
+  useEffect(() => { try { localStorage.setItem("dlp_hub_sub", sub); } catch (e) {} }, [sub]);
   const [dir, setDir] = useState(null);
   const [ustat, setUstat] = useState({});
   const [mcount, setMcount] = useState({});
@@ -1393,7 +1394,7 @@ function HubGlobalSettings({ theme, userName }) {
   </div>; };
   const mu = manage ? users.find((x) => x.id === manage) : null;
   return <div style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
-    <style>{HUB_LK_CSS}</style>
+    <style>{HUB_LK_CSS + "\n.lk-uhead{position:sticky;top:139px;z-index:5;background:var(--card);padding-top:6px;padding-bottom:8px}"}</style>
     <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "start" }}>
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
@@ -1511,7 +1512,8 @@ function HubGlobalSettings({ theme, userName }) {
 
 function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter, onNew, onSignOut, onLoadOverview, onUpdateProject, onOpenAnalytics }) {
   const [theme, setTheme] = useState(theme0 || "light");
-  const [scene, setScene] = useState("home");
+  const [scene, setScene] = useState(() => { try { const s0 = localStorage.getItem("dlp_portal_scene"); const ok = ["home", "projects", "inside"].concat(isSuper ? ["analytics", "global", "newproj"] : []); return ok.includes(s0) ? s0 : "home"; } catch (e) { return "home"; } });
+  useEffect(() => { try { localStorage.setItem("dlp_portal_scene", scene); } catch (e) {} }, [scene]);
   const [swOpen, setSwOpen] = useState(false);
   const [q, setQ] = useState("");
   const [nf, setNf] = useState({ name: "", code: "", client: "", location: "", startDate: "", targetDate: "", accent: "#1E63D6", copyFrom: "" });
