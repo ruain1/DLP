@@ -991,7 +991,8 @@ function portalVars(theme) {
   return { ...(theme === "dark" ? D : L), "--display": '"Space Grotesk","Inter",system-ui,sans-serif', "--body": '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif' };
 }
 const PORTAL_CSS = `
-.qp{min-height:100vh;padding-top:139px;background:var(--backdrop);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.qp{height:100vh;overflow:hidden;box-sizing:border-box;padding-top:139px;background:var(--backdrop);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.qp .pgscroll{height:100%;overflow-y:auto;overscroll-behavior:contain}
 .qp h2{font-family:var(--display);margin:0}
 .qp .mono{font-variant-numeric:tabular-nums}
 .qp .top{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:16px;height:74px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
@@ -1394,7 +1395,7 @@ function HubGlobalSettings({ theme, userName }) {
   </div>; };
   const mu = manage ? users.find((x) => x.id === manage) : null;
   return <div style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
-    <style>{HUB_LK_CSS + "\n.hubstick{position:sticky;top:-18px;z-index:21;background:var(--card);margin:0 -20px 8px;padding:18px 20px 0;border-bottom:1px solid var(--line)}\n.hubstick .lk-ufilter{position:static;margin:0 0 6px;padding:0;border-bottom:0;z-index:auto}\n.hubstick .lk-uhead{padding-bottom:8px}"}</style>
+    <style>{HUB_LK_CSS + "\n.hubstick{position:sticky;top:0;z-index:21;background:var(--card);margin:0 -20px 8px;padding:12px 20px 0;border-bottom:1px solid var(--line);border-radius:0 0 10px 10px}\n.hubstick .lk-ufilter{position:static;margin:0 0 6px;padding:0;border-bottom:0;z-index:auto}\n.hubstick .lk-uhead{padding-bottom:8px}"}</style>
     <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "start" }}>
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
@@ -1402,7 +1403,7 @@ function HubGlobalSettings({ theme, userName }) {
         <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the Companies model (Phase 3)">Global Companies</button>
         <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the vendor directory (Phase 4)">Global Vendors</button>
       </div>
-      <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px", minWidth: 0, maxHeight: "calc(100vh - 240px)", minHeight: 320, overflow: "auto" }}>
+      <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px", minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Global Contacts</div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>Everyone on the platform, across every project. Add a person once here; putting them on a project (each project&rsquo;s Project Team tab) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
         {dir && dir.error && <div style={{ fontSize: 12, color: "var(--red, #C0392B)", marginBottom: 10 }}>Load failed: {dir.error}</div>}
@@ -1825,7 +1826,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
         </div>
       </div>
 
-      <div className="wrap">
+      <div className="pgscroll"><div className="wrap">
         <div className={"scene" + (scene === "home" ? " on" : "")}>
           <div className="hello">{greet}, {first}</div>
           <div className="subhello">{dstr} &middot; {isSuper ? "you can see every project" : ("you are on " + projects.length + " project" + (projects.length === 1 ? "" : "s"))}</div>
@@ -2097,6 +2098,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           </div>
         </div>
       )}
+      </div>
       <div className="qp-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
     </div>
   );
