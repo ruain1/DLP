@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV208",
+    "date": "2026-07-11",
+    "items": [
+      "One page, one scrollbar: the portal shell is now a fixed-viewport layout like the project app, so the body never scrolls and the redundant outer scrollbar is gone. A single full-width scroll region sits beneath the fixed chrome and above the fixed footer; the Global Contacts panel loses its own inner scrollbar, and the pinned filter, export and column-header block holds at the top of that one scroll region while the list moves beneath it."
+    ]
+  },
+  {
     "rev": "REV207",
     "date": "2026-07-11",
     "items": [
