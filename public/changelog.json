@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV230",
+    "date": "2026-07-11",
+    "items": [
+      "Fix: percent complete on an activity can once again be amended only by members of the company that owns the activity, plus admins and the owner. A recent Record Progress change granted percent rights to any member with edit-own privileges on every activity, regardless of company; the check now requires the owning company exactly as full editing does, and the save handler enforces the same rule independently of the input's state."
+    ]
+  },
+  {
     "rev": "REV229",
     "date": "2026-07-11",
     "items": [

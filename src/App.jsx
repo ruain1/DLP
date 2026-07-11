@@ -3082,6 +3082,13 @@ export default function App({ session }) {
   // REV175: cross-company members can record percent complete only, via the RPC
   // (the normal upsert path is blocked for them by the company-scoped RLS policy).
   const savePercent = async (id, percent) => {
+    // REV230: percent complete is amendable only by the owning company's members, admins,
+    // and the owner. Enforced here as well as at the drawer prop so no caller can bypass it.
+    const tgt = (S.activities || []).find((x) => x.id === id);
+    if (!tgt || isClientViewer || !(can("editAny") || (can("editOwn") && tgt.companyId === cu.companyId))) {
+      window.alert("Progress on this activity can only be recorded by " + (coName(tgt && tgt.companyId) || "its owning company") + " members, admins, or the owner.");
+      return;
+    }
     try {
       await setActivityPercent(id, percent);
       setS((prev) => ({ ...prev, activities: prev.activities.map((x) => x.id === id ? { ...x, percent } : x) }));
@@ -3684,7 +3691,7 @@ export default function App({ session }) {
       </div>
 
       {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "rgba(14,147,132,.14)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "#0E9384" : "#C0392B"), color: digestNote.ok ? "#0E9384" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onSavePercent={savePercent} canPercent={can("editOwn") && !isClientViewer} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onSavePercent={savePercent} canPercent={!isClientViewer && (can("editAny") || (can("editOwn") && editing.companyId === cu.companyId))} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
