@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV203",
+    "date": "2026-07-11",
+    "items": [
+      "Global Contacts moves to the hub: a new Global Settings tab on the portal bar (owner and super only) carries the platform-wide directory with the same filters, per-company grouping, email column, Export Users, Add person, Bulk Add and Manage modal as before. Global Companies and Global Vendors appear alongside as placeholders for the next phases.",
+      "Global Contacts leaves project settings. Project admins manage their people entirely from Project Team: adding a person there already creates the platform contact, and Resend set-password link and Reset password now show their card on the Project Team tab itself instead of jumping to the removed page. The Edit name, company or platform role dialog is unchanged and now reports its result inline.",
+      "Editing a contact from the hub takes effect for every project at once, which is exactly why it now lives above them rather than inside one."
+    ]
+  },
+  {
     "rev": "REV202",
     "date": "2026-07-11",
     "items": [
