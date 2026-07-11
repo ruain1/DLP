@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV201",
+    "date": "2026-07-11",
+    "items": [
+      "Project Team gains Add A Person To This Project and Bulk Add Users To This Project: both create the platform account when the person is new and add them to this project in the same step, as the chosen project role. Existing Global Contacts (matched by email) are added to the project without a new account, and people already on the project are reported rather than duplicated.",
+      "Bulk results tell the truth per row: Created and added, Added (existing), Already on project, or the exact failure, with the set-password links CSV and Email All Created Invites carried over from Global Contacts. A failed project grant after a successful account creation is reported on the credentials card instead of being swallowed.",
+      "The Project Team footer no longer sends you to Global Contacts to create accounts; project admins can now build their team in one place. The project role select grants project-level admin only; platform roles are untouched."
+    ]
+  },
+  {
     "rev": "REV200",
     "date": "2026-07-11",
     "items": [
