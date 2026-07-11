@@ -115,16 +115,27 @@ async function token() {
 }
 
 async function graph(path, method, body) {
-  const t = await token();
-  const res = await fetch("https://graph.microsoft.com/v1.0" + path, {
-    method: method || "GET",
-    headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (res.status === 202 || res.status === 204) return null;
-  const j = await res.json().catch(() => null);
-  if (!res.ok) { const ge = new Error((j && j.error && j.error.message) || "Graph " + (method || "GET") + " " + path + " failed (" + res.status + ")"); ge.status = res.status; ge.graphCode = j && j.error && j.error.code; throw ge; }
-  return j;
+  // REV221: throttling resilience. Graph answers 429 (or a transient 503) with a
+  // Retry-After when the mailbox concurrency or volume limits are touched; honour it
+  // for up to two retries instead of failing the send. Bounded so a persistent
+  // throttle still surfaces as the real error.
+  for (let attempt = 0; ; attempt++) {
+    const t = await token();
+    const res = await fetch("https://graph.microsoft.com/v1.0" + path, {
+      method: method || "GET",
+      headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if ((res.status === 429 || res.status === 503) && attempt < 2) {
+      const ra = Number(res.headers.get("Retry-After"));
+      await new Promise((r) => setTimeout(r, Math.min(isFinite(ra) && ra > 0 ? ra : 2, 30) * 1000));
+      continue;
+    }
+    if (res.status === 202 || res.status === 204) return null;
+    const j = await res.json().catch(() => null);
+    if (!res.ok) { const ge = new Error((j && j.error && j.error.message) || "Graph " + (method || "GET") + " " + path + " failed (" + res.status + ")"); ge.status = res.status; ge.graphCode = j && j.error && j.error.code; throw ge; }
+    return j;
+  }
 }
 
 const two = (n) => String(n).padStart(2, "0");

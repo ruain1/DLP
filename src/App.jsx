@@ -2313,6 +2313,22 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   );
 }
 
+// REV221: minimal concurrency pool for the bulk invite send. Runs fn over items with at
+// most `limit` in flight, results in item order; never throws, each slot is
+// { ok: true, value } or { ok: false, error }. Kept dependency-free and pure for testing.
+async function runPool(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next; if (i >= items.length) return; next += 1;
+      try { results[i] = { ok: true, value: await fn(items[i], i) }; }
+      catch (error) { results[i] = { ok: false, error }; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return results;
+}
 export default function App({ session }) {
   const [S, setS] = useState(null);
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
@@ -2704,6 +2720,72 @@ export default function App({ session }) {
   };
   const persistInv = (a, witnessEvents, action, detail) => update((p) => ({ ...p, activities: p.activities.map((x) => (x.id === a.id ? { ...x, witnessAt: a.witnessAt, witnessEvents, witnessSentAt: witnessEvents.some((e) => e.status !== "cancelled") ? (x.witnessSentAt || new Date().toISOString()) : x.witnessSentAt } : x)) }), { action, detail });
   // mode: "send" reconciles (create missing days, update mismatched, cancel surplus); "cancel" cancels all active sessions.
+  // REV190 note kept: a stored event may already be gone (deleted, or created under another
+  // Outlook account). A not-found on cancel counts as success: nothing left to cancel.
+  const cancelInvSafe = async (ol, id, comment) => { try { await ol.cancelWitnessEvent(id, comment); } catch (cerr) { if (!(cerr && (cerr.status === 404 || cerr.graphCode === "ErrorItemNotFound"))) throw cerr; } };
+  // REV221: the send-mode reconcile, extracted so the single-activity path and the bulk pool
+  // share one code path. Cancels surplus days, updates changed days (recreating events Graph
+  // no longer knows), creates missing days, persists, and returns the per-day outcome list.
+  // Throws on the first hard failure; the caller owns messaging and busy state. This function
+  // never prompts: opts.cancelFailedParent carries the caller's decision for retest parents.
+  const sendInvCore = async (a, ol, acct, opts) => {
+    const n = Math.max(1, a.witnessDays || 1);
+    const h = invHash(a);
+    const active = invActive(a).slice().sort((x, y) => x.day - y.day);
+    const cancelled = invEntries(a).filter((e) => e.status === "cancelled");
+    const done = [];
+    const co = (S.companies || []).find((c) => c.id === a.companyId) || null;
+    const logo = await fetchVendorLogo(co);
+    const mk = (dayIdx, wantLogo) => {
+      const f = invFields(a, dayIdx);
+      const useLogo = !!(wantLogo && logo);
+      return { ...f,
+        bodyHtml: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: useLogo ? { width: logo.width, alt: f.companyName } : null }),
+        bodyHtmlNoLogo: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: null }),
+        inlineLogo: useLogo ? logo : null };
+    };
+    // Retest whose failed parent still holds a live invitation: close the loop when the
+    // caller confirmed, cancelling the parent with the cross-reference comment.
+    if (a.retestOf && opts && opts.cancelFailedParent) {
+      const par = (S.activities || []).find((x) => x.id === a.retestOf);
+      const pAct = par ? invActive(par) : [];
+      if (par && pAct.length) {
+        for (const e of pAct) await cancelInvSafe(ol, e.eventId, cancelComment(par));
+        persistInv(par, [...invEntries(par).filter((e) => e.status === "cancelled"), ...pAct.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled failed attempt invites", `${par.desc || ""} (retest issued)`);
+        done.push("failed attempt's invitation cancelled");
+      }
+    }
+    const keep = [];
+    for (const e of active) {
+      if (e.day >= n) { await cancelInvSafe(ol, e.eventId, "Session removed: witness days reduced in DLP."); cancelled.push({ ...e, status: "cancelled" }); done.push(`day ${e.day + 1} cancelled`); continue; }
+      if (e.hash !== h) {
+        const f = mk(e.day, !!e.logo);
+        try {
+          await ol.updateWitnessEvent(e.eventId, { ...f, bodyHtml: e.logo && logo ? f.bodyHtml : f.bodyHtmlNoLogo });
+          keep.push({ ...e, hash: h, sentAt: new Date().toISOString(), organiser: acct.username }); done.push(`day ${e.day + 1} updated`);
+        } catch (uerr) {
+          // REV190: the stored calendar event is gone (deleted, or created under a different
+          // Outlook account). Rather than abort the whole reconcile, create a fresh event for
+          // this day and swap the id in, so a rescheduled invite can always be repaired.
+          if (uerr && (uerr.status === 404 || uerr.graphCode === "ErrorItemNotFound")) {
+            const r = await ol.sendWitnessEvent(mk(e.day, true));
+            keep.push({ day: e.day, eventId: r.id, logo: !!r.logo, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
+            done.push(`day ${e.day + 1} re-sent (previous calendar event no longer existed)`);
+          } else throw uerr;
+        }
+      }
+      else keep.push(e);
+    }
+    const have = new Set(keep.map((e) => e.day));
+    for (let d = 0; d < n; d++) {
+      if (have.has(d)) continue;
+      const r = await ol.sendWitnessEvent(mk(d, true));
+      keep.push({ day: d, eventId: r.id, logo: !!r.logo, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
+      done.push(`day ${d + 1} sent`);
+    }
+    persistInv(a, [...cancelled, ...keep.sort((x, y) => x.day - y.day)], "Sent witness invites", `${a.desc || ""}: ${done.join(", ")}`);
+    return { done };
+  };
   const runInv = async (a, mode) => {
     if (!can("witnessSend") || olBusy) return;
     if (mode === "cancel" && !window.confirm(`Send a cancellation to all attendees for "${a.desc || "this activity"}"?`)) return;
@@ -2712,70 +2794,21 @@ export default function App({ session }) {
       const ol = await import("./outlook");
       const acct = await ol.outlookAccount();
       if (!acct) throw new Error("Outlook is not connected.");
-      const n = Math.max(1, a.witnessDays || 1);
-      const h = invHash(a);
-      const active = invActive(a).slice().sort((x, y) => x.day - y.day);
-      const cancelled = invEntries(a).filter((e) => e.status === "cancelled");
-      const done = [];
-      // REV190: a stored event may already be gone (deleted, or created under another Outlook
-      // account). Treat a not-found on cancel as success: there is nothing left to cancel.
-      const cancelSafe = async (id, comment) => { try { await ol.cancelWitnessEvent(id, comment); } catch (cerr) { if (!(cerr && (cerr.status === 404 || cerr.graphCode === "ErrorItemNotFound"))) throw cerr; } };
       if (mode === "cancel") {
-        for (const e of active) { await cancelSafe(e.eventId, cancelComment(a)); }
-        persistInv(a, [...cancelled, ...active.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled witness invites", `${a.desc || ""} (${active.length} session${active.length === 1 ? "" : "s"})`);
+        const active = invActive(a).slice().sort((x, y) => x.day - y.day);
+        for (const e of active) { await cancelInvSafe(ol, e.eventId, cancelComment(a)); }
+        persistInv(a, [...invEntries(a).filter((e) => e.status === "cancelled"), ...active.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled witness invites", `${a.desc || ""} (${active.length} session${active.length === 1 ? "" : "s"})`);
         setOlMsg({ ok: true, text: `Cancellation sent for ${a.desc || "activity"} (${active.length} session${active.length === 1 ? "" : "s"}).` });
       } else {
-        const co = (S.companies || []).find((c) => c.id === a.companyId) || null;
-        const logo = await fetchVendorLogo(co);
-        const mk = (dayIdx, wantLogo) => {
-          const f = invFields(a, dayIdx);
-          const useLogo = !!(wantLogo && logo);
-          return { ...f,
-            bodyHtml: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: useLogo ? { width: logo.width, alt: f.companyName } : null }),
-            bodyHtmlNoLogo: ol.buildInviteBodyHtml({ ...f, organiser: acct.username, logo: null }),
-            inlineLogo: useLogo ? logo : null };
-        };
-        // Sending a retest whose failed parent still holds a live invitation: offer to close the
-        // loop, cancelling the parent with the cross-reference comment (approved workflow).
+        // The interactive path keeps the per-activity confirm; the decision travels into the
+        // shared core as a plain flag.
+        let cancelParent = false;
         if (a.retestOf) {
           const par = (S.activities || []).find((x) => x.id === a.retestOf);
-          const pAct = par ? invActive(par) : [];
-          if (par && pAct.length && window.confirm(`Also cancel the failed attempt's invitation for "${par.desc || "the previous attempt"}"? Attendees receive a cancellation referencing this retest (recommended).`)) {
-            for (const e of pAct) await cancelSafe(e.eventId, cancelComment(par));
-            persistInv(par, [...invEntries(par).filter((e) => e.status === "cancelled"), ...pAct.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled failed attempt invites", `${par.desc || ""} (retest issued)`);
-            done.push("failed attempt's invitation cancelled");
-          }
+          if (par && invActive(par).length) cancelParent = window.confirm(`Also cancel the failed attempt's invitation for "${par.desc || "the previous attempt"}"? Attendees receive a cancellation referencing this retest (recommended).`);
         }
-        const keep = [];
-        for (const e of active) {
-          if (e.day >= n) { await cancelSafe(e.eventId, "Session removed: witness days reduced in DLP."); cancelled.push({ ...e, status: "cancelled" }); done.push(`day ${e.day + 1} cancelled`); continue; }
-          if (e.hash !== h) {
-            const f = mk(e.day, !!e.logo);
-            try {
-              await ol.updateWitnessEvent(e.eventId, { ...f, bodyHtml: e.logo && logo ? f.bodyHtml : f.bodyHtmlNoLogo });
-              keep.push({ ...e, hash: h, sentAt: new Date().toISOString(), organiser: acct.username }); done.push(`day ${e.day + 1} updated`);
-            } catch (uerr) {
-              // REV190: the stored calendar event is gone (deleted, or created under a different
-              // Outlook account). Rather than abort the whole reconcile, create a fresh event for
-              // this day and swap the id in, so a rescheduled invite can always be repaired.
-              if (uerr && (uerr.status === 404 || uerr.graphCode === "ErrorItemNotFound")) {
-                const r = await ol.sendWitnessEvent(mk(e.day, true));
-                keep.push({ day: e.day, eventId: r.id, logo: !!r.logo, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
-                done.push(`day ${e.day + 1} re-sent (previous calendar event no longer existed)`);
-              } else throw uerr;
-            }
-          }
-          else keep.push(e);
-        }
-        const have = new Set(keep.map((e) => e.day));
-        for (let d = 0; d < n; d++) {
-          if (have.has(d)) continue;
-          const r = await ol.sendWitnessEvent(mk(d, true));
-          keep.push({ day: d, eventId: r.id, logo: !!r.logo, sentAt: new Date().toISOString(), hash: h, organiser: acct.username, status: "sent" });
-          done.push(`day ${d + 1} sent`);
-        }
-        persistInv(a, [...cancelled, ...keep.sort((x, y) => x.day - y.day)], "Sent witness invites", `${a.desc || ""}: ${done.join(", ")}`);
-        setOlMsg({ ok: true, text: `${a.desc || "Activity"}: ${done.length ? done.join(", ") : "already up to date"}. Organiser ${acct.username}.` });
+        const r = await sendInvCore(a, ol, acct, { cancelFailedParent: cancelParent });
+        setOlMsg({ ok: true, text: `${a.desc || "Activity"}: ${r.done.length ? r.done.join(", ") : "already up to date"}. Organiser ${acct.username}.` });
       }
     } catch (err) {
       setOlMsg({ ok: false, text: (err && err.message) || String(err) });
@@ -3765,7 +3798,28 @@ export default function App({ session }) {
               </div>
               {isAdmin && (() => {
                 const pending = list.filter(({ a }) => ["notsent", "partial"].includes(invState(a))).map((x) => x.a);
-                const bulkSend = async () => { setOlMsg(null); for (const a of pending) { await runInv(a, "send"); } };
+                const bulkSend = async () => {
+                  if (!can("witnessSend") || olBusy || !pending.length) return;
+                  setOlBusy("bulk"); setOlMsg(null);
+                  try {
+                    const ol = await import("./outlook");
+                    const acct = await ol.outlookAccount();
+                    if (!acct) throw new Error("Outlook is not connected.");
+                    // One aggregated decision replaces per-activity prompts: retests whose failed
+                    // attempt still holds a live invitation.
+                    const parents = pending.filter((a) => { if (!a.retestOf) return false; const par = (S.activities || []).find((x) => x.id === a.retestOf); return !!(par && invActive(par).length); });
+                    const cancelParents = parents.length > 0 && window.confirm(parents.length + " retest invite" + (parents.length === 1 ? " has" : "s have") + " a failed attempt still holding a live invitation. Cancel those previous invitations too? Attendees receive cancellations referencing the retests (recommended).");
+                    // Three activities in flight keeps us under Outlook's per-mailbox concurrency
+                    // limit; each activity's create/attach/patch sequence stays strictly ordered.
+                    const results = await runPool(pending, 3, (a) => sendInvCore(a, ol, acct, { cancelFailedParent: cancelParents }));
+                    const okN = results.filter((r) => r.ok).length;
+                    const bad = results.map((r, i) => ({ r, a: pending[i] })).filter((x) => !x.r.ok);
+                    setOlMsg(bad.length
+                      ? { ok: false, text: okN + " of " + results.length + " sent; failed: " + bad.map((x) => (x.a.desc || "activity") + " (" + String((x.r.error && x.r.error.message) || x.r.error) + ")").join("; ") }
+                      : { ok: true, text: okN + " invitation" + (okN === 1 ? "" : "s") + " sent or reconciled. Organiser " + acct.username + "." });
+                  } catch (err) { setOlMsg({ ok: false, text: (err && err.message) || String(err) }); }
+                  setOlBusy(null);
+                };
                 return <div className="wsch-olbar">
                   {olAcct
                     ? <><span className="wsch-acct">Outlook: {olAcct}</span><span className="wsch-olhint">Invites are organised by this account.</span>

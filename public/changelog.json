@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV221",
+    "date": "2026-07-11",
+    "items": [
+      "Send All Pending on the Witness Schedule now sends three invitations in parallel instead of one at a time, cutting bulk send time to roughly a third on busy session days. Each event's create, logo attach, and attendee steps stay strictly ordered, results are summarised in one message with any failures named, and retest confirmations are asked once up front instead of per activity.",
+      "Microsoft Graph throttling (429) is now absorbed automatically: sends wait out the advised delay and retry up to twice before surfacing an error, protecting single sends, bulk sends, report emails, and digests alike."
+    ]
+  },
+  {
     "rev": "REV220",
     "date": "2026-07-11",
     "items": [
