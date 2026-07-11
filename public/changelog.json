@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV229",
+    "date": "2026-07-11",
+    "items": [
+      "Design settings tranche 5 of 5, Effects, completing the Design programme: an Effects tab with two project-wide controls. Depth (Flat, Standard, Elevated) scales the decorative shadows on card hovers, drawers, modals, and menus; Motion (Off, Reduced, Standard) scales transition speed on the rail, toggles, hovers, and expanding panels. Signal effects are exempt and always show: the search spotlight, selection rings, the online pulse, and notification badges. The app now also honours the operating system's reduce-motion preference automatically for every user, regardless of project settings. Untouched projects render exactly as before."
+    ]
+  },
+  {
     "rev": "REV228",
     "date": "2026-07-11",
     "items": [
