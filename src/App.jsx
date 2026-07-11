@@ -1224,7 +1224,9 @@ const PORTAL_CSS = `
 `;
 const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);
-.lk-btn:hover{border-color:var(--muted)}.lk-btn.icon{padding:7px 8px}
+  border-radius:8px;padding:7px 10px;font-size:12.5px;cursor:pointer;font-weight:500;transition:.12s}
+.lk-btn:hover{border-color:var(--muted)}
+.lk-btn.icon{padding:7px 8px}
 .lk-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .lk-btn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 .lk-btn.pill{border-radius:999px;padding:8px 14px}
@@ -1235,7 +1237,6 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-btn:disabled{opacity:.45;cursor:not-allowed}
 .lk-dh{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:2;flex:none}
 .lk-dh h3{margin:0;font-size:15px;font-weight:700;color:var(--head)}
-.lk-f{display:flex;flex-direction:column;gap:5px}
 .lk-f label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
 .lk-in,.lk-select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--ink);font-family:inherit;width:100%}
 .lk-in:focus,.lk-select:focus{outline:2px solid var(--accent);outline-offset:-1px}
@@ -1245,7 +1246,8 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-status button.sel{background:var(--ink);color:var(--paper)}
 .lk-list{display:flex;flex-direction:column;gap:6px}
 .lk-li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);font-size:12.5px}
-.lk-li .g{flex:1;min-width:0}.lk-li .g .s{font-size:10.5px;color:var(--muted)}
+.lk-li .g{flex:1;min-width:0}
+.lk-li .g .s{font-size:10.5px;color:var(--muted)}
 .lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-urow{display:grid;grid-template-columns:34px minmax(126px,1fr) minmax(168px,1.2fr) 112px 80px 42px 110px 74px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);font-size:12.5px}
 .lk-uhead{display:grid;grid-template-columns:34px minmax(126px,1fr) minmax(168px,1.2fr) 112px 80px 42px 110px 74px;align-items:center;gap:10px;padding:2px 13px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
@@ -1258,7 +1260,8 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-mbtn{justify-self:end;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer}
 .lk-mbtn:hover{background:var(--hover)}
 .lk-platbadge{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
-.lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}.lk-platbadge[data-super="own"]{background:#7c3aed;color:#fff;border-color:transparent}
+.lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}
+.lk-platbadge[data-super="own"]{background:#7c3aed;color:#fff;border-color:transparent}
 .lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
 .lk-cochip{justify-self:start;max-width:100%;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lk-stat{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.3px;padding:3px 9px;border-radius:999px;white-space:nowrap}
@@ -1278,7 +1281,8 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-modal .ref{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:12px}
 .lk-modal .ref b{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-bottom:4px}
 .lk-locked{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}
-.lk-locked .lkv{font-weight:600;font-size:13px}.lk-locked .lkn{font-size:11px;color:var(--muted)}`;
+.lk-locked .lkv{font-weight:600;font-size:13px}
+.lk-locked .lkn{font-size:11px;color:var(--muted)}`;
 
 // REV203: hub Global Settings scene, owner/super only, mounted from the Portal. Self-contained:
 // loads the platform directory itself (loadDirectory + fetchUserStatus + loadMembershipCounts),
