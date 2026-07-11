@@ -250,7 +250,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-you{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;flex:none}
 .lk-mbtn{justify-self:end;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer}
 .lk-mbtn:hover{background:var(--hover)}
-.lk-cohead{display:grid;grid-template-columns:48px minmax(150px,1fr) 64px 92px;align-items:center;gap:12px;padding:2px 14px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.lk-cohead{position:sticky;top:0;z-index:6;background:var(--paper);display:grid;grid-template-columns:48px minmax(150px,1fr) 64px 92px;align-items:center;gap:12px;padding:8px 14px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
 .lk-cohead .ctr{text-align:center}
 .lk-corow{display:grid;grid-template-columns:48px minmax(150px,1fr) 64px 92px;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px}
 .lk-cologo{width:48px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none}
@@ -369,14 +369,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
 .lk-adminwrap .lk-db{padding:14px 0 0}
 .lk-adminwrap .lk-tabs{padding:6px 0 0}
-.lk-adminwrap2{display:flex;gap:24px;width:100%;padding:10px 22px 52px;align-items:flex-start}
+.lk-adminwrap2{display:flex;gap:24px;width:100%;padding:10px 22px 0;align-items:flex-start;height:calc(100vh - 84px);box-sizing:border-box;overflow:hidden}
 .lk-subnav{flex:0 0 188px;display:flex;flex-direction:column;gap:14px;position:sticky;top:10px}
 .lk-subnav .grp{display:flex;flex-direction:column;gap:2px}
 .lk-subnav .grphd{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:0 8px 3px}
 .lk-subnav button{text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:7px;padding:7px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
 .lk-subnav button:hover{background:var(--hover)}
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
-.lk-subbody{flex:1;min-width:0;max-width:760px}
+.lk-subbody{flex:1;min-width:0;max-width:760px;height:100%;overflow-y:auto;padding-bottom:44px}
+.lk-stick{position:sticky;top:0;z-index:7;background:var(--paper);display:flex;gap:12px;align-items:center;height:54px;box-sizing:border-box;border-bottom:1px solid var(--line);margin-bottom:8px}
 .lk-subbody.wide{max-width:1320px}.lk-subbody.full{max-width:none}
 .lk-userwrap .lk-ufilter{position:sticky;top:0;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
@@ -843,6 +844,9 @@ const isFailedInvite = (a) => witnessOutcome(a) === "failed";
 const isPassedInvite = (a) => witnessOutcome(a) === "succeeded";
 // Attempt number via the retest_of chain: original = 1, first retest = 2 (chip shows RETEST #1), and so on.
 const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cur = a; while (cur && cur.retestOf) { const p = (acts || []).find((x) => x.id === cur.retestOf); if (!p || seen.has(p.id)) break; seen.add(p.id); n++; cur = p; } return n; };
+// CHANGELOG below is the frozen boot fallback (REV102). CHANGELOG_LIVE is refreshed once per
+// session from the deployed public/changelog.json, so the Weekly Report's changelog rows are
+// always current without a per-REV source edit.
 const CHANGELOG = [
   { rev: "REV158", date: "2026-07-07", items: ["Status Mix card on the Analytics page filled out. The donut is larger, each status band now carries a full-width composition bar of its internal split (ready versus make-ready, on time versus finished late), and a health strip beneath adds three rollups the card did not surface before: readiness (share of planned work with no open constraints), on-time completion rate, and the make-ready backlog. Every element including the three tiles drills to its activities. In progress keeps its flag counts rather than a split bar, since running late and constrained can overlap."] },
   { rev: "REV157", date: "2026-07-07", items: ["Executive summary in the weekly report now carries the same numbered section heading as every other section; it becomes section 01 and the rest renumber automatically, with the KPI tiles remaining beneath it as the at a glance numbers.", "AI polish can now be steered. A short optional instruction beside Polish with AI (for example more concise, lead with the MV risk, or formal board tone) is passed to the polish so you can shape tone, length, emphasis and order. The existing guard is unchanged: any figure, date or name not already in the draft is rejected, so a steer can reshape the summary but never invent a number. Steering takes effect once the updated super-action edge function is deployed; without it, polish still works and simply ignores the steer."] },
@@ -948,6 +952,9 @@ const CHANGELOG = [
   { rev: "REV4", date: "2026-06-19", items: ["Predecessors and non-destructive forecast: a slip upstream shows a dashed knock-on overlay without moving the baseline", "Activity short-codes, prepopulated single building, foldable audit log", "Settings reorganised into a left sub-navigation; users show accepted/pending and last-seen with a jump to their audit trail", "New Activity table (spreadsheet) view with per-row inline editing"] },
   { rev: "REV1-REV3", date: "2026-06-19", items: ["Day-by-day four-week Last Planner board with swimlanes, make-ready readiness, committed promises and witness flags", "Admin-configurable branding, Cx stages, systems, three-tier locations and companies", "User management: direct create, bulk CSV with set-password links, resets; Supabase auth, RLS, realtime and a secured admin edge function", "CSV and JSON import/export with downloadable templates; database-written, tamper-proof audit log"] },
 ];
+let CHANGELOG_LIVE = CHANGELOG;
+try { fetch("/changelog.json").then((r) => (r && r.ok ? r.json() : null)).then((j) => { if (Array.isArray(j) && j.length) CHANGELOG_LIVE = j; }).catch(() => {}); } catch (e) {}
+
 const relTime = (iso) => { if (!iso) return ""; const d = new Date(iso); const s = Math.floor((Date.now() - d.getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const dd = Math.floor(h / 24); if (dd < 30) return dd + "d ago"; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); };
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCSV = (headers, rows) => "\uFEFF" + [headers.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
@@ -2708,7 +2715,11 @@ export default function App({ session }) {
           setDigestNote({ ok: true, text: (b.kind === "daily" ? "Daily" : "Weekly") + " digest sent to " + recipients.length + " recipient" + (recipients.length === 1 ? "" : "s") + (test ? " (test, to you only)" : "") + "." });
         } catch (err) {
           if (claimId) { try { await supabase.from("report_runs").delete().eq("id", claimId); } catch (e2) { } }
-          setDigestNote({ ok: false, text: "Digest not sent (" + b.kind + " " + runDate + "): " + ((err && err.message) || err) + ". It will retry on the next tick; if this mentions sign-in, press Connect Outlook." });
+          {
+            const raw = String((err && err.message) || err || "").trim().replace(/\.+$/, "");
+            const needsAuth = /Connect Outlook|sign.?in|session/i.test(raw);
+            setDigestNote({ ok: false, text: "Digest not sent (" + b.kind + " " + runDate + "): " + raw + ". " + (needsAuth ? "Reconnect in Settings > Outlook & SharePoint; it retries automatically on the next tick after that." : "It will retry on the next tick.") });
+          }
           break;
         }
       }
@@ -4349,7 +4360,7 @@ function VendorsTab({ projectId }) {
   return (<div>
     <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 12px" }}>Maps each equipment type to its vendor or OEM. The Documentation Tracker reads from here. Equipment types come from the last Documentation sync.</p>
     {!rows.length ? <p style={{ color: "var(--muted)" }}>No equipment types yet. Sync the Documentation Tracker first.</p> : <>
-    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+    <div className="lk-stick" style={{ flexWrap: "wrap" }}>
       <input className="lk-in" placeholder="Filter equipment types..." value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 240 }} />
       <label style={{ fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={tbcOnly} onChange={(e) => setTbcOnly(e.target.checked)} /> Show only TBC</label>
       <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--muted)" }}>{set} assigned, {rows.length - set} to confirm</span>
@@ -4357,9 +4368,9 @@ function VendorsTab({ projectId }) {
     <datalist id="dlp-vendors">{known.map((k) => <option key={k} value={k} />)}</datalist>
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead><tr>
-        <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Equipment Type</th>
-        <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Vendor / OEM</th>
-        <th style={{ width: 60 }} />
+        <th style={{ position: "sticky", top: 54, zIndex: 6, background: "var(--paper)", textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Equipment Type</th>
+        <th style={{ position: "sticky", top: 54, zIndex: 6, background: "var(--paper)", textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Vendor / OEM</th>
+        <th style={{ position: "sticky", top: 54, zIndex: 6, background: "var(--paper)", width: 60 }} />
       </tr></thead>
       <tbody>{shown.map((r) => { const isTbc = !r.vendor; return (
         <tr key={r.equip_type}>
@@ -4500,7 +4511,7 @@ function groupTeamRows(rows, cn) {
 }
 
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
@@ -5069,7 +5080,6 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     ["Access", [["privileges", "User Privileges"]]],
     ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
     ["Advanced", [["data", "Import / Export"]]],
-    ["About", [["changelog", "Changelog"]]],
   ].filter(([, items]) => items.length);
   return (
     <div className="lk-adminwrap2" style={cssVars(S.theme, S.settings, "admin")}><style>{css}</style>
@@ -5795,17 +5805,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 </div>
               </div>
             </div>; })()}
-          {tab === "changelog" && <>
-            <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />What changed in DLP, newest first. Each revision lists the changes shipped in it. Admin only.</div>
-            <div style={{ marginTop: 6 }}>{CHANGELOG.map((r) => <div key={r.rev} style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
-                <span className="mono" style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>{r.rev}</span>
-                <span style={{ fontSize: 11, color: "var(--muted)" }}>{r.date}</span>
-                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
-              </div>
-              <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>{r.items.map((it, i) => <li key={i} style={{ fontSize: 12.5, color: "var(--ink)", lineHeight: 1.5 }}>{it}</li>)}</ul>
-            </div>)}</div>
-          </>}
+          
         </div></div>
       {jsonPreview && <ImportReview obj={jsonPreview} S={S} onClose={() => setJsonPreview(null)} onApply={(producer, detail) => { update(producer, { action: "Import JSON (merge)", detail }); setJsonPreview(null); setImpMsg("Imported JSON with your conflict choices."); }} />}
       {confirmAsk && <div className="lk-modal-bg" onClick={() => setConfirmAsk(null)}>
@@ -8028,7 +8028,7 @@ async function assembleDigest(core, St, kind, due) {
   const companiesM = new Map((St.companies || []).map((c) => [c.id, c.name]));
   const actsM = new Map((St.activities || []).map((x) => [x.id, { code: x.code, desc: x.desc || "", companyId: x.companyId }]));
   const vendors = core.assembleVendors(audit, profiles, companiesM, actsM, kind);
-  const clRows = core.changelogRows(CHANGELOG.map((e) => ({ rev: e.rev, date: e.date, items: e.items || [] })), core.helDateStr(win.start), core.helDateStr(win.end), kind);
+  const clRows = core.changelogRows(CHANGELOG_LIVE.map((e) => ({ rev: e.rev, date: e.date, items: e.items || [] })), core.helDateStr(win.start), core.helDateStr(win.end), kind);
   const kpi = kind === "weekly" ? core.weeklyKpis(core.actRowsFromClient(St.activities || []), core.helDateStr(new Date(win.end.getTime() - 6 * 86400000)), core.helDateStr(win.end), core.helDateStr(new Date())) : null;
   // Logo gathering (REV101): the QMC mark from the app's own origin plus each vendor's stored
   // light-surface logo, embedded as inline attachments and referenced by cid. Every fetch is

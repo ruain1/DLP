@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV212",
+    "date": "2026-07-11",
+    "items": [
+      "Settings pages are now viewport-fitted: the settings body scrolls internally and the page itself never grows a redundant outer scrollbar. On short pages like Design and Access requests there is no scrollbar at all; on long ones a single inner scrollbar does the work, alongside the tables' own scrollers on User Privileges.",
+      "Companies and Vendors obey the pinned-header rule: the Companies column headers, and the Vendors filter row plus its table headers, stay in view while their lists scroll.",
+      "The digest failure toast no longer stacks two messages into one garbled sentence: the underlying error is shown once, and when it is a Microsoft sign-in matter the toast points at Settings > Outlook & SharePoint and states that retry is automatic on the next tick after reconnecting.",
+      "The Changelog tab leaves project settings (it had been frozen at REV102) ahead of its new home in the hub's Global Settings. The Weekly Report's changelog rows now read the deployed changelog.json fetched at session start, so they are always current without a per-revision source edit."
+    ]
+  },
+  {
     "rev": "REV211",
     "date": "2026-07-11",
     "items": [
