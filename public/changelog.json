@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV214",
+    "date": "2026-07-11",
+    "items": [
+      "A house scrollbar standard, applied everywhere in both the project app and the hub: thin bars with a transparent track and a subtle rounded thumb that brightens on hover, replacing the heavy OS-default bars that stood out on Vendors, Systems, Locations, Companies, Project Team, User Privileges and the portal. The Project Team scroller stays (it is what keeps the filter bar pinned and the presence panel independent) but is now a hairline.",
+      "The Global Settings sub-nav (Directory / Platform) floats: it stays in view while the page scrolls."
+    ]
+  },
+  {
     "rev": "REV213",
     "date": "2026-07-11",
     "items": [

@@ -68,6 +68,12 @@ const css = `
 .lk{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--paper);
   min-height:100vh;width:100%;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
 .lk *{box-sizing:border-box}
+.lk *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.lk *::-webkit-scrollbar{width:9px;height:9px}
+.lk *::-webkit-scrollbar-track{background:transparent}
+.lk *::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+.lk *::-webkit-scrollbar-thumb:hover{background:var(--muted);border:2px solid transparent;background-clip:padding-box}
+.lk *::-webkit-scrollbar-corner{background:transparent}
 .mono{font-variant-numeric:tabular-nums}
 .lk-bar{display:flex;align-items:center;gap:12px;padding:0 18px;height:54px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;background:var(--paper)}
 .lk-brandlogo{display:block}
@@ -1002,6 +1008,12 @@ function portalVars(theme) {
 const PORTAL_CSS = `
 .qp{height:100vh;overflow:hidden;box-sizing:border-box;padding-top:139px;background:var(--backdrop);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .qp .pgscroll{height:100%;overflow-y:auto;overscroll-behavior:contain}
+.qp *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.qp *::-webkit-scrollbar{width:9px;height:9px}
+.qp *::-webkit-scrollbar-track{background:transparent}
+.qp *::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+.qp *::-webkit-scrollbar-thumb:hover{background:var(--muted);border:2px solid transparent;background-clip:padding-box}
+.qp *::-webkit-scrollbar-corner{background:transparent}
 .qp h2{font-family:var(--display);margin:0}
 .qp .mono{font-variant-numeric:tabular-nums}
 .qp .top{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:16px;height:74px;padding:0 22px;background:var(--paper);border-bottom:1px solid var(--line)}
@@ -1421,9 +1433,9 @@ function HubGlobalSettings({ theme, userName, projects }) {
   </div>; };
   const mu = manage ? users.find((x) => x.id === manage) : null;
   return <div className="hubroot" style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
-    <style>{HUB_LK_CSS + "\n.hubstick{position:sticky;top:0;z-index:21;background:var(--card);margin:0 -20px 8px;padding:12px 20px 0;border-bottom:1px solid var(--line);border-radius:0 0 10px 10px}\n.hubstick .lk-ufilter{position:static;margin:0 0 6px;padding:0;border-bottom:0;z-index:auto}\n.hubstick .lk-uhead{padding-bottom:8px}\n.hubroot *{box-sizing:border-box}\n.lk-codrop{height:72px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;border:1px solid var(--line);overflow:hidden}\n.lk-codrop img{max-width:88%;max-height:78%;object-fit:contain}\n.lk-coremove{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1}\n.lk-coremove:hover{background:rgba(0,0,0,.7)}"}</style>
+    <style>{HUB_LK_CSS + "\n.hubstick{position:sticky;top:0;z-index:21;background:var(--card);margin:0 -20px 8px;padding:12px 20px 0;border-bottom:1px solid var(--line);border-radius:0 0 10px 10px}\n.hubstick .lk-ufilter{position:static;margin:0 0 6px;padding:0;border-bottom:0;z-index:auto}\n.hubstick .lk-uhead{padding-bottom:8px}\n.hubroot *{box-sizing:border-box}\n.lk-codrop{height:72px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;border:1px solid var(--line);overflow:hidden}\n.lk-codrop img{max-width:88%;max-height:78%;object-fit:contain}\n.lk-coremove{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1}\n.lk-coremove:hover{background:rgba(0,0,0,.7)}\n.hubnav{position:sticky;top:0;align-self:start}"}</style>
     <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "start" }}>
-      <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
+      <div className="hubnav" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "contacts" ? "var(--hover)" : "transparent", fontWeight: sub === "contacts" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("contacts")}>Global Contacts</button>
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "companies" ? "var(--hover)" : "transparent", fontWeight: sub === "companies" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("companies")}>Global Companies</button>
