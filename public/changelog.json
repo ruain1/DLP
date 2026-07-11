@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV211",
+    "date": "2026-07-11",
+    "items": [
+      "The project Companies tab now shows only the companies on this project, drawn from the project_companies associations, instead of the entire global registry. Two ways to add: pick an existing company from the global registry, or create a new one, which registers it globally and adds it here in one step; a name that already exists globally is added rather than duplicated.",
+      "Delete company on the project tab is replaced by Remove from this project: it severs the association only, is blocked with exact counts while any activity (including soft-deleted) or team member on this project references the company, and never touches the global registry or other projects. True deletion lives only in Global Settings.",
+      "Name and Role edits in the project modal remain, with a note that renaming is shared globally. Pickers and filters elsewhere in the app still read the full registry; scoping them to this project's companies is the next revision."
+    ]
+  },
+  {
     "rev": "REV210",
     "date": "2026-07-11",
     "items": [

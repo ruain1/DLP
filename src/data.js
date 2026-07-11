@@ -688,6 +688,27 @@ export async function companyUsage(companyId) {
   ]);
   return { activities: a.count || 0, people: pr.count || 0 };
 }
+// REV211: per-project company associations (Phase 3c).
+export async function loadProjectCompanies(projectId) {
+  const { data, error } = await supabase.from("project_companies").select("company_id").eq("project_id", projectId);
+  if (error) throw error;
+  return (data || []).map((r) => r.company_id);
+}
+export async function addProjectCompany(projectId, companyId) {
+  const { error } = await supabase.from("project_companies").insert({ project_id: projectId, company_id: companyId });
+  if (error && error.code !== "23505") throw error;
+}
+export async function removeProjectCompany(projectId, companyId) {
+  const { error } = await supabase.from("project_companies").delete().eq("project_id", projectId).eq("company_id", companyId);
+  if (error) throw error;
+}
+// Server-side count so the removal guard sees soft-deleted activities too.
+export async function countCompanyActivitiesOnProject(projectId, companyId) {
+  const { count, error } = await supabase.from("activities").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("company_id", companyId);
+  if (error) throw error;
+  return count || 0;
+}
+
 // Direct slot write for the hub logo editor (the project tab used to persist via syncCollections).
 export async function setCompanyLogo(id, dark, url) {
   const { error } = await supabase.from("companies").update({ [dark ? "logo_url_dark" : "logo_url"]: url || null }).eq("id", id);

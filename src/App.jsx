@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -4865,6 +4865,40 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [pBulkBusy, setPBulkBusy] = useState(false);
   const [pBulkResults, setPBulkResults] = useState(null);
   const [coManageId, setCoManageId] = useState(null);
+  const [pcoIds, setPcoIds] = useState(null);
+  const [pcoMsg, setPcoMsg] = useState("");
+  const [pcoPick, setPcoPick] = useState("");
+  const [pcoNew, setPcoNew] = useState("");
+  const pcoRefresh = () => loadProjectCompanies(S.projectId).then((ids) => setPcoIds(ids)).catch((e) => setPcoIds({ error: e.message || String(e) }));
+  useEffect(() => { if (tab === "companies") { setPcoMsg(""); pcoRefresh(); } }, [tab, S.projectId]);
+  const hPcoAdd = async () => { if (!pcoPick) return; try { await addProjectCompany(S.projectId, pcoPick); const c = S.companies.find((x) => x.id === pcoPick); setPcoMsg("Added " + ((c && c.name) || "company") + " to this project."); setPcoPick(""); pcoRefresh(); } catch (e) { setPcoMsg("Failed: " + (e.message || e)); } };
+  const hPcoCreate = async () => {
+    const name = pcoNew.trim(); if (!name) { setPcoMsg("Company name required."); return; }
+    const existing = S.companies.find((c) => (c.name || "").toLowerCase() === name.toLowerCase());
+    try {
+      if (existing) {
+        if (Array.isArray(pcoIds) && pcoIds.includes(existing.id)) { setPcoMsg(existing.name + " is already on this project."); return; }
+        await addProjectCompany(S.projectId, existing.id);
+        setPcoMsg(existing.name + " already exists in the global registry, so it was added to this project instead of duplicated.");
+      } else {
+        const made = await createCompany(name, "");
+        await addProjectCompany(S.projectId, made.id);
+        setPcoMsg("Created " + made.name + " in the global registry and added it to this project.");
+      }
+      setPcoNew(""); pcoRefresh();
+    } catch (e) { setPcoMsg("Failed: " + (e.message || e)); }
+  };
+  const hPcoRemove = async (c) => {
+    setPcoMsg("Checking usage on this project\u2026");
+    try {
+      const acts = await countCompanyActivitiesOnProject(S.projectId, c.id);
+      const members = await loadProjectMembers(S.projectId);
+      const ppl = members.filter((m) => { const u = S.users.find((x) => x.id === m.user_id); return u && u.companyId === c.id; }).length;
+      if (acts || ppl) { setPcoMsg("Cannot remove: " + c.name + " is referenced by " + acts + " activit" + (acts === 1 ? "y" : "ies") + " (including any soft-deleted) and " + ppl + " team member" + (ppl === 1 ? "" : "s") + " on this project. Reassign those first."); return; }
+      setPcoMsg(""); setCoManageId(null);
+      askDel('Remove "' + c.name + '" from this project? It stays in the global registry and on any other projects.', async () => { try { await removeProjectCompany(S.projectId, c.id); pcoRefresh(); } catch (e) { setPcoMsg("Failed: " + (e.message || e)); } });
+    } catch (e) { setPcoMsg("Failed: " + (e.message || e)); }
+  };
   const [mcount, setMcount] = useState({});
   useEffect(() => { let live = true; loadMembershipCounts().then((m) => { if (live) setMcount(m); }).catch(() => {}); return () => { live = false; }; }, [S.projectId, members]);
   const meSuper = (S.users.find((u) => u.id === S.currentUserId) || {}).platformRole === "super" || !!S.isSuper;
@@ -5087,7 +5121,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
           {tab === "vendors" && <VendorsTab projectId={S.projectId} />}
           {tab === "companies" && <>
             <div className="lk-cohead"><span /><span>Company &amp; role</span><span className="ctr">People</span><span /></div>
-            <div className="lk-list" style={{ gap: 8 }}>{S.companies.map((c) => {
+            {pcoIds === null && <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading this project&rsquo;s companies&hellip;</div>}
+            {pcoIds && pcoIds.error && <div style={{ border: "1px solid rgba(192,57,43,.5)", background: "rgba(192,57,43,.08)", borderRadius: 9, padding: "10px 13px", fontSize: 12.5, color: "#e07a6d", marginBottom: 10 }}>Database error: {pcoIds.error}. Has project-companies.sql been applied?</div>}
+            <div className="lk-list" style={{ gap: 8 }}>{S.companies.filter((c) => Array.isArray(pcoIds) && pcoIds.includes(c.id)).map((c) => {
               const n = S.users.filter((u) => u.companyId === c.id).length;
               const role = (c.description || "").replace(/\s*\n\s*/g, " \u00b7 ").trim();
               const lg = c.logoUrl ? { url: c.logoUrl, dark: false } : (c.logoDark ? { url: c.logoDark, dark: true } : null);
@@ -5098,7 +5134,19 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 <button className="lk-mbtn" onClick={() => setCoManageId(c.id)}>Manage</button>
               </div>;
             })}</div>
-            <div className="lk-add"><input className="lk-in" placeholder="Add a company…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("companies", "company")} /><button className="lk-btn primary" onClick={() => addList("companies", "company")}><Icon n="plus" s={15} />Add</button></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center", maxWidth: 560 }}>
+              <select className="lk-in" value={pcoPick} onChange={(e) => setPcoPick(e.target.value)}>
+                <option value="">Add from the global registry&hellip;</option>
+                {S.companies.filter((c) => !(Array.isArray(pcoIds) && pcoIds.includes(c.id))).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button className="lk-btn primary" disabled={!pcoPick} onClick={hPcoAdd}><Icon n="plus" s={15} />Add to project</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center", maxWidth: 560, marginTop: 8 }}>
+              <input className="lk-in" placeholder="Or create a new company (registers globally)" value={pcoNew} onChange={(e) => setPcoNew(e.target.value)} onKeyDown={(e) => e.key === "Enter" && hPcoCreate()} />
+              <button className="lk-btn" onClick={hPcoCreate}><Icon n="plus" s={15} />Create &amp; add</button>
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>Companies are one shared registry. Creating here registers the company globally and puts it on this project; a name that already exists globally is added rather than duplicated. Removing a company from this project never deletes it globally.</div>
+            {pcoMsg && !coManageId && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{pcoMsg}</div>}
           </>}
           {coManageId && (() => {
             const c = S.companies.find((x) => x.id === coManageId); if (!c) return null;
@@ -5108,15 +5156,16 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
                 <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className={"lk-cologo sm" + (headLg ? (headLg.dark ? " dk" : "") : " empty")}>{headLg ? <img src={headLg.url} alt="" /> : <span className="lk-cologo-ph">{avInit(c.name)}</span>}</span>{c.name || "Manage company"}</h3><button className="lk-btn icon" onClick={() => setCoManageId(null)}><Icon n="x" /></button></div>
                 <div className="bd">
-                  <div className="lk-f"><label>Company Name</label><input className="lk-in" key={c.id + ":" + c.name} defaultValue={c.name} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); else if (e.key === "Escape") { e.target.value = c.name; e.target.blur(); } }} onBlur={(e) => renameCompany(c.id, e.target.value)} /></div>
+                  <div className="lk-f"><label>Company Name</label><input className="lk-in" key={c.id + ":" + c.name} defaultValue={c.name} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); else if (e.key === "Escape") { e.target.value = c.name; e.target.blur(); } }} onBlur={(e) => renameCompany(c.id, e.target.value)} /><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4 }}>Shared globally: renaming updates every project that references this company.</div></div>
                   <div className="lk-f"><label>Role &amp; Scope</label><textarea className="lk-in" key={"d:" + c.id} defaultValue={c.description || ""} rows={3} placeholder="Role & scope on the project. Shown on the board when the logo is clicked." style={{ resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }} onKeyDown={(e) => { if (e.key === "Escape") { e.target.value = c.description || ""; e.target.blur(); } }} onBlur={(e) => setCompanyDesc(c.id, e.target.value)} /></div>
                   <div className="lk-f"><label>Logos</label>
                     <div style={{ fontSize: 11, color: "var(--muted)" }}>Light and dark logos are managed centrally in Global Settings {"\u203a"} Global Companies (platform admins), so every project shows the same mark.</div>
                   </div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{n} contact{n === 1 ? "" : "s"} assigned to this company.</div>
+                  {pcoMsg && <div style={{ fontSize: 11.5, color: "#e07a6d" }}>{pcoMsg}</div>}
                 </div>
                 <div className="rep-foot" style={{ justifyContent: "space-between" }}>
-                  <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setCoManageId(null); askDel('Delete "' + c.name + '" and unassign it from any activities?', () => delList("companies", c.id, "company")); }}><Icon n="trash" s={14} />Delete company</button>
+                  <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => hPcoRemove(c)}><Icon n="trash" s={14} />Remove from this project</button>
                   <button className="lk-btn primary" onClick={() => setCoManageId(null)}>Done</button>
                 </div>
               </div>
