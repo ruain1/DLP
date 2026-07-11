@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV217",
+    "date": "2026-07-11",
+    "items": [
+      "Global Vendors arrives (Phase 4): Global Settings gains the platform vendor directory with the pinned search block, name, category, notes and a Used-on column showing which projects map equipment to each vendor. Add rejects duplicate names in any casing; Manage renames, categorises, annotates and removes directory entries, always with the ground rule stated in the UI: project equipment mappings store plain text and keep what they were saved with.",
+      "Each project's Vendors tab suggestions now combine the global directory with locally used names, and assigning a vendor name the directory does not know adds it there automatically, so the directory grows itself from real project work."
+    ]
+  },
+  {
     "rev": "REV216",
     "date": "2026-07-11",
     "items": [

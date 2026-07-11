@@ -694,6 +694,49 @@ export async function companyUsage(companyId) {
   ]);
   return { activities: a.count || 0, people: pr.count || 0 };
 }
+// REV217 (Phase 4): the global vendor directory. Project asset_vendor rows stay plain
+// text; the directory feeds suggestion lists and central management.
+export async function loadVendors() {
+  const { data, error } = await supabase.from("vendors").select("*").order("name");
+  if (error) throw error;
+  return (data || []).map((v) => ({ id: v.id, name: v.name, category: v.category || "", notes: v.notes || "" }));
+}
+export async function createVendor(name, category) {
+  const row = { name: (name || "").trim() };
+  if (category) row.category = category;
+  const { data, error } = await supabase.from("vendors").insert(row).select("id,name").single();
+  if (error) throw error;
+  return data;
+}
+export async function updateVendor(id, fields) {
+  const { error } = await supabase.from("vendors").update(fields).eq("id", id);
+  if (error) throw error;
+}
+export async function deleteVendorById(id) {
+  const { error } = await supabase.from("vendors").delete().eq("id", id);
+  if (error) throw error;
+}
+// Which projects reference each vendor name (case-insensitive), from asset_vendor.
+export async function loadVendorUsageByName() {
+  const { data, error } = await supabase.from("asset_vendor").select("project_id, vendor");
+  if (error) throw error;
+  const m = {};
+  (data || []).forEach((r) => { const k = (r.vendor || "").trim().toLowerCase(); if (!k) return; (m[k] = m[k] || new Set()).add(r.project_id); });
+  const out = {}; Object.keys(m).forEach((k) => { out[k] = [...m[k]]; });
+  return out;
+}
+// Pure union for the project datalist: directory + locally used names, deduped
+// case-insensitively (first-seen casing wins), sorted. Harness-tested.
+export function mergeVendorNames(globalNames, localNames) {
+  const seen = new Set(); const out = [];
+  [...(globalNames || []), ...(localNames || [])].forEach((n) => {
+    const t = (n || "").trim(); if (!t) return;
+    const k = t.toLowerCase(); if (seen.has(k)) return;
+    seen.add(k); out.push(t);
+  });
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
 // REV216 (3d): picker scoping helpers. Pickers offer the project's associated companies;
 // name resolution stays global so historical references never blank. ids === null means the
 // association data was unavailable and callers fall back to the full registry; a loaded empty

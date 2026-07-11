@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -1312,7 +1312,7 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 // outside the project shell, and scopes the required lk styles via HUB_LK_CSS. Global Companies
 // and Global Vendors arrive with Phases 3 and 4.
 function HubGlobalSettings({ theme, userName, projects }) {
-  const [sub, setSub] = useState(() => { try { const s0 = localStorage.getItem("dlp_hub_sub"); return ["contacts", "companies", "changelog"].includes(s0) ? s0 : "contacts"; } catch (e) { return "contacts"; } });
+  const [sub, setSub] = useState(() => { try { const s0 = localStorage.getItem("dlp_hub_sub"); return ["contacts", "companies", "vendors", "changelog"].includes(s0) ? s0 : "contacts"; } catch (e) { return "contacts"; } });
   useEffect(() => { try { localStorage.setItem("dlp_hub_sub", sub); } catch (e) {} }, [sub]);
   const [dir, setDir] = useState(null);
   const [ustat, setUstat] = useState({});
@@ -1333,6 +1333,20 @@ function HubGlobalSettings({ theme, userName, projects }) {
   const [clData, setClData] = useState(null);
   const [clq, setClq] = useState("");
   const [clOpen, setClOpen] = useState({});
+  const [vnData, setVnData] = useState(null);
+  const [vnUse, setVnUse] = useState({});
+  const [vnq, setVnq] = useState("");
+  const [manageVn, setManageVn] = useState(null);
+  const [nvn, setNvn] = useState({ name: "", category: "" });
+  const VNGRID = "minmax(160px,1.2fr) minmax(120px,.9fr) minmax(170px,1.4fr) minmax(140px,1fr) 84px";
+  const vnRefresh = () => { loadVendors().then(setVnData).catch((e) => setVnData({ error: e.message || String(e) })); loadVendorUsageByName().then(setVnUse).catch(() => setVnUse({})); };
+  useEffect(() => { if (sub === "vendors" && (!vnData || vnData.error)) vnRefresh(); }, [sub]);
+  const hAddVendor = async () => {
+    const name = nvn.name.trim();
+    if (!name) { setMsg("Vendor name required."); return; }
+    if (Array.isArray(vnData) && vnData.some((v) => v.name.toLowerCase() === name.toLowerCase())) { setMsg(name + " already exists in the directory."); return; }
+    try { await createVendor(name, nvn.category.trim()); setMsg("Added " + name + " to the directory."); setNvn({ name: "", category: "" }); vnRefresh(); } catch (e) { setMsg("Failed: " + (e.message || e)); }
+  };
   useEffect(() => { if (sub === "changelog" && (!clData || clData.error)) { fetch("/changelog.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))).then((j) => setClData(Array.isArray(j) ? j : { error: "Unexpected changelog format" })).catch((e) => setClData({ error: e.message || String(e) })); } }, [sub]);
   const [cred, setCred] = useState(null);
   const [nu, setNu] = useState({ email: "", name: "", companyId: "" });
@@ -1439,7 +1453,7 @@ function HubGlobalSettings({ theme, userName, projects }) {
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "contacts" ? "var(--hover)" : "transparent", fontWeight: sub === "contacts" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("contacts")}>Global Contacts</button>
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "companies" ? "var(--hover)" : "transparent", fontWeight: sub === "companies" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("companies")}>Global Companies</button>
-        <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the vendor directory (Phase 4)">Global Vendors</button>
+        <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "vendors" ? "var(--hover)" : "transparent", fontWeight: sub === "vendors" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("vendors")}>Global Vendors</button>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "14px 10px 4px" }}>Platform</div>
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "changelog" ? "var(--hover)" : "transparent", fontWeight: sub === "changelog" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("changelog")}>Changelog</button>
       </div>
@@ -1550,6 +1564,40 @@ function HubGlobalSettings({ theme, userName, projects }) {
           {msg && !manageCo && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{msg}</div>}
         </>}
         </>}
+        {sub === "vendors" && <>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Global Vendors</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>One shared directory of vendor and OEM names feeding every project&rsquo;s Vendors tab suggestions. Project equipment mappings store plain text, so renaming or deleting here updates the directory only; mappings keep the text they were saved with.</div>
+        {!vnData && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading directory&hellip;</div>}
+        {vnData && vnData.error && <div style={{ border: "1px solid rgba(192,57,43,.5)", background: "rgba(192,57,43,.08)", borderRadius: 9, padding: "10px 13px", fontSize: 12.5, color: "#e07a6d", marginBottom: 10 }}>Database error: {vnData.error}. Has global-vendors.sql been applied?</div>}
+        {Array.isArray(vnData) && (() => {
+          const q = vnq.trim().toLowerCase();
+          const shown = vnData.filter((v) => !q || v.name.toLowerCase().includes(q) || (v.category || "").toLowerCase().includes(q) || (v.notes || "").toLowerCase().includes(q));
+          return <>
+            <div className="hubstick" style={{ paddingBottom: 0 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+                <input className="lk-in" style={{ maxWidth: 340 }} placeholder="Search name, category or notes..." value={vnq} onChange={(e) => setVnq(e.target.value)} />
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>{q ? shown.length + " of " + vnData.length : vnData.length + " vendors"}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: VNGRID, gap: 10, alignItems: "center", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".5px", padding: "0 10px 7px" }}><span>Vendor</span><span>Category</span><span>Notes</span><span>Used on</span><span /></div>
+            </div>
+            {shown.map((v) => { const pids = vnUse[v.name.trim().toLowerCase()] || []; const codes = pids.map((pid) => (((projects || []).find((pp) => pp.id === pid)) || {}).code).filter(Boolean).sort(); return <div key={v.id} style={{ display: "grid", gridTemplateColumns: VNGRID, gap: 10, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
+              <span style={{ fontWeight: 600 }}>{v.name}</span>
+              <span style={{ color: "var(--muted)" }}>{v.category || ""}</span>
+              <span style={{ color: "var(--muted)", fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={v.notes || ""}>{v.notes || ""}</span>
+              <span style={{ fontSize: 11.5 }}>{codes.length ? codes.join(", ") : <span style={{ color: "var(--muted)" }}>Not mapped yet</span>}</span>
+              <span style={{ textAlign: "right" }}><button className="lk-mbtn" onClick={() => setManageVn(v.id)}>Manage</button></span>
+            </div>; })}
+            {!shown.length && <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No vendors match.</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr auto", gap: 8, alignItems: "center", maxWidth: 640, marginTop: 14 }}>
+              <input className="lk-in" placeholder="Vendor name" value={nvn.name} onChange={(e) => setNvn({ ...nvn, name: e.target.value })} />
+              <input className="lk-in" placeholder="Category (optional)" value={nvn.category} onChange={(e) => setNvn({ ...nvn, category: e.target.value })} />
+              <button className="lk-btn primary" onClick={hAddVendor}><Icon n="plus" s={15} />Add vendor</button>
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>A name that already exists (in any casing) is rejected rather than duplicated. Assigning a new vendor on a project&rsquo;s Vendors tab adds it here automatically.</div>
+            {msg && !manageVn && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{msg}</div>}
+          </>;
+        })()}
+        </>}
         {sub === "changelog" && <>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Changelog</div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>Every revision shipped to the platform, newest first, read live from the deployed changelog. Search matches revision numbers, dates and the text of each change; matching revisions expand themselves.</div>
@@ -1583,6 +1631,22 @@ function HubGlobalSettings({ theme, userName, projects }) {
         </>}
       </div>
     </div>
+    {manageVn && (() => { const v = Array.isArray(vnData) ? vnData.find((x) => x.id === manageVn) : null; if (!v) return null; const pids = vnUse[v.name.trim().toLowerCase()] || []; const codes = pids.map((pid) => (((projects || []).find((pp) => pp.id === pid)) || {}).code).filter(Boolean).sort(); return <div className="lk-modal-bg" onClick={() => setManageVn(null)}>
+      <div className="lk-modal" style={{ ...cssVars(theme, null), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-dh"><h3 style={{ margin: 0 }}>{v.name}</h3><button className="lk-btn icon" onClick={() => setManageVn(null)}><Icon n="x" /></button></div>
+        <div className="bd">
+          <div className="lk-f"><label>Vendor Name</label><input className="lk-in" key={v.id + ":" + v.name} defaultValue={v.name} onBlur={(e) => { const nm = e.target.value.trim(); if (nm && nm !== v.name) { if (vnData.some((x) => x.id !== v.id && x.name.toLowerCase() === nm.toLowerCase())) { setMsg("A vendor named " + nm + " already exists."); return; } updateVendor(v.id, { name: nm }).then(() => { setMsg("Renamed to " + nm + ". Project equipment mappings keep the text they were saved with."); vnRefresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); } }} /></div>
+          <div className="lk-f"><label>Category</label><input className="lk-in" key={v.id + ":c:" + (v.category || "")} defaultValue={v.category || ""} placeholder="OEM, Contractor, Supplier..." onBlur={(e) => { const c = e.target.value.trim(); if (c !== (v.category || "")) updateVendor(v.id, { category: c || null }).then(() => { setMsg("Category updated"); vnRefresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); }} /></div>
+          <div className="lk-f"><label>Notes</label><textarea className="lk-in" key={v.id + ":n:" + (v.notes || "")} defaultValue={v.notes || ""} rows={3} style={{ resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }} onBlur={(e) => { const nt = e.target.value.trim(); if (nt !== (v.notes || "")) updateVendor(v.id, { notes: nt || null }).then(() => { setMsg("Notes updated"); vnRefresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); }} /></div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Used on: {codes.length ? codes.join(", ") : "no equipment mappings yet"}</div>
+          <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11 }}>
+            <button className="lk-btn" style={{ color: "var(--red, #C0392B)" }} onClick={() => { setConfirm({ text: "Remove " + v.name + " from the vendor directory? Project equipment mappings keep the text they were saved with; only the directory entry and its suggestions go.", run: async () => { try { await deleteVendorById(v.id); setManageVn(null); setMsg("Removed " + v.name + " from the directory."); vnRefresh(); } catch (e) { setMsg("Failed: " + (e.message || e)); } } }); }}><Icon n="trash" s={14} />Remove from directory</button>
+          </div>
+          {msg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{msg}</div>}
+        </div>
+        <div className="rep-foot"><button className="lk-btn primary" onClick={() => setManageVn(null)}>Done</button></div>
+      </div>
+    </div>; })()}
     {manageCo && (() => { const c = companies.find((x) => x.id === manageCo); if (!c) return null; const pids = pcMap[c.id] || []; const codes = pids.map((pid) => (((projects || []).find((pp) => pp.id === pid)) || {}).code).filter(Boolean).sort(); return <div className="lk-modal-bg" onClick={() => setManageCo(null)}>
       <div className="lk-modal" style={{ ...cssVars(theme, null), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3 style={{ margin: 0 }}>{c.name}</h3><button className="lk-btn icon" onClick={() => setManageCo(null)}><Icon n="x" /></button></div>
@@ -4397,13 +4461,17 @@ function VendorsTab({ projectId }) {
     setKnown([...new Set(Object.values(vm).filter((v) => v && v !== "TBC"))].sort());
     setLoading(false);
   })(); return () => { on = false; }; }, [projectId]);
+  const [gnames, setGnames] = useState([]);
+  useEffect(() => { let on = true; loadVendors().then((vs) => { if (on) setGnames(vs.map((v) => v.name)); }).catch(() => {}); return () => { on = false; }; }, []);
   const onLocal = (t, val) => setRows((rs) => rs.map((r) => r.equip_type === t ? { ...r, vendor: val } : r));
   const onSave = async (t) => {
     const row = rows.find((r) => r.equip_type === t); if (!row) return;
     const v = (row.vendor || "").trim().toUpperCase() || "TBC";
     setRows((rs) => rs.map((r) => r.equip_type === t ? { ...r, vendor: v === "TBC" ? "" : v } : r));
     const msg = await saveAssetVendor(projectId, t, v);
-    if (!msg) { setSaved(t); setTimeout(() => setSaved(""), 1200); }
+    if (!msg) { setSaved(t); setTimeout(() => setSaved(""), 1200);
+      if (v !== "TBC" && !gnames.some((g) => g.toLowerCase() === v.toLowerCase())) { createVendor(v, "").then(() => setGnames((g) => [...g, v])).catch(() => {}); }
+    }
   };
   if (loading) return <div style={{ padding: 20, color: "var(--muted)" }}>Loading vendors...</div>;
   const shown = rows.filter((r) => (!q || r.equip_type.toLowerCase().includes(q.toLowerCase())) && (!tbcOnly || !r.vendor));
@@ -4416,7 +4484,7 @@ function VendorsTab({ projectId }) {
       <label style={{ fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={tbcOnly} onChange={(e) => setTbcOnly(e.target.checked)} /> Show only TBC</label>
       <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--muted)" }}>{set} assigned, {rows.length - set} to confirm</span>
     </div>
-    <datalist id="dlp-vendors">{known.map((k) => <option key={k} value={k} />)}</datalist>
+    <datalist id="dlp-vendors">{mergeVendorNames(gnames, known).map((k) => <option key={k} value={k} />)}</datalist>
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead><tr>
         <th style={{ position: "sticky", top: 54, zIndex: 6, background: "var(--paper)", textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Equipment Type</th>
