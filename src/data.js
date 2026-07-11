@@ -54,11 +54,17 @@ export async function loadAll(session, projectId, projectName) {
     supabase.from("invite_requests").select("*").eq("project_id", projectId),
     supabase.from("user_privileges").select("*").eq("project_id", projectId),
   ]);
+  // REV216 (3d): the project's associated companies drive pickers; null = association data
+  // unavailable (pickers fall back to the full registry rather than going blank).
+  let projectCompanyIds = null;
+  try { const pc = await supabase.from("project_companies").select("company_id").eq("project_id", projectId); if (!pc.error) projectCompanyIds = (pc.data || []).map((r) => r.company_id); } catch (e) {}
+
   const loadErrors = [["companies", companies], ["areas", areas], ["systems", systems], ["crews", crews], ["levels", levels], ["settings", settings], ["profiles", profiles], ["activities", activities], ["audit_log", audit], ["branding", branding], ["sub_areas", subAreas], ["tier3_areas", tier3s], ["invite_requests", inviteReqs], ["user_privileges", privRows]].filter(([, r]) => r && r.error).map(([t, r]) => t + ": " + (r.error.message || String(r.error)));
   if (loadErrors.length) console.error("DLP load errors:", loadErrors);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
   return {
+    projectCompanyIds,
     companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "", description: c.description || "", domain: c.domain || "" })),
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
@@ -688,6 +694,33 @@ export async function companyUsage(companyId) {
   ]);
   return { activities: a.count || 0, people: pr.count || 0 };
 }
+// REV216 (3d): picker scoping helpers. Pickers offer the project's associated companies;
+// name resolution stays global so historical references never blank. ids === null means the
+// association data was unavailable and callers fall back to the full registry; a loaded empty
+// list is honestly empty.
+export function scopeCompanies(all, ids) {
+  if (!Array.isArray(ids)) return all || [];
+  const set = new Set(ids);
+  return (all || []).filter((c) => set.has(c.id));
+}
+export function scopeCompaniesWith(all, ids, currentId) {
+  const base = scopeCompanies(all, ids);
+  if (currentId && !base.some((c) => c.id === currentId)) {
+    const cur = (all || []).find((c) => c.id === currentId);
+    if (cur) return [...base, cur];
+  }
+  return base;
+}
+// Bulk idempotent association, used wherever project data starts referencing a company.
+export async function ensureProjectCompanies(projectId, companyIds) {
+  const ids = [...new Set((companyIds || []).filter(Boolean))];
+  if (!ids.length) return;
+  const { error } = await supabase.from("project_companies").upsert(
+    ids.map((company_id) => ({ project_id: projectId, company_id })),
+    { onConflict: "project_id,company_id", ignoreDuplicates: true });
+  if (error) throw error;
+}
+
 // REV211: per-project company associations (Phase 3c).
 export async function loadProjectCompanies(projectId) {
   const { data, error } = await supabase.from("project_companies").select("company_id").eq("project_id", projectId);

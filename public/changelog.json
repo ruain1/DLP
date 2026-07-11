@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV216",
+    "date": "2026-07-11",
+    "items": [
+      "The picker sweep (Companies model, final phase): every place a company is chosen now offers only the companies on this project. That covers the activity editor's Company (Performing) select, inline edits in the Activity Table, the company filters on the Activity Table, Project Team and report drill-downs, constraint and risk owner pickers, new-activity and import defaults, the CSV template's company list, and the per-company breakdowns in Analytics and the Weekly Report.",
+      "Name resolution stays global everywhere, so historical rows and other-project references never display blank; selects editing an existing row also include its current company even if it has left the project, so nothing snaps to empty.",
+      "Anything that starts referencing a company now associates it automatically: creating or matching a company inline from the board, and adding a person to the project, both register the company on the project. If association data is unavailable the pickers fall back to the full registry rather than going blank; a genuinely empty project shows an empty picker until companies are added on the Companies tab."
+    ]
+  },
+  {
     "rev": "REV215",
     "date": "2026-07-11",
     "items": [

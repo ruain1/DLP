@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -2871,7 +2871,7 @@ export default function App({ session }) {
   };
   const addOption = (kind, name, ctx) => {
     if (!isAdmin) return ""; name = (name || "").trim(); if (!name) return ""; const lc = name.toLowerCase(); ctx = ctx || {};
-    if (kind === "company") { const ex = S.companies.find((c) => c.name.toLowerCase() === lc); if (ex) return ex.id; const id = uid("co"); update((p) => ({ ...p, companies: [...p.companies, { id, name }] }), { action: "Add company", detail: name }); return id; }
+    if (kind === "company") { const ex = S.companies.find((c) => c.name.toLowerCase() === lc); if (ex) { ensureProjectCompanies(S.projectId, [ex.id]).catch(() => {}); return ex.id; } const id = uid("co"); update((p) => ({ ...p, companies: [...p.companies, { id, name }] }), { action: "Add company", detail: name }); setTimeout(() => ensureProjectCompanies(S.projectId, [id]).catch(() => {}), 1500); return id; }
     if (kind === "system") { const ex = S.systems.find((s) => s.toLowerCase() === lc); if (ex) return ex; update((p) => ({ ...p, systems: [...p.systems, name] }), { action: "Add system", detail: name }); return name; }
     if (kind === "subArea") { if (!ctx.area) return ""; const ex = (S.subAreas || []).find((s) => s.area === ctx.area && s.name.toLowerCase() === lc); if (ex) return ex.name; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area: ctx.area, name }] }), { action: "Add level", detail: ctx.area + " / " + name }); return name; }
     if (kind === "tier3") { if (!ctx.area || !ctx.subArea) return ""; const ex = (S.tier3s || []).find((t) => t.area === ctx.area && t.subArea === ctx.subArea && t.name.toLowerCase() === lc); if (ex) return ex.name; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area: ctx.area, subArea: ctx.subArea, name }] }), { action: "Add zone", detail: ctx.area + " / " + ctx.subArea + " / " + name }); return name; }
@@ -2996,7 +2996,7 @@ export default function App({ session }) {
     window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
   };
   const newActivity = (lane, dayIdx) => {
-    const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: can("editAny") ? (S.companies[0] || {}).id : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
+    const base = { id: uid("a"), code: nextCode(S.activities), predecessors: [], desc: "", companyId: can("editAny") ? ((scopeCompanies(S.companies, S.projectCompanyIds)[0] || {}).id) : cu.companyId, area: (S.areas && S.areas.length === 1) ? S.areas[0] : "", subArea: "", tier3: "", asset: "", system: "", level: "L2",
       start: (dayIdx == null ? "" : fmtISO(addDays(anchor, Math.max(0, dayIdx)))), duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [], crew: [], estHours: "", witnessInvite: false, witnessType: "", witnessAt: "", witnessDurationMin: 60, witnessDays: 1, notes: "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null };
     if (lane) { if (S.laneBy === "level") base.level = lane; else if (S.laneBy === "area") base.area = lane; else if (S.laneBy === "subarea") { if (lane !== "Unassigned") base.subArea = lane; } else if (S.laneBy === "tier3") { if (lane !== "Unassigned") base.tier3 = lane; } else if (isAdmin) { const c = S.companies.find((c) => c.name === lane); if (c) base.companyId = c.id; } }
     setEditing(base);
@@ -3022,7 +3022,7 @@ export default function App({ session }) {
         updated++; links.push({ ref: b.fok_ref, id: ex.id });
       } else {
         const id = uid("a");
-        acts.push({ id, code: nextCode(acts), predecessors: [], desc: title, companyId: b.company_id || csnCompanyId || (S.companies[0] || {}).id || null, area: "L0 & L1 - Site General", subArea: "", tier3: "", asset: "", system: "", level: "L2", start: date, duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [disc], witnessInvite: invite, witnessType: invite ? "L2 FOK" : "", witnessAt, witnessDurationMin: dur, witnessDays: 1, notes: b.notes || "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null, fokRef: b.fok_ref, accUrl: b.acc_url || "", assigneeEmail: assignee });
+        acts.push({ id, code: nextCode(acts), predecessors: [], desc: title, companyId: b.company_id || csnCompanyId || (scopeCompanies(S.companies, S.projectCompanyIds)[0] || {}).id || null, area: "L0 & L1 - Site General", subArea: "", tier3: "", asset: "", system: "", level: "L2", start: date, duration: 1, committed: false, status: "planned", isMilestone: false, discipline: [disc], witnessInvite: invite, witnessType: invite ? "L2 FOK" : "", witnessAt, witnessDurationMin: dur, witnessDays: 1, notes: b.notes || "", slipReason: "", actualStart: "", actualFinish: "", constraints: [], reschedules: [], outcome: "pending", outcomeReason: "", outcomeNotes: "", outcomeAt: "", retestOf: null, fokRef: b.fok_ref, accUrl: b.acc_url || "", assigneeEmail: assignee });
         created++; links.push({ ref: b.fok_ref, id });
       }
     });
@@ -3966,7 +3966,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           <div className="lk-row">
             <div className="lk-f"><label>Company (Performing)</label>
               <select className="lk-select" value={a.companyId || ""} disabled={dis || !can("editAny")} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("company"); } else set("companyId", e.target.value); }}>
-                {S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}{isAdmin && !dis && ADD_OPT}
+                {scopeCompaniesWith(S.companies, S.projectCompanyIds, a.companyId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}{isAdmin && !dis && ADD_OPT}
               </select>{!isAdmin && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members add only for their own company.</span>}
               {renderAdd("company", "New company name", {})}</div>
             <div className="lk-f"><label>Building</label>
@@ -4043,7 +4043,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
               <div className="cmain">
                 <span className={"t" + (c.done ? " done" : "")}>{c.text}</span>
                 {!dis && <div className="crow">
-                  <OwnerField value={c.owner} ownerType={c.ownerType} ownerId={c.ownerId} companies={S.companies} users={S.users} dis={dis} style={{ flex: 1, minWidth: 100 }} onChange={(name, t, id) => set("constraints", a.constraints.map((x) => x.id === c.id ? { ...x, owner: name, ownerType: t, ownerId: id } : x))} />
+                  <OwnerField value={c.owner} ownerType={c.ownerType} ownerId={c.ownerId} companies={scopeCompaniesWith(S.companies, S.projectCompanyIds, c.ownerType === "company" ? c.ownerId : null)} users={S.users} dis={dis} style={{ flex: 1, minWidth: 100 }} onChange={(name, t, id) => set("constraints", a.constraints.map((x) => x.id === c.id ? { ...x, owner: name, ownerType: t, ownerId: id } : x))} />
                   <input className="lk-in mono" style={{ fontSize: 11.5, padding: "4px 7px", maxWidth: 150 }} type="date" title="Need-by date" value={c.due || ""} onChange={(e) => setC(c.id, "due", e.target.value)} />
                 </div>}
                 {dis && (c.owner || c.due) && <div className="crow" style={{ fontSize: 11, color: "var(--muted)" }}>{c.owner ? "Owner: " + c.owner : ""}{c.owner && c.due ? " \u00b7 " : ""}{c.due ? "need-by " + c.due : ""}</div>}
@@ -4053,7 +4053,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             {a.constraints.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>No constraints. Reads as ready to run.</div>}
             {!dis && <div className="lk-add" style={{ flexWrap: "wrap" }}>
               <input className="lk-in" style={{ flex: "1 1 100%" }} placeholder="Add a constraint…" value={cText} onChange={(e) => setCText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addC()} />
-              <OwnerField value={cOwner} ownerType={cOwnerType} ownerId={cOwnerId} companies={S.companies} users={S.users} style={{ flex: 1, minWidth: 100 }} placeholder="Owner (type @ to assign)" onChange={(name, t, id) => { setCOwner(name); setCOwnerType(t); setCOwnerId(id); }} />
+              <OwnerField value={cOwner} ownerType={cOwnerType} ownerId={cOwnerId} companies={scopeCompaniesWith(S.companies, S.projectCompanyIds, cOwnerType === "company" ? cOwnerId : null)} users={S.users} style={{ flex: 1, minWidth: 100 }} placeholder="Owner (type @ to assign)" onChange={(name, t, id) => { setCOwner(name); setCOwnerType(t); setCOwnerId(id); }} />
               <input className="lk-in mono" style={{ maxWidth: 150 }} type="date" title="Need-by date (optional)" value={cDue} onChange={(e) => setCDue(e.target.value)} />
               <button className="lk-btn primary" title="Add constraint" onClick={addC}><Icon n="plus" s={15} /></button>
             </div>}</div>
@@ -4687,7 +4687,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [impGateText, setImpGateText] = useState("");
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
-  const [nu, setNu] = useState({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" });
+  const [nu, setNu] = useState({ email: "", name: "", role: "member", companyId: scopeCompanies(S.companies, S.projectCompanyIds)[0]?.id || "" });
   const [uq, setUq] = useState("");
   const [uCo, setUCo] = useState("all");
   const [uRole, setURole] = useState("all");
@@ -4725,7 +4725,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Activities");
       const lists = wb.addWorksheet("Lists"); lists.state = "veryHidden";
-      const companyList = S.companies.map((c) => c.name);
+      const companyList = scopeCompanies(S.companies, S.projectCompanyIds).map((c) => c.name);
       const buildings = S.areas.slice();
       const levels = [...new Set((S.subAreas || []).map((s) => s.name))];
       const zones = [...new Set((S.tier3s || []).map((t) => t.name))];
@@ -4884,7 +4884,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     if (!nu.email.trim()) { setUserMsg("Email required."); return; }
     setUserMsg("Creating account…"); setNewCred(null);
     try { const res = await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId, redirect: window.location.origin });
-      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, link: res.link, title: "Account created", roleLabel: nu.role === "admin" ? "Admin" : "Member", companyName: (S.companies.find((c) => c.id === nu.companyId) || {}).name || "" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: S.companies[0]?.id || "" }); }
+      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, link: res.link, title: "Account created", roleLabel: nu.role === "admin" ? "Admin" : "Member", companyName: (S.companies.find((c) => c.id === nu.companyId) || {}).name || "" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: scopeCompanies(S.companies, S.projectCompanyIds)[0]?.id || "" }); }
     catch (e) { setUserMsg("Failed: " + (e.message || e)); }
   };
   const resetPw = async (id, who) => { setUserMsg("Resetting password…"); setNewCred(null); try { const res = await userOp({ op: "resetpw", id }); setNewCred({ who, pw: res.tempPassword, title: "New password set" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
@@ -4921,7 +4921,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [mfRole, setMfRole] = useState("all");
   const [mfStatus, setMfStatus] = useState("all");
   const [pmManageId, setPmManageId] = useState(null);
-  const [pnu, setPnu] = useState({ email: "", name: "", companyId: S.companies[0]?.id || "", projRole: "member" });
+  const [pnu, setPnu] = useState({ email: "", name: "", companyId: scopeCompanies(S.companies, S.projectCompanyIds)[0]?.id || "", projRole: "member" });
   const [pmCred, setPmCred] = useState(null);
   const [pBulkText, setPBulkText] = useState("");
   const [pBulkBusy, setPBulkBusy] = useState(false);
@@ -4992,7 +4992,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
       let grantErr = "";
       if (res && res.id) { try { await addMember(S.projectId, res.id, pnu.projRole, S.currentUserId); } catch (ge) { grantErr = ge.message || String(ge); } } else grantErr = "no account id returned";
       setPmCred({ who: email, pw: res && res.tempPassword, link: res && res.link, roleLabel: pnu.projRole === "admin" ? "Admin" : "Member", companyName: (S.companies.find((c) => c.id === pnu.companyId) || {}).name || "", title: grantErr ? "Account created \u00b7 project grant failed: " + grantErr : "Account created \u00b7 added to this project as " + (pnu.projRole === "admin" ? "Admin" : "Member") });
-      setMemMsg(""); setPnu({ email: "", name: "", companyId: S.companies[0]?.id || "", projRole: "member" }); reloadMems();
+      if (pnu.companyId) ensureProjectCompanies(S.projectId, [pnu.companyId]).catch(() => {}); setMemMsg(""); setPnu({ email: "", name: "", companyId: scopeCompanies(S.companies, S.projectCompanyIds)[0]?.id || "", projRole: "member" }); reloadMems();
     } catch (e) { setMemMsg("Failed: " + (e.message || e)); }
   };
   const pBulkCreate = async () => {
@@ -5329,7 +5329,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : <>
                   <div className="lk-ufilter">
                     <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company…" value={mfQ} onChange={(e) => setMfQ(e.target.value)} /></div>
-                    <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><select className="lk-select" value={mfCo} onChange={(e) => setMfCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                    <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><select className="lk-select" value={mfCo} onChange={(e) => setMfCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Role</label><select className="lk-select" value={mfRole} onChange={(e) => setMfRole(e.target.value)}><option value="all">All roles</option><option value="admin">Admins</option><option value="member">Members</option></select></div>
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><select className="lk-select" value={mfStatus} onChange={(e) => setMfStatus(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="pending">Invite pending</option></select></div>
                   </div>
@@ -6693,7 +6693,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
     <div className="lk-tblwrap" style={cssVars(S.theme, S.settings, "table")}><style>{css}</style>
       <div className="lk-ufilter" style={{ padding: "10px 16px 0", alignItems: "flex-end" }}>
         <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         {S.areas.length > 1 && <div className="lk-f" style={{ minWidth: 120 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>}
         <div className="lk-f" style={{ minWidth: 90 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 105 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
@@ -6762,7 +6762,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
                   : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{can("editAny") && <input type="checkbox" checked={sel.has(a.id)} onClick={(e) => clickRow(e, idx, a.id)} onChange={() => {}} title="Select; Shift-click to select a range" />}<button title={canRow ? "Edit this row" : (a.status === "complete" ? "Complete: only an admin can reopen it" : a.committed ? "Committed: locked" : "Only your own company's activities are editable")} disabled={!canRow} onClick={() => begin(a)} style={{ opacity: canRow ? 1 : 0.3 }}><Icon n="pen" s={13} /></button></span>}</td>
                 {C("code") && <td className="mono">#{a.code ?? "?"}</td>}
                 <td>{ed ? <input className="lk-in" style={cell} value={d.desc} disabled={plk} onChange={(e) => set("desc", e.target.value)} /> : (a.desc || "Untitled")}</td>
-                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!can("editAny") || plk} onChange={(e) => set("companyId", e.target.value)}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
+                {C("company") && <td>{ed ? <select className="lk-select" style={cell} value={d.companyId || ""} disabled={!can("editAny") || plk} onChange={(e) => set("companyId", e.target.value)}>{scopeCompaniesWith(S.companies, S.projectCompanyIds, d.companyId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : cn(a.companyId)}</td>}
                 {C("building") && <td>{ed ? <select className="lk-select" style={cell} value={d.area || ""} disabled={plk} onChange={(e) => { set("area", e.target.value); set("subArea", ""); set("tier3", ""); }}><option value="">--</option>{S.areas.map((x) => <option key={x}>{x}</option>)}</select> : a.area}</td>}
                 {C("level") && <td>{ed ? <select className="lk-select" style={cell} value={d.subArea || ""} disabled={!d.area || plk} onChange={(e) => { set("subArea", e.target.value); set("tier3", ""); }}><option value="">--</option>{subsFor(d.area).map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select> : a.subArea}</td>}
                 {C("zone") && <td>{ed ? <select className="lk-select" style={cell} value={d.tier3 || ""} disabled={!d.subArea || plk} onChange={(e) => set("tier3", e.target.value)}><option value="">--</option>{zonesFor(d.area, d.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}</select> : a.tier3}</td>}
@@ -6813,7 +6813,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
     <div className="lk-rep" style={{ maxWidth: "none" }}>
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 180 }}><label>Search</label><input className="lk-in" placeholder="Activity or constraint…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
         <button className={"lk-btn" + (openOnly ? " on" : "")} onClick={() => setOpenOnly((v) => !v)}>{openOnly ? "Open Only" : "Showing All"}</button>
         <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
@@ -6832,7 +6832,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
               <td>{a.level}</td>
               <td className="mono" style={{ whiteSpace: "nowrap" }}>{a.start}</td>
               <td className={c.done ? "lk-cdone" : ""} style={{ minWidth: 160 }}>{ed ? <input className="lk-in" style={cell} value={cd.text} onChange={(e) => setD("text", e.target.value)} /> : c.text}</td>
-              <td style={{ minWidth: 130 }}>{ed ? <OwnerField value={cd.owner} ownerType={cd.ownerType} ownerId={cd.ownerId} companies={S.companies} users={S.users} style={{ minWidth: 110 }} onChange={(name, t, id) => setCd((d) => ({ ...d, owner: name, ownerType: t, ownerId: id }))} /> : (c.owner || "")}</td>
+              <td style={{ minWidth: 130 }}>{ed ? <OwnerField value={cd.owner} ownerType={cd.ownerType} ownerId={cd.ownerId} companies={scopeCompaniesWith(S.companies, S.projectCompanyIds, cd.ownerType === "company" ? cd.ownerId : null)} users={S.users} style={{ minWidth: 110 }} onChange={(name, t, id) => setCd((d) => ({ ...d, owner: name, ownerType: t, ownerId: id }))} /> : (c.owner || "")}</td>
               <td className="mono" style={{ whiteSpace: "nowrap", color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{ed ? <input className="lk-in mono" style={{ ...cell, maxWidth: 140 }} type="date" value={cd.due || ""} onChange={(e) => setD("due", e.target.value)} /> : (c.due || "")}</td>
             </tr>; })}
             {rows.length === 0 && <tr><td colSpan={10} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
@@ -7160,7 +7160,7 @@ function computeReport({ S, LV, coName, start, end }){
     .sort((x,y)=>(x.cons[0]?.due||"9999").localeCompare(y.cons[0]?.due||"9999")).slice(0,8);
   const rt = {}; missed.forEach((a)=>{ const r=a.slipReason||"Unattributed"; rt[r]=(rt[r]||0)+1; });
   const reasons = Object.entries(rt).map(([name,n])=>({name,n})).sort((a,b)=>b.n-a.n);
-  const byCompany = S.companies.map((c)=>{ const ca=acts.filter((a)=>a.companyId===c.id); const cd=ca.filter((a)=>a.committed && a.start && finishOf(a).getTime()<today.getTime()); return { name:c.name, n:ca.length, done:ca.filter((a)=>a.status==="complete").length, inprog:ca.filter((a)=>a.status==="in_progress").length, open:ca.reduce((s,a)=>s+openOf(a),0), ppcDue:cd.length, ppcKept:cd.filter(made).length }; }).filter((x)=>x.n>0).sort((a,b)=>b.n-a.n).slice(0,12);
+  const byCompany = scopeCompanies(S.companies, S.projectCompanyIds).map((c)=>{ const ca=acts.filter((a)=>a.companyId===c.id); const cd=ca.filter((a)=>a.committed && a.start && finishOf(a).getTime()<today.getTime()); return { name:c.name, n:ca.length, done:ca.filter((a)=>a.status==="complete").length, inprog:ca.filter((a)=>a.status==="in_progress").length, open:ca.reduce((s,a)=>s+openOf(a),0), ppcDue:cd.length, ppcKept:cd.filter(made).length }; }).filter((x)=>x.n>0).sort((a,b)=>b.n-a.n).slice(0,12);
   const byCx = Object.keys(LV).map((k)=>{ const lk=acts.filter((a)=>a.level===k); return { name:k+" "+LV[k].name, color:LV[k].color, n:lk.length, done:lk.filter((a)=>a.status==="complete").length, inprog:lk.filter((a)=>a.status==="in_progress").length, open:lk.reduce((s,a)=>s+openOf(a),0) }; }).filter((x)=>x.n>0);
   const nw0 = addDays(end,1).getTime(), nw1 = addDays(end,7).getTime();
   // REV155: non-destructive forward pass (same logic as the board) to derive each activity's
@@ -8297,7 +8297,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   ];
   const cards = cardDefs.map((d) => ({ ...d, v: acts.filter(d.f).length }));
   // Per-company performance: status split for the stacked bar, due-to-date PPC, open constraints
-  const byCompany = S.companies.map((c) => {
+  const byCompany = scopeCompanies(S.companies, S.projectCompanyIds).map((c) => {
     const ca = acts.filter((a) => a.companyId === c.id);
     const cd = ca.filter((a) => a.committed && a.start && finishOf(a).getTime() < today0);
     return { id: c.id, name: c.name, n: ca.length, done: ca.filter((a) => a.status === "complete").length, inprog: ca.filter((a) => a.status === "in_progress").length, open: ca.reduce((s, a) => s + openOf(a), 0), ppcDue: cd.length, ppcKept: cd.filter(made).length };
@@ -8408,7 +8408,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   return (
     <div className="lk-rep">
       <div className="lk-rep-filters">
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 130 }}><label>Cx Stage</label><select className="lk-select" value={lv} onChange={(e) => setLv(e.target.value)}><option value="all">All Cx stages</option>{Object.keys(LV).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
         <div className="lk-f" style={{ minWidth: 120 }}><label>Period</label><select className="lk-select" value={period} onChange={(e) => setPeriod(e.target.value)}><option value="all">All time</option><option value="range">Date range</option></select></div>
