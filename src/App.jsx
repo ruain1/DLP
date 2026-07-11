@@ -2108,7 +2108,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
         <div className={"scene" + (scene === "projects" ? " on" : "")}>
           <div className="hello">Your projects</div>
           <div className="subhello">{isSuper ? "Every project on the platform." : "You see only the projects you have been granted access to."}</div>
-          <div className="searchbar"><input placeholder="Search projects by name, code or location\u2026" value={q} onChange={(e) => setQ(e.target.value)} />{isSuper && <label className="archtgl"><input type="checkbox" checked={showArch} onChange={(e) => setShowArch(e.target.checked)} />Show Archived</label>}{isSuper && <button className="btn sm" onClick={openNew}>+ New project</button>}</div>
+          <div className="searchbar"><input placeholder="Search projects by name, code or location…" value={q} onChange={(e) => setQ(e.target.value)} />{isSuper && <label className="archtgl"><input type="checkbox" checked={showArch} onChange={(e) => setShowArch(e.target.checked)} />Show Archived</label>}{isSuper && <button className="btn sm" onClick={openNew}>+ New project</button>}</div>
           <div className="ptable">
             <div className="hd" style={isSuper ? { gridTemplateColumns: "2.2fr 1.2fr .9fr 1.1fr .7fr 1.2fr auto auto" } : undefined}><div>Project</div><div>Location</div><div>Your role</div><div>Status</div><div>Overdue</div><div>Dates</div>{isSuper && <div></div>}<div></div></div>
             {filtered.map((p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; const arch = (p.status || "active") === "archived"; return (
@@ -5485,7 +5485,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               <input className="lk-in" key={"crew:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename crew (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameCrew(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameCrew(name, e.target.value)} />
               <button onClick={() => askDel('Delete crew "' + name + '"?', () => delCrew(name))}><Icon n="trash" s={14} /></button>
             </div>)}{!(S.crews || []).length && <div style={{ fontSize: 11.5, color: "var(--muted)", padding: "4px 2px" }}>No crews yet.</div>}</div>
-            <div className="lk-add"><input className="lk-in" placeholder="Add crew, e.g. Elec 1\u2026" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("crews", "crew")} /><button className="lk-btn primary" onClick={() => addList("crews", "crew")}><Icon n="plus" s={15} />Add</button></div>
+            <div className="lk-add"><input className="lk-in" placeholder="Add crew, e.g. Elec 1…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("crews", "crew")} /><button className="lk-btn primary" onClick={() => addList("crews", "crew")}><Icon n="plus" s={15} />Add</button></div>
           </>}
           {tab === "vendors" && <VendorsTab projectId={S.projectId} />}
           {tab === "companies" && <>
@@ -5865,7 +5865,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12, maxWidth: "74ch" }}>Map P6 baseline activities to their live counterparts so Compare can show per-row variance. Milestones matter most; unmapped baseline items still appear on the Schedule aligned by date.</div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-                  <input className="lk-in" placeholder="Search baseline activities\u2026" value={mapQ} onChange={(e) => setMapQ(e.target.value)} style={{ maxWidth: 260 }} />
+                  <input className="lk-in" placeholder="Search baseline activities…" value={mapQ} onChange={(e) => setMapQ(e.target.value)} style={{ maxWidth: 260 }} />
                   <button className={"lk-btn" + (mapAll ? " on" : "")} onClick={() => setMapAll((v) => !v)}>{mapAll ? "All activities" : "Milestones only"}</button>
                   <div style={{ flex: 1 }} />
                   {mapSaved && <span style={{ fontSize: 11.5, color: "#0E9384" }}>Saved</span>}
@@ -6619,9 +6619,9 @@ function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P, br
     <div className="lk-sch-scroll" style={{ background: P.bg }}>
       {liveItems.length === 0 ? <div className="lk-empty">No live activities with dates to compare.</div> : <>
       <div style={{ display: "flex", gap: 14, padding: "8px 12px", alignItems: "center", borderBottom: "1px solid " + P.line, background: P.bg, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, color: P.mut }}><b style={{ color: P.ink }}>{mappedN}</b> mapped \u00b7 <b style={{ color: LATE }}>{slipped}</b> slipped vs baseline</span>
+        <span style={{ fontSize: 12, color: P.mut }}><b style={{ color: P.ink }}>{mappedN}</b> mapped · <b style={{ color: LATE }}>{slipped}</b> slipped vs baseline</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: P.mut }}><span style={{ display: "inline-block", width: 18, height: 6, borderRadius: 2, background: "#94A3B8", opacity: .6 }} /> P6 baseline</span>
-        {mappedN === 0 && <span style={{ fontSize: 11.5, color: P.mut }}>No mappings yet \u2014 map activities in Admin \u2192 P6 Baseline for per-row variance. Milestones below align by date.</span>}
+        {mappedN === 0 && <span style={{ fontSize: 11.5, color: P.mut }}>No mappings yet: map activities in Admin > P6 Baseline for per-row variance. Milestones below align by date.</span>}
         <div style={{ flex: 1 }} />
         <button className="lk-btn" onClick={() => exportImg("png")}><Icon n="download" s={13} />PNG</button>
       </div>

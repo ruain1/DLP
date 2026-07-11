@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV233",
+    "date": "2026-07-11",
+    "items": [
+      "Fix: several interface texts showed raw escape codes instead of their characters, most visibly the hub's project search box reading location-u2026 instead of an ellipsis. The crew and baseline-search placeholders, the baseline mapped-count separator, and the no-mappings hint on the schedule are corrected the same way; a full sweep confirms no other leaks remain."
+    ]
+  },
+  {
     "rev": "REV232",
     "date": "2026-07-11",
     "items": [
