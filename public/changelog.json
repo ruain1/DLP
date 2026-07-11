@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV200",
+    "date": "2026-07-11",
+    "items": [
+      "Project Team gains an email column, a project-scoped Export Users (CSV) button under the member count, and a per-company grouped roster that starts collapsed, with Platform team pinned first and No company last, exactly like Global Contacts. Searching auto-expands the groups; search now also matches email addresses on both tabs.",
+      "Global Contacts gains the same email column on every row, and its search matches email addresses as the placeholder always promised.",
+      "The team export file is named from the live project code rather than a hardcoded FIN04, with columns Name, Email, Company, Project role, Projects, Status and Last seen."
+    ]
+  },
+  {
     "rev": "REV199",
     "date": "2026-07-10",
     "items": [
