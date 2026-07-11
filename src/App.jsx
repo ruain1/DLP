@@ -1246,7 +1246,7 @@ const PORTAL_CSS = `
 /* REV114: portfolio analytics */
 .qp .pvt button .newb{font-size:8.5px;font-weight:800;letter-spacing:.05em;background:var(--signal);color:#fff;border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:2px}
 .qp .antable{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.qp .antable .hd,.qp .antable .row{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,.75fr) minmax(0,.65fr) minmax(0,.85fr) minmax(0,.95fr) auto;gap:12px;align-items:center;padding:12px 18px}
+.qp .antable .hd,.qp .antable .row{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,.75fr) minmax(0,.65fr) minmax(0,.85fr) minmax(0,.95fr) 120px;gap:12px;align-items:center;padding:12px 18px}
 .qp .antable .hd>div,.qp .antable .row>div{min-width:0}
 .qp .antable .hd{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--chip)}
 .qp .antable .row{border-top:1px solid var(--line);cursor:pointer}

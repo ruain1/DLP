@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV225",
+    "date": "2026-07-11",
+    "items": [
+      "Fix: the hub comparison headers now sit exactly over their columns. The final column sized itself to its own content in each grid, near zero in the header row and about 110px in data rows, so the header's other columns spread wider and drifted right; the final column is now a fixed width, giving the header and every row identical geometry. This asymmetry predated the target column and became visible with it."
+    ]
+  },
+  {
     "rev": "REV224",
     "date": "2026-07-11",
     "items": [
