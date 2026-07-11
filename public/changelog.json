@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV232",
+    "date": "2026-07-11",
+    "items": [
+      "Constraint audit history: every constraint now records who raised it, who cleared it, and any reopenings, with times, stamped at the moment of each action on the Constraints page, the activity drawer, and the board's make-ready and acknowledge paths. A clock button beside each constraint (Constraints page and the drawer's Readiness tab) opens the timeline. Constraints raised before this revision carry no stamps; the viewer says so and shows related audit-trail entries as best effort. Who may clear constraints is unchanged; this is visibility only."
+    ]
+  },
+  {
     "rev": "REV231",
     "date": "2026-07-11",
     "items": [
