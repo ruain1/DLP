@@ -892,9 +892,9 @@ function impColMap(hdr) {
   return { ref: exact("ref"), codecol: exact("code"), desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), disc: idx(["discipline"]), ms: idx(["milestone"]), pstart: idx(["planned start", "start"]), dur: idx(["duration", "days (calendar)"]), pfin: idx(["planned finish", "finish", "end"]), commit: idx(["committed", "commit"]), status: idx(["status"]), pct: idx(["percent"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date & time", "witness date", "witness time", "witness at"]), wtype: idx(["witness type"]), wmin: idx(["witness duration", "witness mins", "witness minutes"]), wdays: idx(["witness days"]), crew: idx(["crews", "crew"]), esth: idx(["est hours", "estimated hours", "hrs"]), preds: idx(["predecessors", "predecessor"]), cons: idx(["constraints", "constraint"]), notes: idx(["notes", "comment", "comments"]) };
 }
 function parseActivityRowsV2(rows, consRows, ctx) {
-  const errors = [], notices = [], staged = [];
+  const errors = [], notices = [], staged = [], updates = [], addMeta = [];
   const creates = { companies: [], areas: [], subAreas: [], tier3s: [], systems: [], crews: [] };
-  const out = () => ({ staged, errors, notices, creates });
+  const out = () => ({ staged, updates, addMeta, errors, notices, creates });
   if (!rows || rows.length < 2) { errors.push("The file has no activity rows under the header."); return out(); }
   const hdr = rows[0].map((h) => String(h == null ? "" : h).trim().toLowerCase());
   const ci = impColMap(hdr);
@@ -907,6 +907,7 @@ function parseActivityRowsV2(rows, consRows, ctx) {
   const sysHas = (v) => ctx.systems.find((s) => s.toLowerCase() === v.toLowerCase());
   const subHas = (area, v) => (ctx.subAreas || []).find((s) => s.area === area && s.name.toLowerCase() === v.toLowerCase());
   const t3Has = (area, sub, v) => (ctx.tier3s || []).find((t) => t.area === area && t.subArea === sub && t.name.toLowerCase() === v.toLowerCase());
+  const byCode = ctx.existingByCode || new Map();
   const refIds = new Map();
   const pendingPreds = [];
   let noticedStage = false, noticedStatus = false;
@@ -915,46 +916,63 @@ function parseActivityRowsV2(rows, consRows, ctx) {
     const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : "");
     const ln = r + 1; const e = [];
     const desc = g(ci.desc);
-    // Prefilled templates leave Ref, Company and Building on unused rows: a row with no
-    // Description, System and Planned start is blank by definition, never an error.
-    if (!desc && !g(ci.system) && !g(ci.pstart)) continue;
-    if (!desc) e.push("column Description: required");
-    if (g(ci.codecol)) e.push("column Code: rows carrying a Code need Sync mode (next revision); clear the Code to import as a new activity");
-    let companyId = ctx.cuCompanyId; const coRaw = g(ci.company);
+    const codeRaw = g(ci.codecol);
+    // Prefilled templates leave Ref and Company on unused rows: a row with no Description,
+    // System, Planned start and Code is blank by definition, never an error.
+    if (!desc && !g(ci.system) && !g(ci.pstart) && !codeRaw) continue;
+    let target = null; // existing activity meta when this row is a Sync update
+    if (codeRaw) {
+      if (!ctx.syncMode) e.push("column Code: rows carrying a Code need Sync mode; clear the Code to import as a new activity");
+      else {
+        const cnum = +String(codeRaw).replace(/^#/, "");
+        const t = isNaN(cnum) ? null : byCode.get(cnum);
+        if (!t) e.push('column Code: "' + codeRaw + '" matches no existing activity on this project');
+        else if (!ctx.isAdmin && t.companyId !== ctx.cuCompanyId) e.push("column Code: you can only update activities for " + (ctx.myCoName || "your own company"));
+        else target = t;
+      }
+    }
+    const isUpd = !!target;
+    if (!desc && !isUpd) e.push("column Description: required");
+    let companyId = ctx.cuCompanyId; const coRaw = g(ci.company); let coProvided = false;
     if (ctx.isAdmin) {
-      if (!coRaw) { if (ctx.createMissing) companyId = (ctx.companies[0] || {}).id || null; else e.push("column Company: required (name an existing company)"); }
-      else { const c = coByName.get(coRaw.toLowerCase()); if (c) companyId = c.id; else if (ctx.createMissing) { const nc = { id: ctx.uid("co"), name: coRaw }; ctx.companies.push(nc); coByName.set(coRaw.toLowerCase(), nc); creates.companies.push(nc); companyId = nc.id; } else e.push('column Company: "' + coRaw + '" is not on this project'); }
+      if (!coRaw) { if (!isUpd) { if (ctx.createMissing) companyId = (ctx.companies[0] || {}).id || null; else e.push("column Company: required (name an existing company)"); } }
+      else { coProvided = true; const c = coByName.get(coRaw.toLowerCase()); if (c) companyId = c.id; else if (ctx.createMissing) { const nc = { id: ctx.uid("co"), name: coRaw }; ctx.companies.push(nc); coByName.set(coRaw.toLowerCase(), nc); creates.companies.push(nc); companyId = nc.id; } else e.push('column Company: "' + coRaw + '" is not on this project'); }
     } else if (coRaw) {
-      const c = coByName.get(coRaw.toLowerCase());
+      coProvided = true; const c = coByName.get(coRaw.toLowerCase());
       if (!c) e.push('column Company: "' + coRaw + '" does not exist');
       else if (c.id !== ctx.cuCompanyId) e.push("column Company: you can only import activities for " + (ctx.myCoName || "your own company"));
     }
     const isMs = yes(g(ci.ms));
     const areaRaw = g(ci.area); let area = "";
     if (areaRaw) { const m = areaHas(areaRaw); if (m) area = m; else if (ctx.createMissing) { area = areaRaw; ctx.areas.push(areaRaw); creates.areas.push(areaRaw); } else e.push('column Building: "' + areaRaw + '" does not exist'); }
-    else if (!isMs) { if (ctx.areas.length === 1) area = ctx.areas[0]; else e.push("column Building: required"); }
+    else if (!isMs && !isUpd) { if (ctx.areas.length === 1) area = ctx.areas[0]; else e.push("column Building: required"); }
+    const areaFor = area || (target ? target.area : "");
     const subRaw = g(ci.subarea); let subArea = "";
-    if (subRaw) { if (area) { const m = subHas(area, subRaw); if (m) subArea = m.name; else if (ctx.createMissing) { subArea = subRaw; const nv = { area, name: subRaw }; ctx.subAreas.push(nv); creates.subAreas.push(nv); } else e.push('column Level: "' + subRaw + '" does not exist under building "' + areaRaw + '"'); } else if (!ctx.createMissing) e.push("column Level: set a valid Building first"); }
+    if (subRaw) { if (areaFor) { const m = subHas(areaFor, subRaw); if (m) subArea = m.name; else if (ctx.createMissing) { subArea = subRaw; const nv = { area: areaFor, name: subRaw }; ctx.subAreas.push(nv); creates.subAreas.push(nv); } else e.push('column Level: "' + subRaw + '" does not exist under building "' + areaFor + '"'); } else if (!ctx.createMissing) e.push("column Level: set a valid Building first"); }
+    const subFor = subArea || (target ? target.subArea : "");
     const t3Raw = g(ci.tier3); let tier3 = "";
-    if (t3Raw) { if (area && subArea) { const m = t3Has(area, subArea, t3Raw); if (m) tier3 = m.name; else if (ctx.createMissing) { tier3 = t3Raw; const nv = { area, subArea, name: t3Raw }; ctx.tier3s.push(nv); creates.tier3s.push(nv); } else e.push('column Zone / Room: "' + t3Raw + '" does not exist under "' + areaRaw + ' / ' + subRaw + '"'); } else if (!ctx.createMissing) e.push("column Zone / Room: set a valid Building and Level first"); }
+    if (t3Raw) { if (areaFor && subFor) { const m = t3Has(areaFor, subFor, t3Raw); if (m) tier3 = m.name; else if (ctx.createMissing) { tier3 = t3Raw; const nv = { area: areaFor, subArea: subFor, name: t3Raw }; ctx.tier3s.push(nv); creates.tier3s.push(nv); } else e.push('column Zone / Room: "' + t3Raw + '" does not exist under "' + areaFor + ' / ' + subFor + '"'); } else if (!ctx.createMissing) e.push("column Zone / Room: set a valid Building and Level first"); }
     const sysRaw = g(ci.system); let system = "";
     if (sysRaw) { const m = sysHas(sysRaw); if (m) system = m; else if (ctx.createMissing) { system = sysRaw; ctx.systems.push(sysRaw); creates.systems.push(sysRaw); } else e.push('column System: "' + sysRaw + '" does not exist'); }
-    else if (!isMs) e.push("column System: required");
-    const lvRaw = g(ci.level).toUpperCase(); let level = ctx.lvKeys[0] || "L2";
-    if (lvRaw) { if (ctx.lvKeys.includes(lvRaw)) level = lvRaw; else if (ctx.createMissing) { if (!noticedStage) { notices.push('Unknown Cx stages were set to ' + level + ' (valid: ' + ctx.lvKeys.join(", ") + ').'); noticedStage = true; } } else e.push('column Cx Stage: "' + lvRaw + '" is not one of ' + ctx.lvKeys.join(", ")); }
+    else if (!isMs && !isUpd) e.push("column System: required");
+    const lvRaw = g(ci.level).toUpperCase(); let level = ctx.lvKeys[0] || "L2"; let lvProvided = false;
+    if (lvRaw) { lvProvided = true; if (ctx.lvKeys.includes(lvRaw)) level = lvRaw; else if (ctx.createMissing) { lvProvided = false; if (!noticedStage) { notices.push('Unknown Cx stages were set to ' + level + ' (valid: ' + ctx.lvKeys.join(", ") + ').'); noticedStage = true; } } else e.push('column Cx Stage: "' + lvRaw + '" is not one of ' + ctx.lvKeys.join(", ")); }
     const discipline = []; const discRaw = g(ci.disc);
     if (discRaw) discRaw.split(/\s*;\s*/).filter(Boolean).forEach((t) => { const m = discCanon.get(t.toLowerCase()); if (m) { if (!discipline.includes(m)) discipline.push(m); } else e.push('column Discipline: "' + t + '" is not one of ' + (ctx.disciplines || []).join(", ")); });
-    const start = impNormDate(g(ci.pstart)); const pfin = impNormDate(g(ci.pfin)); const durRaw = g(ci.dur);
-    if (!g(ci.pstart)) e.push("column Planned start: required (YYYY-MM-DD)");
+    const pstartRaw = g(ci.pstart); const start = impNormDate(pstartRaw); const pfin = impNormDate(g(ci.pfin)); const durRaw = g(ci.dur);
+    if (!pstartRaw) { if (!isUpd) e.push("column Planned start: required (YYYY-MM-DD)"); }
     else if (!start) e.push("column Planned start: invalid date (use YYYY-MM-DD)");
-    let duration = 1; if (durRaw && +durRaw > 0) duration = Math.round(+durRaw); else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
-    const statusRaw = g(ci.status); let status = "planned";
-    if (statusRaw) { const st = statusRaw.toLowerCase().replace(/\s+/g, "_"); if (["planned", "in_progress", "complete"].includes(st)) status = st; else if (ctx.createMissing) { if (!noticedStatus) { notices.push("Unknown Status values were set to Planned (valid: Planned, In progress, Complete)."); noticedStatus = true; } } else e.push('column Status: "' + statusRaw + '" is not Planned, In progress or Complete'); }
+    let duration = 0;
+    if (durRaw && +durRaw > 0) duration = Math.round(+durRaw);
+    else if (pfin) { const s0 = start || (target ? target.start : ""); if (s0) duration = Math.max(1, Math.round((parseD(pfin) - parseD(s0)) / DAYMS) + 1); }
+    const statusRaw = g(ci.status); let status = "planned"; let stProvided = false;
+    if (statusRaw) { stProvided = true; const st = statusRaw.toLowerCase().replace(/\s+/g, "_"); if (["planned", "in_progress", "complete"].includes(st)) status = st; else if (ctx.createMissing) { stProvided = false; if (!noticedStatus) { notices.push("Unknown Status values were set to Planned (valid: Planned, In progress, Complete)."); noticedStatus = true; } } else e.push('column Status: "' + statusRaw + '" is not Planned, In progress or Complete'); }
     let pctVal = null; const pctRaw = g(ci.pct);
     if (pctRaw !== "") { const n = Math.round(+pctRaw); if (isNaN(n) || n < 0 || n > 100) e.push("column Percent: must be 0 to 100"); else pctVal = n; }
     const actualStart = impNormDate(g(ci.astart)); const actualFinish = impNormDate(g(ci.afin));
-    const witnessInvite = yes(g(ci.wit)); const witAt = impNormDT(g(ci.witat));
-    if (witnessInvite && !witAt) e.push("column Witness date & time: required when Witness invite is Yes (YYYY-MM-DD HH:MM)");
+    const witRaw = g(ci.wit); const witnessInvite = yes(witRaw); const witAtRaw = g(ci.witat); const witAt = impNormDT(witAtRaw);
+    if (witAtRaw && !witAt) e.push("column Witness date & time: invalid (use YYYY-MM-DD HH:MM)");
+    if (!isUpd && witnessInvite && !witAt) e.push("column Witness date & time: required when Witness invite is Yes (YYYY-MM-DD HH:MM)");
     const wtype = g(ci.wtype);
     let wmin = 0; const wminRaw = g(ci.wmin); if (wminRaw !== "") { const n = Math.round(+wminRaw); if (isNaN(n) || n <= 0) e.push("column Witness duration (min): must be a positive number of minutes"); else wmin = n; }
     let wdays = 0; const wdaysRaw = g(ci.wdays); if (wdaysRaw !== "") { const n = Math.round(+wdaysRaw); if (isNaN(n) || n < 1) e.push("column Witness days: must be 1 or more"); else wdays = n; }
@@ -962,10 +980,45 @@ function parseActivityRowsV2(rows, consRows, ctx) {
     if (crewRaw) crewRaw.split(/\s*;\s*/).filter(Boolean).forEach((t) => { const m = crewCanon.get(t.toLowerCase()); if (m) { if (!crew.includes(m)) crew.push(m); } else if (ctx.createMissing) { crew.push(t); ctx.crewNames.push(t); crewCanon.set(t.toLowerCase(), t); creates.crews.push(t); } else e.push('column Crews: "' + t + '" is not a crew on this project (add crews in Admin, Lookahead & Targets, first)'); });
     let estHours = ""; const esthRaw = g(ci.esth); if (esthRaw !== "") { const n = +esthRaw; if (isNaN(n) || n <= 0) e.push("column Est hours: must be a positive number"); else estHours = n; }
     const consText = g(ci.cons);
-    const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: ctx.uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x), owner: "", ownerType: "", ownerId: null, due: "", hist: [{ t: "raised", by: ctx.byName || "", at: ctx.nowISO }] })) : [];
+    const consFromCol = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: ctx.uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x), owner: "", ownerType: "", ownerId: null, due: "", hist: [{ t: "raised", by: ctx.byName || "", at: ctx.nowISO }] })) : [];
     if (e.length) { errors.push("Row " + ln + ": " + e.join("; ")); continue; }
+    const refRaw = g(ci.ref);
+    const predsRaw = g(ci.preds);
+    if (isUpd) {
+      const changes = {};
+      if (desc) changes.desc = desc;
+      if (coProvided) changes.companyId = companyId;
+      if (area) changes.area = area;
+      if (subArea) changes.subArea = subArea;
+      if (tier3) changes.tier3 = tier3;
+      if (g(ci.asset)) changes.asset = g(ci.asset);
+      if (system) changes.system = system;
+      if (lvProvided) changes.level = level;
+      if (g(ci.ms)) changes.isMilestone = isMs;
+      if (start) changes.start = start;
+      if (duration > 0) changes.duration = duration;
+      if (g(ci.commit)) changes.committed = yes(g(ci.commit));
+      if (stProvided) changes.status = status;
+      if (pctVal != null) changes.percent = pctVal;
+      if (actualStart) changes.actualStart = actualStart;
+      if (actualFinish) changes.actualFinish = actualFinish;
+      if (witRaw) changes.witnessInvite = witnessInvite;
+      if (witAt) changes.witnessAt = witAt;
+      if (wtype) changes.witnessType = wtype;
+      if (wmin) changes.witnessDurationMin = wmin;
+      if (wdays) changes.witnessDays = wdays;
+      if (discRaw) changes.discipline = discipline;
+      if (crewRaw) changes.crew = crew;
+      if (estHours !== "") changes.estHours = estHours;
+      if (g(ci.notes)) changes.notes = g(ci.notes);
+      const u = { id: target.id, code: +String(codeRaw).replace(/^#/, ""), ln, ref: refRaw, changes, consAppend: consFromCol };
+      if (refRaw) refIds.set(refRaw, target.id);
+      if (predsRaw) pendingPreds.push({ sid: target.id, isUpd: true, u, tokens: predsRaw.split(/\s*;\s*/).filter(Boolean), ln });
+      updates.push(u);
+      continue;
+    }
     const sid = ctx.uid("a");
-    const act = { id: sid, predecessors: [], desc, companyId, area, subArea, tier3, asset: g(ci.asset), system, level, isMilestone: isMs, witnessInvite, witnessAt: witnessInvite ? witAt : "", notes: g(ci.notes), start: start || ctx.todayISO, duration, committed: yes(g(ci.commit)), status, actualStart, actualFinish, constraints };
+    const act = { id: sid, predecessors: [], desc, companyId, area, subArea, tier3, asset: g(ci.asset), system, level, isMilestone: isMs, witnessInvite, witnessAt: witnessInvite ? witAt : "", notes: g(ci.notes), start: start || ctx.todayISO, duration: duration > 0 ? duration : 1, committed: yes(g(ci.commit)), status, actualStart, actualFinish, constraints: consFromCol };
     if (discipline.length) act.discipline = discipline;
     if (crew.length) act.crew = crew;
     if (estHours !== "") act.estHours = estHours;
@@ -973,18 +1026,19 @@ function parseActivityRowsV2(rows, consRows, ctx) {
     if (wtype) act.witnessType = wtype;
     if (wmin) act.witnessDurationMin = wmin;
     if (wdays) act.witnessDays = wdays;
-    const refRaw = g(ci.ref); if (refRaw) refIds.set(refRaw, sid);
-    const predsRaw = g(ci.preds); if (predsRaw) pendingPreds.push({ sid, tokens: predsRaw.split(/\s*;\s*/).filter(Boolean), ln });
-    staged.push(act);
+    if (refRaw) refIds.set(refRaw, sid);
+    if (predsRaw) pendingPreds.push({ sid, isUpd: false, tokens: predsRaw.split(/\s*;\s*/).filter(Boolean), ln });
+    staged.push(act); addMeta.push({ ln, ref: refRaw });
   }
   for (const p of pendingPreds) {
     const ids = [];
     for (const t of p.tokens) {
-      if (/^#\d+$/.test(t)) { const id = (ctx.existingByCode || new Map()).get(+t.slice(1)); if (id) ids.push(id); else errors.push("Row " + p.ln + ": column Predecessors: " + t + " matches no existing activity code"); }
+      if (/^#\d+$/.test(t)) { const m = byCode.get(+t.slice(1)); if (m) ids.push(m.id); else errors.push("Row " + p.ln + ": column Predecessors: " + t + " matches no existing activity code"); }
       else if (/^\d+$/.test(t)) { const id = refIds.get(t); if (id) { if (id !== p.sid) ids.push(id); } else errors.push("Row " + p.ln + ": column Predecessors: no row in this file has Ref " + t); }
       else errors.push('Row ' + p.ln + ': column Predecessors: "' + t + '" is neither a Ref from this file nor an existing code like #57');
     }
-    const act = staged.find((a) => a.id === p.sid); if (act) act.predecessors = ids;
+    if (p.isUpd) p.u.changes.predecessors = ids;
+    else { const act = staged.find((a) => a.id === p.sid); if (act) act.predecessors = ids; }
   }
   if (consRows && consRows.length > 1) {
     const chdr = consRows[0].map((h) => String(h == null ? "" : h).trim().toLowerCase());
@@ -996,11 +1050,51 @@ function parseActivityRowsV2(rows, consRows, ctx) {
       if (/DELETE before importing/i.test(txt)) continue;
       const ref = g(cc.ref); const sid = refIds.get(ref);
       if (!sid) { errors.push('Constraints sheet row ' + (r + 1) + ': Activity ref "' + ref + '" matches no imported row'); continue; }
+      const item = { id: ctx.uid("c"), text: txt, done: yes(g(cc.done)), owner: g(cc.owner), ownerType: "", ownerId: null, due: impNormDate(g(cc.due)), hist: [{ t: "raised", by: ctx.byName || "", at: ctx.nowISO }] };
       const act = staged.find((a) => a.id === sid);
-      act.constraints.push({ id: ctx.uid("c"), text: txt, done: yes(g(cc.done)), owner: g(cc.owner), ownerType: "", ownerId: null, due: impNormDate(g(cc.due)), hist: [{ t: "raised", by: ctx.byName || "", at: ctx.nowISO }] });
+      if (act) act.constraints.push(item);
+      else { const u = updates.find((x) => x.id === sid); if (u) u.consAppend.push(item); }
     }
   }
   return out();
+}
+function applyImportV2(p, res, override) {
+  const companies = [...p.companies, ...res.creates.companies];
+  const areas = override ? res.creates.areas : [...p.areas, ...res.creates.areas];
+  const subAreas = override ? res.creates.subAreas : [...(p.subAreas || []), ...res.creates.subAreas];
+  const tier3s = override ? res.creates.tier3s : [...(p.tier3s || []), ...res.creates.tier3s];
+  const systems = override ? res.creates.systems : [...p.systems, ...res.creates.systems];
+  const crews = override ? res.creates.crews : [...(p.crews || []), ...res.creates.crews];
+  let codeC = override ? 0 : p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
+  const adds = res.staged.map((a) => ({ ...a, code: ++codeC }));
+  const updById = new Map((res.updates || []).map((u) => [u.id, u]));
+  const base = override ? [] : p.activities.map((a) => {
+    const u = updById.get(a.id); if (!u) return a;
+    const next = { ...a, ...u.changes };
+    if (u.consAppend && u.consAppend.length) next.constraints = [...(a.constraints || []), ...u.consAppend];
+    return next;
+  });
+  return { ...p, companies, areas, subAreas, tier3s, systems, crews, activities: [...base, ...adds] };
+}
+const IMP_FIELD_LABELS = { desc: "Description", companyId: "Company", area: "Building", subArea: "Level", tier3: "Zone / Room", asset: "Asset", system: "System", level: "Cx Stage", isMilestone: "Milestone", start: "Planned start", duration: "Duration", committed: "Committed", status: "Status", percent: "Percent", actualStart: "Actual start", actualFinish: "Actual finish", witnessInvite: "Witness invite", witnessAt: "Witness date & time", witnessType: "Witness type", witnessDurationMin: "Witness mins", witnessDays: "Witness days", discipline: "Discipline", crew: "Crews", estHours: "Est hours", predecessors: "Predecessors", notes: "Notes" };
+function buildImportReviewRows(res, actById, coNameOf) {
+  const fmt = (k, v) => { if (v == null || v === "") return "(blank)"; if (k === "companyId") return coNameOf(v) || "(unknown)"; if (typeof v === "boolean") return v ? "Yes" : "No"; if (Array.isArray(v)) { if (k === "predecessors") return v.map((id) => { const a = actById.get(id); return a && a.code != null ? "#" + a.code : "(new row)"; }).join("; ") || "(none)"; return v.join("; ") || "(none)"; } if (k === "status") return v === "in_progress" ? "In progress" : v === "complete" ? "Complete" : "Planned"; return String(v); };
+  const rows = [];
+  (res.staged || []).forEach((a, i) => {
+    const m = (res.addMeta || [])[i] || {};
+    rows.push({ st: "add", ln: m.ln || "", desc: a.desc, co: coNameOf(a.companyId) || "", detail: (a.constraints || []).length ? "raises " + a.constraints.length + " constraint" + (a.constraints.length === 1 ? "" : "s") : "new activity" });
+  });
+  (res.updates || []).forEach((u) => {
+    const a = actById.get(u.id);
+    const diffs = [];
+    Object.keys(u.changes).forEach((k) => { const oldV = a ? a[k] : undefined; const nw = u.changes[k]; const same = JSON.stringify(oldV == null || oldV === "" ? null : oldV) === JSON.stringify(nw == null || nw === "" ? null : nw); if (!same) diffs.push((IMP_FIELD_LABELS[k] || k) + " " + fmt(k, oldV) + " -> " + fmt(k, nw)); });
+    if (u.consAppend && u.consAppend.length) diffs.push("+" + u.consAppend.length + " constraint" + (u.consAppend.length === 1 ? "" : "s"));
+    const shown = diffs.slice(0, 4).join(" | ") + (diffs.length > 4 ? " | and " + (diffs.length - 4) + " more" : "");
+    rows.push({ st: diffs.length ? "upd" : "same", ln: u.ln, code: u.code, desc: (a && a.desc) || "#" + u.code, co: a ? (coNameOf(a.companyId) || "") : "", detail: diffs.length ? shown : "no changes" });
+  });
+  (res.errors || []).forEach((er) => { const m = /^(?:Constraints sheet row|Row) (\d+): ?(.*)$/.exec(er); rows.push({ st: "err", ln: m ? m[1] : "", desc: m ? "" : "", co: "", detail: m ? m[2] : er, raw: er }); });
+  rows.sort((x, y) => (+x.ln || 0) - (+y.ln || 0));
+  return rows;
 }
 async function buildActivityWorkbookV2(ExcelJS, cfg) {
   const wb = new ExcelJS.Workbook();
@@ -1054,6 +1148,59 @@ function actsToWorkbookRowsV2(activities, coNameOf) {
   return { actRows, consRows };
 }
 // ================= end REV236 foundations =================
+
+function ImportReviewPanel({ rows, notices, syncOn, applying, onApply, onCancel }) {
+  const [filt, setFilt] = useState("all");
+  const addN = rows.filter((r) => r.st === "add").length;
+  const updN = rows.filter((r) => r.st === "upd").length;
+  const sameN = rows.filter((r) => r.st === "same").length;
+  const errN = rows.filter((r) => r.st === "err").length;
+  const cleanN = addN + updN + sameN;
+  const shown = rows.filter((r) => filt === "all" ? true : r.st === filt);
+  const chip = (st) => { const c = st === "add" ? ["#34D399", "rgba(52,211,153,.14)", "Add"] : st === "upd" ? ["var(--accent)", "rgba(91,155,243,.14)", "Update"] : st === "same" ? ["var(--muted)", "rgba(133,147,162,.14)", "No change"] : ["#F87171", "rgba(248,113,113,.14)", "Error"]; return <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 8px", borderRadius: 6, color: c[0], background: c[1], whiteSpace: "nowrap" }}>{c[2]}</span>; };
+  const pill = (key, label, n, red) => n === 0 && key !== "all" ? null : <button key={key} className="lk-btn" style={{ padding: "3px 10px", fontSize: 11, fontWeight: 700, borderColor: filt === key ? "var(--accent)" : undefined, color: red ? "#F87171" : undefined }} onClick={() => setFilt(key)}>{label} {n}</button>;
+  const errReport = () => { const lines = ["Error"]; rows.filter((r) => r.st === "err").forEach((r) => { const t = (r.raw || r.detail || "").replace(/"/g, '""'); lines.push(/[",\n]/.test(t) ? '"' + t + '"' : t); }); downloadFile("import-errors.csv", lines.join("\n")); };
+  const gcols = "52px 1.7fr 1fr 92px 2.5fr";
+  return (
+    <div>
+      {!!(notices || []).length && <div style={{ fontSize: 12, color: "#E0A106", margin: "0 0 8px", lineHeight: 1.5 }}>{notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
+      <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ maxHeight: 320, overflowY: "auto", position: "relative" }}>
+          <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--card)" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "9px 12px", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
+              {pill("all", "All", rows.length)}{pill("add", "Adds", addN)}{pill("upd", "Updates", updN)}{pill("same", "No change", sameN)}{pill("err", "Errors", errN, true)}
+              <span style={{ flex: 1 }} />
+              {errN > 0 && <button className="lk-btn" style={{ padding: "3px 10px", fontSize: 11 }} onClick={errReport}>Error report (.csv)</button>}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: gcols, gap: 10, padding: "7px 12px", fontSize: 9.5, fontWeight: 800, letterSpacing: ".5px", textTransform: "uppercase", color: "var(--muted)", borderBottom: "1px solid var(--line)" }}>
+              <div>Row</div><div>Activity</div><div>Company</div><div>Result</div><div>Detail</div>
+            </div>
+          </div>
+          {shown.map((r, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: gcols, gap: 10, alignItems: "start", padding: "7px 12px", fontSize: 11.5, borderBottom: "1px solid var(--line2, rgba(255,255,255,.05))" }}>
+              <div style={{ color: "var(--muted)" }}>{r.ln || ""}</div>
+              <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{r.desc || (r.st === "err" ? <span style={{ color: "var(--muted)" }}>see detail</span> : "")}</div>
+              <div style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{r.co || ""}</div>
+              <div>{chip(r.st)}</div>
+              <div style={{ color: r.st === "err" ? "#F87171" : "var(--muted)", lineHeight: 1.45 }}>{r.detail}</div>
+            </div>
+          ))}
+          {!shown.length && <div style={{ padding: 14, fontSize: 12, color: "var(--muted)" }}>Nothing under this filter.</div>}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", flex: 1, lineHeight: 1.45 }}>
+          {errN > 0
+            ? `${errN} row${errN === 1 ? " has an error and will be skipped" : "s have errors and will be skipped"}. Fix and re-upload, or apply the clean rows and take the error report.`
+            : "Nothing is written until you apply."}
+          {syncOn ? " Sync: filled cells overwrite, blank cells leave fields untouched." : ""}
+        </div>
+        <button className="lk-btn" onClick={onCancel} disabled={applying}>Cancel</button>
+        <button className="lk-btn primary" disabled={applying || cleanN === 0} onClick={onApply}>{applying ? "Applying" : `Apply ${cleanN} ${errN > 0 ? "clean " : ""}row${cleanN === 1 ? "" : "s"}`}</button>
+      </div>
+    </div>
+  );
+}
 
 function ConstraintHistoryBody({ c, audit }) {
   const ev = c.hist || [];
@@ -5214,6 +5361,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [brandMsg, setBrandMsg] = useState("");
   const [impMode, setImpMode] = useState("append");
   const [impGate, setImpGate] = useState(null); // REV192: staged import awaiting confirmation
+  const [impReview, setImpReview] = useState(null); // REV238: parsed import awaiting review
   const [impGateText, setImpGateText] = useState("");
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
@@ -5258,7 +5406,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
           "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
           "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
           "Constraints live on their own sheet, keyed by Activity ref; imports stamp them as raised by you in the constraint history.",
-          "Leave the Code column empty: it belongs to exports, and Sync mode (updating existing activities by Code) arrives in the next revision.",
+          "Leave the Code column empty when adding new activities. To update existing ones, export the workbook, edit it and re-import in Sync mode: filled cells overwrite, blank cells leave fields untouched.",
           "Delete the example rows before importing. Choose Append to merge or Override to replace the project's activities.",
         ] };
       const wb = await buildActivityWorkbookV2(ExcelJS, cfg);
@@ -5276,7 +5424,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Activities"); actRows.forEach((r) => ws.addRow(r)); ws.getRow(1).font = { bold: true }; ws.columns.forEach((c, i) => { c.width = Math.max(11, String(actRows[0][i] || "").length + 3); });
       const cws = wb.addWorksheet("Constraints"); consRows.forEach((r) => cws.addRow(r)); cws.getRow(1).font = { bold: true }; [12, 52, 20, 14, 10].forEach((w, i) => { cws.getColumn(i + 1).width = w; });
-      const rd = wb.addWorksheet("README"); rd.getCell(1, 1).value = "DLP activities template"; rd.getCell(1, 2).value = "v" + IMP_TPL_VERSION; rd.getCell(2, 1).value = "Exported"; rd.getCell(2, 2).value = fmtISO(new Date()); rd.getCell(4, 1).value = "Same shape as the import template. Clear the Code column to import rows as new activities; Sync mode (matching by Code) arrives in the next revision."; rd.getColumn(1).width = 118;
+      const rd = wb.addWorksheet("README"); rd.getCell(1, 1).value = "DLP activities template"; rd.getCell(1, 2).value = "v" + IMP_TPL_VERSION; rd.getCell(2, 1).value = "Exported"; rd.getCell(2, 2).value = fmtISO(new Date()); rd.getCell(4, 1).value = "Same shape as the import template. Re-import in Sync mode to update the matching activities by Code (filled cells overwrite, blank cells leave fields untouched), or clear the Code column to import rows as new activities."; rd.getColumn(1).width = 118;
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const a = document.createElement("a"); a.href = url; a.download = (projCode || "DLP") + "-activities-workbook.xlsx"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -5565,10 +5713,11 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   };
   const commitStagedImport = (g) => {
     setImpGate(null);
-    if (g.kind === "csv") commitImportCSV(g.payload); else commitImportJSON(g.payload);
+    if (g.kind === "v2") { finalizeReviewedImport(g); return; }
+    commitImportJSON(g.payload);
     if (g.hash) recordImportFingerprint(S.projectId, g.hash, g.rowCount, g.mode, (cu && cu.name) || "");
   };
-  const commitImportCSV = (payload) => {
+  const reviewImportCSV = (payload, fpText, rowCount) => {
     const text = typeof payload === "string" ? payload : payload.text;
     const consRows = (payload && typeof payload === "object" && payload.consRows) || null;
     const tplV = (payload && typeof payload === "object") ? payload.tplV : undefined;
@@ -5576,7 +5725,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     if (rows.length < 2) { setImpMsg("The file has no data rows."); return; }
     const override = impMode === "override";
     const ctx = {
-      isAdmin: true, createMissing: true, cuCompanyId: (cu && cu.companyId) || null, myCoName: "",
+      isAdmin: true, createMissing: true, syncMode: impMode === "sync",
+      cuCompanyId: (cu && cu.companyId) || null, myCoName: "",
       companies: S.companies.map((c) => ({ id: c.id, name: c.name })), // REV192: global, add-only in every mode
       areas: override ? [] : S.areas.slice(),
       subAreas: override ? [] : (S.subAreas || []).slice(),
@@ -5584,34 +5734,40 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
       systems: override ? [] : S.systems.slice(),
       lvKeys: Object.keys(S.levels), disciplines: DISCIPLINES,
       crewNames: override ? [] : (S.crews || []).slice(),
-      existingByCode: new Map((override ? [] : S.activities).filter((a) => a.code != null).map((a) => [a.code, a.id])),
+      existingByCode: new Map((override ? [] : S.activities).filter((a) => a.code != null).map((a) => [a.code, { id: a.id, companyId: a.companyId, area: a.area || "", subArea: a.subArea || "", start: a.start || "" }])),
       uid, byName: (cu && cu.name) || "", nowISO: new Date().toISOString(), todayISO: fmtISO(new Date()),
     };
     const res = parseActivityRowsV2(rows, consRows, ctx);
-    if (res.errors.length) { setImpMsg("Nothing was imported. Fix these rows and upload again: " + res.errors.slice(0, 10).join(" | ") + (res.errors.length > 10 ? " | and " + (res.errors.length - 10) + " more" : "")); return; }
-    if (!res.staged.length) { setImpMsg("No activity rows found."); return; }
-    let built = 0;
-    update((p) => {
-      const companies = [...p.companies, ...res.creates.companies];
-      const areas = override ? res.creates.areas : [...p.areas, ...res.creates.areas];
-      const subAreas = override ? res.creates.subAreas : [...(p.subAreas || []), ...res.creates.subAreas];
-      const tier3s = override ? res.creates.tier3s : [...(p.tier3s || []), ...res.creates.tier3s];
-      const systems = override ? res.creates.systems : [...p.systems, ...res.creates.systems];
-      const crews = override ? res.creates.crews : [...(p.crews || []), ...res.creates.crews];
-      let codeC = override ? 0 : p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
-      const newActs = res.staged.map((a) => ({ ...a, code: ++codeC }));
-      built = newActs.length;
-      const activities = override ? newActs : [...p.activities, ...newActs];
-      return { ...p, companies, areas, subAreas, tier3s, systems, crews, activities };
-    }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
-    const consN = res.staged.reduce((n, a) => n + (a.constraints || []).length, 0);
+    const notices = res.notices.slice();
+    if (typeof payload === "object" && tplV == null) notices.push("No v2 README sheet found; download the latest template for every column and the Constraints sheet.");
+    const actById = new Map(S.activities.map((a) => [a.id, a]));
+    const revRows = buildImportReviewRows(res, actById, (id) => (S.companies.find((c) => c.id === id) || {}).name || "");
+    setImpMsg("");
+    setImpReview({ res, rows: revRows, notices, fpText, rowCount, override });
+  };
+  const applyReviewedImport = async () => {
+    const rv = impReview; if (!rv) return;
+    let hash = "", dup = null;
+    try { hash = await importFingerprint(rv.fpText); dup = await checkImportFingerprint(S.projectId, hash); } catch (e) {}
+    const g = { kind: "v2", rv, hash, rowCount: rv.rowCount, dup, mode: impMode };
+    if (rv.override || dup) { setImpGateText(""); setImpGate(g); return; }
+    finalizeReviewedImport(g);
+  };
+  const finalizeReviewedImport = (g) => {
+    setImpGate(null);
+    const rv = g.rv; const res = rv.res;
+    const addsN = res.staged.length, updsN = (res.updates || []).length;
+    update((p) => applyImportV2(p, res, rv.override), { action: `Import activities (${g.mode})`, detail: `${addsN} added, ${updsN} updated` });
+    if (g.hash) recordImportFingerprint(S.projectId, g.hash, g.rowCount, g.mode, (cu && cu.name) || "");
+    const consN = res.staged.reduce((n, a) => n + (a.constraints || []).length, 0) + (res.updates || []).reduce((n, u) => n + (u.consAppend || []).length, 0);
     const bits = [];
     if (res.creates.companies.length) bits.push(res.creates.companies.length + " new compan" + (res.creates.companies.length === 1 ? "y" : "ies"));
     if (res.creates.crews.length) bits.push(res.creates.crews.length + " new crew" + (res.creates.crews.length === 1 ? "" : "s"));
     if (consN) bits.push(consN + " constraint" + (consN === 1 ? "" : "s") + " raised");
-    setImpMsg(`Built ${built} activities from ${rows.length - 1} rows (${impMode})${bits.length ? ", " + bits.join(", ") : ""}${res.notices.length ? ". Note: " + res.notices.join(" ") : ""}${tplV == null && typeof payload === "object" ? " Note: no v2 README sheet found; download the latest template for every column and the Constraints sheet." : ""}. Saving to the database; if the save is rejected a red Database error banner will appear.`);
+    const skipped = rv.rows.filter((r) => r.st === "err").length;
+    setImpMsg(`Applied ${addsN} added and ${updsN} updated (${g.mode})${bits.length ? ", " + bits.join(", ") : ""}${skipped ? "; " + skipped + " error row" + (skipped === 1 ? "" : "s") + " skipped" : ""}. Saving to the database; if the save is rejected a red Database error banner will appear.`);
+    setImpReview(null);
   };
-
   const cellToStr = (v) => { if (v == null) return ""; if (v instanceof Date) { const p = (n) => String(n).padStart(2, "0"); const dd = `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`; const hh = v.getUTCHours(), mm = v.getUTCMinutes(); return (hh || mm) ? `${dd}T${p(hh)}:${p(mm)}` : dd; } if (typeof v === "object") { if (v.text != null) return String(v.text); if (v.result != null) return String(v.result); if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join(""); if (v.hyperlink) return String(v.hyperlink); return ""; } return String(v); };
   const rowsToCSV = (rows) => rows.map((r) => r.map((c) => { const s = cellToStr(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");
   const handleImportFile = async (e) => {
@@ -5625,10 +5781,10 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
         const rows = []; ws.eachRow({ includeEmpty: false }, (row) => { const arr = []; row.eachCell({ includeEmpty: true }, (cell) => arr.push(cell.value)); rows.push(arr); });
         const cws2 = wb.getWorksheet("Constraints"); const consRows = []; if (cws2) cws2.eachRow({ includeEmpty: false }, (row) => { const arr = []; row.eachCell({ includeEmpty: true }, (cell) => arr.push(cellToStr(cell.value))); consRows.push(arr); });
         const rws2 = wb.getWorksheet("README"); const tplV = rws2 ? String(rws2.getCell(1, 2).value || "") || null : null;
-        const csvText = rowsToCSV(rows); await stageImport("csv", { text: csvText, consRows: consRows.length > 1 ? consRows : null, tplV }, csvText, Math.max(0, rows.length - 1));
+        const csvText = rowsToCSV(rows); reviewImportCSV({ text: csvText, consRows: consRows.length > 1 ? consRows : null, tplV }, csvText, Math.max(0, rows.length - 1));
       } else {
         const txt = (await file.text()).replace(/^\uFEFF/, "");
-        if (name.endsWith(".json")) { const parsed = JSON.parse(txt); if (impMode === "override") await stageImport("json", parsed, txt, (parsed.activities || []).length); else setJsonPreview(parsed); } else await stageImport("csv", txt, txt, Math.max(0, txt.split(/\r?\n/).filter((l) => l.trim()).length - 1));
+        if (name.endsWith(".json")) { const parsed = JSON.parse(txt); if (impMode === "override") await stageImport("json", parsed, txt, (parsed.activities || []).length); else setJsonPreview(parsed); } else reviewImportCSV(txt, txt, Math.max(0, txt.split(/\r?\n/).filter((l) => l.trim()).length - 1));
       }
     } catch (err) { setImpMsg("Import failed: " + (err && err.message ? err.message : "could not read file")); }
     e.target.value = "";
@@ -6294,15 +6450,21 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 <button className="lk-btn primary" disabled={tplBusy} onClick={downloadAdminTemplate}><Icon n="download" s={14} />{tplBusy ? "Building…" : "Excel template (with dropdowns)"}</button>
                 <button className="lk-btn" onClick={downloadCsvTemplate}><Icon n="download" s={14} />CSV template</button>
               </div>
-              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>Admin import: set the <b>Company</b> column per row to load every contractor in one file. The v2 workbook has four sheets: <b>Activities</b> with every field the platform carries (discipline, witness type, duration and days, crews, est hours, percent, predecessors), <b>Constraints</b> keyed by Activity ref with owner and need-by, <b>Reference</b> feeding the dropdowns from this project's live values, and <b>README</b> with the rules and a version stamp. This importer creates companies, buildings, levels, zones, systems and crews that do not yet exist. Required per row: Description, Building, System and Planned start (relaxed on milestone rows). Leave Code empty; Sync mode arrives in the next revision. Choose Append to merge or Override to replace below.</div>
+              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>Admin import: set the <b>Company</b> column per row to load every contractor in one file. The v2 workbook has four sheets: <b>Activities</b> with every field the platform carries (discipline, witness type, duration and days, crews, est hours, percent, predecessors), <b>Constraints</b> keyed by Activity ref with owner and need-by, <b>Reference</b> feeding the dropdowns from this project's live values, and <b>README</b> with the rules and a version stamp. This importer creates companies, buildings, levels, zones, systems and crews that do not yet exist. Required per row: Description, Building, System and Planned start (relaxed on milestone rows). Every upload opens a review screen first: adds, updates with per-field diffs, and errors with the row and column named; error rows are skipped and can be exported as a report. Choose Append to add rows, Sync to update existing activities by their #code (filled cells overwrite, blank cells leave fields untouched), or Override to replace below.</div>
             </div>
             <div className="lk-f"><label>Export</label>
               <div className="lk-row"><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button><button className="lk-btn" disabled={tplBusy} onClick={exportActivitiesWorkbook} title="Activities and Constraints sheets in the exact import-template shape, so a file can round-trip"><Icon n="download" s={14} />Activities workbook (import shape)</button>
                 <button className="lk-btn" onClick={exportProject}><Icon n="download" s={14} />Project (JSON)</button></div></div>
             <div className="lk-f"><label>Import Mode</label>
-              <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
+              <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "sync" ? "sel" : ""} onClick={() => setImpMode("sync")}>Sync</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
             <div className="lk-f"><label>Import File (.xlsx or .csv Activities, or .json Project)</label>
               <input className="lk-in" type="file" accept=".json,.csv,.xlsx" onChange={handleImportFile} /></div>
+            {impReview && <div className="lk-modal-bg" style={{ zIndex: 60 }} onClick={() => setImpReview(null)}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 900, width: "min(900px, 94vw)" }} onClick={(e) => e.stopPropagation()}>
+                <div className="lk-dh"><h3>Review import ({impMode})</h3><button className="lk-btn icon" onClick={() => setImpReview(null)}><Icon n="x" /></button></div>
+                <ImportReviewPanel rows={impReview.rows} notices={impReview.notices} syncOn={impMode === "sync"} applying={false} onApply={applyReviewedImport} onCancel={() => setImpReview(null)} />
+              </div>
+            </div>}
             <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces the project wholesale; Append in JSON opens a review screen where you overwrite, ignore or clone each clashing item.</div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
@@ -9068,6 +9230,8 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
 
 function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
   const [result, setResult] = useState(null);
+  const [review, setReview] = useState(null);
+  const [umode, setUmode] = useState("append");
   const [busy, setBusy] = useState(false);
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (s == null || s === "") return ""; if (s instanceof Date) return isNaN(s) ? "" : fmtISO(s); s = String(s).trim(); if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/); if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0"); m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); } m = s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3,9})[-\/ ](\d{2}|\d{4})$/); if (m) { const mo = ({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 })[m[2].slice(0, 3).toLowerCase()]; if (mo) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + String(mo).padStart(2, "0") + "-" + m[1].padStart(2, "0"); } } const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
@@ -9093,7 +9257,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
           "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
           "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
           "Constraints live on their own sheet, keyed by Activity ref; each import stamps them as raised by you in the constraint history.",
-          "Leave the Code column empty: it belongs to exports, and Sync mode (updating existing activities by Code) arrives in the next revision.",
+          "Leave the Code column empty when adding new activities. To update existing ones, export the workbook, edit it and re-import in Sync mode: filled cells overwrite, blank cells leave fields untouched.",
           "Every value must match this project: pick from the dropdowns, fed by the Reference sheet. Anything that does not match is rejected, not created. Nothing is written unless every row passes.",
         ] };
       const wb = await buildActivityWorkbookV2(ExcelJS, cfg);
@@ -9104,31 +9268,35 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     setBusy(false);
   };
 
-  const validate = (rows, consRows, tplV) => {
+  const parseForReview = (rows, consRows, tplV) => {
     rows = (rows || []).filter((r) => r && r.length && r.some((c) => String(c == null ? "" : c).trim() !== ""));
     const notices = [];
     if (tplV == null) notices.push("This file has no v2 README sheet, so it predates the current template. Download the latest for every column, the dropdowns and the Constraints sheet.");
-    if (rows.length < 2) return { imported: 0, errors: ["The file has no activity rows under the header."], notices };
+    if (rows.length < 2) return { fatal: { imported: 0, updated: 0, errors: ["The file has no activity rows under the header."], notices } };
     const ctx = {
-      isAdmin, createMissing: false, cuCompanyId: cu.companyId,
+      isAdmin, createMissing: false, syncMode: umode === "sync", cuCompanyId: cu.companyId,
       myCoName: (S.companies.find((c) => c.id === cu.companyId) || {}).name || "",
       companies: S.companies.map((c) => ({ id: c.id, name: c.name })),
       areas: S.areas.slice(), subAreas: (S.subAreas || []).slice(), tier3s: (S.tier3s || []).slice(),
       systems: S.systems.slice(), lvKeys: Object.keys(LV), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
-      existingByCode: new Map(S.activities.filter((a) => a.code != null).map((a) => [a.code, a.id])),
+      existingByCode: new Map(S.activities.filter((a) => a.code != null).map((a) => [a.code, { id: a.id, companyId: a.companyId, area: a.area || "", subArea: a.subArea || "", start: a.start || "" }])),
       uid, byName: cu.name || "", nowISO: new Date().toISOString(), todayISO: fmtISO(new Date()),
     };
     const res = parseActivityRowsV2(rows, consRows, ctx);
     notices.push(...res.notices);
-    if (res.errors.length) return { imported: 0, errors: res.errors, notices };
-    if (!res.staged.length) return { imported: 0, errors: ["No activity rows found."], notices };
-    update((p) => {
-      let codeC = p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
-      const withCodes = res.staged.map((a) => ({ ...a, code: ++codeC }));
-      return { ...p, activities: [...p.activities, ...withCodes] };
-    }, { action: "Import activities", detail: `${res.staged.length} rows` });
-    const consN = res.staged.reduce((n, a) => n + (a.constraints || []).length, 0);
-    return { imported: res.staged.length, consN, errors: [], notices };
+    if (!res.staged.length && !(res.updates || []).length && !res.errors.length) return { fatal: { imported: 0, updated: 0, errors: ["No activity rows found."], notices } };
+    const actById = new Map(S.activities.map((a) => [a.id, a]));
+    const revRows = buildImportReviewRows(res, actById, (id) => (S.companies.find((c) => c.id === id) || {}).name || "");
+    return { review: { res, rows: revRows, notices } };
+  };
+  const applyReview = () => {
+    const rv = review; if (!rv) return;
+    const res = rv.res;
+    const addsN = res.staged.length, updsN = (res.updates || []).length;
+    update((p) => applyImportV2(p, res, false), { action: "Import activities", detail: `${addsN} added, ${updsN} updated` });
+    const consN = res.staged.reduce((n, a) => n + (a.constraints || []).length, 0) + (res.updates || []).reduce((n, u) => n + (u.consAppend || []).length, 0);
+    setResult({ imported: addsN, updated: updsN, consN, errors: [], notices: rv.notices, skipped: rv.rows.filter((r) => r.st === "err").length });
+    setReview(null);
   };
   const onFile = async (e) => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -9145,7 +9313,8 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       } else {
         rows = parseCSV(String(await f.text()).replace(/^\uFEFF/, ""));
       }
-      setResult(validate(rows, consRowsX && consRowsX.length > 1 ? consRowsX : null, tplVX));
+      const pr = parseForReview(rows, consRowsX && consRowsX.length > 1 ? consRowsX : null, tplVX);
+      if (pr.fatal) { setResult(pr.fatal); setReview(null); } else { setResult(null); setReview(pr.review); }
     } catch (err) { setResult({ imported: 0, errors: ["Could not read the file: " + (err && err.message ? err.message : "unknown error")] }); }
     setBusy(false); e.target.value = "";
   };
@@ -9154,7 +9323,13 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       <div className="lk-modal" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Import Activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
-          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel workbook template. Members import under their own company: the Company and Building columns come prefilled, the Company dropdown offers only your company, and any row naming another company is <b>rejected</b>. Admins can set any existing company per row. The workbook's <b>Reference</b> sheet feeds every dropdown with this project's live values, the <b>Constraints</b> sheet raises make-ready constraints against your rows (stamped into each constraint's history), and the <b>README</b> sheet carries the full rules. Values must already exist on this project; anything that does not match is rejected, not created, and nothing is written unless every row passes.</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel workbook template. Members import under their own company: the Company and Building columns come prefilled, the Company dropdown offers only your company, and any row naming another company is <b>rejected</b>. Admins can set any existing company per row. The workbook's <b>Reference</b> sheet feeds every dropdown with this project's live values, the <b>Constraints</b> sheet raises make-ready constraints against your rows (stamped into each constraint's history), and the <b>README</b> sheet carries the full rules. Values must already exist on this project; anything that does not match is rejected, not created, and nothing is written until you apply what the review screen shows.</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "10px 0 2px" }}>
+            <div className="lk-status"><button className={umode === "append" ? "sel" : ""} onClick={() => { setUmode("append"); setReview(null); }}>Append</button><button className={umode === "sync" ? "sel" : ""} onClick={() => { setUmode("sync"); setReview(null); }}>Sync</button></div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.4 }}>{umode === "sync" ? "Sync updates existing activities by their #code from an exported workbook: filled cells overwrite, blank cells leave fields untouched; rows without a Code are added." : "Append adds every row as a new activity; rows carrying a Code are rejected so an edited export cannot be double-imported."}</div>
+          </div>
+          {review && <ImportReviewPanel rows={review.rows} notices={review.notices} syncOn={umode === "sync"} applying={busy} onApply={applyReview} onCancel={() => setReview(null)} />}
+          {!review && <>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
             <ul>
@@ -9162,7 +9337,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
               <li>The <b>Excel template has dropdowns</b> for Building, Level, Zone / Room, System and Cx Stage, pre-loaded with this project's current values. Pick from them rather than typing.</li>
               <li><b>Those values must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
               <li>Matching ignores case but the spelling must be exact. The dropdowns do not enforce which Level belongs to which Building, so the app still checks that on import.</li>
-              <li>If any single row is invalid, <b>nothing is imported</b>. You get a list of what to fix, then re-upload.</li>
+              <li>Every upload opens a <b>review screen</b> first: adds, updates with per-field diffs, and errors with the row and column named. Rows with errors are skipped; apply the clean rows and take the error report, or fix and re-upload.</li><li><b>Sync mode</b> matches rows to existing activities by the #code from an exported workbook. Members can only update their own company's activities.</li>
               <li>Dates use YYYY-MM-DD. Committed and Witness invite take Yes or No.</li>
               <li>If <b>Witness invite</b> is Yes, a <b>Witness date &amp; time</b> is required, format YYYY-MM-DD HH:MM (see example 2).</li>
               <li>The template has <b>two example rows</b>. Delete them and import only your own activities.</li>
@@ -9174,6 +9349,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
           <div className="ref"><b>Valid zones / rooms</b>{(S.tier3s || []).length ? [...new Set((S.tier3s || []).map((t) => t.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
           <div className="ref"><b>Valid systems</b>{S.systems.length ? S.systems.map((s) => <span key={s} className="lk-tag">{s}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
           <div className="ref"><b>Valid Cx stages</b>{Object.keys(LV).map((k) => <span key={k} className="lk-tag">{k} {LV[k].name}</span>)}</div>
+          </>}
           <div className="lk-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button className="lk-btn" onClick={downloadTemplate} disabled={busy}><Icon n="download" s={14} />Download Excel template</button>
             <label className={"lk-btn primary" + (busy ? " disabled" : "")} style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}><Icon n="upload" s={14} />Choose file (.xlsx or .csv)<input type="file" accept=".xlsx,.xlsm,.csv" disabled={busy} style={{ display: "none" }} onChange={onFile} /></label>
@@ -9182,7 +9358,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
           {result && !!(result.notices || []).length && <div style={{ fontSize: 12, color: "#E0A106", margin: "6px 0", lineHeight: 1.5 }}>{result.notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
           {result && (result.errors.length
             ? <div className="lk-res-err"><b>Nothing was imported.</b> Fix {result.errors.length} row{result.errors.length === 1 ? "" : "s"} and upload again:<ul>{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul></div>
-            : <div className="lk-res-ok">Imported {result.imported} activit{result.imported === 1 ? "y" : "ies"}{result.consN ? " and raised " + result.consN + " constraint" + (result.consN === 1 ? "" : "s") : ""}. They are on your board now.</div>)}
+            : <div className="lk-res-ok">Applied {result.imported} added{result.updated ? " and " + result.updated + " updated" : ""}{result.consN ? ", raising " + result.consN + " constraint" + (result.consN === 1 ? "" : "s") : ""}{result.skipped ? "; " + result.skipped + " error row" + (result.skipped === 1 ? "" : "s") + " skipped" : ""}. The board reflects it now.</div>)}
         </div>
       </div>
     </div>);

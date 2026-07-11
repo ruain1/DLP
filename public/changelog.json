@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV238",
+    "date": "2026-07-11",
+    "items": [
+      "Sync import mode on both surfaces. Rows carrying a #code from an exported workbook update that activity: filled cells overwrite, blank cells leave fields untouched, and rows without a Code are added in the same pass. Members can only update their own company's activities; a Code belonging to another company is a rejected row. Constraint sheet rows against a synced activity append to it, stamped into constraint history.",
+      "Review before apply. Every xlsx or CSV upload now opens a review screen instead of writing immediately: each row resolves to Add, Update with per-field diffs (old value -> new value), No change, or Error with the row and column named. Filter pills pin above the grid while rows scroll. Nothing is written until Apply.",
+      "Partial apply and error report. Rows with errors no longer block the whole file: they are listed, skipped on Apply, and exportable as import-errors.csv, so a 200-row file with 3 typos lands 197 rows and a fix list instead of nothing.",
+      "The Admin importer's fingerprint duplicate warning and the Override typed confirmation now run at Apply time on the reviewed result; the old direct-commit CSV path is retired. Import results report added, updated, constraints raised, new companies and crews, and skipped error rows."
+    ]
+  },
+  {
     "rev": "REV237",
     "date": "2026-07-11",
     "items": [
