@@ -4048,6 +4048,28 @@ function DesignTab({ S, update }) {
 // buildTeamExportRows: project-scoped CSV rows sorted company then name.
 // groupTeamRows: per-company grouping with Platform team pinned first and No company last,
 // people sorted by name inside each group (owner pinned first in Platform team).
+// REV201: pure, harness-testable. Lower-cased email to user id map from the status lookup.
+function ustatEmailMap(ustat) {
+  const m = {}; Object.keys(ustat || {}).forEach((id) => { const e = (ustat[id] || {}).email; if (e) m[String(e).toLowerCase()] = id; }); return m;
+}
+// REV201: pure, harness-testable. Classifies each bulk line against known emails and current
+// membership. action is one of: invalid, already (on this project), grant (existing account,
+// needs project grant only), create (new account plus grant). Role is the PROJECT role.
+function classifyBulkLines(text, companies, emailToUid, memberIds) {
+  const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  return lines.map((line) => {
+    const parts = line.split(",").map((x) => x.trim());
+    const email = parts[0] || ""; const name = parts[1] || email;
+    const projRole = (parts[2] || "member").toLowerCase() === "admin" ? "admin" : "member";
+    const coName = parts[3] || ""; const co = (companies || []).find((c) => (c.name || "").toLowerCase() === coName.toLowerCase());
+    const base = { email: email || "(blank)", name, projRole, companyId: co ? co.id : null, companyName: co ? co.name : "" };
+    if (!email || !/.+@.+\..+/.test(email)) return { ...base, action: "invalid" };
+    const uid = emailToUid[email.toLowerCase()] || null;
+    if (uid && memberIds.has(uid)) return { ...base, uid, action: "already" };
+    if (uid) return { ...base, uid, action: "grant" };
+    return { ...base, action: "create" };
+  });
+}
 function buildTeamExportRows(all, cn, ustat, mcount) {
   const p2 = (n) => String(n).padStart(2, "0");
   const fmtSeen = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
@@ -4427,6 +4449,11 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [mfRole, setMfRole] = useState("all");
   const [mfStatus, setMfStatus] = useState("all");
   const [pmManageId, setPmManageId] = useState(null);
+  const [pnu, setPnu] = useState({ email: "", name: "", companyId: S.companies[0]?.id || "", projRole: "member" });
+  const [pmCred, setPmCred] = useState(null);
+  const [pBulkText, setPBulkText] = useState("");
+  const [pBulkBusy, setPBulkBusy] = useState(false);
+  const [pBulkResults, setPBulkResults] = useState(null);
   const [coManageId, setCoManageId] = useState(null);
   const [mcount, setMcount] = useState({});
   useEffect(() => { let live = true; loadMembershipCounts().then((m) => { if (live) setMcount(m); }).catch(() => {}); return () => { live = false; }; }, [S.projectId, members]);
@@ -4439,6 +4466,55 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const addMem = async (userId, name) => { setMemMsg("Adding " + (name || "") + "…"); try { await addMember(S.projectId, userId, memRole, S.currentUserId); setMemMsg((name || "User") + " added as " + memRole); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
   const removeMem = async (userId, name) => { setMemMsg("Removing…"); try { await removeMember(S.projectId, userId); setMemMsg((name || "User") + " removed from this project"); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
   const changeRole = async (userId, role, name, adminCount, curRole) => { if (curRole === "admin" && role === "member" && adminCount <= 1) { setMemMsg("Keep at least one admin on the project."); reloadMems(); return; } try { await setMemberRole(S.projectId, userId, role); setMemMsg((name || "Role") + " set to " + role); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); reloadMems(); } };
+  // REV201: create-and-grant in one step. Existing contacts (matched by email through the
+  // status lookup) are granted membership without a new account; new people get the account
+  // via the invite op and are then added to this project as the chosen PROJECT role. The
+  // platform profile role stays member; project admin rights come from project_members only.
+  const pAddPerson = async () => {
+    const email = pnu.email.trim();
+    if (!email) { setMemMsg("Email required."); return; }
+    setMemMsg("Adding\u2026"); setPmCred(null);
+    const uid = ustatEmailMap(ustat)[email.toLowerCase()] || null;
+    try {
+      if (uid && (members || []).some((m) => m.user_id === uid)) { setMemMsg(email + " is already on this project."); return; }
+      if (uid) {
+        await addMember(S.projectId, uid, pnu.projRole, S.currentUserId);
+        const nm = ((S.users || []).find((x) => x.id === uid) || {}).name || email;
+        setMemMsg(nm + " added as " + pnu.projRole + " (existing contact, no new account)."); reloadMems(); return;
+      }
+      const res = await userOp({ op: "invite", email, name: pnu.name.trim() || email, role: "member", company_id: pnu.companyId || null, redirect: window.location.origin });
+      let grantErr = "";
+      if (res && res.id) { try { await addMember(S.projectId, res.id, pnu.projRole, S.currentUserId); } catch (ge) { grantErr = ge.message || String(ge); } } else grantErr = "no account id returned";
+      setPmCred({ who: email, pw: res && res.tempPassword, link: res && res.link, roleLabel: pnu.projRole === "admin" ? "Admin" : "Member", companyName: (S.companies.find((c) => c.id === pnu.companyId) || {}).name || "", title: grantErr ? "Account created \u00b7 project grant failed: " + grantErr : "Account created \u00b7 added to this project as " + (pnu.projRole === "admin" ? "Admin" : "Member") });
+      setMemMsg(""); setPnu({ email: "", name: "", companyId: S.companies[0]?.id || "", projRole: "member" }); reloadMems();
+    } catch (e) { setMemMsg("Failed: " + (e.message || e)); }
+  };
+  const pBulkCreate = async () => {
+    const memberIds = new Set((members || []).map((m) => m.user_id));
+    const plan = classifyBulkLines(pBulkText, S.companies, ustatEmailMap(ustat), memberIds);
+    if (!plan.length) return;
+    setPBulkBusy(true); setPBulkResults(null);
+    const out = [];
+    for (let i = 0; i < plan.length; i++) {
+      const pl = plan[i];
+      if (pl.action === "invalid") { out.push({ email: pl.email, name: pl.name, status: "Skipped: invalid email" }); setPBulkResults([...out]); continue; }
+      if (pl.action === "already") { out.push({ email: pl.email, name: pl.name, role: pl.projRole, company: pl.companyName, status: "Already on project" }); setPBulkResults([...out]); continue; }
+      if (pl.action === "grant") {
+        try { await addMember(S.projectId, pl.uid, pl.projRole, S.currentUserId); out.push({ email: pl.email, name: pl.name, role: pl.projRole, company: pl.companyName, status: "Added (existing)" }); }
+        catch (e) { out.push({ email: pl.email, name: pl.name, status: "Failed: " + (e.message || e) }); }
+        setPBulkResults([...out]); continue;
+      }
+      try {
+        const res = await userOp({ op: "invite", email: pl.email, name: pl.name, role: "member", company_id: pl.companyId, redirect: window.location.origin });
+        let grant = "";
+        if (res && res.id) { try { await addMember(S.projectId, res.id, pl.projRole, S.currentUserId); } catch (ge) { grant = ge.message || String(ge); } } else grant = "no account id returned";
+        out.push({ email: pl.email, name: pl.name, role: pl.projRole, company: pl.companyName, link: (res && res.link) || "", status: grant ? "Created \u00b7 grant failed: " + grant : "Created \u00b7 added" + ((res && res.link) ? "" : " (link unavailable)") });
+      } catch (e) { out.push({ email: pl.email, name: pl.name, status: "Failed: " + (e.message || e) }); }
+      setPBulkResults([...out]);
+    }
+    setPBulkBusy(false); reloadMems();
+  };
+  const pDownloadBulk = () => { const rows = (pBulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile(`${(projCode || "DLP")}-team-logins.csv`, toCSV(["Name", "Email", "Set password link", "Project role", "Company", "Status"], rows)); };
   const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (s == null || s === "") return ""; if (s instanceof Date) return isNaN(s) ? "" : fmtISO(s); s = String(s).trim(); if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/); if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0"); m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); } m = s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3,9})[-\/ ](\d{2}|\d{4})$/); if (m) { const mo = ({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 })[m[2].slice(0, 3).toLowerCase()]; if (mo) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + String(mo).padStart(2, "0") + "-" + m[1].padStart(2, "0"); } } const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
@@ -4891,7 +4967,60 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   <button className="lk-btn" onClick={() => addMem(u.id, u.name)}><Icon n="plus" s={13} />Add</button>
                 </div>; })}{cands.length > 60 && <div style={{ fontSize: 11, color: "var(--muted)", padding: "6px 2px" }}>Showing first 60. Refine the search to narrow.</div>}</div>;
               })()}
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Someone not listed? Add them under <button onClick={() => setTab("users")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Global Contacts</button> first; that sends the one-time onboarding link. After that they appear here with no further invite.</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Someone brand new? Create their account below; it lands in Global Contacts automatically and they join this project in the same step.</div>
+            </div>
+            <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+              <div className="lk-f"><label>Add A Person To This Project (Email Required)</label></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr .9fr .7fr auto", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                <input className="lk-in" placeholder="Email" value={pnu.email} onChange={(e) => setPnu({ ...pnu, email: e.target.value })} />
+                <input className="lk-in" placeholder="Name (optional)" value={pnu.name} onChange={(e) => setPnu({ ...pnu, name: e.target.value })} />
+                <select className="lk-select" value={pnu.companyId} onChange={(e) => setPnu({ ...pnu, companyId: e.target.value })}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                <select className="lk-select" value={pnu.projRole} onChange={(e) => setPnu({ ...pnu, projRole: e.target.value })}><option value="member">Member</option><option value="admin">Admin</option></select>
+                <button className="lk-btn primary" onClick={pAddPerson}><Icon n="plus" s={15} />Add person</button>
+              </div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 4 }}>Creates their platform account if they are new, then adds them to this project immediately as the chosen role. If they already exist in Global Contacts, they are simply added to the project without a new account. Set-password link and Email Invite behave exactly as in Global Contacts.</div>
+              {pmCred && <div style={{ marginTop: 8, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
+                <div style={{ fontWeight: 700, marginBottom: 5 }}>{pmCred.title}. Share with the person:</div>
+                <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{pmCred.who}</span></div>
+                {pmCred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{pmCred.link}</span></div>}
+                {pmCred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{pmCred.pw}</span></div>}
+                <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(pmCred.link ? `Email: ${pmCred.who}\nSet your DLP password: ${pmCred.link}` : `Site: ${window.location.origin}\nEmail: ${pmCred.who}\nPassword: ${pmCred.pw}`); setMemMsg("Copied to clipboard"); } catch (e) { setMemMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy {pmCred.link ? "invite" : "login"} details</button>
+                {pmCred.link && <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} disabled={emailBusy} onClick={async () => { setEmailBusy(true); try { const from = await emailUserInvite({ email: pmCred.who, roleLabel: pmCred.roleLabel, companyName: pmCred.companyName, link: pmCred.link, mode: "invite" }); if (from) setMemMsg("Invitation emailed to " + pmCred.who + " from " + from + "."); } catch (err) { setMemMsg("Email failed: " + ((err && err.message) || err)); } setEmailBusy(false); }}><Icon n="mail" s={13} />Email Invite</button>}
+                <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setPmCred(null)}>Done</button>
+                <div style={{ marginTop: 7, color: "var(--muted)" }}>The link lets them set their own password and signs them straight in. It is valid for 30 days. Email Invite sends it from your connected Outlook.</div>
+              </div>}
+            </div>
+            <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+              <div className="lk-f"><label>Bulk Add Users To This Project</label>
+                <textarea className="lk-in" rows={5} value={pBulkText} onChange={(e) => setPBulkText(e.target.value)} placeholder={"One per line:  email, name, role, company\njdoe@acme.com, John Doe, member, ABB\nmsmith@acme.com, Mary Smith, member, Schneider"} style={{ resize: "vertical", minHeight: 92, fontFamily: "inherit" }} /></div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is the role on this project, member or admin (defaults to member); company must match a company name exactly. New people are created and added to this project in one step; existing contacts are added without a new account. Set-password links land in the downloadable CSV; Email All Created Invites sends each invitation from your connected Outlook.</div>
+              <button className="lk-btn primary" disabled={pBulkBusy} onClick={pBulkCreate}>{pBulkBusy ? `Creating\u2026 (${(pBulkResults || []).length})` : "Create all"}</button>
+              {pBulkResults && <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{pBulkResults.filter((r) => /^(Created \u00b7 added|Added)/.test(r.status)).length} added, {pBulkResults.filter((r) => !/^(Created \u00b7 added|Added|Already)/.test(r.status)).length} need attention</div>
+                <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{pBulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "#C0392B" : /^(Created \u00b7 added|Added|Already)/.test(r.status) ? "var(--muted)" : "#C0392B" }}>{r.status + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  <button className="lk-btn" disabled={emailBusy || !pBulkResults.some((r) => r.link)} title="Sends the invitation email to every created account with a link, one by one, from your connected Outlook" onClick={async () => {
+                    setEmailBusy(true);
+                    const ol = await import("./outlook"); const acct = await ol.outlookAccount().catch(() => null);
+                    if (!acct) { setMemMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window, press Connect Outlook, then retry."); setEmailBusy(false); return; }
+                    const rows2 = [...pBulkResults];
+                    for (let i = 0; i < rows2.length; i++) {
+                      const r = rows2[i]; if (!r.link) continue;
+                      try {
+                        const html = ol.buildUserInviteEmailHtml({ mode: "invite", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: cu.name || acct.username, validityDays: 30 });
+                        await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [r.email] });
+                        rows2[i] = { ...r, mail: "Emailed" };
+                      } catch (err) { rows2[i] = { ...r, mail: "Email failed", mailErr: (err && err.message) || String(err) }; }
+                      setPBulkResults([...rows2]);
+                    }
+                    const sentN = rows2.filter((r) => r.mail === "Emailed").length;
+                    const failN = rows2.filter((r) => r.mail === "Email failed").length;
+                    const firstErr = (rows2.find((r) => r.mailErr) || {}).mailErr || "";
+                    setMemMsg("Invitations emailed: " + sentN + " of " + (sentN + failN) + " from " + acct.username + "." + (failN ? " " + failN + " failed: " + firstErr : "")); setEmailBusy(false);
+                  }}><Icon n="mail" s={13} />{emailBusy ? "Emailing..." : "Email All Created Invites"}</button>
+                  <button className="lk-btn" disabled={pBulkBusy} onClick={pDownloadBulk}><Icon n="download" s={13} />Download logins CSV (set-password links)</button>
+                </div>
+              </div>}
             </div>
             </div>
             <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
