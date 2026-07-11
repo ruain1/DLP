@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV228",
+    "date": "2026-07-11",
+    "items": [
+      "Design settings tranche 4, Naming: a Naming tab in Admin, Design that renames each page per project, so the sidebar and the page pickers across Design settings speak the team's own vocabulary (Lookahead instead of Planning Board, Blockers instead of Constraints Log, and so on). Reports, digest emails, invites, and Excel exports keep the standard names deliberately, so outbound documents stay consistent for clients and auditors. Admin is not renameable, empty means the standard name, and everything resets per page or all at once."
+    ]
+  },
+  {
     "rev": "REV227",
     "date": "2026-07-11",
     "items": [

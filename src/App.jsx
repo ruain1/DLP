@@ -3191,6 +3191,10 @@ export default function App({ session }) {
   const minW = 220 + cols * colMin;
   const fmtWC = (d) => `${d.getDate()} ${d.toLocaleString("en-GB", { month: "short" })}`;
 
+  // REV228 Naming tranche: per-project page names for interface chrome. Outbound
+  // artefacts (reports, digests, invites, exports) keep the standard names on purpose.
+  const NAMES = (S.settings && S.settings.design && S.settings.design.names) || {};
+  const pageLabel = (k, def) => ((NAMES[k] || "").trim() || def);
   // REV227: board presentation settings. An absent block reproduces today's behaviour
   // exactly: level edge, every chip shown, standard text.
   const BD = (S.settings && S.settings.design && S.settings.design.board) || {};
@@ -3450,16 +3454,16 @@ export default function App({ session }) {
         {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#C0392B", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)", display: "flex", gap: 10, alignItems: "center" }}><b style={{ whiteSpace: "nowrap" }}>Database error</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{syncErr ? "Save failed: " + syncErr : "Load failed. " + S.loadErrors.join(" | ")}</span>{!!syncErr && <button onClick={() => setSyncErr("")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>}
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
-        <button title="Planning Board" className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n={pageIcon("board", "board")} s={20} /><span className="lbl">Planning Board</span></button>
-        <button title="Activity Table" className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n={pageIcon("table", "grid")} s={20} /><span className="lbl">Activity Table</span></button>
-        <button title="Constraints Log" className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n={pageIcon("constraints", "alert")} s={20} /><span className="lbl">Constraints Log</span></button>
-        <button title="Schedule" className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n={pageIcon("schedule", "gantt")} s={20} /><span className="lbl">Schedule</span></button>
-        <button title="Analytics" className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n={pageIcon("reports", "chart")} s={20} /><span className="lbl">Analytics</span></button>
-        <button title="Weekly Cx Progress" className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n={pageIcon("cx", "checkcircle")} s={20} /><span className="lbl">Weekly Cx Progress</span></button>
-        <button title="Asset Status" className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n={pageIcon("assets", "package")} s={20} /><span className="lbl">Asset Status</span></button>
-        {(isAdmin || (S.settings && S.settings.benchmarksVisible)) && <button title="Benchmarks" className={page === "benchmarks" ? "on" : ""} onClick={() => setPage("benchmarks")}><Icon n={pageIcon("benchmarks", "shield")} s={20} /><span className="lbl">Benchmarks</span></button>}
-        <button title="Documentation Tracker" className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n={pageIcon("docs", "file")} s={20} /><span className="lbl">Documentation</span></button>
-        <button title="Help" className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n={pageIcon("help", "help")} s={20} /><span className="lbl">Help</span></button>
+        <button title={pageLabel("board", "Planning Board")} className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n={pageIcon("board", "board")} s={20} /><span className="lbl">{pageLabel("board", "Planning Board")}</span></button>
+        <button title={pageLabel("table", "Activity Table")} className={page === "table" ? "on" : ""} onClick={() => setPage("table")}><Icon n={pageIcon("table", "grid")} s={20} /><span className="lbl">{pageLabel("table", "Activity Table")}</span></button>
+        <button title={pageLabel("constraints", "Constraints Log")} className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n={pageIcon("constraints", "alert")} s={20} /><span className="lbl">{pageLabel("constraints", "Constraints Log")}</span></button>
+        <button title={pageLabel("schedule", "Schedule")} className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n={pageIcon("schedule", "gantt")} s={20} /><span className="lbl">{pageLabel("schedule", "Schedule")}</span></button>
+        <button title={pageLabel("reports", "Analytics")} className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n={pageIcon("reports", "chart")} s={20} /><span className="lbl">{pageLabel("reports", "Analytics")}</span></button>
+        <button title={pageLabel("cx", "Weekly Cx Progress")} className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n={pageIcon("cx", "checkcircle")} s={20} /><span className="lbl">{pageLabel("cx", "Weekly Cx Progress")}</span></button>
+        <button title={pageLabel("assets", "Asset Status")} className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n={pageIcon("assets", "package")} s={20} /><span className="lbl">{pageLabel("assets", "Asset Status")}</span></button>
+        {(isAdmin || (S.settings && S.settings.benchmarksVisible)) && <button title={pageLabel("benchmarks", "Benchmarks")} className={page === "benchmarks" ? "on" : ""} onClick={() => setPage("benchmarks")}><Icon n={pageIcon("benchmarks", "shield")} s={20} /><span className="lbl">{pageLabel("benchmarks", "Benchmarks")}</span></button>}
+        <button title={pageLabel("docs", "Documentation Tracker")} className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n={pageIcon("docs", "file")} s={20} /><span className="lbl">{pageLabel("docs", "Documentation")}</span></button>
+        <button title={pageLabel("help", "Help")} className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n={pageIcon("help", "help")} s={20} /><span className="lbl">{pageLabel("help", "Help")}</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n={pageIcon("admin", "cog")} s={20} /><span className="lbl">Admin</span></button>}
         <div className="lk-disp">
           {dispOpen && <div className="lk-dispback" onClick={() => setDispOpen(false)} />}
@@ -4650,12 +4654,15 @@ function DesignTab({ S, update }) {
   const design = (S.settings && S.settings.design) || {};
   const g = design.global || {};
   const scopeBlk = desScope === "global" ? g : ((design.pages && design.pages[desScope]) || {});
-  const scopeName = desScope === "global" ? "the whole project" : (DESIGN_PAGES.find((x) => x[0] === desScope) || ["", desScope])[1];
+  const scopeName = desScope === "global" ? "the whole project" : (() => { const px = DESIGN_PAGES.find((x) => x[0] === desScope) || ["", desScope]; return nameOf(px[0], px[1]); })();
   const setGlobal = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, global: { ...(cur.global || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design global " + Object.keys(patch).join(", ") });
   const setScoped = (patch) => { if (desScope === "global") { setGlobal(patch); return; } update((p) => { const cur = (p.settings && p.settings.design) || {}; const pages = { ...(cur.pages || {}) }; const blk = { ...(pages[desScope] || {}), ...patch }; Object.keys(blk).forEach((k) => { if (blk[k] === "" || blk[k] == null) delete blk[k]; }); if (Object.keys(blk).length) pages[desScope] = blk; else delete pages[desScope]; return { ...p, settings: { ...p.settings, design: { ...cur, pages } } }; }, { action: "Change setting", detail: "Design " + desScope + " " + Object.keys(patch).join(", ") }); };
   const bdBlk = design.board || {};
   const bdHide = bdBlk.hide || {};
   const setBoard = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, board: patch === null ? {} : { ...(cur.board || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design board " + (patch === null ? "reset" : Object.keys(patch).join(", ")) });
+  const nmBlk = design.names || {};
+  const nameOf = (k, def) => ((nmBlk[k] || "").trim() || def);
+  const setNames = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, names: patch === null ? {} : { ...(cur.names || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design names " + (patch === null ? "reset" : Object.keys(patch).join(", ")) });
   const hasOver = (k) => !!(design.pages && design.pages[k] && Object.keys(design.pages[k]).length);
   const themeAccent = (THEMES[S.theme] || THEMES.light).accent;
   const ACCENTS = ["#1E5FCC", "#2563EB", "#0E9384", "#16A34A", "#C07A00", "#C0392B", "#7C3AED", "#DB2777", "#0891B2", "#475569"];
@@ -4668,20 +4675,20 @@ function DesignTab({ S, update }) {
   const scopeBar = () => <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
     <span style={{ fontSize: 11.5, color: "var(--muted)", marginRight: 2 }}>Applying to</span>
     <button className={"lk-btn" + (desScope === "global" ? " primary" : "")} onClick={() => setDesScope("global")}>Global default</button>
-    {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (desScope === k ? " primary" : "")} onClick={() => setDesScope(k)}>{l}{hasOver(k) ? " \u2022" : ""}</button>)}
+    {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (desScope === k ? " primary" : "")} onClick={() => setDesScope(k)}>{nameOf(k, l)}{hasOver(k) ? " \u2022" : ""}</button>)}
   </div>;
   const scopeNote = desScope === "global" ? "Applies across the whole project unless a page overrides it below." : (scopeName + " inherits the global setting unless you override it here.");
   return <div>
-    <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}{subtab("layout", "Layout")}{subtab("board", "Board")}</div>
+    <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}{subtab("layout", "Layout")}{subtab("board", "Board")}{subtab("names", "Naming")}</div>
 
     {tab === "icons" && <div>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Choose the sidebar icon for each page. An icon already used by another page is greyed out, so no two pages can share a mark.</div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
-        {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (selPage === k ? " primary" : "")} style={{ display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => setSelPage(k)}><Icon n={iconOf(k)} s={15} />{l}</button>)}
+        {DESIGN_PAGES.map(([k, l]) => <button key={k} className={"lk-btn" + (selPage === k ? " primary" : "")} style={{ display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => setSelPage(k)}><Icon n={iconOf(k)} s={15} />{nameOf(k, l)}</button>)}
       </div>
-      <div style={{ ...lab }}>Icon for {sel[1]}{icons[selPage] ? "" : " (default)"}</div>
+      <div style={{ ...lab }}>Icon for {nameOf(sel[0], sel[1])}{icons[selPage] ? "" : " (default)"}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))", gap: 8, maxWidth: 620 }}>
-        {DESIGN_ICON_CHOICES.map((name) => { const used = usedBy(name); const on = iconOf(selPage) === name; return <button key={name} disabled={!!used} title={used ? "Used by " + used[1] : name} onClick={() => setIcon(name)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon n={name} s={19} /></button>; })}
+        {DESIGN_ICON_CHOICES.map((name) => { const used = usedBy(name); const on = iconOf(selPage) === name; return <button key={name} disabled={!!used} title={used ? "Used by " + nameOf(used[0], used[1]) : name} onClick={() => setIcon(name)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon n={name} s={19} /></button>; })}
       </div>
       <div style={{ marginTop: 16 }}>
         <button className="lk-btn" onClick={openLucide}>{lucOpen ? "Hide the full icon library" : "Browse the full icon library"}</button>
@@ -4695,14 +4702,14 @@ function DesignTab({ S, update }) {
             const list = hits.slice(0, 96);
             return <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))", gap: 8, maxWidth: 620, marginTop: 10 }}>
-                {list.map((x) => { const nm = "lucide:" + x.key; const used = usedBy(nm); const on = iconOf(selPage) === nm; return <button key={x.key} disabled={!!used} title={used ? "Used by " + used[1] : x.label} onClick={() => setIcon(nm)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><LucideIcon name={x.key} s={19} /></button>; })}
+                {list.map((x) => { const nm = "lucide:" + x.key; const used = usedBy(nm); const on = iconOf(selPage) === nm; return <button key={x.key} disabled={!!used} title={used ? "Used by " + nameOf(used[0], used[1]) : x.label} onClick={() => setIcon(nm)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><LucideIcon name={x.key} s={19} /></button>; })}
               </div>
               <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{hits.length > list.length ? "Showing the first " + list.length + " of " + hits.length + "; search to narrow." : list.length + " icon" + (list.length === 1 ? "" : "s") + "."}</div>
             </>;
           })()}
         </div>}
       </div>
-      {icons[selPage] && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setIcon(defOf(selPage))}>Reset {sel[1]} to default</button>}
+      {icons[selPage] && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setIcon(defOf(selPage))}>Reset {nameOf(sel[0], sel[1])} to default</button>}
     </div>}
 
     {tab === "layout" && <div>
@@ -4750,6 +4757,19 @@ function DesignTab({ S, update }) {
         </div>
       </div>
       {Object.keys(bdBlk).length > 0 && <button className="lk-btn" style={{ marginTop: 16 }} onClick={() => setBoard(null)}>Reset Board to defaults</button>}
+    </div>}
+
+    {tab === "names" && <div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>Rename how this project's interface refers to each page: the sidebar and the page pickers across Design settings. Reports sent out, digest emails, invites, and Excel exports keep the standard names, so documents stay consistent for clients and auditors. Empty means the standard name; 24 characters maximum. Admin is not renameable.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9, maxWidth: 560 }}>
+        {DESIGN_PAGES.filter(([k]) => k !== "admin").map(([k, l]) => <div key={k} style={{ display: "grid", gridTemplateColumns: "170px 1fr auto", gap: 10, alignItems: "center" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600 }}>{l}<div style={{ fontWeight: 400, color: "var(--muted)", fontSize: 10.5 }}>standard name</div></div>
+          <input className="lk-in" maxLength={24} placeholder={l} value={nmBlk[k] || ""} onChange={(e) => setNames({ [k]: e.target.value })} />
+          <button className="lk-btn" style={{ visibility: (nmBlk[k] || "").trim() ? "visible" : "hidden", fontSize: 11 }} onClick={() => setNames({ [k]: "" })}>reset</button>
+        </div>)}
+      </div>
+      {Object.keys(nmBlk).some((k) => (nmBlk[k] || "").trim()) && <button className="lk-btn" style={{ marginTop: 16 }} onClick={() => setNames(null)}>Reset all names</button>}
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.55 }}>Renaming vocabulary inside pages (Witness or Constraint as words on buttons and chips) is deliberately not part of this pass.</div>
     </div>}
 
     {tab === "colour" && <div>
