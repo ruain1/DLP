@@ -1394,7 +1394,7 @@ function HubGlobalSettings({ theme, userName }) {
   </div>; };
   const mu = manage ? users.find((x) => x.id === manage) : null;
   return <div style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
-    <style>{HUB_LK_CSS + "\n.lk-uhead{position:sticky;top:139px;z-index:5;background:var(--card);padding-top:6px;padding-bottom:8px}"}</style>
+    <style>{HUB_LK_CSS + "\n.lk-ufilter{top:139px;margin:0 -20px 6px;padding:10px 20px 8px}"}</style>
     <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "start" }}>
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
