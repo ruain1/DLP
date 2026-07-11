@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV224",
+    "date": "2026-07-11",
+    "items": [
+      "Fix: the hub Project comparison columns are aligned again. REV223's target subline could widen its column differently in each row because every row lays out independently; column widths are now locked so content can never stretch a track, headers and rows share identical geometry, and long sublines truncate instead of pushing."
+    ]
+  },
+  {
     "rev": "REV223",
     "date": "2026-07-11",
     "items": [

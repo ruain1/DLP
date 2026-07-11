@@ -1246,7 +1246,8 @@ const PORTAL_CSS = `
 /* REV114: portfolio analytics */
 .qp .pvt button .newb{font-size:8.5px;font-weight:800;letter-spacing:.05em;background:var(--signal);color:#fff;border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:2px}
 .qp .antable{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.qp .antable .hd,.qp .antable .row{display:grid;grid-template-columns:1.9fr .7fr 1fr .9fr .7fr .9fr 1fr auto;gap:12px;align-items:center;padding:12px 18px}
+.qp .antable .hd,.qp .antable .row{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,.75fr) minmax(0,.65fr) minmax(0,.85fr) minmax(0,.95fr) auto;gap:12px;align-items:center;padding:12px 18px}
+.qp .antable .hd>div,.qp .antable .row>div{min-width:0}
 .qp .antable .hd{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--chip)}
 .qp .antable .row{border-top:1px solid var(--line);cursor:pointer}
 .qp .antable .row:hover{background:var(--chip)}
@@ -2222,7 +2223,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                       {rowsA.map(({ p, m }) => { const pc = m.total ? Math.round(m.complete / m.total * 100) : 0; const h = healthOf(m); return (
                         <div className="row" key={p.id} onClick={() => onOpenAnalytics(p.id)}>
                           <div><div className="pn">{p.name}</div><div className="pc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
-                          <div>{(() => { const tgt = tgOf(p.id); const tone = ppcTone(m.ppc, tgt); const gap = m.ppc == null ? null : m.ppc - tgt; return <><div className="mono" style={{ fontWeight: 800, fontSize: 15, color: tone }}>{m.ppc == null ? "\u2014" : m.ppc + "%"}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1, whiteSpace: "nowrap" }}>target {tgt}{gap == null ? " \u00b7 no commitments yet" : <span style={{ display: "inline-block", fontWeight: 800, padding: "0 5px", borderRadius: 5, fontSize: 10, marginLeft: 5, color: tone, background: tone === "var(--green)" ? "rgba(52,211,153,.14)" : tone === "var(--amber)" ? "rgba(224,161,6,.16)" : "rgba(248,113,113,.15)" }}>{(gap >= 0 ? "+" : "") + gap}</span>}</div></>; })()}</div>
+                          <div>{(() => { const tgt = tgOf(p.id); const tone = ppcTone(m.ppc, tgt); const gap = m.ppc == null ? null : m.ppc - tgt; return <><div className="mono" style={{ fontWeight: 800, fontSize: 15, color: tone }}>{m.ppc == null ? "\u2014" : m.ppc + "%"}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>target {tgt}{gap == null ? " \u00b7 no commitments" : <span style={{ display: "inline-block", fontWeight: 800, padding: "0 5px", borderRadius: 5, fontSize: 10, marginLeft: 5, color: tone, background: tone === "var(--green)" ? "rgba(52,211,153,.14)" : tone === "var(--amber)" ? "rgba(224,161,6,.16)" : "rgba(248,113,113,.15)" }}>{(gap >= 0 ? "+" : "") + gap}</span>}</div></>; })()}</div>
                           <div><div className="bar"><i style={{ width: pc + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pc}% {"\u00B7"} {m.complete}/{m.total}</div></div>
                           <div className="mono">{m.inProgress}</div>
                           <div className="mono" style={{ color: m.overdue ? "var(--red)" : "var(--muted)", fontWeight: 800 }}>{m.overdue}</div>
