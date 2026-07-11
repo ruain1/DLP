@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV205",
+    "date": "2026-07-11",
+    "items": [
+      "Portal chrome pass: the top bar and the tab bar are now fixed on every hub page (Home, Projects, New project, Inside a project, Analytics, Global Settings), and the DLP by QMC footer is fixed to the bottom of the viewport, right-aligned in the same style as inside a project. All dropdowns and modals stack above the fixed chrome.",
+      "The hub now remembers where you were: refreshing while on Global Settings (or any other portal page) returns you to that page and, within Global Settings, to the same sub-tab, instead of dropping back to Home. Pages that need platform-admin rights fall back to Home for anyone without them.",
+      "Within Global Settings, the directory column headers (Person, Email, Company and so on) hold in place beneath the chrome while the contact list scrolls."
+    ]
+  },
+  {
     "rev": "REV204",
     "date": "2026-07-11",
     "items": [
