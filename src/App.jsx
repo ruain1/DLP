@@ -3834,6 +3834,27 @@ async function readXlsxSheet(file) {
 
 
 // ---- REV104: per-project User Privileges matrix (owner edits, admins read-only) ----
+// REV202: pure, harness-testable. Orders privilege rows into company sections: Platform team
+// (owner first, then supers by name) pinned first, companies alphabetical, No company last,
+// people sorted by name inside each section. Mirrors the Project Team grouping.
+function groupPrivRows(rows, coName) {
+  const secs = {};
+  (rows || []).forEach((r) => {
+    const pr = r.u.platformRole || "user";
+    const key = (pr === "owner" || pr === "super") ? "\u0000Platform team" : (coName(r.u.companyId) || "\uffffNo company");
+    (secs[key] = secs[key] || []).push(r);
+  });
+  const order = (k) => k === "\u0000Platform team" ? "\u0000" : (k === "\uffffNo company" ? "\uffff" : k.toLowerCase());
+  const label = (k) => k === "\u0000Platform team" ? "Platform team" : (k === "\uffffNo company" ? "No company" : k);
+  const byName = (a, b) => (a.u.name || "").localeCompare(b.u.name || "");
+  return Object.keys(secs).sort((a, b) => order(a).localeCompare(order(b))).map((k) => ({
+    label: label(k),
+    rows: k === "\u0000Platform team"
+      ? secs[k].slice().sort((a, b) => (a.u.platformRole === "owner" ? -1 : b.u.platformRole === "owner" ? 1 : 0) || byName(a, b))
+      : secs[k].slice().sort(byName),
+  }));
+}
+
 function PrivilegesTab({ S, cu, isOwner, projClient }) {
   const [members, setMembers] = useState(null);
   const [pending, setPending] = useState({});
@@ -3888,7 +3909,8 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
           <tr>{[<th key="u2" style={{ position: "sticky", left: 0, top: 31, zIndex: 4, background: "var(--card)", borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />].concat(groups.flatMap(([, ps]) => ps.map(([k, label]) => <th key={k} style={{ position: "sticky", top: 31, zIndex: 3, background: "var(--card)", minWidth: 84, maxWidth: 84, padding: "8px 5px", fontSize: 10.5, fontWeight: 600, lineHeight: 1.25, whiteSpace: "normal", verticalAlign: "bottom", borderLeft: "1px dashed var(--line)", borderBottom: "1px solid var(--line)", color: k === "privs" ? "var(--muted)" : "var(--ink)" }}>{label}</th>)))}</tr>
         </thead>
         <tbody>
-          {rows.map((r) => { const hasOv = PRIV_GROUPS.some(([, ps]) => ps.some(([k]) => isOv(r, k))); return <tr key={r.u.id} style={r.tag === "OWNER" ? { background: "rgba(124,58,237,.06)" } : undefined}>
+          {(() => { const nCols = groups.reduce((n, [, ps]) => n + ps.length, 0);
+          const renderPrivRow = (r) => { const hasOv = PRIV_GROUPS.some(([, ps]) => ps.some(([k]) => isOv(r, k))); return <tr key={r.u.id} style={r.tag === "OWNER" ? { background: "rgba(124,58,237,.06)" } : undefined}>
             <td style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--card)", padding: "8px 12px", borderRight: "1px solid var(--line)", borderTop: "1px solid var(--line)" }}>
               <div style={{ fontSize: 12.5, fontWeight: 650, display: "flex", alignItems: "center", gap: 7 }}>{r.u.name || "(no name)"} {badge(r.tag)}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 3, alignItems: "center" }}><span style={{ fontSize: 10, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 7px" }}>{coName(r.u.companyId) || "No company"}</span>
@@ -3897,7 +3919,14 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
             {groups.flatMap(([, ps]) => ps.map(([k]) => { const on = eff(r, k); const locked = r.tag === "OWNER" || k === "privs" || !isOwner; return <td key={k} style={{ textAlign: "center", padding: "7px 0", borderLeft: "1px dashed var(--line)", borderTop: "1px solid var(--line)", cursor: locked ? "default" : "pointer" }} onClick={() => toggle(r, k)} title={locked ? (k === "privs" ? "Owner only" : "") : "Click to toggle"}>
               <span style={{ position: "relative", display: "inline-block" }}>{tg(on, r.tag === "OWNER" || k === "privs")}{isOv(r, k) && <span style={{ position: "absolute", top: -3, right: -6, width: 8, height: 8, borderRadius: "50%", background: "#E0A106" }} />}</span>
             </td>; }))}
-          </tr>; })}
+          </tr>; };
+          return groupPrivRows(rows, coName).flatMap((sec) => [
+            <tr key={"hd:" + sec.label}>
+              <td style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--hover)", padding: "6px 12px", borderRight: "1px solid var(--line)", borderTop: "1px solid var(--line)", fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", whiteSpace: "nowrap" }}>{sec.label} <span style={{ fontWeight: 600 }}>{"\u00b7"} {sec.rows.length} {sec.rows.length === 1 ? "person" : "people"}</span></td>
+              <td colSpan={nCols} style={{ background: "var(--hover)", borderTop: "1px solid var(--line)" }} />
+            </tr>,
+            ...sec.rows.map(renderPrivRow),
+          ]); })()}
         </tbody>
       </table>
     </div>}
