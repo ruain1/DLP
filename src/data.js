@@ -38,7 +38,7 @@ const fromInviteRequest = (r) => ({
 
 // ---- load everything into the client state shape ----
 export async function loadAll(session, projectId, projectName) {
-  const [companies, areas, systems, crews, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs, privRows] = await Promise.all([
+  const [companies, areas, systems, crews, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs, privRows, projMeta] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("systems").select("*").eq("project_id", projectId).order("name"),
@@ -47,12 +47,13 @@ export async function loadAll(session, projectId, projectName) {
     supabase.from("settings").select("*").eq("project_id", projectId).maybeSingle(),
     supabase.from("profiles").select("*").order("name"),
     supabase.from("activities").select("*").eq("project_id", projectId),
-    supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500),
+    supabase.from("audit_log").select("*").or("project_id.eq." + projectId + ",project_id.is.null").order("ts", { ascending: false }).limit(500),
     supabase.from("branding").select("*").eq("project_id", projectId).maybeSingle(),
     supabase.from("sub_areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("tier3_areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("invite_requests").select("*").eq("project_id", projectId),
     supabase.from("user_privileges").select("*").eq("project_id", projectId),
+    supabase.from("projects").select("id, code, name, client, location").eq("id", projectId).maybeSingle(),
   ]);
   // REV216 (3d): the project's associated companies drive pickers; null = association data
   // unavailable (pickers fall back to the full registry rather than going blank).
@@ -76,6 +77,7 @@ export async function loadAll(session, projectId, projectName) {
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail, entity: e.entity, entityId: e.entity_id })),
     brand: brandFrom(branding.data, projectName),
+    projectMeta: (projMeta && projMeta.data) ? { code: projMeta.data.code || "", name: projMeta.data.name || "", client: projMeta.data.client || "", location: projMeta.data.location || "" } : null,
     subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
     tier3s: (tier3s.data || []).map((t) => ({ area: t.area, subArea: t.sub_area, name: t.name })),
     inviteRequests: (inviteReqs.data || []).map(fromInviteRequest),
@@ -314,8 +316,10 @@ export async function fetchUserStatus() {
   return map;
 }
 
-export async function fetchAudit() {
-  const { data } = await supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(500);
+export async function fetchAudit(projectId) {
+  let q = supabase.from("audit_log").select("*");
+  if (projectId) q = q.or("project_id.eq." + projectId + ",project_id.is.null");
+  const { data } = await q.order("ts", { ascending: false }).limit(500);
   return (data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail }));
 }
 

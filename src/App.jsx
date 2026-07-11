@@ -2810,13 +2810,13 @@ export default function App({ session }) {
         if (!test) {
           // REV144: retry transport blips (Failed to fetch) before giving up; a duplicate
           // is another tab or an already-sent boundary, handled as before.
-          const claim = await claimReportRun(supabase, b.kind, runDate);
+          const claim = await claimReportRun(supabase, b.kind, runDate, { projectId: St.projectId });
           if (claim.duplicate) {
             // A row exists. Usually another tab, or already sent. But a claim stuck in
             // "sending" (a reload killed the sender between claim and cleanup) would block
             // this boundary forever, so adopt stale claims older than ten minutes and
             // finish their job instead of treating them as done.
-            const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("kind", b.kind).eq("run_date", runDate).maybeSingle();
+            const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("project_id", St.projectId).eq("kind", b.kind).eq("run_date", runDate).maybeSingle();
             if (ex.data && ex.data.status === "sending" && (Date.now() - new Date(ex.data.sent_at).getTime()) > 600000) claimId = ex.data.id;
             else continue;
           } else if (claim.error) {
@@ -7898,7 +7898,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   };
   const generate = () => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
+    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(start)}${theme==="dark"?"-dark":""}.html`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
@@ -7947,7 +7947,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   // Both themes are always generated; the Appearance toggle governs only the on-screen Generate.
   const composeParts = (ol, organiserLabel) => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const mk = (th) => buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
+    const mk = (th) => buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
     const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
@@ -8114,7 +8114,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
 // callers differ only in claim semantics (strict for the scheduler, adopt-or-confirm for manual).
 async function assembleDigest(core, St, kind, due) {
   const win = core.windowFor(kind, due);
-  const audQ = await supabase.from("audit_log").select("ts, user_name, action, detail, entity, entity_id").gte("ts", win.start.toISOString()).lt("ts", win.end.toISOString()).order("ts");
+  const audQ = await supabase.from("audit_log").select("ts, user_name, action, detail, entity, entity_id").or("project_id.eq." + St.projectId + ",project_id.is.null").gte("ts", win.start.toISOString()).lt("ts", win.end.toISOString()).order("ts");
   if (audQ.error) throw new Error("audit query: " + audQ.error.message);
   const audit = (audQ.data || []).map((e) => ({ ts: e.ts, user: e.user_name || "Unknown", action: e.action || "", detail: e.detail || "", entity: e.entity || "", entityId: e.entity_id }));
   const profiles = (St.users || []).map((u) => ({ id: u.id, name: u.name, role: u.role, companyId: u.companyId }));
@@ -8144,8 +8144,10 @@ async function assembleDigest(core, St, kind, due) {
     attachments.push({ name: cid + ".png", contentType: lb.type, contentBytes: lb.b64, contentId: cid });
     b.logo = { cid, w, h };
   }
-  const html = core.buildDigestHtml({ kind, dateLine: core.dateLineFor(kind, win), changelog: clRows, vendors, kpi, appUrl: window.location.origin, qmc, stageColors: core.stageColorsFor(St.levels) });
-  const subject = core.subjectFor(kind, core.subjectLabelFor(kind, win));
+  const pnm = (St.brand && St.brand.projectName) || (St.projectMeta && St.projectMeta.name) || "";
+  const pline = St.projectMeta ? [St.projectMeta.client, St.projectMeta.location].filter(Boolean).join(" ") : "";
+  const html = core.buildDigestHtml({ kind, dateLine: core.dateLineFor(kind, win), changelog: clRows, vendors, kpi, projectName: pnm || null, projectLine: pline || null, appUrl: window.location.origin + "/?p=" + encodeURIComponent(St.projectId), qmc, stageColors: core.stageColorsFor(St.levels) });
+  const subject = core.subjectFor(kind, core.subjectLabelFor(kind, win), pnm || null);
   return { win, html, subject, attachments };
 }
 // Fetches an image, base64-encodes it and measures it, with a module-level cache and a 200KB
@@ -8202,8 +8204,8 @@ function AdminDigestCard({ S }) {
   const load = async () => {
     try {
       const [d, w] = await Promise.all([
-        supabase.from("report_runs").select("*").eq("kind", "daily").order("run_date", { ascending: false }).limit(1),
-        supabase.from("report_runs").select("*").eq("kind", "weekly").order("run_date", { ascending: false }).limit(1),
+        supabase.from("report_runs").select("*").eq("project_id", S.projectId).eq("kind", "daily").order("run_date", { ascending: false }).limit(1),
+        supabase.from("report_runs").select("*").eq("project_id", S.projectId).eq("kind", "weekly").order("run_date", { ascending: false }).limit(1),
       ]);
       setRuns({ daily: (d.data || [])[0] || null, weekly: (w.data || [])[0] || null });
     } catch (e) { setRuns({ daily: null, weekly: null }); }
@@ -8228,7 +8230,7 @@ function AdminDigestCard({ S }) {
       const due = all[all.length - 1].due;
       const runDate = core.helDateStr(due);
       let claimId = null; let resend = false;
-      const ex = await supabase.from("report_runs").select("id, status, sent_at, recipients").eq("kind", kind).eq("run_date", runDate).maybeSingle();
+      const ex = await supabase.from("report_runs").select("id, status, sent_at, recipients").eq("project_id", S.projectId).eq("kind", kind).eq("run_date", runDate).maybeSingle();
       if (ex.data) {
         if (ex.data.status === "sent") {
           const t = new Date(ex.data.sent_at);
@@ -8237,8 +8239,8 @@ function AdminDigestCard({ S }) {
         }
         claimId = ex.data.id;
       } else {
-        const claim = await claimReportRun(supabase, kind, runDate);
-        if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("kind", kind).eq("run_date", runDate).maybeSingle(); if (ex2.data) claimId = ex2.data.id; else throw new Error("claim race, please retry"); }
+        const claim = await claimReportRun(supabase, kind, runDate, { projectId: S.projectId });
+        if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("project_id", S.projectId).eq("kind", kind).eq("run_date", runDate).maybeSingle(); if (ex2.data) claimId = ex2.data.id; else throw new Error("claim race, please retry"); }
         else if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim: " + digestErrText(claim.error.message));
         else claimId = claim.id;
       }
@@ -8292,7 +8294,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const repData = useMemo(() => repOpen ? computeReport({ S, LV, coName, start: repStart, end: repEnd }) : null, [repOpen, S, LV, repStart.getTime(), repEnd.getTime()]);
   const repSummaryVal = repSummary != null ? repSummary : (repData ? draftSummary(repData) : "");
   const generateReport = () => {
-    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
+    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(repStart)}${repTheme === "dark" ? "-dark" : ""}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }

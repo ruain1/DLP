@@ -299,8 +299,9 @@ export function weeklyKpis(rows: ActRow[], weekStartISO: string, weekEndISO: str
 // ---------- email templates (approved shells + itemised body) ----------
 const F = "font-family:Segoe UI,Arial,sans-serif;";
 const B = "#2456A6";
-export function subjectFor(kind: "daily" | "weekly", label: string) {
-  return kind === "daily" ? `${APP_NAME} Daily Update, ${label}` : `${APP_NAME} Weekly Update, ${label}`;
+export function subjectFor(kind: "daily" | "weekly", label: string, projectName?: string | null) {
+  const nm = projectName ? projectName + " DLP" : APP_NAME;
+  return kind === "daily" ? `${nm} Daily Update, ${label}` : `${nm} Weekly Update, ${label}`;
 }
 export function buildDigestHtml(p: {
   kind: "daily" | "weekly"; dateLine: string;
@@ -310,8 +311,11 @@ export function buildDigestHtml(p: {
   appUrl: string;
   qmc?: { cid: string; w: number; h: number } | null;
   stageColors?: string[];
+  projectName?: string | null;
+  projectLine?: string | null;
 }) {
-  const title = p.kind === "daily" ? `${APP_NAME} Daily Update` : `${APP_NAME} Weekly Update`;
+  const nm = p.projectName ? p.projectName + " DLP" : APP_NAME;
+  const title = p.kind === "daily" ? `${nm} Daily Update` : `${nm} Weekly Update`;
   const sc = (p.stageColors && p.stageColors.length === 4) ? p.stageColors : ["#C0392B", "#E0A106", "#0E9384", "#2456A6"];
   const bar = (h: number) => `<tr><td style="padding:0;font-size:0;line-height:0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>` + sc.map((col) => `<td width="25%" height="${h}" style="background-color:${col};font-size:0;line-height:0;">&nbsp;</td>`).join("") + `</tr></table></td></tr>`;
   const header = `<tr><td style="padding:16px 20px 12px 20px;background-color:#ffffff;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
@@ -358,7 +362,7 @@ export function buildDigestHtml(p: {
     + header + kpiStrip + clRows + vendorHead + vendorBody
     + `<tr><td style="padding:4px 20px 16px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${B};padding:9px 22px;font-size:12.5px;font-weight:bold;${F}"><a href="${esc(p.appUrl)}" style="color:#ffffff;text-decoration:none;">Open DLP</a></td></tr></table></td></tr>`
     + bar(3)
-    + `<tr><td style="padding:10px 20px;font-size:10.5px;color:#9ca3af;${F}">Automated update &#183; FIN04 &#183; atnorth Koski &#183; Quantum Mission Critical</td></tr>`
+    + `<tr><td style="padding:10px 20px;font-size:10.5px;color:#9ca3af;${F}">Automated update &#183; ${esc(p.projectName || "FIN04")} &#183; ${esc(p.projectLine || "atnorth Koski")} &#183; Quantum Mission Critical</td></tr>`
     + `</table>`;
 }
 function tile(v: string, l: string, vColor: string, accent: string) {

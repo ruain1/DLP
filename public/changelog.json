@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV219",
+    "date": "2026-07-11",
+    "items": [
+      "Multi-project digests: the daily and weekly admin update claims are now taken per project, so FIN04 and future projects can each send their own digests on the same date without blocking one another. Digest subjects, titles, and footers carry the project's own name and client line, and the Open DLP button deep-links straight into the sending project.",
+      "Project-scoped audit trail: every audit event is now stamped with its project at the database level, and the in-project audit views and digest content read only that project's events plus platform-level ones. Existing history is attributed to FIN04.",
+      "The printed Weekly Report masthead now shows the project's real location from the project record instead of a hardcoded one."
+    ]
+  },
+  {
     "rev": "REV218",
     "date": "2026-07-11",
     "items": [

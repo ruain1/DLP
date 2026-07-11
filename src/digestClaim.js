@@ -39,7 +39,9 @@ export async function claimReportRun(supabase, kind, runDate, opts) {
   for (let i = 0; i < attempts; i++) {
     let res;
     try {
-      res = await supabase.from("report_runs").insert({ kind, run_date: runDate, status: "sending", recipients: 0 }).select("id").single();
+      const row = { kind, run_date: runDate, status: "sending", recipients: 0 };
+      if (opts && opts.projectId) row.project_id = opts.projectId;
+      res = await supabase.from("report_runs").insert(row).select("id").single();
     } catch (thrown) {
       // some supabase-js builds throw on a network failure rather than returning
       // an error object; normalise so the classifier below still works.
