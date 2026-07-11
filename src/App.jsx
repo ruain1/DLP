@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -1290,8 +1290,8 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 // carries the app theme variables inline so the relocated Global Contacts renders identically
 // outside the project shell, and scopes the required lk styles via HUB_LK_CSS. Global Companies
 // and Global Vendors arrive with Phases 3 and 4.
-function HubGlobalSettings({ theme, userName }) {
-  const [sub, setSub] = useState(() => { try { const s0 = localStorage.getItem("dlp_hub_sub"); return ["contacts"].includes(s0) ? s0 : "contacts"; } catch (e) { return "contacts"; } });
+function HubGlobalSettings({ theme, userName, projects }) {
+  const [sub, setSub] = useState(() => { try { const s0 = localStorage.getItem("dlp_hub_sub"); return ["contacts", "companies"].includes(s0) ? s0 : "contacts"; } catch (e) { return "contacts"; } });
   useEffect(() => { try { localStorage.setItem("dlp_hub_sub", sub); } catch (e) {} }, [sub]);
   const [dir, setDir] = useState(null);
   const [ustat, setUstat] = useState({});
@@ -1304,6 +1304,9 @@ function HubGlobalSettings({ theme, userName }) {
   const [fInv, setFInv] = useState("all");
   const [open, setOpen] = useState({});
   const [manage, setManage] = useState(null);
+  const [manageCo, setManageCo] = useState(null);
+  const [pcMap, setPcMap] = useState({});
+  const [nco, setNco] = useState({ name: "", domain: "" });
   const [cred, setCred] = useState(null);
   const [nu, setNu] = useState({ email: "", name: "", companyId: "" });
   const [bulkText, setBulkText] = useState("");
@@ -1314,6 +1317,7 @@ function HubGlobalSettings({ theme, userName }) {
     try { const d = await loadDirectory(); setDir(d); setNu((x) => ({ ...x, companyId: x.companyId || (d.companies[0] || {}).id || "" })); } catch (e) { setDir({ error: e.message || String(e) }); }
     try { setUstat(await fetchUserStatus()); } catch (e) {}
     try { setMcount(await loadMembershipCounts()); } catch (e) {}
+    try { setPcMap(await loadProjectCompanyMap()); } catch (e) { setPcMap({}); }
   };
   useEffect(() => { refresh(); }, []);
   const users = (dir && dir.users) || [];
@@ -1367,6 +1371,13 @@ function HubGlobalSettings({ theme, userName }) {
     }
     setBulkBusy(false); refresh();
   };
+  const hAddCompany = async () => {
+    const name = nco.name.trim();
+    if (!name) { setMsg("Company name required."); return; }
+    if (companies.some((c) => (c.name || "").toLowerCase() === name.toLowerCase())) { setMsg(name + " already exists in the registry."); return; }
+    setMsg("Creating company\u2026");
+    try { const res = await createCompany(name, nco.domain.trim()); setMsg("Added " + (res.name || name) + " to the registry."); setNco({ name: "", domain: "" }); refresh(); } catch (e) { setMsg("Failed: " + (e.message || e)); }
+  };
   const hDownloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile("DLP-platform-logins.csv", toCSV(["Name", "Email", "Set password link", "Role", "Company", "Status"], rows)); };
   const p2 = (n) => String(n).padStart(2, "0");
   const fmtSeen = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
@@ -1400,10 +1411,11 @@ function HubGlobalSettings({ theme, userName }) {
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "contacts" ? "var(--hover)" : "transparent", fontWeight: sub === "contacts" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("contacts")}>Global Contacts</button>
-        <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the Companies model (Phase 3)">Global Companies</button>
+        <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "companies" ? "var(--hover)" : "transparent", fontWeight: sub === "companies" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("companies")}>Global Companies</button>
         <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the vendor directory (Phase 4)">Global Vendors</button>
       </div>
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px", minWidth: 0 }}>
+        {sub === "contacts" && <>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Global Contacts</div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>Everyone on the platform, across every project. Add a person once here; putting them on a project (each project&rsquo;s Project Team tab) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
         {dir && dir.error && <div style={{ fontSize: 12, color: "var(--red, #C0392B)", marginBottom: 10 }}>Load failed: {dir.error}</div>}
@@ -1478,8 +1490,57 @@ function HubGlobalSettings({ theme, userName }) {
             </div>}
           </div>
         </>}
+        </>}
+        {sub === "companies" && <>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Global Companies</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>One shared directory. Edits here reach every project that references the company (activities, contacts, filters), which is why management lives at platform level. Associating companies with projects happens on each project&rsquo;s Companies tab; logos are uploaded there too.</div>
+        {!dir && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading directory&hellip;</div>}
+        {dir && dir.error && <div style={{ fontSize: 12, color: "var(--red, #C0392B)" }}>Load failed: {dir.error}</div>}
+        {dir && !dir.error && <>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+            <thead><tr>{["Company", "Domain", "Logo", "Used on", ""].map((h, i) => <th key={i} style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".5px" }}>{h}</th>)}</tr></thead>
+            <tbody>{companies.map((c) => { const pids = pcMap[c.id] || []; const codes = pids.map((pid) => (((projects || []).find((pp) => pp.id === pid)) || {}).code).filter(Boolean).sort(); const isClient = (projects || []).some((pp) => (pp.client || "").trim().toLowerCase() === (c.name || "").toLowerCase()); return <tr key={c.id}>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", fontWeight: 600 }}>{c.name}{isClient ? <span className="lk-cochip" style={{ marginLeft: 8, fontSize: 9 }}>CLIENT</span> : null}</td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", color: "var(--muted)" }}>{c.domain || ""}</td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)" }}><span className={"lk-stat " + (c.logoUrl ? "act" : "pend")}>{c.logoUrl ? "Set" : "Missing"}</span></td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", fontSize: 11.5 }}>{codes.length ? codes.join(", ") : <span style={{ color: "var(--muted)" }}>Not on any project</span>}</td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", textAlign: "right" }}><button className="lk-mbtn" onClick={() => setManageCo(c.id)}>Manage</button></td>
+            </tr>; })}</tbody>
+          </table>
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr auto", gap: 8, alignItems: "center", maxWidth: 640, marginTop: 14 }}>
+            <input className="lk-in" placeholder="Company name" value={nco.name} onChange={(e) => setNco({ ...nco, name: e.target.value })} />
+            <input className="lk-in" placeholder="Email domain (optional)" value={nco.domain} onChange={(e) => setNco({ ...nco, domain: e.target.value })} />
+            <button className="lk-btn primary" onClick={hAddCompany}><Icon n="plus" s={15} />Add company</button>
+          </div>
+          <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>A name that already exists in the registry is rejected rather than duplicated.</div>
+          {msg && !manageCo && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{msg}</div>}
+        </>}
+        </>}
       </div>
     </div>
+    {manageCo && (() => { const c = companies.find((x) => x.id === manageCo); if (!c) return null; const pids = pcMap[c.id] || []; const codes = pids.map((pid) => (((projects || []).find((pp) => pp.id === pid)) || {}).code).filter(Boolean).sort(); return <div className="lk-modal-bg" onClick={() => setManageCo(null)}>
+      <div className="lk-modal" style={{ ...cssVars(theme, null), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-dh"><h3 style={{ margin: 0 }}>{c.name}</h3><button className="lk-btn icon" onClick={() => setManageCo(null)}><Icon n="x" /></button></div>
+        <div className="bd">
+          <div className="lk-f"><label>Company Name</label><input className="lk-in" key={c.id + ":" + c.name} defaultValue={c.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) { if (companies.some((x) => x.id !== c.id && (x.name || "").toLowerCase() === v.toLowerCase())) { setMsg("A company named " + v + " already exists."); return; } renameCompany(c.id, v).then(() => { setMsg("Renamed to " + v + ". The new name shows everywhere the company is referenced."); refresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); } }} /></div>
+          <div className="lk-f"><label>Email Domain</label><input className="lk-in" key={c.id + ":" + (c.domain || "")} defaultValue={c.domain || ""} placeholder="acme.com" onBlur={(e) => { const v = e.target.value.trim(); if (v !== (c.domain || "")) setCompanyDomain(c.id, v).then(() => { setMsg("Domain updated"); refresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); }} /></div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Used on: {codes.length ? codes.join(", ") : "no projects"} {"\u00b7"} Logo: {c.logoUrl ? "set" : "missing"} (uploaded from a project&rsquo;s Companies tab)</div>
+          <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11 }}>
+            <button className="lk-btn" style={{ color: "var(--red, #C0392B)" }} onClick={async () => {
+              setMsg("Checking usage\u2026");
+              try { const u = await companyUsage(c.id);
+                if (u.activities || u.people) { setMsg("Cannot delete: " + c.name + " is referenced by " + u.activities + " activit" + (u.activities === 1 ? "y" : "ies") + " and " + u.people + " " + (u.people === 1 ? "person" : "people") + " across the platform. Reassign those first."); return; }
+                setMsg("");
+                setConfirm({ text: "Delete " + c.name + " from the global registry? Its project associations are removed with it. This cannot be undone.", run: async () => { try { await deleteCompanyById(c.id); setManageCo(null); setMsg("Deleted " + c.name + "."); refresh(); } catch (e) { setMsg("Failed: " + (e.message || e)); } } });
+              } catch (e) { setMsg("Failed: " + (e.message || e)); }
+            }}><Icon n="trash" s={14} />Delete from registry</button>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>Deletion is blocked while any activity or person references this company. Association-only usage is swept away by the delete.</div>
+          </div>
+          {msg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{msg}</div>}
+        </div>
+        <div className="rep-foot"><button className="lk-btn primary" onClick={() => setManageCo(null)}>Done</button></div>
+      </div>
+    </div>; })()}
     {mu && (() => { const pr = mu.platformRole || "user"; const seen = !!(ustat[mu.id] && ustat[mu.id].lastSignIn); const n = mcount[mu.id] || 0; const isSelf = mu.id === meId; return <div className="lk-modal-bg" onClick={() => setManage(null)}>
       <div className="lk-modal" style={{ ...cssVars(theme, null), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className="lk-uava" style={{ background: avBg(mu.id), width: 30, height: 30, fontSize: 11 }}>{avInit(mu.name)}</span>{mu.name || "Manage person"}{isSelf ? <span className="lk-you">you</span> : null}</h3><button className="lk-btn icon" onClick={() => setManage(null)}><Icon n="x" /></button></div>
@@ -1955,7 +2016,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
         <div className={"scene" + (scene === "global" ? " on" : "")}>
           <div className="hello">Global Settings</div>
           <div className="subhello">Platform-wide directories shared by every project</div>
-          <div style={{ marginTop: 20 }}>{scene === "global" && isSuper && <HubGlobalSettings theme={theme} userName={userName} />}</div>
+          <div style={{ marginTop: 20 }}>{scene === "global" && isSuper && <HubGlobalSettings theme={theme} userName={userName} projects={projects} />}</div>
         </div>
 
         <div className={"scene" + (scene === "analytics" ? " on" : "")}>

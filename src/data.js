@@ -672,6 +672,33 @@ export async function loadDirectory() {
   };
 }
 
+// REV209: Companies model readers and mutations for the hub Global Companies editor.
+// loadProjectCompanyMap: company_id -> [project_id] from the Phase 3a association table.
+export async function loadProjectCompanyMap() {
+  const { data, error } = await supabase.from("project_companies").select("project_id, company_id");
+  if (error) throw error;
+  const m = {}; (data || []).forEach((r) => { (m[r.company_id] = m[r.company_id] || []).push(r.project_id); });
+  return m;
+}
+// Reference counts that gate a registry deletion: activities and people anywhere on the platform.
+export async function companyUsage(companyId) {
+  const [a, pr] = await Promise.all([
+    supabase.from("activities").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+  ]);
+  return { activities: a.count || 0, people: pr.count || 0 };
+}
+export async function renameCompany(id, name) {
+  const { error } = await supabase.from("companies").update({ name: (name || "").trim() }).eq("id", id);
+  if (error) throw error;
+}
+// Single targeted registry deletion (the REV192 bulk-delete guard in syncCollections is untouched).
+// project_companies rows cascade away via the FK; callers must verify companyUsage first.
+export async function deleteCompanyById(id) {
+  const { error } = await supabase.from("companies").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function loadMembershipCounts() {
   const { data, error } = await supabase.from("project_members").select("user_id");
   if (error) throw error;
