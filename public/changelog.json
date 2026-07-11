@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV235",
+    "date": "2026-07-11",
+    "items": [
+      "Fix: opening a constraint's history on the last rows no longer forces scrolling. The card now floats over the page from the clicked row's real position, escaping the table's scroll container entirely, so it simply uses the empty space below the table; it flips above the row only when the screen genuinely runs out of room, and it closes on scroll so it never drifts away from its row."
+    ]
+  },
+  {
     "rev": "REV234",
     "date": "2026-07-11",
     "items": [

@@ -7137,7 +7137,14 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const [editKey, setEditKey] = useState(null);
   const [cd, setCd] = useState(null);
   const byName = ((S.users || []).find((u) => u.id === S.currentUserId) || {}).name || "";
-  const [histC, setHistC] = useState(null); // { a, c } whose history card is open
+  const [histC, setHistC] = useState(null); // { a, c, x, y, up } whose history card is open
+  useEffect(() => {
+    if (!histC) return undefined;
+    const close = () => setHistC(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
+  }, [histC]);
   const toggle = (actId, cId) => update((p) => ({ ...p, activities: p.activities.map((a) => a.id === actId ? { ...a, constraints: a.constraints.map((c) => c.id === cId ? cHist({ ...c, done: !c.done }, c.done ? "reopened" : "cleared", byName) : c) } : a) }), { action: "Update constraint" });
   const beginC = (a, c) => { setEditKey(a.id + c.id); setCd({ ...c }); };
   const cancelC = () => { setEditKey(null); setCd(null); };
@@ -7170,14 +7177,9 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
         <table className="lk-tbl lk-grid"><thead><tr><th style={{ width: 62 }} /><th style={{ width: 30 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th style={{ minWidth: 96, whiteSpace: "nowrap" }}>Start</th><th>Constraint</th><th style={{ minWidth: 130 }}>Owner</th><th style={{ minWidth: 112, whiteSpace: "nowrap" }}>Need-by</th></tr></thead>
           <tbody>
             {rows.map(({ a, c }) => { const ed = editKey === (a.id + c.id); const can = canEdit(a); const overdue = c.due && !c.done && c.due < fmtISO(new Date()); return <tr key={a.id + c.id} className={ed ? "ed" : ""}>
-              <td style={{ position: "relative" }}>{ed
+              <td>{ed
                 ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={() => saveC(a)}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancelC}><Icon n="x" s={14} /></button></span>
-                : <button title={can ? "Edit this constraint" : "Only your own company's constraints are editable"} disabled={!can} onClick={() => beginC(a, c)} style={{ opacity: can ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}<button title="View history: who raised, cleared, and reopened this constraint" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setHistC(histC && histC.c.id === c.id ? null : { a, c, up: r.top > window.innerHeight * 0.55 }); }} style={{ marginLeft: 4, color: histC && histC.c.id === c.id ? "var(--accent)" : undefined }}><Icon n="clock" s={13} /></button>{histC && histC.c.id === c.id && histC.a.id === a.id && <div style={{ position: "absolute", left: 34, zIndex: 60, width: 400, maxWidth: "78vw", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 14px 40px rgba(0,0,0,.5)", padding: "14px 16px", textAlign: "left", cursor: "default", ...(histC.up ? { bottom: "calc(100% + 4px)" } : { top: "calc(100% + 4px)" }) }} onClick={(e) => e.stopPropagation()}>
-                <button title="Close" onClick={() => setHistC(null)} style={{ position: "absolute", top: 10, right: 12, background: "none", border: 0, color: "var(--muted)", cursor: "pointer", padding: 2 }}><Icon n="x" s={14} /></button>
-                <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.35, marginBottom: 2, paddingRight: 24, color: "var(--ink)" }}>{histC.c.text}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, paddingRight: 24 }}>{histC.a.desc || "Untitled"}{" \u00b7 "}{coName(histC.a.companyId)}{histC.c.owner ? " \u00b7 owner " + histC.c.owner : ""}{histC.c.due ? " \u00b7 need-by " + histC.c.due : ""}</div>
-                <ConstraintHistoryBody c={histC.c} audit={S.audit} />
-              </div>}</td>
+                : <button title={can ? "Edit this constraint" : "Only your own company's constraints are editable"} disabled={!can} onClick={() => beginC(a, c)} style={{ opacity: can ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}<button title="View history: who raised, cleared, and reopened this constraint" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const up = (window.innerHeight - r.bottom) < 340; setHistC(histC && histC.c.id === c.id ? null : { a, c, x: Math.min(r.left + 26, window.innerWidth - 424), y: up ? r.top - 6 : r.bottom + 6, up }); }} style={{ marginLeft: 4, color: histC && histC.c.id === c.id ? "var(--accent)" : undefined }}><Icon n="clock" s={13} /></button></td>
               <td><input type="checkbox" checked={c.done} disabled={!can} onChange={() => toggle(a.id, c.id)} /></td>
               <td><span className="lnk" onClick={() => onOpen(a)}>{a.desc || "Untitled"}</span></td>
               <td>{coName(a.companyId)}</td>
@@ -7192,6 +7194,12 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
           </tbody></table>
       </div>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>{rows.length} shown · {totalOpen} open across the whole project</div>
+      {histC && <div style={{ position: "fixed", left: histC.x, ...(histC.up ? { bottom: window.innerHeight - histC.y } : { top: histC.y }), zIndex: 200, width: 400, maxWidth: "78vw", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 14px 40px rgba(0,0,0,.5)", padding: "14px 16px", textAlign: "left", cursor: "default" }} onClick={(e) => e.stopPropagation()}>
+        <button title="Close" onClick={() => setHistC(null)} style={{ position: "absolute", top: 10, right: 12, background: "none", border: 0, color: "var(--muted)", cursor: "pointer", padding: 2 }}><Icon n="x" s={14} /></button>
+        <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.35, marginBottom: 2, paddingRight: 24, color: "var(--ink)" }}>{histC.c.text}</div>
+        <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, paddingRight: 24 }}>{histC.a.desc || "Untitled"}{" \u00b7 "}{coName(histC.a.companyId)}{histC.c.owner ? " \u00b7 owner " + histC.c.owner : ""}{histC.c.due ? " \u00b7 need-by " + histC.c.due : ""}</div>
+        <ConstraintHistoryBody c={histC.c} audit={S.audit} />
+      </div>}
     </div>);
 }
 
