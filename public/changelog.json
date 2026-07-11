@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV206",
+    "date": "2026-07-11",
+    "items": [
+      "Global Settings correction: the filter bar (Search, Company, Platform, Invite) now freezes beneath the fixed chrome while the contact list scrolls, matching how the filter bar behaves inside a project. It was already sticky but pinned at the top of the viewport, hidden behind the fixed bars; it now holds at the correct offset and spans the panel edge to edge. The column headers scroll normally again, reverting the REV205 reading of the request."
+    ]
+  },
+  {
     "rev": "REV205",
     "date": "2026-07-11",
     "items": [
