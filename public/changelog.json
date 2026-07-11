@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV218",
+    "date": "2026-07-11",
+    "items": [
+      "Domain-move groundwork: every email link, sign-in instruction, and report footer now uses the address the app is actually running on rather than a hardcoded dlp-pi.vercel.app, and browser preferences migrated from the legacy fin04_ prefix to dlp_ with an automatic one-time carry-over.",
+      "Project branding threaded through outputs: witness invite subjects, user invitation emails, weekly report emails, the printed report masthead and title, and every export filename now take the project name from Settings branding; hub-level invitations are project-neutral (plain DLP).",
+      "Project Team self-heals company associations: each time the member list loads, every member's employer is linked to the project, covering bulk adds, access request approvals, employer changes, and historical gaps in one idempotent sweep. Orphaned code from the retired project-level Users tab removed."
+    ]
+  },
+  {
     "rev": "REV217",
     "date": "2026-07-11",
     "items": [

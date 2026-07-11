@@ -41,7 +41,7 @@ let DEEPLINK_ACT = (typeof window !== "undefined") ? (() => { try { return new U
 // overview drawer opens once the register has loaded. Both consumed once in boot.
 let DEEPLINK_ASSET = (typeof window !== "undefined") ? (() => { try { return new URLSearchParams(window.location.search).get("asset") || ""; } catch (e) { return ""; } })() : "";
 let DEEPLINK_PAGE = (typeof window !== "undefined") ? (() => { try { return new URLSearchParams(window.location.search).get("page") || ""; } catch (e) { return ""; } })() : "";
-const KEY = "fin04_app_v3";
+const KEY = "dlp_app_v3";
 const DAYMS = 86400000;
 const DEFAULT_LEVELS = {
   L1: { name: "Factory", color: "#64748B" },
@@ -970,6 +970,12 @@ const downloadFile = (name, text) => { try { const url = URL.createObjectURL(new
 const SUBSEP = " \u203A "; // area › sub-area, used as the lane key when grouping by sub-area
 const laneOfArea = (a) => a.area ? (a.subArea ? a.area + SUBSEP + a.subArea : a.area) : "Unassigned";
 
+// The app's host for report footers and links, read from the running page.
+const APP_HOST = (typeof window !== "undefined" && window.location && window.location.hostname) || "dlp-pi.vercel.app";
+// One-time migration: browser preferences saved under the legacy fin04_ prefix carry
+// over to the platform-neutral dlp_ prefix. Existing dlp_ values win; legacy keys stay put.
+try { Object.keys(window.localStorage).forEach((k) => { if (k.indexOf("fin04_") === 0) { const nk = "dlp_" + k.slice(6); if (window.localStorage.getItem(nk) === null) window.localStorage.setItem(nk, window.localStorage.getItem(k)); } }); } catch (e) {}
+
 function defaults() {
   const anchor = mondayOf(new Date());
   const companies = [
@@ -1373,7 +1379,7 @@ function HubGlobalSettings({ theme, userName, projects }) {
     const acct = await ol.outlookAccount();
     if (!acct) { setMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window inside a project, press Connect Outlook, then retry."); return null; }
     const html = ol.buildUserInviteEmailHtml({ mode: mode || "invite", email, roleLabel, companyName, link, sentByName: userName || acct.username, validityDays: 30 });
-    await ol.sendMailMessage({ subject: mode === "link" ? "Your FIN04 DLP sign-in link" : "You're invited to FIN04 DLP", html, to: [email] });
+    await ol.sendMailMessage({ subject: mode === "link" ? "Your DLP sign-in link" : "You're invited to DLP", html, to: [email] });
     return acct.username;
   };
   const hAdd = async () => {
@@ -1518,7 +1524,7 @@ function HubGlobalSettings({ theme, userName, projects }) {
                     const r = rows2[i]; if (!r.link) continue;
                     try {
                       const html = ol.buildUserInviteEmailHtml({ mode: "invite", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: userName || acct.username, validityDays: 30 });
-                      await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [r.email] });
+                      await ol.sendMailMessage({ subject: "You're invited to DLP", html, to: [r.email] });
                       rows2[i] = { ...r, mail: "Emailed" };
                     } catch (err) { rows2[i] = { ...r, mail: "Email failed", mailErr: (err && err.message) || String(err) }; }
                     setBulkResults([...rows2]);
@@ -1726,7 +1732,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ovMap, setOvMap] = useState({});   // project id -> overview rows | undefined while loading
-  const [collapsed, setCollapsed] = useState(() => { try { return JSON.parse(localStorage.getItem("fin04_snapfold") || "{}"); } catch { return {}; } });
+  const [collapsed, setCollapsed] = useState(() => { try { return JSON.parse(localStorage.getItem("dlp_snapfold") || "{}"); } catch { return {}; } });
   const [showArch, setShowArch] = useState(false);
   const [edit, setEdit] = useState(null);          // project being edited, or null
   const [ef, setEf] = useState({});                // edit form fields
@@ -1746,7 +1752,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     try { let l = document.querySelector("link[rel='icon']"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); } l.type = "image/png"; l.href = QMC_FAV; } catch (e) {}
     try { if (!document.getElementById("qp-font")) { const f = document.createElement("link"); f.id = "qp-font"; f.rel = "stylesheet"; f.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap"; document.head.appendChild(f); } } catch (e) {}
   }, [theme]);
-  const toggleTheme = () => { const t = theme === "dark" ? "light" : "dark"; setTheme(t); try { const p = JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); p.theme = t; localStorage.setItem("fin04_prefs", JSON.stringify(p)); } catch (e) {} };
+  const toggleTheme = () => { const t = theme === "dark" ? "light" : "dark"; setTheme(t); try { const p = JSON.parse(localStorage.getItem("dlp_prefs") || "{}"); p.theme = t; localStorage.setItem("dlp_prefs", JSON.stringify(p)); } catch (e) {} };
   const first = (userName || "").trim().split(/\s+/)[0] || "there";
   const initials = (n) => (n || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const hr = new Date().getHours();
@@ -1772,7 +1778,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   const vis = projects.filter((p) => (p.status || "active") !== "archived");
   const ql = q.trim().toLowerCase();
   const filtered = (showArch ? projects : vis).filter((p) => !ql || (p.name + " " + p.code + " " + p.location + " " + p.client).toLowerCase().includes(ql));
-  const lastId = (() => { try { return localStorage.getItem("fin04_lastproj"); } catch { return null; } })();
+  const lastId = (() => { try { return localStorage.getItem("dlp_lastproj"); } catch { return null; } })();
   // Snapshot order: last-visited project first so the most relevant board paints
   // immediately, the rest stream in behind it.
   const snapOrder = (() => { const a = vis.slice(); const i = a.findIndex((p) => p.id === lastId); if (i > 0) { const [x] = a.splice(i, 1); a.unshift(x); } return a; })();
@@ -1794,7 +1800,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     })();
     return () => { live = false; };
   }, [scene, vis.map((p) => p.id).join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggleFold = (pid) => setCollapsed((c) => { const n = { ...c, [pid]: !c[pid] }; try { localStorage.setItem("fin04_snapfold", JSON.stringify(n)); } catch (e) {} if (!n[pid]) loadSnap(pid); return n; });
+  const toggleFold = (pid) => setCollapsed((c) => { const n = { ...c, [pid]: !c[pid] }; try { localStorage.setItem("dlp_snapfold", JSON.stringify(n)); } catch (e) {} if (!n[pid]) loadSnap(pid); return n; });
   // Portfolio analytics loads once on first visit to the scene.
   useEffect(() => {
     if (scene !== "analytics" || !isSuper || ana) return;
@@ -2365,12 +2371,12 @@ export default function App({ session }) {
   const [metricDrill, setMetricDrill] = useState(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
-  const [navOpen, setNavOpen] = useState(() => { try { return localStorage.getItem("fin04_nav") !== "0"; } catch (e) { return true; } });
-  const toggleNav = () => setNavOpen((o) => { const n = !o; try { localStorage.setItem("fin04_nav", n ? "1" : "0"); } catch (e) {} return n; });
+  const [navOpen, setNavOpen] = useState(() => { try { return localStorage.getItem("dlp_nav") !== "0"; } catch (e) { return true; } });
+  const toggleNav = () => setNavOpen((o) => { const n = !o; try { localStorage.setItem("dlp_nav", n ? "1" : "0"); } catch (e) {} return n; });
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("fin04_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs", "benchmarks"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
+  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("dlp_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs", "benchmarks"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
   // ---- multi-project ----
@@ -2389,14 +2395,14 @@ export default function App({ session }) {
   useEffect(() => { projectsRef.current = projects; }, [projects]);
 
   const [dispOpen, setDispOpen] = useState(false);   // REV146: palette flyout
-  const prefs = () => { try { return JSON.parse(localStorage.getItem("fin04_prefs") || "{}"); } catch { return {}; } };
+  const prefs = () => { try { return JSON.parse(localStorage.getItem("dlp_prefs") || "{}"); } catch { return {}; } };
 
   const enterProject = async (projectId, projList, focusActId, initialPage) => {
     const list = projList || projectsRef.current;
     const proj = list.find((x) => x.id === projectId);
     setSelProj(projectId);
     if (focusActId) setPendingFocus(focusActId);
-    try { history.replaceState(null, "", "?p=" + projectId); localStorage.setItem("fin04_lastproj", projectId); } catch (e) {}
+    try { history.replaceState(null, "", "?p=" + projectId); localStorage.setItem("dlp_lastproj", projectId); } catch (e) {}
     try {
       const data = await loadAll(session, projectId, proj?.name);
       const p = prefs();
@@ -2444,7 +2450,7 @@ export default function App({ session }) {
     return () => document.removeEventListener("click", open);
   }, []);
   useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
-  useEffect(() => { try { localStorage.setItem("fin04_page", page); } catch (e) {} }, [page]);
+  useEffect(() => { try { localStorage.setItem("dlp_page", page); } catch (e) {} }, [page]);
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks", "palette", "nameCase"];
@@ -2457,7 +2463,7 @@ export default function App({ session }) {
   // intentionally ignored and kept only as inline documentation of intent.
   const update = (producer, _meta) => setS((prev) => {
     const n = producer(prev);
-    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("fin04_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks, palette: n.palette, nameCase: n.nameCase })); } catch (e) {} }
+    if (PREF_KEYS.some((k) => n[k] !== prev[k])) { try { localStorage.setItem("dlp_prefs", JSON.stringify({ theme: n.theme, view: n.view, grain: n.grain, laneBy: n.laneBy, hideDone: !!n.hideDone, viewWeeks: n.viewWeeks, palette: n.palette, nameCase: n.nameCase })); } catch (e) {} }
     syncCollections(prev, n, session, prev.projectId).then((e) => { if (e) setSyncErr((e.message || String(e)) + (e.details ? " (" + e.details + ")" : "") + (e.hint ? " Hint: " + e.hint : "")); }).catch((e) => setSyncErr(String((e && e.message) || e)));
     return n;
   });
@@ -2660,8 +2666,9 @@ export default function App({ session }) {
       .map((c) => ({ text: c.text || "", owner: c.owner || "", due: c.due ? fmtDue(c.due) : "", overdue: !!(c.due && c.due < sdISO), _k: c.due || "9999" }))
       .sort((x, y) => (y.overdue - x.overdue) || x._k.localeCompare(y._k));
     const typ = a.witnessType ? a.witnessType + " " : "";
+    const wpn = (S.brand && S.brand.projectName) || "FIN04";
     return {
-      subject: (retest ? `FIN04 - ${typ}RETEST INVITE FOR ${title} (Attempt ${att})` : `FIN04 - ${typ}INVITE FOR ${title}`) + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
+      subject: (retest ? `${wpn} - ${typ}RETEST INVITE FOR ${title} (Attempt ${att})` : `${wpn} - ${typ}INVITE FOR ${title}`) + (n > 1 ? ` - Day ${dayIdx + 1} of ${n}` : ""),
       title, code: a.code != null ? String(a.code) : "", inviteType: a.witnessType || "",
       location: locCode(a), companyName: coName(a.companyId), cxStage: a.level, system: a.system || "-",
       discipline: (a.discipline || []).join("; "),
@@ -2788,7 +2795,7 @@ export default function App({ session }) {
     digestBusy.current = true;
     try {
       const core = await import("./digestCore");
-      let test = null; try { test = localStorage.getItem("fin04_digest_test"); } catch (e) { }
+      let test = null; try { test = localStorage.getItem("dlp_digest_test"); } catch (e) { }
       const bounds = (test === "daily" || test === "weekly")
         ? [{ kind: test, due: new Date() }]
         : core.dueBoundaries(new Date(), 72);
@@ -2838,7 +2845,7 @@ export default function App({ session }) {
           break;
         }
       }
-      if (test) { try { localStorage.removeItem("fin04_digest_test"); } catch (e) { } }
+      if (test) { try { localStorage.removeItem("dlp_digest_test"); } catch (e) { } }
     } finally { digestBusy.current = false; }
   };
   // REV136: keep the scheduler pointed at the live digestTick. The effect that owns the timers
@@ -3098,7 +3105,7 @@ export default function App({ session }) {
     const predCodes = (a) => (a.predecessors || []).map((pid) => { const p = S.activities.find((x) => x.id === pid); return p && p.code != null ? "#" + p.code : null; }).filter(Boolean).join("; ");
     const retestOfCode = (a) => { if (!a.retestOf) return ""; const p = S.activities.find((x) => x.id === a.retestOf); return p ? (p.code != null ? "#" + p.code : (p.desc || "linked")) : ""; };
     const rows = visible.map((a) => [a.code != null ? "#" + a.code : "", a.desc, coName(a.companyId), locCode(a), a.area, a.subArea || "", a.tier3 || "", a.asset || "", a.system, a.level, a.isMilestone ? "Yes" : "No", a.witnessInvite ? "Yes" : "No", a.witnessInvite ? (a.outcome || "pending") : "", a.outcomeReason || "", a.outcomeAt || "", retestOfCode(a), predCodes(a), a.start, fmtISO(addDays(parseD(a.start), a.duration - 1)), a.duration, a.actualStart || "", a.actualFinish || "", a.delayDays || 0, fmtISO(addDays(anchor, a.projStartOff)), fmtISO(addDays(anchor, a.projEndOff)), a.knockOn || 0, a.status, pctOf(a), a.committed ? "Yes" : "No", a.slipReason || "", a.open, a.constraints.map((c) => (c.done ? "[x] " : "[ ] ") + c.text).join("; "), a.notes || ""]);
-    downloadFile(`FIN04-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
+    downloadFile(`${(S.brand && S.brand.projectName) || "DLP"}-lookahead-${fmtISO(new Date())}.csv`, toCSV(headers, rows));
     update((p) => p, { action: "Export activities", detail: `${rows.length} rows` });
   };
   const fmtWitnessAt = (s) => { if (!s) return ""; const d = new Date(s); if (isNaN(d)) return s; return d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
@@ -4577,7 +4584,7 @@ function DesignTab({ S, update }) {
       </div>
       <div style={{ marginTop: 18, padding: 16, border: "1px solid var(--line)", borderRadius: 10, maxWidth: 520, background: "var(--card)" }}>
         <div style={{ fontFamily: FONT_STACKS[effFont("headFont", "grotesk")], fontSize: 20, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>Weekly Cx Progress</div>
-        <div style={{ fontFamily: FONT_STACKS[effFont("bodyFont", "inter")], fontSize: 13, color: "var(--muted)" }}>The quick brown fox jumps over the lazy dog. Asset commissioning attainment across the FIN04 board.</div>
+        <div style={{ fontFamily: FONT_STACKS[effFont("bodyFont", "inter")], fontSize: 13, color: "var(--muted)" }}>The quick brown fox jumps over the lazy dog. Asset commissioning attainment across the planning board.</div>
       </div>
       {(scopeBlk.headFont || scopeBlk.bodyFont) && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setScoped({ headFont: "", bodyFont: "" })}>{desScope === "global" ? "Reset fonts to default" : "Reset fonts to global"}</button>}
     </div>}
@@ -4630,8 +4637,8 @@ function groupTeamRows(rows, cn) {
 }
 
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
-  useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  useEffect(() => { try { localStorage.setItem("dlp_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
   const [connSp, setConnSp] = useState(null);
@@ -4755,13 +4762,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [impGateText, setImpGateText] = useState("");
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
-  const [nu, setNu] = useState({ email: "", name: "", role: "member", companyId: scopeCompanies(S.companies, S.projectCompanyIds)[0]?.id || "" });
-  const [uq, setUq] = useState("");
-  const [uCo, setUCo] = useState("all");
-  const [uRole, setURole] = useState("all");
-  const [uInvite, setUInvite] = useState("all");
   const [manageId, setManageId] = useState(null);
-  const [openGroups, setOpenGroups] = useState({});
   const [mOpenGroups, setMOpenGroups] = useState({});
   const [subInput, setSubInput] = useState({});
   const [t3Input, setT3Input] = useState({});
@@ -4783,7 +4784,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const setCompanyDesc = (id, raw) => { const description = (raw || "").trim(); const cur = S.companies.find((c) => c.id === id); if (!cur || (cur.description || "") === description) return; update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, description } : c) }), { action: "Edit company description", detail: cur.name }); };
   const addLevel = () => { const used = Object.keys(S.levels); let key = (lvKey || "").trim().toUpperCase().replace(/\s+/g, ""); if (!key) { let n = used.length + 1; key = "L" + n; while (S.levels[key]) { n++; key = "L" + n; } } if (S.levels[key]) { alert(`Cx stage "${key}" already exists.`); return; } const name = (lvName || "").trim() || "New stage"; update((p) => ({ ...p, levels: { ...p.levels, [key]: { name, color: lvColor || "#64748B", sort: Object.keys(p.levels).length } } }), { action: "Add Cx stage", detail: `${key} ${name}` }); setLvKey(""); setLvName(""); setLvColor("#64748B"); };
   const delLevel = (k) => { const keys = Object.keys(S.levels); if (keys.length <= 1) { alert("Keep at least one Cx stage."); return; } const fallback = keys.find((x) => x !== k); const used = S.activities.filter((a) => a.level === k).length; const msg = used ? `${used} activit${used === 1 ? "y" : "ies"} use ${k}. Delete it and move them to ${fallback}?` : `Delete Cx stage ${k}?`; askDel(msg, () => update((p) => { const lv = { ...p.levels }; delete lv[k]; return { ...p, levels: lv, activities: p.activities.map((a) => a.level === k ? { ...a, level: fallback } : a) }; }, { action: "Delete Cx stage", detail: k })); };
-  const downloadCsvTemplate = () => { const headers = ["Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"]; const example = ["UPS module SAT", (S.companies[0] || {}).name || "", S.areas[0] || "", "", "", S.systems[0] || "", Object.keys(S.levels)[0] || "L2", fmtISO(new Date()), "2", "No", "No", "", "Example row - delete before importing"]; downloadFile("FIN04-activities-template.csv", toCSV(headers, [example])); };
+  const downloadCsvTemplate = () => { const headers = ["Description", "Company", "Area", "Sub-area", "Tier 3 Area", "System", "Level", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"]; const example = ["UPS module SAT", (S.companies[0] || {}).name || "", S.areas[0] || "", "", "", S.systems[0] || "", Object.keys(S.levels)[0] || "L2", fmtISO(new Date()), "2", "No", "No", "", "Example row - delete before importing"]; downloadFile((projCode || "DLP") + "-activities-template.csv", toCSV(headers, [example])); };
   const [tplBusy, setTplBusy] = useState(false);
   const downloadAdminTemplate = async () => {
     setTplBusy(true);
@@ -4818,7 +4819,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
       });
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-      const a = document.createElement("a"); a.href = url; a.download = "FIN04-activities-admin-template.xlsx"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const a = document.createElement("a"); a.href = url; a.download = (projCode || "DLP") + "-activities-admin-template.xlsx"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { alert("Template failed: " + (e && e.message ? e.message : e)); }
     setTplBusy(false);
   };
@@ -4918,8 +4919,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
           if (!acct) {
             msgs.push("Not emailed yet: Outlook is not connected in this session. Press Email Invite on the card (connect via the Witness Schedule or the Weekly Report window).");
           } else {
-            const html = ol.buildUserInviteEmailHtml({ mode: "invite", email, roleLabel: a.projRole === "admin" ? "Admin" : "Member", companyName: companyName || "", link: res.link, sentByName: cu.name || acct.username, validityDays: 30 });
-            await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [email] });
+            const html = ol.buildUserInviteEmailHtml({ mode: "invite", projectName: (S.brand && S.brand.projectName) || "", email, roleLabel: a.projRole === "admin" ? "Admin" : "Member", companyName: companyName || "", link: res.link, sentByName: cu.name || acct.username, validityDays: 30 });
+            await ol.sendMailMessage({ subject: "You're invited to " + (S.brand && S.brand.projectName ? S.brand.projectName + " DLP" : "DLP"), html, to: [email] });
             msgs.push("Invitation emailed to " + email + " from " + acct.username + ".");
           }
         } catch (mailErr) { msgs.push("Approved, but the invitation email failed: " + ((mailErr && mailErr.message) || mailErr) + ". Press Email Invite on the card to retry."); }
@@ -4944,41 +4945,10 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     const ol = await import("./outlook");
     const acct = await ol.outlookAccount();
     if (!acct) { setUserMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window, press Connect Outlook, then retry."); return null; }
-    const html = ol.buildUserInviteEmailHtml({ mode: mode || "invite", email, roleLabel, companyName, link, sentByName: cu.name || acct.username, validityDays: 30 });
-    await ol.sendMailMessage({ subject: mode === "link" ? "Your FIN04 DLP sign-in link" : "You're invited to FIN04 DLP", html, to: [email] });
+    const html = ol.buildUserInviteEmailHtml({ mode: mode || "invite", projectName: (S.brand && S.brand.projectName) || "", email, roleLabel, companyName, link, sentByName: cu.name || acct.username, validityDays: 30 });
+    await ol.sendMailMessage({ subject: mode === "link" ? "Your " + (S.brand && S.brand.projectName ? S.brand.projectName + " " : "") + "DLP sign-in link" : "You're invited to " + (S.brand && S.brand.projectName ? S.brand.projectName + " DLP" : "DLP"), html, to: [email] });
     return acct.username;
   };
-  const addUser = async () => {
-    if (!nu.email.trim()) { setUserMsg("Email required."); return; }
-    setUserMsg("Creating account…"); setNewCred(null);
-    try { const res = await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: nu.role, company_id: nu.role === "admin" ? null : nu.companyId, redirect: window.location.origin });
-      setNewCred({ who: nu.email.trim(), pw: res.tempPassword, link: res.link, title: "Account created", roleLabel: nu.role === "admin" ? "Admin" : "Member", companyName: (S.companies.find((c) => c.id === nu.companyId) || {}).name || "" }); setUserMsg(""); setNu({ email: "", name: "", role: "member", companyId: scopeCompanies(S.companies, S.projectCompanyIds)[0]?.id || "" }); }
-    catch (e) { setUserMsg("Failed: " + (e.message || e)); }
-  };
-  const resetPw = async (id, who) => { setUserMsg("Resetting password…"); setNewCred(null); try { const res = await userOp({ op: "resetpw", id }); setNewCred({ who, pw: res.tempPassword, title: "New password set" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
-  const sendLink = async (id, who) => { setUserMsg("Generating link…"); setNewCred(null); try { const res = await userOp({ op: "link", id, redirect: window.location.origin }); setNewCred({ who, whoEmail: (ustat[id] && ustat[id].email) || "", link: res.link, title: "Set-password link", mode: "link" }); setUserMsg(""); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
-  const [bulkText, setBulkText] = useState("");
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkResults, setBulkResults] = useState(null);
-  const bulkCreate = async () => {
-    const lines = bulkText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) return;
-    setBulkBusy(true); setBulkResults(null);
-    const out = [];
-    for (let i = 0; i < lines.length; i++) {
-      const parts = lines[i].split(",").map((s) => s.trim());
-      const email = parts[0]; const name = parts[1] || (email || "");
-      const role = (parts[2] || "member").toLowerCase() === "admin" ? "admin" : "member";
-      const coName = parts[3] || ""; const co = S.companies.find((c) => c.name.toLowerCase() === coName.toLowerCase());
-      const company_id = role === "admin" ? null : (co ? co.id : null);
-      if (!email || !/.+@.+\..+/.test(email)) { out.push({ email: email || "(blank)", name, status: "Skipped: invalid email" }); setBulkResults([...out]); continue; }
-      try { const res = await userOp({ op: "invite", email, name, role, company_id, redirect: window.location.origin }); out.push({ email, name, role, company: co ? co.name : "", link: res.link || "", status: "Created" + (res.link ? "" : " (link unavailable)") }); }
-      catch (e) { out.push({ email, name, status: "Failed: " + (e.message || e) }); }
-      setBulkResults([...out]);
-    }
-    setBulkBusy(false);
-  };
-  const downloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile("FIN04-user-logins.csv", toCSV(["Name", "Email", "Set password link", "Role", "Company", "Status"], rows)); };
   const delUser = async (id, name) => { setUserMsg("Removing…"); try { await userOp({ op: "delete", id }); setUserMsg("Removed " + name); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
   const [members, setMembers] = useState(null);
   const [memQ, setMemQ] = useState("");
@@ -5035,8 +5005,12 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const setPlat = async (id, role, name) => {
     const tgt = (S.users || []).find((x) => x.id === id);
     if (tgt && tgt.platformRole === "owner") { setUserMsg("The owner role cannot be changed from the app."); return; } setUserMsg("Updating platform role…"); try { await setPlatformRole(id, role); setUserMsg((name || "User") + (role === "super" ? " is now a Super" : " is now a User") + ". Refresh to see it reflected everywhere."); } catch (e) { setUserMsg("Failed: " + (e.message || e)); } };
-  useEffect(() => { let live = true; if (S.projectId) loadProjectMembers(S.projectId).then((r) => { if (live) setMembers(r); }).catch((e) => { if (live) setMemMsg("Load failed: " + (e.message || e)); }); return () => { live = false; }; }, [S.projectId]);
-  const reloadMems = () => loadProjectMembers(S.projectId).then(setMembers).catch((e) => setMemMsg("Load failed: " + (e.message || e)));
+  // Self-healing project-company associations: whenever the member list loads, every
+  // member's employer is upserted into project_companies. Covers bulk adds, access
+  // request approvals, employer changes, and any historical gaps in one idempotent sweep.
+  const reconcileMemberEmployers = (rows) => { try { const ids = Array.from(new Set((rows || []).map((m) => (((S.users || []).find((u) => u.id === m.user_id)) || {}).companyId).filter(Boolean))); if (ids.length) ensureProjectCompanies(S.projectId, ids).catch(() => {}); } catch (e) {} };
+  useEffect(() => { let live = true; if (S.projectId) loadProjectMembers(S.projectId).then((r) => { if (live) { setMembers(r); reconcileMemberEmployers(r); } }).catch((e) => { if (live) setMemMsg("Load failed: " + (e.message || e)); }); return () => { live = false; }; }, [S.projectId]);
+  const reloadMems = () => loadProjectMembers(S.projectId).then((r) => { setMembers(r); reconcileMemberEmployers(r); return r; }).catch((e) => setMemMsg("Load failed: " + (e.message || e)));
   const addMem = async (userId, name) => { setMemMsg("Adding " + (name || "") + "…"); try { await addMember(S.projectId, userId, memRole, S.currentUserId); setMemMsg((name || "User") + " added as " + memRole); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
   const removeMem = async (userId, name) => { setMemMsg("Removing…"); try { await removeMember(S.projectId, userId); setMemMsg((name || "User") + " removed from this project"); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
   const changeRole = async (userId, role, name, adminCount, curRole) => { if (curRole === "admin" && role === "member" && adminCount <= 1) { setMemMsg("Keep at least one admin on the project."); reloadMems(); return; } try { await setMemberRole(S.projectId, userId, role); setMemMsg((name || "Role") + " set to " + role); reloadMems(); } catch (e) { setMemMsg("Failed: " + (e.message || e)); reloadMems(); } };
@@ -5091,7 +5065,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const pSendLink = async (id, who) => { setMemMsg("Generating link\u2026"); setPmCred(null); try { const res = await userOp({ op: "link", id, redirect: window.location.origin }); setPmCred({ who, whoEmail: (ustat[id] && ustat[id].email) || "", link: res.link, title: "Set-password link", mode: "link" }); setMemMsg(""); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
   const pResetPw = async (id, who) => { setMemMsg("Resetting password\u2026"); setPmCred(null); try { const res = await userOp({ op: "resetpw", id }); setPmCred({ who, pw: res.tempPassword, title: "New password set" }); setMemMsg(""); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
   const pDownloadBulk = () => { const rows = (pBulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile(`${(projCode || "DLP")}-team-logins.csv`, toCSV(["Name", "Email", "Set password link", "Project role", "Company", "Status"], rows)); };
-  const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
+  const exportProject = () => downloadFile(`${(projCode || "DLP")}-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (s == null || s === "") return ""; if (s instanceof Date) return isNaN(s) ? "" : fmtISO(s); s = String(s).trim(); if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/); if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0"); m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); } m = s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3,9})[-\/ ](\d{2}|\d{4})$/); if (m) { const mo = ({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 })[m[2].slice(0, 3).toLowerCase()]; if (mo) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + String(mo).padStart(2, "0") + "-" + m[1].padStart(2, "0"); } } const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
   const commitImportJSON = (obj) => {
@@ -5486,8 +5460,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                     for (let i = 0; i < rows2.length; i++) {
                       const r = rows2[i]; if (!r.link) continue;
                       try {
-                        const html = ol.buildUserInviteEmailHtml({ mode: "invite", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: cu.name || acct.username, validityDays: 30 });
-                        await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [r.email] });
+                        const html = ol.buildUserInviteEmailHtml({ mode: "invite", projectName: (S.brand && S.brand.projectName) || "", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: cu.name || acct.username, validityDays: 30 });
+                        await ol.sendMailMessage({ subject: "You're invited to " + (S.brand && S.brand.projectName ? S.brand.projectName + " DLP" : "DLP"), html, to: [r.email] });
                         rows2[i] = { ...r, mail: "Emailed" };
                       } catch (err) { rows2[i] = { ...r, mail: "Email failed", mailErr: (err && err.message) || String(err) }; }
                       setPBulkResults([...rows2]);
@@ -5761,7 +5735,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: "13px 15px", marginBottom: 11 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 220 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>Autodesk Construction Cloud (FIN04)<span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: "#7c3aed", borderRadius: 20, padding: "2px 8px" }}>Owner &amp; Admin</span></div>
+                  <div style={{ fontWeight: 800, fontSize: 13, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>Autodesk Construction Cloud ({projCode || "FIN04"})<span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: "#7c3aed", borderRadius: 20, padding: "2px 8px" }}>Owner &amp; Admin</span></div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>Watches the FOK Register on ACC and reflects new versions into the Planning Board. One way, ACC to DLP. DLP never writes back.</div>
                 </div>
                 {connAcc == null
@@ -5869,7 +5843,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               const tagSt = (done) => ({ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", border: "1px solid var(--line)", color: "var(--muted)", flex: "none", ...(done ? { color: "#0E9384", borderColor: "rgba(14,147,132,.5)", background: "rgba(14,147,132,.08)" } : {}) });
               const btnSt = (mode) => mode === "override" ? { color: "#E0A106", borderColor: "rgba(224,161,6,.5)" } : mode === "remove" ? { color: "#C0392B", borderColor: "rgba(192,57,58,.5)" } : { color: "var(--accent)", borderColor: "var(--accent)" };
               return <>
-                <button className="lk-btn" onClick={() => { const rows = list.map((e) => [e.ts, e.user, e.action, e.detail]); downloadFile(`FIN04-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows)); }}><Icon n="download" s={14} />Export audit (CSV)</button>
+                <button className="lk-btn" onClick={() => { const rows = list.map((e) => [e.ts, e.user, e.action, e.detail]); downloadFile(`${(projCode || "DLP")}-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows)); }}><Icon n="download" s={14} />Export audit (CSV)</button>
                 <button className="lk-btn" style={{ marginTop: 4 }} onClick={() => setAuditOpen((o) => !o)}><span style={{ display: "inline-flex", transform: auditOpen ? "rotate(90deg)" : "none", transition: "transform .12s" }}><Icon n="cr" s={13} /></span>{auditOpen ? "Hide" : "Show"} log ({list.length} {list.length === 1 ? "entry" : "entries"})</button>
                 {auditOpen && (list.length === 0
                   ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No actions match this selection.</div>
@@ -6153,7 +6127,7 @@ function CreatedEntriesModal({ S, LV, coName, onClose }) {
     const hdr = ["Created At", "Creator", "Creator Company", "Activity", "Contractor", "Cx Stage", "Planned Start", "Days", "Status", "Committed", "Witness"];
     const body = (rows || []).map((a) => { const c = creatorOf(a.createdBy);
       return [a.createdAt ? new Date(a.createdAt).toISOString() : "", c.name, c.company, a.desc || "", coName(a.companyId) || "", a.level || "", a.start || "", a.duration || "", a.status || "", a.committed ? "Yes" : "No", a.witnessInvite ? "Yes" : "No"]; });
-    downloadFile("FIN04-entries-created-" + new Date().toISOString().slice(0, 10) + ".csv", toCSV(hdr, body));
+    downloadFile((((S.brand && S.brand.projectName) || "DLP") + "-entries-created-") + new Date().toISOString().slice(0, 10) + ".csv", toCSV(hdr, body));
   };
 
   const fmtStamp = (iso) => { if (!iso) return ""; try { return new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
@@ -6240,7 +6214,7 @@ function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
     </div>);
 }
 
-function BaselineGantt({ baseline, LV, dark, zoom, compact, P }) {
+function BaselineGantt({ baseline, LV, dark, zoom, compact, P, brandName }) {
   const [collapsed, setCollapsed] = useState({});
   const svgRef = useRef(null);
   const wbs = (baseline && baseline.wbs) || {};
@@ -6271,7 +6245,7 @@ function BaselineGantt({ baseline, LV, dark, zoom, compact, P }) {
   const CRIT = dark ? "#E06C6C" : "#C0392B";
 
   const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
-  const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `FIN04-P6-baseline-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
+  const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${brandName || "DLP"}-P6-baseline-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
 
   const meta = (baseline && baseline.meta) || {};
   return (
@@ -6306,7 +6280,7 @@ function BaselineGantt({ baseline, LV, dark, zoom, compact, P }) {
   );
 }
 
-function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P }) {
+function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P, brandName }) {
   const [collapsed, setCollapsed] = useState({});
   const svgRef = useRef(null);
   const colorOf = (a) => ((LV[a.level] || {}).color || "#64748B");
@@ -6342,7 +6316,7 @@ function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P }) 
   const LATE = dark ? "#F87171" : "#C0392B", EARLY = dark ? "#34D399" : "#0E9384";
 
   const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
-  const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `FIN04-compare-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
+  const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${brandName || "DLP"}-compare-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
 
   const mappedN = liveItems.filter((i) => i.base).length;
   const slipped = liveItems.filter((i) => i.base && (dayOff(i.e) - dayOff(i.base.e)) > 1).length;
@@ -6464,9 +6438,9 @@ function SchedulePage({ S, coName, onOpen }) {
 
   const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
   const rasterize = (cb) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); cb(cv); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
-  const exportImg = (type) => rasterize((cv) => { const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.${type}`; a.click(); });
-  const exportPdf = () => { const w = window.open("", "_blank"); if (!w) return; w.document.write(`<!DOCTYPE html><html><head><title>FIN04 Schedule</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${svgString()}</body></html>`); w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350); };
-  const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
+  const exportImg = (type) => rasterize((cv) => { const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-schedule-${fmtISO(new Date())}.${type}`; a.click(); });
+  const exportPdf = () => { const w = window.open("", "_blank"); if (!w) return; w.document.write(`<!DOCTYPE html><html><head><title>${(S.brand && S.brand.projectName) || "DLP"} Schedule</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${svgString()}</body></html>`); w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350); };
+  const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
 
   return (
     <div className="lk-sch" style={cssVars(S.theme, S.settings, "schedule")}><style>{css}</style>
@@ -6493,8 +6467,8 @@ function SchedulePage({ S, coName, onOpen }) {
         <button className="lk-btn" onClick={exportXlsx}><Icon n="download" s={13} />Excel</button>
         </>}
       </div>
-      {view === "gantt" && source === "p6" && hasBaseline && <BaselineGantt baseline={bl} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
-      {view === "gantt" && source === "compare" && hasBaseline && <CompareGantt baseline={bl} live={S.activities} mappings={bl.mappings} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
+      {view === "gantt" && source === "p6" && hasBaseline && <BaselineGantt brandName={(S.brand && S.brand.projectName) || "DLP"} baseline={bl} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
+      {view === "gantt" && source === "compare" && hasBaseline && <CompareGantt brandName={(S.brand && S.brand.projectName) || "DLP"} baseline={bl} live={S.activities} mappings={bl.mappings} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
       {view === "gantt" && (source === "live" || !hasBaseline) && <div className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
         <>
@@ -6669,7 +6643,7 @@ function WorkloadView({ S, coName, onDrill }) {
 const TBL_COLS = [["code", "#"], ["company", "Company"], ["building", "Building"], ["level", "Level"], ["zone", "Zone / Room"], ["system", "System"], ["cx", "Cx"], ["start", "Start"], ["days", "Days"], ["committed", "Committed"], ["status", "Status"], ["witness", "Witness"], ["witnessat", "Witness time"], ["notes", "Notes"]];
 const TBL_DEFAULT_COLS = Object.fromEntries(TBL_COLS.map(([k]) => [k, k !== "witness" && k !== "witnessat"]));
 function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
-  const savedView = (() => { try { return JSON.parse(localStorage.getItem("fin04_tblview") || "null") || {}; } catch (e) { return {}; } })();
+  const savedView = (() => { try { return JSON.parse(localStorage.getItem("dlp_tblview") || "null") || {}; } catch (e) { return {}; } })();
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [q, setQ] = useState("");
@@ -6707,8 +6681,8 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
   const setStatus = (v) => setDraft((d) => { if (v === "complete" && pastCompletionWindow(d) && !isAdmin) return d; const n = { ...d, status: v }; if (v === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (v === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish && !pastCompletionWindow(d)) n.actualFinish = fmtISO(new Date()); } return n; });
   const save = () => { if (!draft.desc.trim() || !draft.start) return; const d = draft; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === d.id ? d : x) }), { action: "Edit activity (table)", detail: `${d.desc} (${coName(d.companyId)})` }); cancel(); };
-  const saveView = () => { try { localStorage.setItem("fin04_tblview", JSON.stringify({ cols, fCo, fAr, fLv, fStatus })); setSavedMsg("Saved as your default view"); setTimeout(() => setSavedMsg(""), 2200); } catch (e) {} };
-  const resetView = () => { setCols({ ...TBL_DEFAULT_COLS }); setFCo("all"); setFAr("all"); setFLv("all"); setFStatus("all"); setFFrom(""); setFTo(""); try { localStorage.removeItem("fin04_tblview"); } catch (e) {} setSavedMsg("Reset to defaults"); setTimeout(() => setSavedMsg(""), 2200); };
+  const saveView = () => { try { localStorage.setItem("dlp_tblview", JSON.stringify({ cols, fCo, fAr, fLv, fStatus })); setSavedMsg("Saved as your default view"); setTimeout(() => setSavedMsg(""), 2200); } catch (e) {} };
+  const resetView = () => { setCols({ ...TBL_DEFAULT_COLS }); setFCo("all"); setFAr("all"); setFLv("all"); setFStatus("all"); setFFrom(""); setFTo(""); try { localStorage.removeItem("dlp_tblview"); } catch (e) {} setSavedMsg("Reset to defaults"); setTimeout(() => setSavedMsg(""), 2200); };
   const subsFor = (area) => (S.subAreas || []).filter((s) => s.area === area);
   const zonesFor = (area, sub) => (S.tier3s || []).filter((t) => t.area === area && t.subArea === sub);
   const list = S.activities.filter((a) => {
@@ -7346,7 +7320,7 @@ function draftSummary(r){
   return s.trim();
 }
 
-function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml }){
+function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml, projectName, projectLocation }){
   // REV195: per-section narrative block, defined first because scheduleSection uses it
   // long before the blocks assembly (REV194 declared it mid-body, so building the
   // schedule hit the const in its temporal dead zone and Generate died silently).
@@ -7543,7 +7517,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const bodyHtml = blocks.join("\n");
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FIN04 Weekly DLP Report</title>
+<title>${esc(projectName || "FIN04")} Weekly DLP Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -7693,13 +7667,13 @@ body.dark .chip.wit{color:#9F7AEA}
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
 <div class="mast"><div class="mast-top">
-<div class="brand"><img class="logo" src="${ATNORTH_LOGO}" alt="atnorth"><div class="proj"><div class="p1">FIN04 Data Centre</div><div class="p2">Koski, Finland</div></div></div>
+<div class="brand"><img class="logo" src="${ATNORTH_LOGO}" alt="atnorth"><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
 <div class="issued">Issued <b>${fmtFull(r.today)}</b><br>${esc(by||"")}</div></div>
 <h1>Weekly DLP Report</h1><div class="wk num">${periodLabel} &nbsp;|&nbsp; lookahead to ${fmtFull(r.laEnd)}</div></div>
 <div class="body">
 ${bodyHtml}
 </div>
-<footer>Generated from DLP &middot; dlp-pi.vercel.app &middot; FIN04 commissioning lookahead</footer>
+<footer>Generated from DLP &middot; ${esc(APP_HOST)} &middot; ${esc(projectName || "FIN04")} commissioning lookahead</footer>
 </div></body></html>`;
 }
 
@@ -7924,10 +7898,10 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   };
   const generate = () => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const html = buildWeeklyReportHTML({ r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
+    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-    else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-weekly-report-${fmtISO(start)}${theme==="dark"?"-dark":""}.html`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
+    else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(start)}${theme==="dark"?"-dark":""}.html`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
     setOpen(false);
   };
   if (!isAdmin) return null;
@@ -7973,14 +7947,14 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   // Both themes are always generated; the Appearance toggle governs only the on-screen Generate.
   const composeParts = (ol, organiserLabel) => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const mk = (th) => buildWeeklyReportHTML({ r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
+    const mk = (th) => buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
     const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "#C0392B" });
     if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "#0E9384" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "#E0A106" });
-    const base = "FIN04-weekly-report-" + fmtISO(start);
+    const base = ((S.brand && S.brand.projectName) || "DLP") + "-weekly-report-" + fmtISO(start);
     return { fullLight: mk("light"), fullDark: mk("dark"), lbl, tiles, organiserLabel, names: { light: base + "-light.html", dark: base + "-dark.html" }, emlName: base + ".eml" };
   };
   // Classic Outlook draft: downloads an .eml (X-Unsent: 1) that opens in classic Outlook as an
@@ -7991,8 +7965,8 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     try {
       const ol = await import("./outlook");
       const p = composeParts(ol, by);
-      const bodyHtml = ol.buildReportEmailHtml({ periodLabel: p.lbl, by, summary: summaryVal, tiles: p.tiles, attached: { mode: "both", light: p.names.light, dark: p.names.dark } });
-      const eml = ol.buildReportEml({ subject: "FIN04 Weekly DLP Report, " + p.lbl, to: recips.filter((r) => r.email), bodyHtml, attachments: [{ name: p.names.light, html: p.fullLight }, { name: p.names.dark, html: p.fullDark }] });
+      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", periodLabel: p.lbl, by, summary: summaryVal, tiles: p.tiles, attached: { mode: "both", light: p.names.light, dark: p.names.dark } });
+      const eml = ol.buildReportEml({ subject: ((S.brand && S.brand.projectName) || "DLP") + " Weekly DLP Report, " + p.lbl, to: recips.filter((r) => r.email), bodyHtml, attachments: [{ name: p.names.light, html: p.fullLight }, { name: p.names.dark, html: p.fullDark }] });
       const url = URL.createObjectURL(new Blob([eml], { type: "message/rfc822" }));
       const a2 = document.createElement("a"); a2.href = url; a2.download = p.emlName; a2.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       setRepMsg({ ok: true, text: "Draft downloaded" + (recips.length ? ", addressed to " + recips.length + " recipient" + (recips.length === 1 ? "" : "s") : "") + ", both report versions attached. Open the .eml file: classic Outlook opens it as an editable draft; review and press Send. Classic Outlook only; new Outlook may drop the attachments." });
@@ -8015,12 +7989,12 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
       const LIMIT = 3400000;   // sendMail is one JSON request with a 4 MB ceiling; guard the pair
       const attMode = bL.length + bD.length <= LIMIT ? "both" : (bL.length <= LIMIT ? "light" : "none");
       const lbl = p.lbl;
-      const bodyHtml = ol.buildReportEmailHtml({ periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles: p.tiles, attached: { mode: attMode, light: p.names.light, dark: p.names.dark } });
+      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles: p.tiles, attached: { mode: attMode, light: p.names.light, dark: p.names.dark } });
       const attachments = attMode === "both"
         ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }, { name: p.names.dark, contentType: "text/html", contentBytes: bD }]
         : attMode === "light" ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }] : [];
       await ol.sendMailMessage({
-        subject: (testOnly ? "[TEST] " : "") + "FIN04 Weekly DLP Report, " + lbl,
+        subject: (testOnly ? "[TEST] " : "") + (((S.brand && S.brand.projectName) || "DLP") + " Weekly DLP Report, ") + lbl,
         html: bodyHtml,
         to,
         attachments,
@@ -8318,10 +8292,10 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const repData = useMemo(() => repOpen ? computeReport({ S, LV, coName, start: repStart, end: repEnd }) : null, [repOpen, S, LV, repStart.getTime(), repEnd.getTime()]);
   const repSummaryVal = repSummary != null ? repSummary : (repData ? draftSummary(repData) : "");
   const generateReport = () => {
-    const html = buildWeeklyReportHTML({ r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
+    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-    else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `FIN04-weekly-report-${fmtISO(repStart)}${repTheme === "dark" ? "-dark" : ""}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
+    else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(repStart)}${repTheme === "dark" ? "-dark" : ""}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
     setRepOpen(false);
   };
   const finishOf = (a) => addDays(parseD(a.start), (a.duration || 1) - 1);
@@ -8470,7 +8444,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       const st = wb.addWorksheet("Status mix"); st.columns = [{ header: "Status", key: "n", width: 26 }, { header: "Count", key: "c", width: 10 }, { header: "Share %", key: "s", width: 10 }]; head(st);
       statusData.forEach((x) => { st.addRow({ n: x.name, c: x.n, s: acts.length ? Math.round((x.n / acts.length) * 100) : 0 }); x.subs.forEach((u) => st.addRow({ n: "    - " + u.label, c: u.items.length })); });
       const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-      const a = document.createElement("a"); a.href = url; a.download = `FIN04-analytics-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-analytics-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); }
   };
   return (
