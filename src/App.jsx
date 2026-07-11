@@ -804,7 +804,29 @@ const I = {
   hammer: <><path d="M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h.86c.85 0 1.65.33 2.25.93l1.25 1.25"/></>,
   users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>,
 };
-const Icon = ({ n, s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
+// REV222: the full lucide icon catalogue, loaded on demand. lucide-react ships about 1,700
+// icons and would roughly double the main bundle, so it lives in its own chunk that the
+// browser only fetches when a lucide icon is actually configured on a project or the library
+// browser is opened in Design settings. Stored names keep the exact catalogue key
+// ("lucide:Calendar"), so lookups never depend on name-format conversion.
+let _lucideMod = null; let _lucideLoad = null;
+const loadLucide = () => _lucideLoad || (_lucideLoad = import("lucide-react").then((m) => { _lucideMod = m; return m; }));
+const lucideLabel = (k) => String(k || "").replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+function LucideIcon({ name, s = 16 }) {
+  const [ready, setReady] = useState(!!_lucideMod);
+  useEffect(() => {
+    if (_lucideMod) return undefined;
+    let on = true;
+    loadLucide().then(() => { if (on) setReady(true); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const C = ready && _lucideMod && _lucideMod.icons ? _lucideMod.icons[name] : null;
+  if (!C) return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />;
+  return <C size={s} strokeWidth={2} />;
+}
+const Icon = ({ n, s = 16 }) => String(n || "").indexOf("lucide:") === 0
+  ? <LucideIcon name={String(n).slice(7)} s={s} />
+  : <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
 const todayMid = () => new Date().setHours(0, 0, 0, 0);
 const parseD = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
@@ -4577,6 +4599,17 @@ function DesignTab({ S, update }) {
   const iconOf = (k) => icons[k] || defOf(k);
   const usedBy = (name) => DESIGN_PAGES.find((x) => x[0] !== selPage && iconOf(x[0]) === name);
   const setIcon = (name) => update((p) => ({ ...p, settings: { ...p.settings, pageIcons: { ...(p.settings && p.settings.pageIcons), [selPage]: name } } }), { action: "Change setting", detail: "Page icon " + selPage + " = " + name });
+  // REV222: full-catalogue browser state. The catalogue list is built once per session
+  // from the lazily loaded module; nothing lucide-related downloads until this is opened.
+  const [lucOpen, setLucOpen] = useState(false);
+  const [lucQ, setLucQ] = useState("");
+  const [lucNames, setLucNames] = useState(null);
+  const openLucide = () => {
+    setLucOpen((v) => !v);
+    if (!lucNames) loadLucide()
+      .then((m) => setLucNames(Object.keys((m && m.icons) || {}).map((k) => ({ key: k, label: lucideLabel(k) })).sort((a, b) => a.label.localeCompare(b.label))))
+      .catch(() => setLucNames([]));
+  };
   const sel = DESIGN_PAGES.find((x) => x[0] === selPage) || DESIGN_PAGES[0];
   const design = (S.settings && S.settings.design) || {};
   const g = design.global || {};
@@ -4610,6 +4643,25 @@ function DesignTab({ S, update }) {
       <div style={{ ...lab }}>Icon for {sel[1]}{icons[selPage] ? "" : " (default)"}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))", gap: 8, maxWidth: 620 }}>
         {DESIGN_ICON_CHOICES.map((name) => { const used = usedBy(name); const on = iconOf(selPage) === name; return <button key={name} disabled={!!used} title={used ? "Used by " + used[1] : name} onClick={() => setIcon(name)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon n={name} s={19} /></button>; })}
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <button className="lk-btn" onClick={openLucide}>{lucOpen ? "Hide the full icon library" : "Browse the full icon library"}</button>
+        {lucOpen && <div style={{ marginTop: 10 }}>
+          <input className="lk-in" style={{ maxWidth: 300 }} placeholder="Search 1,700+ icons..." value={lucQ} onChange={(e) => setLucQ(e.target.value)} />
+          {!lucNames && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>Loading the icon library...</div>}
+          {lucNames && lucNames.length === 0 && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>The icon library could not be loaded; check your connection and reopen.</div>}
+          {lucNames && lucNames.length > 0 && (() => {
+            const q = lucQ.trim().toLowerCase();
+            const hits = q ? lucNames.filter((x) => x.label.indexOf(q) !== -1) : lucNames;
+            const list = hits.slice(0, 96);
+            return <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))", gap: 8, maxWidth: 620, marginTop: 10 }}>
+                {list.map((x) => { const nm = "lucide:" + x.key; const used = usedBy(nm); const on = iconOf(selPage) === nm; return <button key={x.key} disabled={!!used} title={used ? "Used by " + used[1] : x.label} onClick={() => setIcon(nm)} style={{ aspectRatio: "1", border: "1px solid " + (on ? "var(--accent)" : "var(--line)"), borderRadius: 8, background: on ? "var(--accent)" : "var(--card)", color: on ? "#fff" : (used ? "var(--faint)" : "var(--ink)"), opacity: used ? .45 : 1, cursor: used ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><LucideIcon name={x.key} s={19} /></button>; })}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{hits.length > list.length ? "Showing the first " + list.length + " of " + hits.length + "; search to narrow." : list.length + " icon" + (list.length === 1 ? "" : "s") + "."}</div>
+            </>;
+          })()}
+        </div>}
       </div>
       {icons[selPage] && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setIcon(defOf(selPage))}>Reset {sel[1]} to default</button>}
     </div>}

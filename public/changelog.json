@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV222",
+    "date": "2026-07-11",
+    "items": [
+      "Design settings now carries the full lucide icon library: press Browse the full icon library on the Icons tab to search 1,700+ icons and set any of them as a page's sidebar mark, with the same duplicate guard as the built-in set. The library downloads as a separate on-demand chunk, so projects that never open it pay nothing; the main app bundle is unchanged."
+    ]
+  },
+  {
     "rev": "REV221",
     "date": "2026-07-11",
     "items": [
