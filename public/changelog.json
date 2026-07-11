@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV227",
+    "date": "2026-07-11",
+    "items": [
+      "Design settings tranche 3, Board: a Board tab in Admin, Design controlling how Planning Board cards present for everyone on the project. Card edge colour by Cx level (today's default), Company (stable name-derived colour), Discipline, or Status; six card-detail toggles (commitment, witness state, constraint count, delay markers, crew hours, company/location) with hidden details still available in the drawer and table; and card text size Small, Standard, or Large. The Gantt view follows the same rules. Safety signals are not configurable: a failed witness keeps its red edge and failed chip, and a slipped activity keeps its red edge. Projects that never open the tab see no change."
+    ]
+  },
+  {
     "rev": "REV226",
     "date": "2026-07-11",
     "items": [

@@ -49,6 +49,12 @@ const DEFAULT_LEVELS = {
   L3: { name: "Energise / startup / functional", color: "#D97706" },
   L4: { name: "Performance", color: "#7C3AED" },
 };
+// REV227 Board tranche: card edge colour sources. Company colours derive from the name,
+// stable across sessions and devices without a stored field. Discipline colours match the
+// witness routing disciplines; unknown or empty falls back to the level colour.
+const EDGE_CO_PALETTE = ["#3B6FB5", "#8A5CC7", "#2E8B77", "#C07A00", "#B34A7E", "#4A7DB3", "#6B8E23", "#B0552F", "#476A8A", "#7A6FBE"];
+const coEdgeColor = (name) => { let h = 0; const t = String(name || ""); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; return EDGE_CO_PALETTE[h % EDGE_CO_PALETTE.length]; };
+const DISC_EDGE = { MECHANICAL: "#0E9384", ELECTRICAL: "#D97706", "BMS/EPMS": "#7C3AED", FLS: "#B34A7E" };
 const tintOf = (hex) => { try { let h = (hex || "#64748B").replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255, mix = (c) => Math.round(c + (255 - c) * 0.86); return `rgb(${mix(r)},${mix(g)},${mix(b)})`; } catch (e) { return "#EEF1F5"; } };
 const lvOf = (levels, k) => (levels && levels[k]) || (levels && Object.values(levels)[0]) || DEFAULT_LEVELS.L2;
 const QMC_LIGHT = "data:image/png;base64,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";
@@ -157,14 +163,15 @@ const css = `
 .lk-rsz.l::after{left:2px}.lk-rsz.r::after{right:2px}
 .lk-ticket:hover .lk-rsz::after{opacity:.45}.lk-rsz:hover::after{opacity:.9}
 .lk-ticket.resizing{box-shadow:0 3px 12px rgba(0,0,0,.22);cursor:ew-resize}
-.lk-ticket .desc{flex:0 0 auto;font-weight:600;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lk-ticket .meta{flex:0 0 auto;font-size:10.5px;line-height:1.3;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
+.lk-ticket .desc{flex:0 0 auto;font-weight:600;font-size:calc(13px*var(--bd-fs,1));line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-ticket .meta{flex:0 0 auto;font-size:calc(10.5px*var(--bd-fs,1));line-height:1.3;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
 .lk-ticket .dot{width:7px;height:7px;border-radius:50%;flex:none}
 .lk-ticket.constrained{border-left-style:dashed}
 .lk-ticket.complete{opacity:.5}.lk-ticket.complete .desc{text-decoration:line-through}
 .lk-ticket.dim{opacity:.16;filter:grayscale(.6)}
 .lk-ticket.spot{box-shadow:0 0 0 2px #E0A106,0 4px 14px rgba(224,161,6,.28)}
 .lk-chip{font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:calc(4px*var(--r,1));text-transform:uppercase}
+.lk-boardpage .lk-chip{font-size:calc(8.5px*var(--bd-fs,1))}
 .lk-chip.commit{background:#1D4ED8;color:#DBE7FB}
 .lk-chip.cstr{background:#FBEFD6;color:#9A6A00;display:inline-flex;align-items:center;gap:3px}
 .lk-chip.late{background:#F6D6D3;color:#9B1C16}
@@ -3184,6 +3191,21 @@ export default function App({ session }) {
   const minW = 220 + cols * colMin;
   const fmtWC = (d) => `${d.getDate()} ${d.toLocaleString("en-GB", { month: "short" })}`;
 
+  // REV227: board presentation settings. An absent block reproduces today's behaviour
+  // exactly: level edge, every chip shown, standard text.
+  const BD = (S.settings && S.settings.design && S.settings.design.board) || {};
+  const BH = BD.hide || {};
+  // Company colours by rank in the sorted company list: guaranteed distinct up to the
+  // palette size and identical for every member, since everyone sees the same companies.
+  // The name hash remains only as a fallback for a company missing from the list.
+  const coEdgeMap = {};
+  (S.companies || []).map((c) => c.name).sort((x, y) => x.localeCompare(y)).forEach((n, i) => { coEdgeMap[n] = EDGE_CO_PALETTE[i % EDGE_CO_PALETTE.length]; });
+  const boardEdge = (a, lv, constrained) => {
+    if (BD.edge === "company") { const n = coName(a.companyId); return coEdgeMap[n] || coEdgeColor(n); }
+    if (BD.edge === "discipline") { const d = (a.discipline || [])[0]; return DISC_EDGE[d] || lv.color; }
+    if (BD.edge === "status") return a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384";
+    return lv.color;
+  };
   const Ticket = ({ a, row }) => {
     const rz = resize && resize.id === a.id ? resize : null;
     let s = Math.max(0, sU(a)), e = Math.min(cols - 1, eU(a));
@@ -3259,19 +3281,19 @@ export default function App({ session }) {
     const tailLate = a.delayed && !a.excuse;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "") + (failedInv ? " ghostfail" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : lv.color), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : boardEdge(a, lv, constrained)), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
         draggable={movable && !rz && !failedInv} onDragStart={() => movable && !failedInv && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={failedInv ? `Witness failed${a.outcomeAt ? " " + a.outcomeAt : ""}${a.outcomeReason ? " \u00b7 " + a.outcomeReason : ""} \u00b7 ${tipOf(a)}` : carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
         <div className="desc">{(carried || failCarried) && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{castName(a.desc || "Untitled activity", S.nameCase)}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
-          {a.committed && <span className="lk-chip commit">will</span>}
-          {a.witnessInvite && (failedInv ? <span className="lk-chip fail" title={"Witness outcome: failed" + (a.outcomeReason ? " \u00b7 " + a.outcomeReason : "")}>failed</span> : passedInv ? <span className="lk-chip pass" title="Witness outcome: succeeded">passed</span> : <span className="lk-chip wit" title="Witness invite">WIT</span>)}
-          {a.retestOf && <span className="lk-chip retest" title={"Attempt #" + attemptNo(a, S.activities) + " of this witness event"}>retest #{attemptNo(a, S.activities) - 1}</span>}
-          {constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
-          {a.delayed && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
-          {a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
-          {!!S.settings.crewsEnabled && a.estHours !== "" && a.estHours != null && +a.estHours > 0 && <span className="lk-chip hrs" title={"Estimated " + a.estHours + "h" + ((a.crew || []).length ? " for " + a.crew.join(" + ") : "") + (a.duration > 1 ? " spread over " + a.duration + " days" : "")}>{+a.estHours}h{(a.crew || []).length ? " \u00b7 " + a.crew.join("+") : ""}</span>}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>
+          {!BH.commit && a.committed && <span className="lk-chip commit">will</span>}
+          {a.witnessInvite && (failedInv ? <span className="lk-chip fail" title={"Witness outcome: failed" + (a.outcomeReason ? " \u00b7 " + a.outcomeReason : "")}>failed</span> : (!BH.witness && (passedInv ? <span className="lk-chip pass" title="Witness outcome: succeeded">passed</span> : <span className="lk-chip wit" title="Witness invite">WIT</span>)))}
+          {!BH.witness && a.retestOf && <span className="lk-chip retest" title={"Attempt #" + attemptNo(a, S.activities) + " of this witness event"}>retest #{attemptNo(a, S.activities) - 1}</span>}
+          {!BH.cstr && constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
+          {!BH.delay && a.delayed && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
+          {!BH.delay && a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
+          {!BH.hrs && !!S.settings.crewsEnabled && a.estHours !== "" && a.estHours != null && +a.estHours > 0 && <span className="lk-chip hrs" title={"Estimated " + a.estHours + "h" + ((a.crew || []).length ? " for " + a.crew.join(" + ") : "") + (a.duration > 1 ? " spread over " + a.duration + " days" : "")}>{+a.estHours}h{(a.crew || []).length ? " \u00b7 " + a.crew.join("+") : ""}</span>}
+          {!BH.who && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>}
         </div>
         {failedInv && !tailFail && <div className="lk-failx" title="Witness failed">{"\u2715"}</div>}
         {grain === "day" && resizable(a) && !failedInv && <><div className="lk-rsz l" title="Drag to change the start" onMouseDown={(ev) => startResize(ev, a, "l")} /><div className="lk-rsz r" title="Drag to change the finish" onMouseDown={(ev) => startResize(ev, a, "r")} /></>}
@@ -3496,7 +3518,7 @@ export default function App({ session }) {
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
       </div>
-      {page === "board" && <div className="lk-boardpage">
+      {page === "board" && <div className="lk-boardpage" style={{ "--bd-fs": BD.cardText === "s" ? 0.9 : BD.cardText === "l" ? 1.12 : 1 }}>
       <div className="lk-toolbar">
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ position: "relative" }}>
@@ -3615,7 +3637,7 @@ export default function App({ session }) {
           const lv = lvOf(LV, a.level);
           return (
             <div key={a.id} className="lk-grow" style={{ gridTemplateColumns: gridCols, minWidth: minW }}>
-              <div className="gl"><span className="sw" style={{ background: lv.color }} />
+              <div className="gl"><span className="sw" style={{ background: boardEdge(a, lv, a.open > 0 && a.status !== "complete") }} />
                 <div style={{ minWidth: 0 }}><div className="nm">{a.desc || "Untitled"}</div><div className="cm">{coName(a.companyId)} · {a.level}</div></div></div>
               <div className="lk-track" style={{ gridColumn: `2 / span ${DAYS}` }}>
                 <Underlay lane={null} />
@@ -4631,6 +4653,9 @@ function DesignTab({ S, update }) {
   const scopeName = desScope === "global" ? "the whole project" : (DESIGN_PAGES.find((x) => x[0] === desScope) || ["", desScope])[1];
   const setGlobal = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, global: { ...(cur.global || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design global " + Object.keys(patch).join(", ") });
   const setScoped = (patch) => { if (desScope === "global") { setGlobal(patch); return; } update((p) => { const cur = (p.settings && p.settings.design) || {}; const pages = { ...(cur.pages || {}) }; const blk = { ...(pages[desScope] || {}), ...patch }; Object.keys(blk).forEach((k) => { if (blk[k] === "" || blk[k] == null) delete blk[k]; }); if (Object.keys(blk).length) pages[desScope] = blk; else delete pages[desScope]; return { ...p, settings: { ...p.settings, design: { ...cur, pages } } }; }, { action: "Change setting", detail: "Design " + desScope + " " + Object.keys(patch).join(", ") }); };
+  const bdBlk = design.board || {};
+  const bdHide = bdBlk.hide || {};
+  const setBoard = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, board: patch === null ? {} : { ...(cur.board || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design board " + (patch === null ? "reset" : Object.keys(patch).join(", ")) });
   const hasOver = (k) => !!(design.pages && design.pages[k] && Object.keys(design.pages[k]).length);
   const themeAccent = (THEMES[S.theme] || THEMES.light).accent;
   const ACCENTS = ["#1E5FCC", "#2563EB", "#0E9384", "#16A34A", "#C07A00", "#C0392B", "#7C3AED", "#DB2777", "#0891B2", "#475569"];
@@ -4647,7 +4672,7 @@ function DesignTab({ S, update }) {
   </div>;
   const scopeNote = desScope === "global" ? "Applies across the whole project unless a page overrides it below." : (scopeName + " inherits the global setting unless you override it here.");
   return <div>
-    <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}{subtab("layout", "Layout")}</div>
+    <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}{subtab("layout", "Layout")}{subtab("board", "Board")}</div>
 
     {tab === "icons" && <div>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Choose the sidebar icon for each page. An icon already used by another page is greyed out, so no two pages can share a mark.</div>
@@ -4701,6 +4726,30 @@ function DesignTab({ S, update }) {
         </div>
       </div>
       {(scopeBlk.width || scopeBlk.density || scopeBlk.radius) && <button className="lk-btn" style={{ marginTop: 16 }} onClick={() => setScoped({ width: "", density: "", radius: "" })}>{desScope === "global" ? "Reset Layout to defaults" : "Clear Layout overrides for " + scopeName}</button>}
+    </div>}
+
+    {tab === "board" && <div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>How Planning Board cards present, for everyone on this project. Personal toolbar choices (Swimlane or Gantt, Day or Week, lane grouping) stay personal. A failed witness always keeps its red edge and failed chip, and a slipped activity keeps its red edge, whatever is chosen here.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div>
+          <div style={{ ...lab }}>Card edge colour</div>
+          {seg(bdBlk.edge || "level", [["level", "Cx level"], ["company", "Company"], ["discipline", "Discipline"], ["status", "Status"]], (v) => setBoard({ edge: v }))}
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Cx level uses the project's level palette. Company gives each contractor a stable colour derived from its name. Discipline colours by the activity's discipline, falling back to the level colour. Status: complete grey, constrained amber, on track teal.</div>
+        </div>
+        <div>
+          <div style={{ ...lab }}>Card details</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["commit", "Commitment (will)"], ["witness", "Witness state"], ["cstr", "Constraint count"], ["delay", "Delay markers"], ["hrs", "Crew hours"], ["who", "Company / location"]].map(([k, l]) => <label key={k} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600, border: "1px solid var(--line)", borderRadius: 9, padding: "7px 12px", cursor: "pointer", background: "var(--card)" }}><input type="checkbox" checked={!bdHide[k]} onChange={(e) => setBoard({ hide: { ...bdHide, [k]: !e.target.checked } })} />{l}</label>)}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Hide what this project does not use; hidden details stay in the activity drawer and the table. The status dot always shows.</div>
+        </div>
+        <div>
+          <div style={{ ...lab }}>Card text</div>
+          {seg(bdBlk.cardText || "m", [["s", "Small"], ["m", "Standard"], ["l", "Large"]], (v) => setBoard({ cardText: v }))}
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Scales card description and meta text only. Layout's density still governs padding independently.</div>
+        </div>
+      </div>
+      {Object.keys(bdBlk).length > 0 && <button className="lk-btn" style={{ marginTop: 16 }} onClick={() => setBoard(null)}>Reset Board to defaults</button>}
     </div>}
 
     {tab === "colour" && <div>
