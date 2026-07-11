@@ -688,6 +688,11 @@ export async function companyUsage(companyId) {
   ]);
   return { activities: a.count || 0, people: pr.count || 0 };
 }
+// Direct slot write for the hub logo editor (the project tab used to persist via syncCollections).
+export async function setCompanyLogo(id, dark, url) {
+  const { error } = await supabase.from("companies").update({ [dark ? "logo_url_dark" : "logo_url"]: url || null }).eq("id", id);
+  if (error) throw error;
+}
 export async function renameCompany(id, name) {
   const { error } = await supabase.from("companies").update({ name: (name || "").trim() }).eq("id", id);
   if (error) throw error;

@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV210",
+    "date": "2026-07-11",
+    "items": [
+      "Global Companies gets the same pinned block as Global Contacts: a search field (name or domain, with a live match count) and the column headers stay in view while the registry scrolls. This pinned filter-and-header block is now the standing default for every list panel in the platform.",
+      "Company logos move to their global home: the Manage modal in Global Settings now carries the light and dark logo slots (upload on the correct swatch, remove with one click; changes reach every project). The project Companies tab no longer uploads logos and instead points to Global Settings. The registry list shows per-slot L and D status chips.",
+      "Fixed the stray horizontal scrollbar inside hub modals: the project app's box-sizing reset is scoped to a root class the hub does not have, so hub inputs overflowed their containers by their padding. The hub now carries its own scoped reset."
+    ]
+  },
+  {
     "rev": "REV209",
     "date": "2026-07-11",
     "items": [

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -1307,6 +1307,8 @@ function HubGlobalSettings({ theme, userName, projects }) {
   const [manageCo, setManageCo] = useState(null);
   const [pcMap, setPcMap] = useState({});
   const [nco, setNco] = useState({ name: "", domain: "" });
+  const [coq, setCoq] = useState("");
+  const COGRID = "minmax(170px,1.3fr) minmax(140px,1fr) 110px minmax(150px,1.1fr) 84px";
   const [cred, setCred] = useState(null);
   const [nu, setNu] = useState({ email: "", name: "", companyId: "" });
   const [bulkText, setBulkText] = useState("");
@@ -1405,8 +1407,8 @@ function HubGlobalSettings({ theme, userName, projects }) {
     <button className="lk-mbtn" onClick={() => setManage(u.id)}>Manage</button>
   </div>; };
   const mu = manage ? users.find((x) => x.id === manage) : null;
-  return <div style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
-    <style>{HUB_LK_CSS + "\n.hubstick{position:sticky;top:0;z-index:21;background:var(--card);margin:0 -20px 8px;padding:12px 20px 0;border-bottom:1px solid var(--line);border-radius:0 0 10px 10px}\n.hubstick .lk-ufilter{position:static;margin:0 0 6px;padding:0;border-bottom:0;z-index:auto}\n.hubstick .lk-uhead{padding-bottom:8px}"}</style>
+  return <div className="hubroot" style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
+    <style>{HUB_LK_CSS + "\n.hubstick{position:sticky;top:0;z-index:21;background:var(--card);margin:0 -20px 8px;padding:12px 20px 0;border-bottom:1px solid var(--line);border-radius:0 0 10px 10px}\n.hubstick .lk-ufilter{position:static;margin:0 0 6px;padding:0;border-bottom:0;z-index:auto}\n.hubstick .lk-uhead{padding-bottom:8px}\n.hubroot *{box-sizing:border-box}\n.lk-codrop{height:72px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;border:1px solid var(--line);overflow:hidden}\n.lk-codrop img{max-width:88%;max-height:78%;object-fit:contain}\n.lk-coremove{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1}\n.lk-coremove:hover{background:rgba(0,0,0,.7)}"}</style>
     <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "start" }}>
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
@@ -1493,20 +1495,25 @@ function HubGlobalSettings({ theme, userName, projects }) {
         </>}
         {sub === "companies" && <>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Global Companies</div>
-        <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>One shared directory. Edits here reach every project that references the company (activities, contacts, filters), which is why management lives at platform level. Associating companies with projects happens on each project&rsquo;s Companies tab; logos are uploaded there too.</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>One shared directory. Edits here reach every project that references the company (activities, contacts, filters), which is why management lives at platform level. Associating companies with projects happens on each project&rsquo;s Companies tab. Light and dark logos are managed here.</div>
         {!dir && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading directory&hellip;</div>}
         {dir && dir.error && <div style={{ fontSize: 12, color: "var(--red, #C0392B)" }}>Load failed: {dir.error}</div>}
         {dir && !dir.error && <>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-            <thead><tr>{["Company", "Domain", "Logo", "Used on", ""].map((h, i) => <th key={i} style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid var(--line)", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".5px" }}>{h}</th>)}</tr></thead>
-            <tbody>{companies.map((c) => { const pids = pcMap[c.id] || []; const codes = pids.map((pid) => (((projects || []).find((pp) => pp.id === pid)) || {}).code).filter(Boolean).sort(); const isClient = (projects || []).some((pp) => (pp.client || "").trim().toLowerCase() === (c.name || "").toLowerCase()); return <tr key={c.id}>
-              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", fontWeight: 600 }}>{c.name}{isClient ? <span className="lk-cochip" style={{ marginLeft: 8, fontSize: 9 }}>CLIENT</span> : null}</td>
-              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", color: "var(--muted)" }}>{c.domain || ""}</td>
-              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)" }}><span className={"lk-stat " + (c.logoUrl ? "act" : "pend")}>{c.logoUrl ? "Set" : "Missing"}</span></td>
-              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", fontSize: 11.5 }}>{codes.length ? codes.join(", ") : <span style={{ color: "var(--muted)" }}>Not on any project</span>}</td>
-              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)", textAlign: "right" }}><button className="lk-mbtn" onClick={() => setManageCo(c.id)}>Manage</button></td>
-            </tr>; })}</tbody>
-          </table>
+          <div className="hubstick" style={{ paddingBottom: 0 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+              <input className="lk-in" style={{ maxWidth: 340 }} placeholder="Search name or domain..." value={coq} onChange={(e) => setCoq(e.target.value)} />
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>{companies.filter((c) => !coq || (c.name || "").toLowerCase().includes(coq.toLowerCase()) || (c.domain || "").toLowerCase().includes(coq.toLowerCase())).length} of {companies.length}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: COGRID, gap: 10, alignItems: "center", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".5px", padding: "0 10px 7px" }}><span>Company</span><span>Domain</span><span>Logos</span><span>Used on</span><span /></div>
+          </div>
+          {companies.filter((c) => !coq || (c.name || "").toLowerCase().includes(coq.toLowerCase()) || (c.domain || "").toLowerCase().includes(coq.toLowerCase())).map((c) => { const pids = pcMap[c.id] || []; const codes = pids.map((pid) => (((projects || []).find((pp) => pp.id === pid)) || {}).code).filter(Boolean).sort(); const isClient = (projects || []).some((pp) => (pp.client || "").trim().toLowerCase() === (c.name || "").toLowerCase()); return <div key={c.id} style={{ display: "grid", gridTemplateColumns: COGRID, gap: 10, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
+            <span style={{ fontWeight: 600 }}>{c.name}{isClient ? <span className="lk-cochip" style={{ marginLeft: 8, fontSize: 9 }}>CLIENT</span> : null}</span>
+            <span style={{ color: "var(--muted)" }}>{c.domain || ""}</span>
+            <span><span className={"lk-stat " + (c.logoUrl ? "act" : "pend")} title={"Light logo " + (c.logoUrl ? "set" : "missing")}>L</span><span className={"lk-stat " + (c.logoDark ? "act" : "pend")} style={{ marginLeft: 4 }} title={"Dark logo " + (c.logoDark ? "set" : "missing")}>D</span></span>
+            <span style={{ fontSize: 11.5 }}>{codes.length ? codes.join(", ") : <span style={{ color: "var(--muted)" }}>Not on any project</span>}</span>
+            <span style={{ textAlign: "right" }}><button className="lk-mbtn" onClick={() => setManageCo(c.id)}>Manage</button></span>
+          </div>; })}
+          {!companies.filter((c) => !coq || (c.name || "").toLowerCase().includes(coq.toLowerCase()) || (c.domain || "").toLowerCase().includes(coq.toLowerCase())).length && <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No companies match.</div>}
           <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr auto", gap: 8, alignItems: "center", maxWidth: 640, marginTop: 14 }}>
             <input className="lk-in" placeholder="Company name" value={nco.name} onChange={(e) => setNco({ ...nco, name: e.target.value })} />
             <input className="lk-in" placeholder="Email domain (optional)" value={nco.domain} onChange={(e) => setNco({ ...nco, domain: e.target.value })} />
@@ -1524,7 +1531,20 @@ function HubGlobalSettings({ theme, userName, projects }) {
         <div className="bd">
           <div className="lk-f"><label>Company Name</label><input className="lk-in" key={c.id + ":" + c.name} defaultValue={c.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) { if (companies.some((x) => x.id !== c.id && (x.name || "").toLowerCase() === v.toLowerCase())) { setMsg("A company named " + v + " already exists."); return; } renameCompany(c.id, v).then(() => { setMsg("Renamed to " + v + ". The new name shows everywhere the company is referenced."); refresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); } }} /></div>
           <div className="lk-f"><label>Email Domain</label><input className="lk-in" key={c.id + ":" + (c.domain || "")} defaultValue={c.domain || ""} placeholder="acme.com" onBlur={(e) => { const v = e.target.value.trim(); if (v !== (c.domain || "")) setCompanyDomain(c.id, v).then(() => { setMsg("Domain updated"); refresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); }} /></div>
-          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Used on: {codes.length ? codes.join(", ") : "no projects"} {"\u00b7"} Logo: {c.logoUrl ? "set" : "missing"} (uploaded from a project&rsquo;s Companies tab)</div>
+          <div className="lk-f"><label>Logos</label>
+            <div style={{ display: "flex", gap: 12 }}>
+              {[["Light mode", c.logoUrl, false, "#ffffff", "#0b1320"], ["Dark mode", c.logoDark, true, "#0d1422", "#dbe6f5"]].map(([lbl, url, dk, bg, fg]) => <div key={lbl} style={{ flex: 1 }}>
+                <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 5 }}>{lbl}</div>
+                <label className="lk-codrop" style={{ background: bg, color: fg, borderColor: dk ? "var(--line)" : "transparent" }} title={"Upload the " + lbl.toLowerCase() + " logo for " + c.name}>
+                  {url ? <img src={url} alt="" /> : <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, opacity: .85 }}><Icon n="upload" s={13} />Upload</span>}
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { const u = await uploadCompanyLogo(f, c.id); await setCompanyLogo(c.id, dk, u); setMsg(lbl + " logo set for " + c.name + "."); refresh(); } catch (x) { setMsg("Logo upload failed: " + (x.message || x)); } e.target.value = ""; }} />
+                  {url && <span className="lk-coremove" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCompanyLogo(c.id, dk, null).then(() => { setMsg(lbl + " logo removed."); refresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); }} title={"Remove " + lbl.toLowerCase() + " logo"}>{"\u00D7"}</span>}
+                </label>
+              </div>)}
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>Wide transparent PNG or SVG looks best. The light logo shows on light backgrounds; the dark on dark. Changes reach every project.</div>
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Used on: {codes.length ? codes.join(", ") : "no projects"}</div>
           <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11 }}>
             <button className="lk-btn" style={{ color: "var(--red, #C0392B)" }} onClick={async () => {
               setMsg("Checking usage\u2026");
@@ -5091,17 +5111,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   <div className="lk-f"><label>Company Name</label><input className="lk-in" key={c.id + ":" + c.name} defaultValue={c.name} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); else if (e.key === "Escape") { e.target.value = c.name; e.target.blur(); } }} onBlur={(e) => renameCompany(c.id, e.target.value)} /></div>
                   <div className="lk-f"><label>Role &amp; Scope</label><textarea className="lk-in" key={"d:" + c.id} defaultValue={c.description || ""} rows={3} placeholder="Role & scope on the project. Shown on the board when the logo is clicked." style={{ resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }} onKeyDown={(e) => { if (e.key === "Escape") { e.target.value = c.description || ""; e.target.blur(); } }} onBlur={(e) => setCompanyDesc(c.id, e.target.value)} /></div>
                   <div className="lk-f"><label>Logos</label>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      {[["Light mode", c.logoUrl, "logoUrl", "#ffffff", "#0b1320", false], ["Dark mode", c.logoDark, "logoDark", "#0d1422", "#dbe6f5", true]].map(([lbl, url, field, bg, fg, dk]) => <div key={field} style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 5 }}>{lbl}</div>
-                        <label className="lk-codrop" style={{ background: bg, color: fg, borderColor: dk ? "var(--line)" : "transparent" }} title={"Upload the " + lbl.toLowerCase() + " logo for " + c.name}>
-                          {url ? <img src={url} alt="" /> : <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, opacity: .85 }}><Icon n="upload" s={13} />Upload</span>}
-                          <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { const u = await uploadCompanyLogo(f, c.id); update((p) => ({ ...p, companies: p.companies.map((x) => x.id === c.id ? { ...x, [field]: u } : x) }), { action: "Company logo set", detail: c.name + " (" + lbl + ")" }); } catch (x) { alert("Logo upload failed: " + (x.message || x)); } e.target.value = ""; }} />
-                          {url && <span className="lk-coremove" onClick={(e) => { e.preventDefault(); e.stopPropagation(); update((p) => ({ ...p, companies: p.companies.map((x) => x.id === c.id ? { ...x, [field]: "" } : x) }), { action: "Company logo removed", detail: c.name + " (" + lbl + ")" }); }} title={"Remove " + lbl.toLowerCase() + " logo"}>&times;</span>}
-                        </label>
-                      </div>)}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>Wide transparent PNG or SVG looks best. The light logo shows on light backgrounds; the dark on dark.</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)" }}>Light and dark logos are managed centrally in Global Settings {"\u203a"} Global Companies (platform admins), so every project shows the same mark.</div>
                   </div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{n} contact{n === 1 ? "" : "s"} assigned to this company.</div>
                 </div>
