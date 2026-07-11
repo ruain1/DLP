@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV209",
+    "date": "2026-07-11",
+    "items": [
+      "Global Companies arrives in Global Settings: the platform-wide company registry is now managed from the hub. The table shows every company with its email domain, logo status, a CLIENT tag where the name matches a project's client, and a Used on column listing the project codes it is associated with (from the new project_companies table).",
+      "Add company creates a registry entry with an optional email domain; a name that already exists is rejected rather than duplicated.",
+      "Each company's Manage modal renames it (with the same duplicate guard; the new name shows everywhere the company is referenced), edits its email domain, and offers Delete from registry. Deletion is blocked with exact counts while any activity or person anywhere on the platform references the company; an unreferenced company deletes after confirmation, sweeping its project associations away with it. Logo uploads stay on each project's Companies tab."
+    ]
+  },
+  {
     "rev": "REV208",
     "date": "2026-07-11",
     "items": [
