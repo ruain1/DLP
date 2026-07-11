@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV215",
+    "date": "2026-07-11",
+    "items": [
+      "The digest failure toast for an expired Microsoft session now shows one instruction instead of two welded together: when the error is a sign-in matter the toast reads a single clear line pointing at Settings > Outlook & SharePoint, replacing the underlying error text rather than stacking guidance on top of it. Non-auth errors are unchanged. The toast continues until Outlook is actually reconnected, because sending is genuinely blocked until then."
+    ]
+  },
+  {
     "rev": "REV214",
     "date": "2026-07-11",
     "items": [

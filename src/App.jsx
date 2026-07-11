@@ -2769,7 +2769,7 @@ export default function App({ session }) {
           {
             const raw = String((err && err.message) || err || "").trim().replace(/\.+$/, "");
             const needsAuth = /Connect Outlook|sign.?in|session/i.test(raw);
-            setDigestNote({ ok: false, text: "Digest not sent (" + b.kind + " " + runDate + "): " + raw + ". " + (needsAuth ? "Reconnect in Settings > Outlook & SharePoint; it retries automatically on the next tick after that." : "It will retry on the next tick.") });
+            setDigestNote({ ok: false, text: "Digest not sent (" + b.kind + " " + runDate + "): " + (needsAuth ? "your Microsoft session needs a refresh. Reconnect in Settings > Outlook & SharePoint; sending retries automatically on the next tick after that." : raw + ". It will retry on the next tick.") });
           }
           break;
         }
