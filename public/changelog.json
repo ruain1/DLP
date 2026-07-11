@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV202",
+    "date": "2026-07-11",
+    "items": [
+      "The User Privileges matrix is now grouped by company: Platform team pinned first (owner, then supers), each company alphabetically with its people sorted by name, No company last. Company bands span the matrix with the label held in the sticky user column, so it stays visible while scrolling across the privilege groups.",
+      "A contractor's whole block can now be reviewed at a glance. Toggle behaviour, amber deviation dots, Reset To Role Defaults, the group filter and the save bar are all unchanged."
+    ]
+  },
+  {
     "rev": "REV201",
     "date": "2026-07-11",
     "items": [
