@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -1222,6 +1222,289 @@ const PORTAL_CSS = `
 .qp .exbar{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap}
 @media (max-width:900px){.qp .angrid{grid-template-columns:1fr}}
 `;
+const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
+.lk-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);
+.lk-btn:hover{border-color:var(--muted)}.lk-btn.icon{padding:7px 8px}
+.lk-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.lk-btn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.lk-btn.pill{border-radius:999px;padding:8px 14px}
+.lk-btn.pill svg{color:var(--accent)}
+.lk-btn.pill:hover{border-color:var(--accent)}
+.lk-btn.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.lk-btn.pill.on svg{color:#fff}
+.lk-btn:disabled{opacity:.45;cursor:not-allowed}
+.lk-dh{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:2;flex:none}
+.lk-dh h3{margin:0;font-size:15px;font-weight:700;color:var(--head)}
+.lk-f{display:flex;flex-direction:column;gap:5px}
+.lk-f label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+.lk-in,.lk-select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--ink);font-family:inherit;width:100%}
+.lk-in:focus,.lk-select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.lk-in:disabled{opacity:.6}
+.lk-status{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:100%}
+.lk-status button{border:0;background:transparent;padding:7px 0;flex:1;font-size:11.5px;cursor:pointer;color:var(--muted);font-weight:600}
+.lk-status button.sel{background:var(--ink);color:var(--paper)}
+.lk-list{display:flex;flex-direction:column;gap:6px}
+.lk-li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);font-size:12.5px}
+.lk-li .g{flex:1;min-width:0}.lk-li .g .s{font-size:10.5px;color:var(--muted)}
+.lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
+.lk-urow{display:grid;grid-template-columns:34px minmax(126px,1fr) minmax(168px,1.2fr) 112px 80px 42px 110px 74px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);font-size:12.5px}
+.lk-uhead{display:grid;grid-template-columns:34px minmax(126px,1fr) minmax(168px,1.2fr) 112px 80px 42px 110px 74px;align-items:center;gap:10px;padding:2px 13px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.lk-uhead .ctr{text-align:center}
+.lk-uemail{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-uava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff;flex:none}
+.lk-uname{min-width:0;display:flex;align-items:center;gap:7px}
+.lk-uname b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-you{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;flex:none}
+.lk-mbtn{justify-self:end;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer}
+.lk-mbtn:hover{background:var(--hover)}
+.lk-platbadge{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.lk-platbadge[data-super="1"]{background:rgba(124,92,255,.16);color:#9B86FF;border-color:transparent}.lk-platbadge[data-super="own"]{background:#7c3aed;color:#fff;border-color:transparent}
+.lk-urow button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
+.lk-cochip{justify-self:start;max-width:100%;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chipbg);color:var(--muted);border:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-stat{justify-self:start;font-size:10px;font-weight:700;letter-spacing:.3px;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.lk-stat.act{background:rgba(31,182,166,.15);color:#54d6c6}
+.lk-stat.pend{background:rgba(230,164,53,.15);color:#e6b766}
+.lk-mpc{justify-self:center;font-variant-numeric:tabular-nums;font-weight:700}
+.lk-ugroup{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.lk-ughead{display:flex;align-items:center;gap:8px;width:100%;font-weight:700;font-size:12.5px;padding:9px 12px;background:var(--card);border:0;color:var(--ink);cursor:pointer;text-align:left;font-family:inherit}
+.lk-ughead .cnt{font-weight:500;color:var(--muted);font-size:11px}
+.lk-ughead .chev{display:inline-block;transition:transform .12s;color:var(--muted);font-size:10px}
+.lk-ufilter{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:6px}
+.lk-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;overflow:auto}
+.lk-modal{background:var(--paper);border:1px solid var(--line);border-radius:14px;max-width:660px;width:100%;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;max-height:calc(100vh - 92px);overflow:hidden}
+.rep-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 18px;border-top:1px solid var(--line)}
+.lk-modal .bd{padding:18px 20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1 1 auto}
+.lk-modal ul{margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.65;color:var(--ink)}
+.lk-modal .ref{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:12px}
+.lk-modal .ref b{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-bottom:4px}
+.lk-locked{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}
+.lk-locked .lkv{font-weight:600;font-size:13px}.lk-locked .lkn{font-size:11px;color:var(--muted)}`;
+
+// REV203: hub Global Settings scene, owner/super only, mounted from the Portal. Self-contained:
+// loads the platform directory itself (loadDirectory + fetchUserStatus + loadMembershipCounts),
+// carries the app theme variables inline so the relocated Global Contacts renders identically
+// outside the project shell, and scopes the required lk styles via HUB_LK_CSS. Global Companies
+// and Global Vendors arrive with Phases 3 and 4.
+function HubGlobalSettings({ theme, userName }) {
+  const [sub, setSub] = useState("contacts");
+  const [dir, setDir] = useState(null);
+  const [ustat, setUstat] = useState({});
+  const [mcount, setMcount] = useState({});
+  const [msg, setMsg] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [q, setQ] = useState("");
+  const [fCo, setFCo] = useState("all");
+  const [fRole, setFRole] = useState("all");
+  const [fInv, setFInv] = useState("all");
+  const [open, setOpen] = useState({});
+  const [manage, setManage] = useState(null);
+  const [cred, setCred] = useState(null);
+  const [nu, setNu] = useState({ email: "", name: "", companyId: "" });
+  const [bulkText, setBulkText] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResults, setBulkResults] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const refresh = async () => {
+    try { const d = await loadDirectory(); setDir(d); setNu((x) => ({ ...x, companyId: x.companyId || (d.companies[0] || {}).id || "" })); } catch (e) { setDir({ error: e.message || String(e) }); }
+    try { setUstat(await fetchUserStatus()); } catch (e) {}
+    try { setMcount(await loadMembershipCounts()); } catch (e) {}
+  };
+  useEffect(() => { refresh(); }, []);
+  const users = (dir && dir.users) || [];
+  const companies = (dir && dir.companies) || [];
+  const meId = (dir && dir.meId) || null;
+  const mePlat = ((users.find((u) => u.id === meId)) || {}).platformRole || "user";
+  const meSuper = mePlat === "super" || mePlat === "owner";
+  const cn = (id) => (companies.find((c) => c.id === id) || {}).name || "";
+  const emailInvite = async ({ email, roleLabel, companyName, link, mode }) => {
+    if (!/@/.test(email || "")) { setMsg("No email address on file for " + (email || "this account") + " (the status lookup may still be loading); use Copy invite details, or reopen this card in a moment."); return null; }
+    const ol = await import("./outlook");
+    const acct = await ol.outlookAccount();
+    if (!acct) { setMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window inside a project, press Connect Outlook, then retry."); return null; }
+    const html = ol.buildUserInviteEmailHtml({ mode: mode || "invite", email, roleLabel, companyName, link, sentByName: userName || acct.username, validityDays: 30 });
+    await ol.sendMailMessage({ subject: mode === "link" ? "Your FIN04 DLP sign-in link" : "You're invited to FIN04 DLP", html, to: [email] });
+    return acct.username;
+  };
+  const hAdd = async () => {
+    if (!nu.email.trim()) { setMsg("Email required."); return; }
+    setMsg("Creating account\u2026"); setCred(null);
+    try {
+      const res = await userOp({ op: "invite", email: nu.email.trim(), name: nu.name.trim() || nu.email.trim(), role: "member", company_id: nu.companyId || null, redirect: window.location.origin });
+      setCred({ who: nu.email.trim(), pw: res.tempPassword, link: res.link, title: "Account created", roleLabel: "Member", companyName: cn(nu.companyId) });
+      setMsg(""); setNu({ email: "", name: "", companyId: (companies[0] || {}).id || "" }); refresh();
+    } catch (e) { setMsg("Failed: " + (e.message || e)); }
+  };
+  const hSetPlat = async (id, role, name) => {
+    const tgt = users.find((x) => x.id === id);
+    if (tgt && tgt.platformRole === "owner") { setMsg("The owner role cannot be changed from the app."); return; }
+    setMsg("Updating platform role\u2026");
+    try { await setPlatformRole(id, role); setMsg((name || "User") + (role === "super" ? " is now a Super." : " is now a User.")); refresh(); } catch (e) { setMsg("Failed: " + (e.message || e)); }
+  };
+  const hSendLink = async (id, who) => { setMsg("Generating link\u2026"); setCred(null); try { const res = await userOp({ op: "link", id, redirect: window.location.origin }); setCred({ who, whoEmail: (ustat[id] && ustat[id].email) || "", link: res.link, title: "Set-password link", mode: "link" }); setMsg(""); } catch (e) { setMsg("Failed: " + (e.message || e)); } };
+  const hResetPw = async (id, who) => { setMsg("Resetting password\u2026"); setCred(null); try { const res = await userOp({ op: "resetpw", id }); setCred({ who, pw: res.tempPassword, title: "New password set" }); setMsg(""); } catch (e) { setMsg("Failed: " + (e.message || e)); } };
+  const hDel = async (id, name) => { setMsg("Removing\u2026"); try { await userOp({ op: "delete", id }); setMsg("Removed " + name); setManage(null); refresh(); } catch (e) { setMsg("Failed: " + (e.message || e)); } };
+  const hBulk = async () => {
+    const lines = bulkText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    setBulkBusy(true); setBulkResults(null);
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      const parts = lines[i].split(",").map((x) => x.trim());
+      const email = parts[0]; const name = parts[1] || (email || "");
+      const role = (parts[2] || "member").toLowerCase() === "admin" ? "admin" : "member";
+      const coName = parts[3] || ""; const co = companies.find((c) => (c.name || "").toLowerCase() === coName.toLowerCase());
+      const company_id = role === "admin" ? null : (co ? co.id : null);
+      if (!email || !/.+@.+\..+/.test(email)) { out.push({ email: email || "(blank)", name, status: "Skipped: invalid email" }); setBulkResults([...out]); continue; }
+      try { const res = await userOp({ op: "invite", email, name, role, company_id, redirect: window.location.origin }); out.push({ email, name, role, company: co ? co.name : "", link: res.link || "", status: "Created" + (res.link ? "" : " (link unavailable)") }); }
+      catch (e) { out.push({ email, name, status: "Failed: " + (e.message || e) }); }
+      setBulkResults([...out]);
+    }
+    setBulkBusy(false); refresh();
+  };
+  const hDownloadBulk = () => { const rows = (bulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile("DLP-platform-logins.csv", toCSV(["Name", "Email", "Set password link", "Role", "Company", "Status"], rows)); };
+  const p2 = (n) => String(n).padStart(2, "0");
+  const fmtSeen = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
+  const hExport = () => {
+    const rows = users.slice().sort((a, b) => (cn(a.companyId) || "\uffff").localeCompare(cn(b.companyId) || "\uffff") || (a.name || "").localeCompare(b.name || "")).map((u) => { const st = ustat[u.id] || {}; return [u.name || "", st.email || "", cn(u.companyId) || "", u.platformRole === "owner" ? "Owner" : u.platformRole === "super" ? "Super" : "User", mcount[u.id] || 0, st.lastSignIn ? "Active" : "Invite pending", fmtSeen(st.lastSignIn)]; });
+    downloadFile(`DLP-platform-users-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Platform role", "Projects", "Status", "Last seen"], rows));
+  };
+  const ql = q.trim().toLowerCase();
+  const filtered = users.filter((u) => {
+    const pr = u.platformRole || "user";
+    if (fRole !== "all" && !(pr === fRole || (fRole === "super" && pr === "owner"))) return false;
+    if (fCo === "none") { if (u.companyId) return false; } else if (fCo !== "all" && u.companyId !== fCo) return false;
+    if (fInv !== "all") { const acc = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (fInv === "accepted" && !acc) return false; if (fInv === "pending" && acc) return false; }
+    if (ql && !(`${u.name || ""} ${cn(u.companyId)} ${(ustat[u.id] || {}).email || ""}`.toLowerCase().includes(ql))) return false;
+    return true;
+  });
+  const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; const pr = u.platformRole || "user"; const n = mcount[u.id] || 0; const co = cn(u.companyId); return <div key={u.id} className="lk-urow">
+    <span className="lk-uava" style={{ background: avBg(u.id) }}>{avInit(u.name)}</span>
+    <div className="lk-uname"><b>{u.name || "(unnamed)"}</b>{u.id === meId ? <span className="lk-you">you</span> : null}</div>
+    <span className="lk-uemail" title={(ustat[u.id] || {}).email || ""}>{(ustat[u.id] || {}).email || ""}</span>
+    <span className="lk-cochip" title={co || "No company"}>{co || "No company"}</span>
+    <span className="lk-platbadge" data-super={pr === "owner" ? "own" : pr === "super" ? "1" : "0"} title="Platform role">{pr === "owner" ? "Owner" : pr === "super" ? "Super" : "User"}</span>
+    <span className="lk-mpc" title={"On " + n + " project" + (n === 1 ? "" : "s")} style={{ color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
+    <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Last seen " + new Date(seen).toLocaleString("en-GB") : "Onboarding link not yet used"}>{seen ? "Active" : "Invite pending"}</span>
+    <button className="lk-mbtn" onClick={() => setManage(u.id)}>Manage</button>
+  </div>; };
+  const mu = manage ? users.find((x) => x.id === manage) : null;
+  return <div style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
+    <style>{HUB_LK_CSS}</style>
+    <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "start" }}>
+      <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
+        <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
+        <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "contacts" ? "var(--hover)" : "transparent", fontWeight: sub === "contacts" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("contacts")}>Global Contacts</button>
+        <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the Companies model (Phase 3)">Global Companies</button>
+        <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the vendor directory (Phase 4)">Global Vendors</button>
+      </div>
+      <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px", minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Global Contacts</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>Everyone on the platform, across every project. Add a person once here; putting them on a project (each project&rsquo;s Project Team tab) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
+        {dir && dir.error && <div style={{ fontSize: 12, color: "var(--red, #C0392B)", marginBottom: 10 }}>Load failed: {dir.error}</div>}
+        {!dir && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading directory&hellip;</div>}
+        {dir && !dir.error && <>
+          <div className="lk-ufilter">
+            <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company&hellip;" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+            <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={fRole} onChange={(e) => setFRole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
+            <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={fInv} onChange={(e) => setFInv(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 10px" }}><button className="lk-btn" title="Download every platform user with email, company, role, projects, status and last seen" onClick={hExport}><Icon n="download" s={14} />Export Users (CSV)</button></div>
+          {(() => {
+            if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one matches these filters.</div>;
+            const secs = groupTeamRows(filtered.map((u) => ({ user_id: u.id, u })), cn);
+            return <><div className="lk-uhead"><span /><span>Person</span><span>Email</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+            {secs.map((g) => { const isOpen = !!open[g.key] || !!ql; return <div key={g.key} className="lk-ugroup">
+              <button className="lk-ughead" style={{ borderBottom: isOpen ? "1px solid var(--line)" : 0 }} onClick={() => setOpen((o) => ({ ...o, [g.key]: !o[g.key] }))}>
+                <span className="chev" style={{ transform: isOpen ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
+                {g.label} <span className="cnt">({g.rows.length})</span>
+              </button>
+              {isOpen && <div className="lk-list" style={{ padding: "4px 8px" }}>{g.rows.map((r) => renderRow(r.u))}</div>}
+            </div>; })}</>;
+          })()}
+          <div className="lk-f" style={{ marginTop: 14 }}><label>Add A Person To Global Contacts (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
+          <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
+          <div style={{ margin: "8px 0" }}><select className="lk-select" value={nu.companyId} onChange={(e) => setNu({ ...nu, companyId: e.target.value })}>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <button className="lk-btn primary" onClick={hAdd}><Icon n="plus" s={15} />Add person</button>
+          {cred && <div style={{ marginTop: 8, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
+            <div style={{ fontWeight: 700, marginBottom: 5 }}>{cred.title}. Share with the person:</div>
+            <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{cred.who}</span></div>
+            {cred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{cred.link}</span></div>}
+            {cred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{cred.pw}</span></div>}
+            <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(cred.link ? `Email: ${cred.who}\nSet your DLP password: ${cred.link}` : `Site: ${window.location.origin}\nEmail: ${cred.who}\nPassword: ${cred.pw}`); setMsg("Copied to clipboard"); } catch (e) { setMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy {cred.link ? "invite" : "login"} details</button>
+            {cred.link && <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} disabled={emailBusy} onClick={async () => { setEmailBusy(true); try { const from = await emailInvite({ email: cred.whoEmail || cred.who, roleLabel: cred.roleLabel, companyName: cred.companyName, link: cred.link, mode: cred.mode || "invite" }); if (from) setMsg("Invitation emailed to " + (cred.whoEmail || cred.who) + " from " + from + "."); } catch (err) { setMsg("Email failed: " + ((err && err.message) || err)); } setEmailBusy(false); }}><Icon n="mail" s={13} />Email Invite</button>}
+            <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setCred(null)}>Done</button>
+            <div style={{ marginTop: 7, color: "var(--muted)" }}>{cred.link ? "The link lets them set their own password and signs them straight in. It is valid for 30 days; use Resend set-password link in Manage to issue a fresh one. Email Invite sends it from your connected Outlook." : "They can keep this password. To issue a new one later, use Reset password in Manage. No email is sent."}</div>
+          </div>}
+          {msg && !manage && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{msg}</div>}
+          <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+            <div className="lk-f"><label>Bulk Add Users</label>
+              <textarea className="lk-in" rows={5} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"One per line:  email, name, role, company\njdoe@acme.com, John Doe, member, ABB\nmsmith@acme.com, Mary Smith, member, Schneider"} style={{ resize: "vertical", minHeight: 92, fontFamily: "inherit" }} /></div>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a company name exactly; leave blank for admins. Accounts are created platform-wide; add people to projects from each project&rsquo;s Project Team tab. Each person gets their own set-password link in the downloadable CSV, kept as a record.</div>
+            <button className="lk-btn primary" disabled={bulkBusy} onClick={hBulk}>{bulkBusy ? `Creating\u2026 (${(bulkResults || []).length})` : "Create all"}</button>
+            {bulkResults && <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status.startsWith("Created")).length} created, {bulkResults.filter((r) => !r.status.startsWith("Created")).length} need attention</div>
+              <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "#C0392B" : r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "#E0A106") : "#C0392B" }}>{(r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status) + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                <button className="lk-btn" disabled={emailBusy || !bulkResults.some((r) => r.link)} title="Sends the invitation email to every created account with a link, one by one, from your connected Outlook" onClick={async () => {
+                  setEmailBusy(true);
+                  const ol = await import("./outlook"); const acct = await ol.outlookAccount().catch(() => null);
+                  if (!acct) { setMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window inside a project, press Connect Outlook, then retry."); setEmailBusy(false); return; }
+                  const rows2 = [...bulkResults];
+                  for (let i = 0; i < rows2.length; i++) {
+                    const r = rows2[i]; if (!r.link) continue;
+                    try {
+                      const html = ol.buildUserInviteEmailHtml({ mode: "invite", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: userName || acct.username, validityDays: 30 });
+                      await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [r.email] });
+                      rows2[i] = { ...r, mail: "Emailed" };
+                    } catch (err) { rows2[i] = { ...r, mail: "Email failed", mailErr: (err && err.message) || String(err) }; }
+                    setBulkResults([...rows2]);
+                  }
+                  const sentN = rows2.filter((r) => r.mail === "Emailed").length;
+                  const failN = rows2.filter((r) => r.mail === "Email failed").length;
+                  const firstErr = (rows2.find((r) => r.mailErr) || {}).mailErr || "";
+                  setMsg("Invitations emailed: " + sentN + " of " + (sentN + failN) + " from " + acct.username + "." + (failN ? " " + failN + " failed: " + firstErr : "")); setEmailBusy(false);
+                }}><Icon n="mail" s={13} />{emailBusy ? "Emailing..." : "Email All Created Invites"}</button>
+                <button className="lk-btn" disabled={bulkBusy} onClick={hDownloadBulk}><Icon n="download" s={13} />Download logins CSV (set-password links)</button>
+              </div>
+            </div>}
+          </div>
+        </>}
+      </div>
+    </div>
+    {mu && (() => { const pr = mu.platformRole || "user"; const seen = !!(ustat[mu.id] && ustat[mu.id].lastSignIn); const n = mcount[mu.id] || 0; const isSelf = mu.id === meId; return <div className="lk-modal-bg" onClick={() => setManage(null)}>
+      <div className="lk-modal" style={{ ...cssVars(theme, null), maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+        <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 10, margin: 0 }}><span className="lk-uava" style={{ background: avBg(mu.id), width: 30, height: 30, fontSize: 11 }}>{avInit(mu.name)}</span>{mu.name || "Manage person"}{isSelf ? <span className="lk-you">you</span> : null}</h3><button className="lk-btn icon" onClick={() => setManage(null)}><Icon n="x" /></button></div>
+        <div className="bd">
+          <div className="lk-f"><label>Display Name</label><input className="lk-in" key={mu.id + ":" + mu.name} defaultValue={mu.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== mu.name) userOp({ op: "update", id: mu.id, name: v }).then(() => { setMsg("Name updated"); refresh(); }).catch((x) => setMsg("Failed: " + (x.message || x))); }} /></div>
+          <div className="lk-f"><label>Platform Role</label>{pr === "owner"
+            ? <div className="lk-locked"><span className="lkv" style={{ color: "#9B86FF", fontWeight: 700 }}>Owner</span><span className="lkn">The owner role is fixed here; it can only be moved in the database</span></div>
+            : meSuper
+            ? <select className="lk-select" value={pr} onChange={(e) => hSetPlat(mu.id, e.target.value, mu.name)}><option value="user">User</option><option value="super">Super</option></select>
+            : <div className="lk-locked"><span className="lkv">{pr === "super" ? "Super" : "User"}</span><span className="lkn">Only a super can change this</span></div>}
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>A <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div></div>
+          <div className="lk-f"><label>Company</label><select className="lk-select" value={mu.companyId || ""} onChange={(e) => userOp({ op: "update", id: mu.id, company_id: e.target.value }).then(() => refresh()).catch((x) => setMsg("Failed: " + (x.message || x)))}><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 11.5, color: "var(--muted)", margin: "2px 0 2px" }}><span className={"lk-stat " + (seen ? "act" : "pend")}>{seen ? "Active" : "Invite pending"}</span><span>{"\u00b7"}</span><span>On {n} project{n === 1 ? "" : "s"}</span></div>
+          <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11, display: "flex", flexDirection: "column", gap: 7 }}>
+            <button className="lk-btn" onClick={() => hSendLink(mu.id, mu.name)}><Icon n="mail" s={14} />Resend set-password link</button>
+            <button className="lk-btn" onClick={() => hResetPw(mu.id, mu.name)}><Icon n="cog" s={14} />Reset password</button>
+            {!isSelf && <button className="lk-btn" style={{ color: "var(--red, #C0392B)" }} onClick={() => setConfirm({ text: "Delete " + (mu.name || "this person") + " from the platform? This removes their account and every project access.", run: () => hDel(mu.id, mu.name) })}><Icon n="trash" s={14} />Remove from platform</button>}
+            <div style={{ fontSize: 10.5, color: "var(--muted)" }}>Audit trails live inside each project&rsquo;s settings. The link and password cards appear on the main panel after this closes.</div>
+          </div>
+          {msg && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{msg}</div>}
+        </div>
+        <div className="rep-foot"><button className="lk-btn primary" onClick={() => setManage(null)}>Done</button></div>
+      </div>
+    </div>; })()}
+    {confirm && <div className="lk-modal-bg" onClick={() => setConfirm(null)}>
+      <div className="lk-modal" style={{ ...cssVars(theme, null), maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="bd"><div style={{ fontSize: 13, lineHeight: 1.5 }}>{confirm.text}</div></div>
+        <div className="rep-foot" style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button className="lk-btn" onClick={() => setConfirm(null)}>Cancel</button><button className="lk-btn primary" style={{ background: "var(--red, #C0392B)", borderColor: "var(--red, #C0392B)" }} onClick={() => { const r = confirm.run; setConfirm(null); r(); }}>Confirm</button></div>
+      </div>
+    </div>}
+  </div>;
+}
+
 function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter, onNew, onSignOut, onLoadOverview, onUpdateProject, onOpenAnalytics }) {
   const [theme, setTheme] = useState(theme0 || "light");
   const [scene, setScene] = useState("home");
@@ -1530,6 +1813,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
           {isSuper && <button className={scene === "newproj" ? "on" : ""} onClick={openNew}>New project</button>}
           <button className={scene === "inside" ? "on" : ""} onClick={() => setScene("inside")}>Inside a project</button>
           {isSuper && <button className={scene === "analytics" ? "on" : ""} onClick={() => setScene("analytics")}>Analytics</button>}
+          {isSuper && <button className={scene === "global" ? "on" : ""} onClick={() => setScene("global")}>Global Settings</button>}
         </div>
       </div>
 
@@ -1657,6 +1941,12 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
               </div>
             )}
           </>}
+        </div>
+
+        <div className={"scene" + (scene === "global" ? " on" : "")}>
+          <div className="hello">Global Settings</div>
+          <div className="subhello">Platform-wide directories shared by every project</div>
+          <div style={{ marginTop: 20 }}>{scene === "global" && isSuper && <HubGlobalSettings theme={theme} userName={userName} />}</div>
         </div>
 
         <div className={"scene" + (scene === "analytics" ? " on" : "")}>
@@ -4119,7 +4409,7 @@ function groupTeamRows(rows, cn) {
 }
 
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
@@ -4543,6 +4833,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     }
     setPBulkBusy(false); reloadMems();
   };
+  const pSendLink = async (id, who) => { setMemMsg("Generating link\u2026"); setPmCred(null); try { const res = await userOp({ op: "link", id, redirect: window.location.origin }); setPmCred({ who, whoEmail: (ustat[id] && ustat[id].email) || "", link: res.link, title: "Set-password link", mode: "link" }); setMemMsg(""); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
+  const pResetPw = async (id, who) => { setMemMsg("Resetting password\u2026"); setPmCred(null); try { const res = await userOp({ op: "resetpw", id }); setPmCred({ who, pw: res.tempPassword, title: "New password set" }); setMemMsg(""); } catch (e) { setMemMsg("Failed: " + (e.message || e)); } };
   const pDownloadBulk = () => { const rows = (pBulkResults || []).map((r) => [r.name || "", r.email, r.link || "", r.role || "", r.company || "", r.status]); downloadFile(`${(projCode || "DLP")}-team-logins.csv`, toCSV(["Name", "Email", "Set password link", "Project role", "Company", "Status"], rows)); };
   const exportProject = () => downloadFile(`FIN04-project-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ companies: S.companies, areas: S.areas, subAreas: S.subAreas || [], tier3s: S.tier3s || [], systems: S.systems, levels: S.levels, settings: S.settings, activities: S.activities }, null, 2));
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
@@ -4648,7 +4940,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ...(S.settings.crewsEnabled ? [["crews", "Crews"]] : []), ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
     ["Appearance", [["design", "Design"]]],
-    ["User management", (canv("users") ? [["users", "Global Contacts"], ["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
+    ["User management", (canv("users") ? [["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
     ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
     ["Advanced", [["data", "Import / Export"]]],
@@ -4659,7 +4951,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
         <div className="lk-subnav">
           {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
         </div>
-        <div className={"lk-subbody" + (tab === "users" || tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "") + (tab === "privileges" ? " wide full" : "")}><div className="lk-db">
+        <div className={"lk-subbody" + (tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "") + (tab === "privileges" ? " wide full" : "")}><div className="lk-db">
           {tab === "privileges" && <PrivilegesTab S={S} cu={cu} isOwner={isOwner} projClient={projClient} />}
           {impGate && <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => setImpGate(null)}>
             <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
@@ -4770,107 +5062,6 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             })}</div>
             <div className="lk-add"><input className="lk-in" placeholder="Add building…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("areas", "area")} /><button className="lk-btn primary" onClick={() => addList("areas", "area")}><Icon n="plus" s={15} /></button></div>
           </>}
-          {tab === "users" && <div className="lk-userwrap"><div className="lk-usermain">
-            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Everyone on the platform. Add a person once here; putting them on projects (under <button onClick={() => setTab("members")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Project Team</button>) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
-            <div className="lk-ufilter">
-              <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
-              <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-              <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
-              <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 10px" }}><button className="lk-btn" title="Download every platform user with email, company, role, projects, status and last seen" onClick={() => {
-              const cnm = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
-              const p2 = (n) => String(n).padStart(2, "0");
-              const fmtSeen = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
-              const rows = (S.users || []).slice().sort((a, b) => (cnm(a.companyId) || "\uffff").localeCompare(cnm(b.companyId) || "\uffff") || (a.name || "").localeCompare(b.name || "")).map((u) => { const st = ustat[u.id] || {}; return [u.name || "", st.email || "", cnm(u.companyId) || "", u.platformRole === "super" ? "Super" : "User", mcount[u.id] || 0, st.lastSignIn ? "Active" : "Invite pending", fmtSeen(st.lastSignIn)]; });
-              downloadFile(`FIN04-users-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Platform role", "Projects", "Status", "Last seen"], rows));
-            }}><Icon n="download" s={14} />Export Users (CSV)</button></div>
-            {(() => {
-              const cn = (id) => (S.companies.find((c) => c.id === id) || {}).name || "";
-              const q = uq.trim().toLowerCase();
-              const filtered = S.users.filter((u) => {
-                const pr = u.platformRole || "user";
-                if (uRole !== "all" && !(pr === uRole || (uRole === "super" && pr === "owner"))) return false;
-                if (uCo === "none") { if (u.companyId) return false; } else if (uCo !== "all" && u.companyId !== uCo) return false;
-                if (uInvite !== "all") { const accepted = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (uInvite === "accepted" && !accepted) return false; if (uInvite === "pending" && accepted) return false; }
-                if (q && !(`${u.name || ""} ${cn(u.companyId)} ${(ustat[u.id] || {}).email || ""}`.toLowerCase().includes(q))) return false;
-                return true;
-              });
-              const groups = {};
-              filtered.forEach((u) => { const key = (u.platformRole === "super" || u.platformRole === "owner") ? "\u0000Platform team" : (cn(u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(u); });
-              const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; const pr = u.platformRole || "user"; const n = mcount[u.id] || 0; const co = cn(u.companyId); return <div key={u.id} className="lk-urow">
-                <span className="lk-uava" style={{ background: avBg(u.id) }}>{avInit(u.name)}</span>
-                <div className="lk-uname"><b>{u.name || "(unnamed)"}</b>{u.id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
-                <span className="lk-uemail" title={(ustat[u.id] || {}).email || ""}>{(ustat[u.id] || {}).email || ""}</span>
-                <span className="lk-cochip" title={co || "No company"}>{co || "No company"}</span>
-                <span className="lk-platbadge" data-super={pr === "owner" ? "own" : pr === "super" ? "1" : "0"} title="Platform role">{pr === "owner" ? "Owner" : pr === "super" ? "Super" : "User"}</span>
-                <span className="lk-mpc" title={"On " + n + " project" + (n === 1 ? "" : "s")} style={{ color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
-                <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Last seen " + new Date(seen).toLocaleString("en-GB") : "Onboarding link not yet used"}>{seen ? "Active" : "Invite pending"}</span>
-                <button className="lk-mbtn" onClick={() => setManageId(u.id)}>Manage</button>
-              </div>; };
-              if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one matches these filters.</div>;
-              const order = (k) => k === "\u0000Platform team" ? "\u0000" : (k === "\uffffNo company" ? "\uffff" : k.toLowerCase());
-              return <><div className="lk-uhead"><span /><span>Person</span><span>Email</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
-              {Object.keys(groups).sort((a, b) => order(a).localeCompare(order(b))).map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
-                <button className="lk-ughead" style={{ borderBottom: open ? "1px solid var(--line)" : 0 }} onClick={() => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))}>
-                  <span className="chev" style={{ transform: open ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
-                  {k === "\u0000Platform team" ? "Platform team" : (k === "\uffffNo company" ? "No company" : k)} <span className="cnt">({groups[k].length})</span>
-                </button>
-                {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{(k === "\u0000Platform team" ? groups[k].slice().sort((a, b) => (a.platformRole === "owner" ? -1 : b.platformRole === "owner" ? 1 : 0)) : groups[k]).map(renderRow)}</div>}
-              </div>; })}</>;
-            })()}
-            <div className="lk-f"><label>Add A Person To Global Contacts (Email Required)</label><input className="lk-in" placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></div>
-            <div className="lk-f"><input className="lk-in" placeholder="Name (optional)" value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
-            <div className="lk-row">
-              <select className="lk-select" value={nu.companyId} onChange={(e) => setNu({ ...nu, companyId: e.target.value, role: "member" })}>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-            </div>
-            <button className="lk-btn primary" onClick={addUser}><Icon n="plus" s={15} />Add person</button>
-            {newCred && <div style={{ marginTop: 8, padding: 11, border: "1px solid var(--accent)", borderRadius: 8, background: "var(--chipbg)", fontSize: 12.5 }}>
-              <div style={{ fontWeight: 700, marginBottom: 5 }}>{newCred.title}. Share with the person:</div>
-              <div style={{ marginBottom: 2 }}>User: <span className="mono" style={{ userSelect: "all" }}>{newCred.who}</span></div>
-              {newCred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{newCred.link}</span></div>}
-              {newCred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{newCred.pw}</span></div>}
-              <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(newCred.link ? `Email: ${newCred.who}\nSet your DLP password: ${newCred.link}` : `Site: ${window.location.origin}\nEmail: ${newCred.who}\nPassword: ${newCred.pw}`); setUserMsg("Copied to clipboard"); } catch (e) { setUserMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy {newCred.link ? "invite" : "login"} details</button>
-              {newCred.link && <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} disabled={emailBusy} onClick={async () => { setEmailBusy(true); try { const from = await emailUserInvite({ email: newCred.whoEmail || newCred.who, roleLabel: newCred.roleLabel, companyName: newCred.companyName, link: newCred.link, mode: newCred.mode || "invite" }); if (from) setUserMsg("Invitation emailed to " + (newCred.whoEmail || newCred.who) + " from " + from + "."); } catch (err) { setUserMsg("Email failed: " + ((err && err.message) || err)); } setEmailBusy(false); }}><Icon n="mail" s={13} />Email Invite</button>}
-              <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setNewCred(null)}>Done</button>
-              <div style={{ marginTop: 7, color: "var(--muted)" }}>{newCred.link ? "The link lets them set their own password and signs them straight in. It is valid for 30 days; use the link button on their row to issue a fresh one. Email Invite sends it from your connected Outlook." : "They can keep this password. To issue a new one later, use the ↻ button on their row. No email is sent."}</div>
-            </div>}
-            {userMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{userMsg}</div>}
-            <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-              <div className="lk-f"><label>Bulk Add Users</label>
-                <textarea className="lk-in" rows={5} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"One per line:  email, name, role, company\njdoe@acme.com, John Doe, member, ABB\nmsmith@acme.com, Mary Smith, member, Schneider"} style={{ resize: "vertical", minHeight: 92, fontFamily: "inherit" }} /></div>
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginBottom: 8 }}>Format per line: email, name, role, company. Role is member or admin (defaults to member). Company must match a contractor name exactly; leave blank for admins. Each person gets their own set-password link in the downloadable CSV, kept as a record. Email All Created Invites sends each invitation from your connected Outlook.</div>
-              <button className="lk-btn primary" disabled={bulkBusy} onClick={bulkCreate}>{bulkBusy ? `Creating… (${(bulkResults || []).length})` : "Create all"}</button>
-              {bulkResults && <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status.startsWith("Created")).length} created, {bulkResults.filter((r) => !r.status.startsWith("Created")).length} need attention</div>
-                <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "#C0392B" : r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "#E0A106") : "#C0392B" }}>{(r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status) + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
-                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                  <button className="lk-btn" disabled={emailBusy || !bulkResults.some((r) => r.link)} title="Sends the invitation email to every created account with a link, one by one, from your connected Outlook" onClick={async () => {
-                    setEmailBusy(true);
-                    const ol = await import("./outlook"); const acct = await ol.outlookAccount().catch(() => null);
-                    if (!acct) { setUserMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window, press Connect Outlook, then retry."); setEmailBusy(false); return; }
-                    const rows = [...bulkResults];
-                    for (let i = 0; i < rows.length; i++) {
-                      const r = rows[i]; if (!r.link) continue;
-                      try {
-                        const html = ol.buildUserInviteEmailHtml({ mode: "invite", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: cu.name || acct.username, validityDays: 30 });
-                        await ol.sendMailMessage({ subject: "You're invited to FIN04 DLP", html, to: [r.email] });
-                        rows[i] = { ...r, mail: "Emailed" };
-                      } catch (err) { rows[i] = { ...r, mail: "Email failed", mailErr: (err && err.message) || String(err) }; }
-                      setBulkResults([...rows]);
-                    }
-                    const sentN = rows.filter((r) => r.mail === "Emailed").length;
-                    const failN = rows.filter((r) => r.mail === "Email failed").length;
-                    const firstErr = (rows.find((r) => r.mailErr) || {}).mailErr || "";
-                    setUserMsg("Invitations emailed: " + sentN + " of " + (sentN + failN) + " from " + acct.username + "." + (failN ? " " + failN + " failed: " + firstErr : "")); setEmailBusy(false);
-                  }}><Icon n="mail" s={13} />{emailBusy ? "Emailing..." : "Email All Created Invites"}</button>
-                </div>
-                <button className="lk-btn" style={{ marginTop: 8 }} disabled={bulkBusy} onClick={downloadBulk}><Icon n="download" s={13} />Download logins CSV (set-password links)</button>
-              </div>}
-            </div>
-            </div>
-            <div className="lk-userside"><LatestOnline users={S.users} ustat={ustat} pres={pres} /></div>
-          </div>}
           {manageId && (() => {
             const u = S.users.find((x) => x.id === manageId); if (!u) return null;
             const pr = u.platformRole || "user"; const seen = !!(ustat[u.id] && ustat[u.id].lastSignIn); const np = mcount[u.id] || 0; const isSelf = u.id === S.currentUserId;
@@ -4889,12 +5080,12 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 11.5, color: "var(--muted)", margin: "2px 0 2px" }}><span className={"lk-stat " + (seen ? "act" : "pend")}>{seen ? "Active" : "Invite pending"}</span><span>&middot;</span><span>On {np} project{np === 1 ? "" : "s"}</span></div>
                   <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11, display: "flex", flexDirection: "column", gap: 7 }}>
                     <button className="lk-btn" onClick={() => { setAuditUser(u.name); setAuditOpen(true); setTab("audit"); setManageId(null); }}><Icon n="list" s={14} />View audit trail</button>
-                    <button className="lk-btn" onClick={() => sendLink(u.id, u.name)}><Icon n="mail" s={14} />Resend set-password link</button>
-                    <button className="lk-btn" onClick={() => resetPw(u.id, u.name)}><Icon n="cog" s={14} />Reset password</button>
+                    <button className="lk-btn" onClick={() => { setManageId(null); pSendLink(u.id, u.name); }} title="The link card appears on Project Team"><Icon n="mail" s={14} />Resend set-password link</button>
+                    <button className="lk-btn" onClick={() => { setManageId(null); pResetPw(u.id, u.name); }} title="The new password card appears on Project Team"><Icon n="cog" s={14} />Reset password</button>
                     {!isSelf && <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setManageId(null); askDel("Delete " + (u.name || "this person") + " from Global Contacts? This removes their account and every project access.", () => delUser(u.id, u.name)); }}><Icon n="trash" s={14} />Remove from platform</button>}
                   </div>
                 </div>
-                <div className="rep-foot"><button className="lk-btn primary" onClick={() => setManageId(null)}>Done</button></div>
+                <div className="rep-foot">{userMsg && <span style={{ fontSize: 11.5, color: "var(--muted)", marginRight: "auto" }}>{userMsg}</span>}<button className="lk-btn primary" onClick={() => setManageId(null)}>Done</button></div>
               </div>
             </div>;
           })()}
@@ -4912,8 +5103,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>An <b>Admin</b> can manage this project's setup, team and activities; a <b>Member</b> works within it. At least one admin must remain.</div></div>
                   <div style={{ borderTop: "1px solid var(--line)", marginTop: 11, paddingTop: 11, display: "flex", flexDirection: "column", gap: 7 }}>
                     <button className="lk-btn" onClick={() => { setPmManageId(null); setManageId(u.id); }}><Icon n="person" s={14} />Edit name, company or platform role</button>
-                    <button className="lk-btn" onClick={() => { setPmManageId(null); setTab("users"); sendLink(u.id, u.name); }} title="The link card appears on Global Contacts"><Icon n="mail" s={14} />Resend set-password link</button>
-                    <button className="lk-btn" onClick={() => { setPmManageId(null); setTab("users"); resetPw(u.id, u.name); }} title="The new password card appears on Global Contacts"><Icon n="cog" s={14} />Reset password</button>
+                    <button className="lk-btn" onClick={() => { setPmManageId(null); pSendLink(u.id, u.name); }} title="The link card appears below on this tab"><Icon n="mail" s={14} />Resend set-password link</button>
+                    <button className="lk-btn" onClick={() => { setPmManageId(null); pResetPw(u.id, u.name); }} title="The new password card appears below on this tab"><Icon n="cog" s={14} />Reset password</button>
                     {!isSelf && <button className="lk-btn" style={{ color: "var(--red)" }} onClick={() => { setPmManageId(null); askDel("Remove " + (u.name || "this person") + " from this project? They keep their account and other projects.", () => removeMem(u.id, u.name)); }}><Icon n="trash" s={14} />Remove from this project</button>}
                   </div>
                 </div>
@@ -5014,7 +5205,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 {pmCred.link && <div style={{ marginBottom: 2, wordBreak: "break-all" }}>Set-password link: <span className="mono" style={{ userSelect: "all" }}>{pmCred.link}</span></div>}
                 {pmCred.pw && <div>Temporary password: <span className="mono" style={{ userSelect: "all", fontWeight: 700 }}>{pmCred.pw}</span></div>}
                 <button className="lk-btn" style={{ marginTop: 8 }} onClick={() => { try { navigator.clipboard.writeText(pmCred.link ? `Email: ${pmCred.who}\nSet your DLP password: ${pmCred.link}` : `Site: ${window.location.origin}\nEmail: ${pmCred.who}\nPassword: ${pmCred.pw}`); setMemMsg("Copied to clipboard"); } catch (e) { setMemMsg("Copy not available; select the text manually."); } }}><Icon n="download" s={13} />Copy {pmCred.link ? "invite" : "login"} details</button>
-                {pmCred.link && <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} disabled={emailBusy} onClick={async () => { setEmailBusy(true); try { const from = await emailUserInvite({ email: pmCred.who, roleLabel: pmCred.roleLabel, companyName: pmCred.companyName, link: pmCred.link, mode: "invite" }); if (from) setMemMsg("Invitation emailed to " + pmCred.who + " from " + from + "."); } catch (err) { setMemMsg("Email failed: " + ((err && err.message) || err)); } setEmailBusy(false); }}><Icon n="mail" s={13} />Email Invite</button>}
+                {pmCred.link && <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} disabled={emailBusy} onClick={async () => { setEmailBusy(true); try { const from = await emailUserInvite({ email: pmCred.whoEmail || pmCred.who, roleLabel: pmCred.roleLabel, companyName: pmCred.companyName, link: pmCred.link, mode: pmCred.mode || "invite" }); if (from) setMemMsg("Invitation emailed to " + pmCred.who + " from " + from + "."); } catch (err) { setMemMsg("Email failed: " + ((err && err.message) || err)); } setEmailBusy(false); }}><Icon n="mail" s={13} />Email Invite</button>}
                 <button className="lk-btn" style={{ marginTop: 8, marginLeft: 6 }} onClick={() => setPmCred(null)}>Done</button>
                 <div style={{ marginTop: 7, color: "var(--muted)" }}>The link lets them set their own password and signs them straight in. It is valid for 30 days. Email Invite sends it from your connected Outlook.</div>
               </div>}

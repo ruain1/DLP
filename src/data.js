@@ -652,6 +652,26 @@ export async function removeMember(projectId, userId) {
 // ---- Address book helpers ----
 // How many projects each visible person is a member of (supers see all; a
 // project admin sees only the projects they administer).
+// REV203: platform directory for the hub Global Settings scene. Project-independent:
+// every profile and company plus the caller's own id, so the hub can mark "you" and gate
+// self-actions. Status (email, last sign-in) comes separately via fetchUserStatus, counts
+// via loadMembershipCounts. Note: unpaginated like loadAll's profile read; both need the
+// paginated helper once the platform approaches Supabase's 1000-row cap.
+export async function loadDirectory() {
+  const me = await currentUserId();
+  const [profiles, companies] = await Promise.all([
+    supabase.from("profiles").select("*").order("name"),
+    supabase.from("companies").select("*").order("name"),
+  ]);
+  if (profiles.error) throw profiles.error;
+  if (companies.error) throw companies.error;
+  return {
+    meId: me,
+    users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, platformRole: p.platform_role || "user", mustReset: !!p.must_reset })),
+    companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "", description: c.description || "", domain: c.domain || "" })),
+  };
+}
+
 export async function loadMembershipCounts() {
   const { data, error } = await supabase.from("project_members").select("user_id");
   if (error) throw error;
