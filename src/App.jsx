@@ -1394,7 +1394,7 @@ function HubGlobalSettings({ theme, userName }) {
   </div>; };
   const mu = manage ? users.find((x) => x.id === manage) : null;
   return <div style={{ ...cssVars(theme, null), color: "var(--ink)", maxWidth: 1240, margin: "0 auto", fontSize: 13 }}>
-    <style>{HUB_LK_CSS + "\n.lk-ufilter{top:139px;margin:0 -20px 6px;padding:10px 20px 8px}"}</style>
+    <style>{HUB_LK_CSS + "\n.hubstick{position:sticky;top:-18px;z-index:21;background:var(--card);margin:0 -20px 8px;padding:18px 20px 0;border-bottom:1px solid var(--line)}\n.hubstick .lk-ufilter{position:static;margin:0 0 6px;padding:0;border-bottom:0;z-index:auto}\n.hubstick .lk-uhead{padding-bottom:8px}"}</style>
     <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "start" }}>
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px" }}>
         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px" }}>Directory</div>
@@ -1402,12 +1402,13 @@ function HubGlobalSettings({ theme, userName }) {
         <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the Companies model (Phase 3)">Global Companies</button>
         <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the vendor directory (Phase 4)">Global Vendors</button>
       </div>
-      <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px", minWidth: 0 }}>
+      <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px", minWidth: 0, maxHeight: "calc(100vh - 240px)", minHeight: 320, overflow: "auto" }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Global Contacts</div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>Everyone on the platform, across every project. Add a person once here; putting them on a project (each project&rsquo;s Project Team tab) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
         {dir && dir.error && <div style={{ fontSize: 12, color: "var(--red, #C0392B)", marginBottom: 10 }}>Load failed: {dir.error}</div>}
         {!dir && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading directory&hellip;</div>}
         {dir && !dir.error && <>
+          <div className="hubstick">
           <div className="lk-ufilter">
             <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company&hellip;" value={q} onChange={(e) => setQ(e.target.value)} /></div>
             <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -1415,11 +1416,12 @@ function HubGlobalSettings({ theme, userName }) {
             <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={fInv} onChange={(e) => setFInv(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 10px" }}><button className="lk-btn" title="Download every platform user with email, company, role, projects, status and last seen" onClick={hExport}><Icon n="download" s={14} />Export Users (CSV)</button></div>
+          <div className="lk-uhead"><span /><span>Person</span><span>Email</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+          </div>
           {(() => {
             if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one matches these filters.</div>;
             const secs = groupTeamRows(filtered.map((u) => ({ user_id: u.id, u })), cn);
-            return <><div className="lk-uhead"><span /><span>Person</span><span>Email</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
-            {secs.map((g) => { const isOpen = !!open[g.key] || !!ql; return <div key={g.key} className="lk-ugroup">
+            return <>{secs.map((g) => { const isOpen = !!open[g.key] || !!ql; return <div key={g.key} className="lk-ugroup">
               <button className="lk-ughead" style={{ borderBottom: isOpen ? "1px solid var(--line)" : 0 }} onClick={() => setOpen((o) => ({ ...o, [g.key]: !o[g.key] }))}>
                 <span className="chev" style={{ transform: isOpen ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
                 {g.label} <span className="cnt">({g.rows.length})</span>
