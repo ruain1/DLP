@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV223",
+    "date": "2026-07-11",
+    "items": [
+      "The hub's Project comparison table now judges PPC against each project's own Delivery-settings target: green at or above target, amber within 10 points below, red further out, grey until a project has eligible commitments, with the target and signed gap shown under each figure. The portfolio Excel export gains Target and Gap columns. Targets are still edited inside each project; the hub reads them."
+    ]
+  },
+  {
     "rev": "REV222",
     "date": "2026-07-11",
     "items": [

@@ -1936,13 +1936,14 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
   };
   const anaExcel = async () => {
     if (!ana || ana === "loading" || ana.error) return;
+    const tgOfX = (pid) => { const t = (ana.targets || {})[pid]; return t == null ? 80 : t; };
     try {
       const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod;
       const wb = new ExcelJS.Workbook();
       const pf = wb.addWorksheet("Portfolio");
-      pf.columns = [{ header: "Project", key: "n", width: 26 }, { header: "Code", key: "c", width: 10 }, { header: "Client", key: "cl", width: 14 }, { header: "PPC %", key: "ppc", width: 8 }, { header: "Total", key: "t", width: 8 }, { header: "Complete", key: "co", width: 10 }, { header: "Complete %", key: "cp", width: 11 }, { header: "In progress", key: "ip", width: 11 }, { header: "Overdue", key: "ov", width: 9 }, { header: "Committed open", key: "cm", width: 14 }, { header: "Health", key: "h", width: 12 }];
+      pf.columns = [{ header: "Project", key: "n", width: 26 }, { header: "Code", key: "c", width: 10 }, { header: "Client", key: "cl", width: 14 }, { header: "PPC %", key: "ppc", width: 8 }, { header: "Target %", key: "tg", width: 9 }, { header: "Gap", key: "gp", width: 7 }, { header: "Total", key: "t", width: 8 }, { header: "Complete", key: "co", width: 10 }, { header: "Complete %", key: "cp", width: 11 }, { header: "In progress", key: "ip", width: 11 }, { header: "Overdue", key: "ov", width: 9 }, { header: "Committed open", key: "cm", width: 14 }, { header: "Health", key: "h", width: 12 }];
       pf.getRow(1).font = { bold: true };
-      vis.forEach((p) => { const m = ana.perProj[p.id] || { total: 0, complete: 0, inProgress: 0, overdue: 0, committedOpen: 0, ppc: null }; pf.addRow({ n: p.name, c: p.code, cl: p.client, ppc: m.ppc == null ? "" : m.ppc, t: m.total, co: m.complete, cp: m.total ? Math.round(m.complete / m.total * 100) : 0, ip: m.inProgress, ov: m.overdue, cm: m.committedOpen, h: healthOf(m).label }); });
+      vis.forEach((p) => { const m = ana.perProj[p.id] || { total: 0, complete: 0, inProgress: 0, overdue: 0, committedOpen: 0, ppc: null }; pf.addRow({ n: p.name, c: p.code, cl: p.client, ppc: m.ppc == null ? "" : m.ppc, tg: tgOfX(p.id), gp: m.ppc == null ? "" : m.ppc - tgOfX(p.id), t: m.total, co: m.complete, cp: m.total ? Math.round(m.complete / m.total * 100) : 0, ip: m.inProgress, ov: m.overdue, cm: m.committedOpen, h: healthOf(m).label }); });
       const co = wb.addWorksheet("By Company");
       co.columns = [{ header: "Company", key: "n", width: 24 }, { header: "Activities", key: "t", width: 11 }, { header: "Complete", key: "c", width: 10 }, { header: "Done %", key: "p", width: 8 }];
       co.getRow(1).font = { bold: true };
@@ -2197,6 +2198,10 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
               : ana.error ? <div className="err" style={{ marginTop: 20 }}>Could not load portfolio metrics: {ana.error}</div>
                 : (() => {
                   const rowsA = vis.map((p) => ({ p, m: ana.perProj[p.id] || { total: 0, complete: 0, inProgress: 0, overdue: 0, open: 0, committedOpen: 0, ppc: null, ppcNum: 0, ppcDen: 0 } }));
+                  // REV223: PPC is judged against each project's own Delivery-settings target.
+                  const tgOf = (pid) => { const t = (ana.targets || {})[pid]; return t == null ? 80 : t; };
+                  const ppcTone = (ppc, tgt) => ppc == null ? "var(--muted)" : ppc >= tgt ? "var(--green)" : ppc >= tgt - 10 ? "var(--amber)" : "var(--red)";
+                  const sw = (bg) => ({ display: "inline-block", width: 9, height: 9, borderRadius: 3, margin: "0 5px 0 14px", background: bg, verticalAlign: "baseline" });
                   const den = rowsA.reduce((s, r) => s + r.m.ppcDen, 0), num = rowsA.reduce((s, r) => s + r.m.ppcNum, 0);
                   const pfPpc = den ? Math.round(num / den * 100) : null;
                   const T = rowsA.reduce((s, r) => s + r.m.total, 0), C = rowsA.reduce((s, r) => s + r.m.complete, 0), O = rowsA.reduce((s, r) => s + r.m.overdue, 0), CM = rowsA.reduce((s, r) => s + r.m.committedOpen, 0);
@@ -2211,12 +2216,13 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                       <div className="tile" onClick={() => setAnaSel({ title: "Committed, open", sub: CM + " open committed activities portfolio-wide", rows: drillRows((m) => m.committedOpen, (m) => m.committedOpen + " committed", "#E6A435") })}><div className="k">Committed, open</div><div className="v mono" style={{ color: "var(--amber)" }}>{CM}</div><div className="d">promises still in play</div></div>
                     </div>
                     <div className="sech"><h2>Project comparison</h2></div>
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "2px 0 10px" }}>PPC vs each project's own target:<i style={sw("var(--green)")} />met<i style={sw("var(--amber)")} />within 10<i style={sw("var(--red)")} />10+ below<i style={sw("var(--line)")} />no commitments yet</div>
                     <div className="antable">
-                      <div className="hd"><div>Project</div><div>PPC</div><div>Complete</div><div>In progress</div><div>Overdue</div><div>Committed</div><div>Health</div><div></div></div>
+                      <div className="hd"><div>Project</div><div>PPC vs target</div><div>Complete</div><div>In progress</div><div>Overdue</div><div>Committed</div><div>Health</div><div></div></div>
                       {rowsA.map(({ p, m }) => { const pc = m.total ? Math.round(m.complete / m.total * 100) : 0; const h = healthOf(m); return (
                         <div className="row" key={p.id} onClick={() => onOpenAnalytics(p.id)}>
                           <div><div className="pn">{p.name}</div><div className="pc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
-                          <div className="mono" style={{ fontWeight: 800, color: m.ppc == null ? "var(--muted)" : "var(--ink)" }}>{m.ppc == null ? "\u2014" : m.ppc + "%"}</div>
+                          <div>{(() => { const tgt = tgOf(p.id); const tone = ppcTone(m.ppc, tgt); const gap = m.ppc == null ? null : m.ppc - tgt; return <><div className="mono" style={{ fontWeight: 800, fontSize: 15, color: tone }}>{m.ppc == null ? "\u2014" : m.ppc + "%"}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1, whiteSpace: "nowrap" }}>target {tgt}{gap == null ? " \u00b7 no commitments yet" : <span style={{ display: "inline-block", fontWeight: 800, padding: "0 5px", borderRadius: 5, fontSize: 10, marginLeft: 5, color: tone, background: tone === "var(--green)" ? "rgba(52,211,153,.14)" : tone === "var(--amber)" ? "rgba(224,161,6,.16)" : "rgba(248,113,113,.15)" }}>{(gap >= 0 ? "+" : "") + gap}</span>}</div></>; })()}</div>
                           <div><div className="bar"><i style={{ width: pc + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pc}% {"\u00B7"} {m.complete}/{m.total}</div></div>
                           <div className="mono">{m.inProgress}</div>
                           <div className="mono" style={{ color: m.overdue ? "var(--red)" : "var(--muted)", fontWeight: 800 }}>{m.overdue}</div>
@@ -2225,7 +2231,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                           <div className="enter">Full analytics<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m9 18 6-6-6-6" /></svg></div>
                         </div>); })}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Health: On Track when overdue is under 5% of open activities, Watch under 15%, At Risk above. Not Started when a project has no activities.</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>PPC targets come from each project's Delivery settings (default 80). Health: On Track when overdue is under 5% of open activities, Watch under 15%, At Risk above. Not Started when a project has no activities.</div>
                     <div className="angrid">
                       <div className="ancard">
                         <h3>Status Mix By Project</h3>

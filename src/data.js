@@ -458,9 +458,10 @@ export async function updateProject(id, fields) {
 // Status buckets are disjoint: complete, overdue, in progress, then open (planned or
 // committed, not yet due). Company rows use the shared global directory.
 export async function loadPortfolioAnalytics() {
-  const [actRes, coRes] = await Promise.all([
+  const [actRes, coRes, tgRes] = await Promise.all([
     supabase.from("activities").select("project_id, status, committed, start_date, duration, actual_finish, company_id"),
     supabase.from("companies").select("id, name"),
+    supabase.from("settings").select("project_id, ppc_target"),
   ]);
   if (actRes.error) throw actRes.error;
   const coNames = {}; (coRes.data || []).forEach((c) => { coNames[c.id] = c.name; });
@@ -489,7 +490,11 @@ export async function loadPortfolioAnalytics() {
   });
   Object.values(perProj).forEach((p) => { p.ppc = p.ppcDen ? Math.round(p.ppcNum / p.ppcDen * 100) : null; });
   const companies = Object.values(perCo).sort((x, y) => y.total - x.total || x.name.localeCompare(y.name));
-  return { perProj, companies };
+  // REV223: each project's own PPC target rides along for the comparison table.
+  // A failed or empty settings read degrades to the 80 default, never blocks analytics.
+  const targets = {};
+  (((tgRes && !tgRes.error && tgRes.data) || [])).forEach((r) => { if (r.ppc_target != null) targets[r.project_id] = r.ppc_target; });
+  return { perProj, companies, targets };
 }
 
 // Admin: upload a customer logo file, return its public URL, and store it (light or dark slot).
