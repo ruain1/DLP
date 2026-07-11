@@ -240,9 +240,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);font-size:12.5px}
 .lk-li .g{flex:1;min-width:0}.lk-li .g .s{font-size:10.5px;color:var(--muted)}
 .lk-li button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px}
-.lk-urow{display:grid;grid-template-columns:34px minmax(140px,1fr) 122px 84px 48px 118px 90px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);font-size:12.5px}
-.lk-uhead{display:grid;grid-template-columns:34px minmax(140px,1fr) 122px 84px 48px 118px 90px;align-items:center;gap:10px;padding:2px 13px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.lk-urow{display:grid;grid-template-columns:34px minmax(126px,1fr) minmax(168px,1.2fr) 112px 80px 42px 110px 74px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--card);font-size:12.5px}
+.lk-uhead{display:grid;grid-template-columns:34px minmax(126px,1fr) minmax(168px,1.2fr) 112px 80px 42px 110px 74px;align-items:center;gap:10px;padding:2px 13px 7px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
 .lk-uhead .ctr{text-align:center}
+.lk-uemail{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lk-uava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff;flex:none}
 .lk-uname{min-width:0;display:flex;align-items:center;gap:7px}
 .lk-uname b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3068,7 +3069,7 @@ export default function App({ session }) {
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <div className="lk-scroll"><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
-      {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} /></div>}
+      {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} projCode={(((projects || []).find((p) => p.id === selProj) || {}).code || "").trim()} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
       {page === "benchmarks" && (isAdmin || (S.settings && S.settings.benchmarksVisible)) && <div className="lk-fillpage"><BenchmarksPage projectId={selProj} isAdmin={isAdmin} isOwner={isOwner} cu={cu} activities={S.activities} settings={S.settings} update={update} onSendToBoard={sendBenchmarksToBoard} users={S.users} companies={S.companies} /></div>}
@@ -4043,7 +4044,30 @@ function DesignTab({ S, update }) {
   </div>;
 }
 
-function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient }) {
+// REV200: pure, harness-testable helpers for the Project Team roster.
+// buildTeamExportRows: project-scoped CSV rows sorted company then name.
+// groupTeamRows: per-company grouping with Platform team pinned first and No company last,
+// people sorted by name inside each group (owner pinned first in Platform team).
+function buildTeamExportRows(all, cn, ustat, mcount) {
+  const p2 = (n) => String(n).padStart(2, "0");
+  const fmtSeen = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
+  return all.slice().sort((a, b) => (cn(a.u.companyId) || "\uffff").localeCompare(cn(b.u.companyId) || "\uffff") || (a.u.name || "").localeCompare(b.u.name || "")).map((r) => { const st = ustat[r.user_id] || {}; return [r.u.name || "", st.email || "", cn(r.u.companyId) || "", r.role === "admin" ? "Admin" : "Member", mcount[r.user_id] || 0, st.lastSignIn ? "Active" : "Invite pending", fmtSeen(st.lastSignIn)]; });
+}
+function groupTeamRows(rows, cn) {
+  const groups = {};
+  rows.forEach((r) => { const pr = r.u.platformRole || "user"; const key = (pr === "super" || pr === "owner") ? "\u0000Platform team" : (cn(r.u.companyId) || "\uffffNo company"); (groups[key] = groups[key] || []).push(r); });
+  const order = (k) => k === "\u0000Platform team" ? "\u0000" : (k === "\uffffNo company" ? "\uffff" : k.toLowerCase());
+  const label = (k) => k === "\u0000Platform team" ? "Platform team" : (k === "\uffffNo company" ? "No company" : k);
+  const byName = (a, b) => (a.u.name || "").localeCompare(b.u.name || "");
+  return Object.keys(groups).sort((a, b) => order(a).localeCompare(order(b))).map((k) => ({
+    key: k, label: label(k),
+    rows: k === "\u0000Platform team"
+      ? groups[k].slice().sort((a, b) => (a.u.platformRole === "owner" ? -1 : b.u.platformRole === "owner" ? 1 : 0) || byName(a, b))
+      : groups[k].slice().sort(byName),
+  }));
+}
+
+function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
   const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("fin04_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "users", "members", "requests", "audit", "data", "changelog", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("fin04_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
@@ -4176,6 +4200,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
   const [uInvite, setUInvite] = useState("all");
   const [manageId, setManageId] = useState(null);
   const [openGroups, setOpenGroups] = useState({});
+  const [mOpenGroups, setMOpenGroups] = useState({});
   const [subInput, setSubInput] = useState({});
   const [t3Input, setT3Input] = useState({});
   const [copyFrom, setCopyFrom] = useState({});
@@ -4643,7 +4668,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
           {tab === "users" && <div className="lk-userwrap"><div className="lk-usermain">
             <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Everyone on the platform. Add a person once here; putting them on projects (under <button onClick={() => setTab("members")} style={{ background: "none", border: 0, color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit" }}>Project Team</button>) needs no further invite. Platform role sets cross-project reach: a <b>Super</b> sees and administers every project; a <b>User</b> sees only the projects they are added to.</div>
             <div className="lk-ufilter">
-              <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or email…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
+              <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company…" value={uq} onChange={(e) => setUq(e.target.value)} /></div>
               <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={uCo} onChange={(e) => setUCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={uRole} onChange={(e) => setURole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
               <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={uInvite} onChange={(e) => setUInvite(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
@@ -4663,7 +4688,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
                 if (uRole !== "all" && !(pr === uRole || (uRole === "super" && pr === "owner"))) return false;
                 if (uCo === "none") { if (u.companyId) return false; } else if (uCo !== "all" && u.companyId !== uCo) return false;
                 if (uInvite !== "all") { const accepted = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (uInvite === "accepted" && !accepted) return false; if (uInvite === "pending" && accepted) return false; }
-                if (q && !(`${u.name || ""} ${cn(u.companyId)}`.toLowerCase().includes(q))) return false;
+                if (q && !(`${u.name || ""} ${cn(u.companyId)} ${(ustat[u.id] || {}).email || ""}`.toLowerCase().includes(q))) return false;
                 return true;
               });
               const groups = {};
@@ -4671,6 +4696,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
               const renderRow = (u) => { const seen = ustat[u.id] && ustat[u.id].lastSignIn; const pr = u.platformRole || "user"; const n = mcount[u.id] || 0; const co = cn(u.companyId); return <div key={u.id} className="lk-urow">
                 <span className="lk-uava" style={{ background: avBg(u.id) }}>{avInit(u.name)}</span>
                 <div className="lk-uname"><b>{u.name || "(unnamed)"}</b>{u.id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
+                <span className="lk-uemail" title={(ustat[u.id] || {}).email || ""}>{(ustat[u.id] || {}).email || ""}</span>
                 <span className="lk-cochip" title={co || "No company"}>{co || "No company"}</span>
                 <span className="lk-platbadge" data-super={pr === "owner" ? "own" : pr === "super" ? "1" : "0"} title="Platform role">{pr === "owner" ? "Owner" : pr === "super" ? "Super" : "User"}</span>
                 <span className="lk-mpc" title={"On " + n + " project" + (n === 1 ? "" : "s")} style={{ color: n ? "var(--ink)" : "var(--muted)" }}>{n}</span>
@@ -4679,7 +4705,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
               </div>; };
               if (!filtered.length) return <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one matches these filters.</div>;
               const order = (k) => k === "\u0000Platform team" ? "\u0000" : (k === "\uffffNo company" ? "\uffff" : k.toLowerCase());
-              return <><div className="lk-uhead"><span /><span>Person</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+              return <><div className="lk-uhead"><span /><span>Person</span><span>Email</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
               {Object.keys(groups).sort((a, b) => order(a).localeCompare(order(b))).map((k) => { const open = !!openGroups[k] || !!q; return <div key={k} className="lk-ugroup">
                 <button className="lk-ughead" style={{ borderBottom: open ? "1px solid var(--line)" : 0 }} onClick={() => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))}>
                   <span className="chev" style={{ transform: open ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
@@ -4803,19 +4829,19 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
                 if (mfRole !== "all" && r.role !== mfRole) return false;
                 if (mfCo === "none") { if (r.u.companyId) return false; } else if (mfCo !== "all" && r.u.companyId !== mfCo) return false;
                 if (mfStatus !== "all") { const a = seenOf(r.user_id); if (mfStatus === "active" && !a) return false; if (mfStatus === "pending" && a) return false; }
-                if (q && !(`${r.u.name || ""} ${cn(r.u.companyId)}`.toLowerCase().includes(q))) return false;
+                if (q && !(`${r.u.name || ""} ${cn(r.u.companyId)} ${(ustat[r.user_id] || {}).email || ""}`.toLowerCase().includes(q))) return false;
                 return true;
               });
-              rows.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1) || (a.u.name || "").localeCompare(b.u.name || ""));
               return <>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>Project team</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{members ? all.length + " member" + (all.length === 1 ? "" : "s") + " \u00b7 " + adminCount + " admin" + (adminCount === 1 ? "" : "s") : ""}</div>
                 </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 8px" }}><button className="lk-btn" disabled={!all.length} title="Download everyone on this project with email, company, project role, projects, status and last seen" onClick={() => downloadFile(`${(projCode || "DLP")}-team-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Project role", "Projects", "Status", "Last seen"], buildTeamExportRows(all, cn, ustat, mcount)))}><Icon n="download" s={14} />Export Users (CSV)</button></div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Adding someone here grants access to this project immediately, with no invite to accept. Removing them revokes only this project; they keep their account and any other projects.</div>
                 {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : <>
                   <div className="lk-ufilter">
-                    <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name or company…" value={mfQ} onChange={(e) => setMfQ(e.target.value)} /></div>
+                    <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company…" value={mfQ} onChange={(e) => setMfQ(e.target.value)} /></div>
                     <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><select className="lk-select" value={mfCo} onChange={(e) => setMfCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{S.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Role</label><select className="lk-select" value={mfRole} onChange={(e) => setMfRole(e.target.value)}><option value="all">All roles</option><option value="admin">Admins</option><option value="member">Members</option></select></div>
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><select className="lk-select" value={mfStatus} onChange={(e) => setMfStatus(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="pending">Invite pending</option></select></div>
@@ -4823,16 +4849,24 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient 
                   {!all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one on the team yet. Add people from Global Contacts below.</div>
                     : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
                     : <>
-                      <div className="lk-uhead"><span /><span>Member</span><span>Company</span><span>Role</span><span className="ctr">Proj</span><span>Status</span><span /></div>
-                      {rows.map((r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-urow">
+                      <div className="lk-uhead"><span /><span>Member</span><span>Email</span><span>Company</span><span>Role</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+                      {(() => { const renderTeamRow = (r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-urow">
                         <span className="lk-uava" style={{ background: avBg(r.user_id) }}>{avInit(r.u.name)}</span>
                         <div className="lk-uname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
+                        <span className="lk-uemail" title={(ustat[r.user_id] || {}).email || ""}>{(ustat[r.user_id] || {}).email || ""}</span>
                         <span className="lk-cochip" title={cn(r.u.companyId) || "No company"}>{cn(r.u.companyId) || "No company"}</span>
                         <span className="lk-platbadge" data-super={r.role === "admin" ? "1" : "0"} title="Role on this project">{r.role === "admin" ? "Admin" : "Member"}</span>
                         <span className="lk-mpc" title={"On " + np + " project" + (np === 1 ? "" : "s") + " across the platform"} style={{ color: np ? "var(--ink)" : "var(--muted)" }}>{np}</span>
                         <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Has signed in" : "Onboarding link not yet used"}>{seen ? (sup ? "Active \u00b7 super" : "Active") : "Invite pending"}</span>
                         <button className="lk-mbtn" onClick={() => setPmManageId(r.user_id)}>Manage</button>
-                      </div>; })}
+                      </div>; };
+                      return groupTeamRows(rows, cn).map((g) => { const open = !!mOpenGroups[g.key] || !!q; return <div key={g.key} className="lk-ugroup">
+                        <button className="lk-ughead" style={{ borderBottom: open ? "1px solid var(--line)" : 0 }} onClick={() => setMOpenGroups((gs) => ({ ...gs, [g.key]: !gs[g.key] }))}>
+                          <span className="chev" style={{ transform: open ? "rotate(90deg)" : "none" }}>{"\u25B6"}</span>
+                          {g.label} <span className="cnt">({g.rows.length})</span>
+                        </button>
+                        {open && <div className="lk-list" style={{ padding: "4px 8px" }}>{g.rows.map(renderTeamRow)}</div>}
+                      </div>; }); })()}
                       {orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} {orphan === 1 ? "person" : "people"} not shown (no profile in Global Contacts yet).</div> : null}
                     </>}
                 </>}
