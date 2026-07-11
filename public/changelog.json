@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV204",
+    "date": "2026-07-11",
+    "items": [
+      "Hotfix for the hub Global Contacts rendering unstyled: the scoped stylesheet shipped with REV203 carried an unclosed rule (the multi-line .lk-btn rule was truncated by a line-based extraction), which silently invalidated every rule after it, leaving filters, the roster grid, group headers and inputs at browser defaults. The stylesheet is rebuilt with a brace-aware extraction, and delivery checks now include a structural validity gate: balanced braces per rule and across the sheet.",
+      "The hub directory now renders identically to the former project tab: styled filters, collapsed company groups with chevrons, the email-column roster grid, and the proper inputs, buttons and modals."
+    ]
+  },
+  {
     "rev": "REV203",
     "date": "2026-07-11",
     "items": [
