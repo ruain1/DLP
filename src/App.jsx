@@ -586,7 +586,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
-.lk-tblwrap{width:100%;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.lk-tblwrap{width:100%;max-width:1500px;margin:0 auto;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .lk-sch{width:100%;display:flex;flex-direction:column;flex:1;min-height:0}
 .lk-sch-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
 .lk-sch-bar .grp{display:flex;flex-direction:column;gap:4px}
@@ -6852,7 +6852,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const totalOpen = S.activities.reduce((n, a) => n + (a.constraints || []).filter((c) => !c.done).length, 0);
   const exportCsv = () => { const headers = ["Activity", "Company", "Location code", "Building", "Level", "Zone / Room", "Cx Stage", "Planned start", "Constraint", "Owner", "Need-by", "Status"]; const data = rows.map(({ a, c }) => [a.desc, coName(a.companyId), [(S.brand && S.brand.projectName) || "FIN04", a.area, a.subArea, a.tier3].filter(Boolean).join("."), a.area, a.subArea || "", a.tier3 || "", a.level, a.start, c.text, c.owner || "", c.due || "", c.done ? "Cleared" : "Open"]); downloadFile(`FIN04-constraints-${fmtISO(new Date())}.csv`, toCSV(headers, data)); };
   return (
-    <div className="lk-rep" style={{ maxWidth: "none" }}>
+    <div className="lk-rep">
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 180 }}><label>Search</label><input className="lk-in" placeholder="Activity or constraint…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>

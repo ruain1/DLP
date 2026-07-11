@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV220",
+    "date": "2026-07-11",
+    "items": [
+      "The Activity Table and the Constraints page now sit inside the same 1500px centred column as Reports and the other pages, instead of stretching edge to edge on ultra-wide monitors."
+    ]
+  },
+  {
     "rev": "REV219",
     "date": "2026-07-11",
     "items": [
