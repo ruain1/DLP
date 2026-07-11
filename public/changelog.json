@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV207",
+    "date": "2026-07-11",
+    "items": [
+      "Global Settings: the filter bar, the Export Users button and the column headers now stay in view together while the contact list scrolls. The contacts panel becomes its own scroll area (the same pattern that keeps the filter bar frozen inside a project), with a single pinned block at its top; page-level pinning is abandoned after failing in the browser regardless of what the stylesheet declared. A side effect worth having: the Directory sub-nav also stays in view, since the page itself no longer scrolls."
+    ]
+  },
+  {
     "rev": "REV206",
     "date": "2026-07-11",
     "items": [
