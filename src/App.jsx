@@ -376,7 +376,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-subnav button{text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:7px;padding:7px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
 .lk-subnav button:hover{background:var(--hover)}
 .lk-subnav button.sel{background:var(--ink);color:var(--paper)}
-.lk-subbody{flex:1;min-width:0;max-width:760px;height:100%;overflow-y:auto;padding-bottom:44px}
+.lk-subbody{flex:1;min-width:0;max-width:760px;height:100%;box-sizing:border-box;overflow-y:auto;padding-bottom:44px}
+.lk-subbody.wide .lk-db{height:100%;box-sizing:border-box}
+.lk-subbody.full .lk-db{height:100%;box-sizing:border-box;display:flex;flex-direction:column;min-height:0}
 .lk-stick{position:sticky;top:0;z-index:7;background:var(--paper);display:flex;gap:12px;align-items:center;height:54px;box-sizing:border-box;border-bottom:1px solid var(--line);margin-bottom:8px}
 .lk-subbody.wide{max-width:1320px}.lk-subbody.full{max-width:none}
 .lk-userwrap .lk-ufilter{position:sticky;top:0;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
@@ -457,9 +459,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 @media (max-width:860px){.lk-rep-2col{grid-template-columns:1fr}}
 .lk-subbody .lk-db{padding:2px 0 0}
 .lk-help{flex:1;min-height:0}
-.lk-userwrap{display:flex;gap:18px;align-items:flex-start}
-.lk-usermain{flex:1;min-width:0}
-.lk-userside{width:300px;flex-shrink:0;position:sticky;top:20px}
+.lk-userwrap{display:flex;gap:18px;align-items:stretch;height:100%;min-height:0}
+.lk-usermain{flex:1;min-width:0;height:100%;overflow-y:auto;padding-right:2px}
+.lk-userside{width:300px;flex-shrink:0;height:100%;overflow-y:auto}
 .lk-online{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}
 .lk-online-h{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px;color:var(--ink)}
 .lk-online-now{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#54d6c6;background:rgba(31,182,166,.13);padding:3px 9px;border-radius:999px;text-transform:none;letter-spacing:0}
@@ -485,7 +487,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-dot.off{background:#F59E0B}
 .lk-dot.on{background:#10B981;animation:lkpulse 2s infinite}
 @keyframes lkpulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}70%{box-shadow:0 0 0 6px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
-@media (max-width:900px){.lk-userwrap{flex-direction:column}.lk-userside{width:100%;position:static}}
+@media (max-width:900px){.lk-userwrap{flex-direction:column;height:auto}.lk-usermain{height:auto;overflow:visible}.lk-userside{width:100%;height:auto;position:static}}
 .lk-help iframe{width:100%;height:100%;border:0;display:block;background:#fff}
 .lk-helppage{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--paper)}
 .lk-helphero{flex:0 0 auto;margin:14px 18px 4px;border-radius:16px;padding:15px 22px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(135deg,#1E1B4B 0%,#312E81 58%,#4338CA 100%);position:relative;overflow:hidden;box-shadow:0 14px 34px -20px rgba(49,46,129,.7)}
@@ -1298,7 +1300,7 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 // outside the project shell, and scopes the required lk styles via HUB_LK_CSS. Global Companies
 // and Global Vendors arrive with Phases 3 and 4.
 function HubGlobalSettings({ theme, userName, projects }) {
-  const [sub, setSub] = useState(() => { try { const s0 = localStorage.getItem("dlp_hub_sub"); return ["contacts", "companies"].includes(s0) ? s0 : "contacts"; } catch (e) { return "contacts"; } });
+  const [sub, setSub] = useState(() => { try { const s0 = localStorage.getItem("dlp_hub_sub"); return ["contacts", "companies", "changelog"].includes(s0) ? s0 : "contacts"; } catch (e) { return "contacts"; } });
   useEffect(() => { try { localStorage.setItem("dlp_hub_sub", sub); } catch (e) {} }, [sub]);
   const [dir, setDir] = useState(null);
   const [ustat, setUstat] = useState({});
@@ -1316,6 +1318,10 @@ function HubGlobalSettings({ theme, userName, projects }) {
   const [nco, setNco] = useState({ name: "", domain: "" });
   const [coq, setCoq] = useState("");
   const COGRID = "minmax(170px,1.3fr) minmax(140px,1fr) 110px minmax(150px,1.1fr) 84px";
+  const [clData, setClData] = useState(null);
+  const [clq, setClq] = useState("");
+  const [clOpen, setClOpen] = useState({});
+  useEffect(() => { if (sub === "changelog" && (!clData || clData.error)) { fetch("/changelog.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))).then((j) => setClData(Array.isArray(j) ? j : { error: "Unexpected changelog format" })).catch((e) => setClData({ error: e.message || String(e) })); } }, [sub]);
   const [cred, setCred] = useState(null);
   const [nu, setNu] = useState({ email: "", name: "", companyId: "" });
   const [bulkText, setBulkText] = useState("");
@@ -1422,6 +1428,8 @@ function HubGlobalSettings({ theme, userName, projects }) {
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "contacts" ? "var(--hover)" : "transparent", fontWeight: sub === "contacts" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("contacts")}>Global Contacts</button>
         <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "companies" ? "var(--hover)" : "transparent", fontWeight: sub === "companies" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("companies")}>Global Companies</button>
         <button className="lk-btn" disabled style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", opacity: .5 }} title="Arrives with the vendor directory (Phase 4)">Global Vendors</button>
+        <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", padding: "14px 10px 4px" }}>Platform</div>
+        <button className="lk-btn" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: sub === "changelog" ? "var(--hover)" : "transparent", fontWeight: sub === "changelog" ? 700 : 500, marginBottom: 2 }} onClick={() => setSub("changelog")}>Changelog</button>
       </div>
       <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px", minWidth: 0 }}>
         {sub === "contacts" && <>
@@ -1529,6 +1537,37 @@ function HubGlobalSettings({ theme, userName, projects }) {
           <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>A name that already exists in the registry is rejected rather than duplicated.</div>
           {msg && !manageCo && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{msg}</div>}
         </>}
+        </>}
+        {sub === "changelog" && <>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Changelog</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>Every revision shipped to the platform, newest first, read live from the deployed changelog. Search matches revision numbers, dates and the text of each change; matching revisions expand themselves.</div>
+        {!clData && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading changelog&hellip;</div>}
+        {clData && clData.error && <div style={{ fontSize: 12, color: "#e07a6d" }}>Could not load the changelog: {clData.error}</div>}
+        {Array.isArray(clData) && (() => {
+          const q = clq.trim().toLowerCase();
+          const hi = (t) => { if (!q) return t; const out = []; let rest = String(t); let k = 0; let idx; while ((idx = rest.toLowerCase().indexOf(q)) >= 0) { if (idx > 0) out.push(rest.slice(0, idx)); out.push(<mark key={k++} style={{ background: "rgba(74,143,231,.3)", color: "inherit", borderRadius: 3, padding: "0 2px" }}>{rest.slice(idx, idx + q.length)}</mark>); rest = rest.slice(idx + q.length); } out.push(rest); return out; };
+          const match = (r) => !q || (r.rev || "").toLowerCase().includes(q) || (r.date || "").includes(q) || (r.items || []).some((it) => (it || "").toLowerCase().includes(q));
+          const shown = clData.filter(match);
+          return <>
+            <div className="hubstick" style={{ paddingBottom: 10 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <input className="lk-in" style={{ maxWidth: 340 }} placeholder="Search revisions..." value={clq} onChange={(e) => setClq(e.target.value)} />
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>{q ? shown.length + " of " + clData.length + " revisions match" : clData.length + " revisions"}</span>
+              </div>
+            </div>
+            {shown.map((r) => { const ix = clData.indexOf(r); const open = q ? true : (clOpen[r.rev] !== undefined ? clOpen[r.rev] : ix === 0); return <div key={r.rev || ix} style={{ border: "1px solid var(--line)", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
+              <div onClick={() => setClOpen({ ...clOpen, [r.rev]: !open })} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", background: "var(--paper)" }}>
+                <span style={{ color: "var(--muted)", fontSize: 11, transform: open ? "rotate(90deg)" : "none", transition: ".15s", display: "inline-block" }}>{"\u25B6"}</span>
+                <span className="mono" style={{ fontWeight: 700, fontSize: 13 }}>{hi(r.rev || "")}</span>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>{hi(r.date || "")}</span>
+                {ix === 0 && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".5px", color: "#7EE0B8", background: "rgba(20,140,90,.15)", border: "1px solid rgba(20,140,90,.4)", borderRadius: 20, padding: "2px 8px" }}>LATEST</span>}
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--muted)", background: "var(--hover)", border: "1px solid var(--line)", borderRadius: 20, padding: "2px 9px" }}>{(r.items || []).length} change{(r.items || []).length === 1 ? "" : "s"}</span>
+              </div>
+              {open && <ul style={{ margin: 0, padding: "10px 14px 12px 34px", display: "flex", flexDirection: "column", gap: 6 }}>{(r.items || []).map((it, i) => <li key={i} style={{ fontSize: 12.5, lineHeight: 1.55 }}>{hi(it)}</li>)}</ul>}
+            </div>; })}
+            {!shown.length && <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No revisions match.</div>}
+          </>;
+        })()}
         </>}
       </div>
     </div>
@@ -4294,7 +4333,7 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0" }}>
       {["", ...PRIV_GROUPS.map(([g]) => g)].map((g) => <button key={g || "all"} className={"lk-btn" + (gf === g ? " primary" : "")} style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setGf(g)}>{g || "All Groups"}</button>)}
     </div>
-    {members == null ? <div className="lk-hint">Loading project team...</div> : <div style={{ overflow: "auto", border: "1px solid var(--line)", borderRadius: 12, maxHeight: "62vh" }}>
+    {members == null ? <div className="lk-hint">Loading project team...</div> : <div style={{ overflow: "auto", border: "1px solid var(--line)", borderRadius: 12, flex: 1, minHeight: 0 }}>
       <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "max-content", minWidth: "100%" }}>
         <thead>
           <tr>{[<th key="u" style={{ position: "sticky", left: 0, top: 0, zIndex: 4, background: "var(--card)", textAlign: "left", padding: "8px 12px", minWidth: 210, borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>User</th>].concat(groups.map(([g, ps]) => <th key={g} colSpan={ps.length} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--card)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", padding: "7px 6px", borderLeft: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>{g}</th>))}</tr>

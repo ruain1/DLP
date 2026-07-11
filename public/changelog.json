@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV213",
+    "date": "2026-07-11",
+    "items": [
+      "Project Team and User Privileges now fill the viewport exactly: the roster column and the presence panel each scroll themselves on Project Team, the privileges table absorbs all remaining height with its own scrollers, and the settings body no longer grows a wrapping scrollbar around content that already manages its own scrolling. On narrow screens the team layout reverts to natural stacked flow.",
+      "The Changelog arrives in its new home: Global Settings gains a Platform section with a Changelog viewer that reads the deployed changelog live. Every revision is collapsible (newest expanded, with a LATEST tag and change count); the pinned search matches revision numbers, dates and change text, expands matching revisions and highlights the hits."
+    ]
+  },
+  {
     "rev": "REV212",
     "date": "2026-07-11",
     "items": [
