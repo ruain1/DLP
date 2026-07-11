@@ -932,7 +932,7 @@ function parseActivityRowsV2(rows, consRows, ctx) {
     const isMs = yes(g(ci.ms));
     const areaRaw = g(ci.area); let area = "";
     if (areaRaw) { const m = areaHas(areaRaw); if (m) area = m; else if (ctx.createMissing) { area = areaRaw; ctx.areas.push(areaRaw); creates.areas.push(areaRaw); } else e.push('column Building: "' + areaRaw + '" does not exist'); }
-    else if (!isMs) e.push("column Building: required");
+    else if (!isMs) { if (ctx.areas.length === 1) area = ctx.areas[0]; else e.push("column Building: required"); }
     const subRaw = g(ci.subarea); let subArea = "";
     if (subRaw) { if (area) { const m = subHas(area, subRaw); if (m) subArea = m.name; else if (ctx.createMissing) { subArea = subRaw; const nv = { area, name: subRaw }; ctx.subAreas.push(nv); creates.subAreas.push(nv); } else e.push('column Level: "' + subRaw + '" does not exist under building "' + areaRaw + '"'); } else if (!ctx.createMissing) e.push("column Level: set a valid Building first"); }
     const t3Raw = g(ci.tier3); let tier3 = "";
@@ -1023,9 +1023,8 @@ async function buildActivityWorkbookV2(ExcelJS, cfg) {
   ws.addRow([2, "", "Example 2: MV switchgear test (DELETE before importing)", co2, exA, sub, t3, "EPOD108.DB001.U003", sys, stage, (cfg.disciplines || [])[1] || "", "No", cfg.todayISO, 2, "", "Yes", "Planned", "", "", "", "Yes", wit, "SAT", 90, 1, "", 16, "1", "Predecessor 1 means the row with Ref 1 in this file. Delete this row"]);
   const LAST = 400;
   for (let r = 4; r <= LAST; r++) ws.getCell("A" + r).value = r - 1;
-  const coCol = IMP_HEADERS_V2.indexOf("Company") + 1, bCol = IMP_HEADERS_V2.indexOf("Building") + 1;
+  const coCol = IMP_HEADERS_V2.indexOf("Company") + 1;
   if (cfg.mode === "member" && cfg.myCoName) for (let r = 4; r <= LAST; r++) ws.getCell(colLetter(coCol) + r).value = cfg.myCoName;
-  if (cfg.buildings.length === 1) for (let r = 4; r <= LAST; r++) ws.getCell(colLetter(bCol) + r).value = cfg.buildings[0];
   [["Company", 6], ["Building", 1], ["Level", 2], ["Zone / Room", 3], ["System", 4], ["Cx Stage", 5], ["Discipline", 7], ["Milestone", 10], ["Committed", 10], ["Witness invite", 10], ["Status", 9]].forEach(([name, listCol]) => {
     const cnt = (lists[listCol - 1][1] || []).length; const ci2 = IMP_HEADERS_V2.indexOf(name) + 1; if (ci2 < 1 || cnt < 1) return;
     const cl = colLetter(ci2), ll = colLetter(listCol); const strict = name === "Company" && cfg.mode === "member";
@@ -5254,7 +5253,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
         systems: S.systems.slice(), stages: Object.keys(S.levels), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
         todayISO: fmtISO(new Date()), rules: [
           "Set the Company column per row to load every contractor in one file. Companies, buildings, levels, zones, systems and crews that do not yet exist are created by this Admin importer.",
-          "Required on every row: Description, Building, System and Planned start. Milestone rows (Milestone = Yes) relax Building and System.",
+          "Required on every row: Description, Building, System and Planned start; on a single-building project a blank Building fills itself. Milestone rows (Milestone = Yes) relax Building and System.",
           "Rows with no Description, System and Planned start are ignored, so prefilled columns on unused rows are harmless.",
           "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
           "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
@@ -9089,7 +9088,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
         systems: S.systems.slice(), stages: Object.keys(LV), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
         todayISO: fmtISO(new Date()), rules: [
           mode === "member" ? "You import under " + (myCoName || "your own company") + ": the Company column is prefilled, its dropdown offers only your company, and any row naming another company is rejected." : "Set the Company column per row; it must name a company already on the project (only the Admin importer creates companies).",
-          "Required on every row: Description, Building, System and Planned start. Milestone rows (Milestone = Yes) relax Building and System.",
+          "Required on every row: Description, Building, System and Planned start; on a single-building project a blank Building fills itself. Milestone rows (Milestone = Yes) relax Building and System.",
           "Rows with no Description, System and Planned start are ignored, so the prefilled columns on unused rows are harmless.",
           "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
           "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",

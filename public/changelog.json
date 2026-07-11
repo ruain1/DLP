@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV237",
+    "date": "2026-07-11",
+    "items": [
+      "Import template: removed the Building column prefill (hundreds of repeated values added nothing the dropdown does not already do). Instead the importer now fills a blank Building automatically when the project has exactly one building; on multi-building projects a blank Building is still an error, and milestone rows keep their blank Building. Member Company prefill and the Ref column are unchanged: Company is the member lock, Ref keys predecessors and the Constraints sheet."
+    ]
+  },
+  {
     "rev": "REV236",
     "date": "2026-07-11",
     "items": [
