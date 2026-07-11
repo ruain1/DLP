@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV226",
+    "date": "2026-07-11",
+    "items": [
+      "Design settings tranche 2, Layout: a new Layout tab in Admin, Design with three controls, each settable globally or per page like every other design control. Content width (Narrow 1180px, Standard 1500px, Full width), Density (Comfortable or Compact, tightening row, card, and button padding to about three quarters on the working surfaces), and Corner radius (Sharp, Standard, Soft, one scale across cards, tables, buttons, and chips). Projects that never touch these keep today's layout exactly; print output and emails are unaffected."
+    ]
+  },
+  {
     "rev": "REV225",
     "date": "2026-07-11",
     "items": [

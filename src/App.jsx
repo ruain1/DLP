@@ -86,7 +86,7 @@ const css = `
 .lk-sub{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;margin-top:2px}
 .lk-nav{display:flex;align-items:center;gap:4px}
 .lk-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);
-  border-radius:8px;padding:7px 10px;font-size:12.5px;cursor:pointer;font-weight:500;transition:.12s}
+  border-radius:calc(8px*var(--r,1));padding:calc(7px*var(--pad,1)) calc(10px*var(--pad,1));font-size:12.5px;cursor:pointer;font-weight:500;transition:.12s}
 .lk-btn:hover{border-color:var(--muted)}.lk-btn.icon{padding:7px 8px}
 .lk-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .lk-btn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
@@ -164,7 +164,7 @@ const css = `
 .lk-ticket.complete{opacity:.5}.lk-ticket.complete .desc{text-decoration:line-through}
 .lk-ticket.dim{opacity:.16;filter:grayscale(.6)}
 .lk-ticket.spot{box-shadow:0 0 0 2px #E0A106,0 4px 14px rgba(224,161,6,.28)}
-.lk-chip{font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:4px;text-transform:uppercase}
+.lk-chip{font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:calc(4px*var(--r,1));text-transform:uppercase}
 .lk-chip.commit{background:#1D4ED8;color:#DBE7FB}
 .lk-chip.cstr{background:#FBEFD6;color:#9A6A00;display:inline-flex;align-items:center;gap:3px}
 .lk-chip.late{background:#F6D6D3;color:#9B1C16}
@@ -211,7 +211,7 @@ const css = `
 .lk-f{display:flex;flex-direction:column;gap:5px}
 .lk-f label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
 .lk-drawer .lk-f label{color:var(--head)}
-.lk-in,.lk-select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--ink);font-family:inherit;width:100%}
+.lk-in,.lk-select{border:1px solid var(--line);border-radius:calc(8px*var(--r,1));padding:calc(8px*var(--pad,1)) calc(10px*var(--pad,1));font-size:13px;background:var(--card);color:var(--ink);font-family:inherit;width:100%}
 .lk-in:focus,.lk-select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .lk-in:disabled{opacity:.6}
 input[type="date"]::-webkit-calendar-picker-indicator,input[type="datetime-local"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator,input[type="month"]::-webkit-calendar-picker-indicator{filter:invert(var(--cal-invert,0));cursor:pointer;opacity:.8}
@@ -371,7 +371,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-page{flex:1;min-width:0;min-height:0;height:100%;display:flex;flex-direction:column;overflow:hidden}
 .lk-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
 .lk-fillpage{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.lk-rep{padding:18px 22px;max-width:1500px;margin:0 auto}
+.lk-rep{padding:calc(18px*var(--pad,1)) calc(22px*var(--pad,1));max-width:var(--content-max,1500px);margin:0 auto}
 .lk-adminwrap{max-width:780px;width:100%;padding:6px 22px 52px}
 .lk-adminwrap .lk-db{padding:14px 0 0}
 .lk-adminwrap .lk-tabs{padding:6px 0 0}
@@ -404,7 +404,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .ytt-date{font-size:11px;color:var(--muted)}
 .ytt-list{padding:10px;display:flex;flex-direction:column;gap:9px}
 .ytt-empty{font-size:12px;color:var(--muted);padding:8px 4px}
-.ytt-card{border:1px solid var(--line);border-left:3px solid #64748B;border-radius:9px;background:var(--card);padding:9px 11px}
+.ytt-card{border:1px solid var(--line);border-left:3px solid #64748B;border-radius:calc(9px*var(--r,1));background:var(--card);padding:calc(9px*var(--pad,1)) calc(11px*var(--pad,1))}
 .ytt-card-desc{font-weight:700;font-size:13px;line-height:1.3;cursor:pointer}
 .ytt-card-desc:hover{text-decoration:underline}
 .ytt-card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--muted)}
@@ -419,7 +419,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .wsch-period{display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-shrink:0}
 .wsch-period select{appearance:none;background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:6px 10px;font-size:12.5px;font-family:inherit}
 .wsch-list{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px;flex:1}
-.wsch-card{display:grid;grid-template-columns:118px 1fr;gap:13px;border:1px solid var(--line);border-left:3px solid #64748B;border-radius:10px;background:var(--card);padding:11px 13px}
+.wsch-card{display:grid;grid-template-columns:118px 1fr;gap:13px;border:1px solid var(--line);border-left:3px solid #64748B;border-radius:calc(10px*var(--r,1));background:var(--card);padding:calc(11px*var(--pad,1)) calc(13px*var(--pad,1))}
 .wsch-when{display:flex;flex-direction:column;gap:3px}
 .wsch-day{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .wsch-time{font-size:18px;font-weight:800;line-height:1}
@@ -580,13 +580,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-bar-fill{height:100%;border-radius:5px}
 .lk-bar-row .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
 .lk-tbl{width:100%;border-collapse:collapse;font-size:12px}
-.lk-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper)}
-.lk-tbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.lk-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:calc(7px*var(--pad,1)) 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper)}
+.lk-tbl td{padding:calc(7px*var(--pad,1)) 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .lk-tbl tr:hover td{background:var(--hover)}
 .lk-tbl .lnk{color:var(--accent);cursor:pointer;font-weight:600}
 .lk-tbl .lnk:hover{text-decoration:underline}
 .lk-cdone{text-decoration:line-through;color:var(--muted)}
-.lk-tblwrap{width:100%;max-width:1500px;margin:0 auto;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.lk-tblwrap{width:100%;max-width:var(--content-max,1500px);margin:0 auto;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .lk-sch{width:100%;display:flex;flex-direction:column;flex:1;min-height:0}
 .lk-sch-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:54px;z-index:25}
 .lk-sch-bar .grp{display:flex;flex-direction:column;gap:4px}
@@ -597,8 +597,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-sch-scroll{flex:1;overflow:auto;background:#fff}
 .lk-tblscroll{flex:1;min-height:0;overflow:auto;padding:0 16px 64px}
 .lk-grid{border-collapse:collapse;width:100%;font-size:11.5px;min-width:1040px}
-.lk-grid th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:8px 7px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--paper);z-index:6}
-.lk-grid td{padding:4px 7px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink)}
+.lk-grid th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:calc(8px*var(--pad,1)) 7px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--paper);z-index:6}
+.lk-grid td{padding:calc(4px*var(--pad,1)) 7px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink)}
 .lk-grid tr.ed{background:var(--hover)}
 .lk-grid td button{background:transparent;border:0;cursor:pointer;color:var(--muted);display:inline-flex;padding:3px;border-radius:6px}
 .lk-grid td button:hover:not(:disabled){background:var(--hover);color:var(--ink)}
@@ -3945,7 +3945,14 @@ const FONT_STACKS = { grotesk: '"Space Grotesk","Inter",system-ui,sans-serif', i
 // REV180: cssVars now takes the project settings so global design overrides (accent colour,
 // heading and body font) apply on every theme root, including the modals, drawers, Table,
 // Schedule and Admin that render their own root. Unset overrides fall back to the theme/:root.
-function applyDesignBlock(v, blk) { if (!blk) return; if (blk.accent) v["--accent"] = blk.accent; if (FONT_STACKS[blk.headFont]) v["--display"] = FONT_STACKS[blk.headFont]; if (FONT_STACKS[blk.bodyFont]) v["--body"] = FONT_STACKS[blk.bodyFont]; }
+function applyDesignBlock(v, blk) { if (!blk) return; if (blk.accent) v["--accent"] = blk.accent; if (FONT_STACKS[blk.headFont]) v["--display"] = FONT_STACKS[blk.headFont]; if (FONT_STACKS[blk.bodyFont]) v["--body"] = FONT_STACKS[blk.bodyFont];
+  // REV226 Layout tranche: semantic values map to CSS variables that existing rules consume
+  // via var(x, old-value) fallbacks, so a project with nothing configured computes exactly
+  // the pre-REV226 layout.
+  if (blk.width) v["--content-max"] = blk.width === "narrow" ? "1180px" : blk.width === "full" ? "100000px" : "1500px";
+  if (blk.density) v["--pad"] = blk.density === "compact" ? "0.72" : "1";
+  if (blk.radius) v["--r"] = blk.radius === "sharp" ? "0.45" : blk.radius === "soft" ? "1.5" : "1";
+}
 // REV181: cssVars takes an optional page key. Global design overrides apply first, then the
 // per-page override for that page, so a page can differ from the project default. The own-root
 // pages (Table, Schedule, Admin) pass their key; the shared content wrapper applies page vars
@@ -4640,7 +4647,7 @@ function DesignTab({ S, update }) {
   </div>;
   const scopeNote = desScope === "global" ? "Applies across the whole project unless a page overrides it below." : (scopeName + " inherits the global setting unless you override it here.");
   return <div>
-    <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}</div>
+    <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>{subtab("icons", "Icons")}{subtab("colour", "Colour")}{subtab("typography", "Typography")}{subtab("layout", "Layout")}</div>
 
     {tab === "icons" && <div>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Choose the sidebar icon for each page. An icon already used by another page is greyed out, so no two pages can share a mark.</div>
@@ -4671,6 +4678,29 @@ function DesignTab({ S, update }) {
         </div>}
       </div>
       {icons[selPage] && <button className="lk-btn" style={{ marginTop: 14 }} onClick={() => setIcon(defOf(selPage))}>Reset {sel[1]} to default</button>}
+    </div>}
+
+    {tab === "layout" && <div>
+      {scopeBar()}
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>{scopeNote} Projects that never touch these keep today's layout exactly.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div>
+          <div style={{ ...lab }}>Content width{desScope !== "global" && scopeBlk.width ? " (overridden)" : ""}</div>
+          {seg(effFont("width", "standard"), [["narrow", "Narrow"], ["standard", "Standard"], ["full", "Full width"]], (v) => setScoped({ width: v }))}
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Narrow 1180px, Standard 1500px, Full width uses the whole window. Applies to the content column on pages that cap it; a wide Activity Table can sit next to a standard Analytics page.</div>
+        </div>
+        <div>
+          <div style={{ ...lab }}>Density{desScope !== "global" && scopeBlk.density ? " (overridden)" : ""}</div>
+          {seg(effFont("density", "comfortable"), [["comfortable", "Comfortable"], ["compact", "Compact"]], (v) => setScoped({ density: v }))}
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Compact tightens row, card, and button padding to about three quarters on the working surfaces: Activity Table, Constraints, Witness cards, board cards, report tables. Type sizes do not change. Print and email keep their fixed layouts.</div>
+        </div>
+        <div>
+          <div style={{ ...lab }}>Corner radius{desScope !== "global" && scopeBlk.radius ? " (overridden)" : ""}</div>
+          {seg(effFont("radius", "standard"), [["sharp", "Sharp"], ["standard", "Standard"], ["soft", "Soft"]], (v) => setScoped({ radius: v }))}
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>One scale for cards, tables, buttons, and chips, so the whole surface agrees.</div>
+        </div>
+      </div>
+      {(scopeBlk.width || scopeBlk.density || scopeBlk.radius) && <button className="lk-btn" style={{ marginTop: 16 }} onClick={() => setScoped({ width: "", density: "", radius: "" })}>{desScope === "global" ? "Reset Layout to defaults" : "Clear Layout overrides for " + scopeName}</button>}
     </div>}
 
     {tab === "colour" && <div>
@@ -6811,7 +6841,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   const allSel = list.length > 0 && list.every((a) => sel.has(a.id));
   const someSel = sel.size > 0 && !allSel;
   const toggleAll = () => setSel(() => (list.length && list.every((a) => sel.has(a.id))) ? new Set() : new Set(list.map((a) => a.id)));
-  const cell = { padding: "5px 7px", fontSize: 11.5 };
+  const cell = { padding: "calc(5px*var(--pad,1)) calc(7px*var(--pad,1))", fontSize: 11.5 };
   const C = (k) => cols[k];
   const FR_FIELDS = [["desc", "Activity name", "text"], ["notes", "Notes", "text"], ["asset", "Asset code", "text"], ["system", "System", "enum"], ["area", "Building", "area"], ["level", "Cx Stage", "enum"], ["status", "Status", "status"], ["companyId", "Company", "company"], ["committed", "Committed", "bool"], ["witnessInvite", "Witness", "bool"]];
   const frType = (FR_FIELDS.find((f) => f[0] === frField) || [])[2] || "text";
@@ -6950,7 +6980,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const cancelC = () => { setEditKey(null); setCd(null); };
   const saveC = (a) => { const d = cd; if (!d.text.trim()) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === a.id ? { ...x, constraints: x.constraints.map((y) => y.id === d.id ? d : y) } : x) }), { action: "Edit constraint", detail: a.desc }); cancelC(); };
   const setD = (k, v) => setCd((d) => ({ ...d, [k]: v }));
-  const cell = { padding: "5px 7px", fontSize: 11.5 };
+  const cell = { padding: "calc(5px*var(--pad,1)) calc(7px*var(--pad,1))", fontSize: 11.5 };
   const rows = [];
   S.activities.forEach((a) => {
     if (co !== "all" && a.companyId !== co) return;
