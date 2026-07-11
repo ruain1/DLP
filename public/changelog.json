@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV234",
+    "date": "2026-07-11",
+    "items": [
+      "Fix: the constraint history card now matches the approved design. It opens anchored to the constraint's own row (flipping above when the row sits low on the screen) instead of a detached corner card, and shows a proper timeline: coloured event markers joined by a rail line, hollow blue for raised, filled green for cleared, hollow amber for reopened, with the last open event marked still open. The drawer's inline history uses the same timeline."
+    ]
+  },
+  {
     "rev": "REV233",
     "date": "2026-07-11",
     "items": [

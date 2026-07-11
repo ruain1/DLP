@@ -879,10 +879,20 @@ const cHist = (c, t, by) => ({ ...c, hist: [...(c.hist || []), { t, by: by || ""
 function ConstraintHistoryBody({ c, audit }) {
   const ev = c.hist || [];
   const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso; } };
-  const T = { raised: ["Raised", "var(--accent)"], cleared: ["Cleared", "#0E9384"], reopened: ["Reopened", "#E0A106"] };
-  if (ev.length) return <div>{ev.map((e, i) => { const m = T[e.t] || [e.t, "var(--muted)"]; return <div key={i} style={{ display: "grid", gridTemplateColumns: "10px 1fr", gap: 9, paddingBottom: i === ev.length - 1 ? 0 : 10 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: m[1], marginTop: 5 }} /><span style={{ fontSize: 12 }}><b>{m[0]} by {e.by || "unknown"}</b><span style={{ display: "block", fontSize: 10.5, color: "var(--muted)" }}>{fmt(e.at)}</span></span></div>; })}</div>;
+  // Event marks per the approved mockup: raised = hollow blue, cleared = filled green,
+  // reopened = hollow amber, joined by a rail line; the last open event says "still open".
+  const T = { raised: ["Raised", "#5B9BF3", false], cleared: ["Cleared", "#0E9384", true], reopened: ["Reopened", "#E0A106", false] };
+  if (ev.length) return <div style={{ margin: "4px 0 2px" }}>{ev.map((e, i) => {
+    const m = T[e.t] || [e.t, "var(--muted)", false];
+    const last = i === ev.length - 1;
+    const still = last && !c.done && (e.t === "raised" || e.t === "reopened");
+    return <div key={i} style={{ display: "grid", gridTemplateColumns: "14px 1fr", gap: 10, position: "relative", paddingBottom: last ? 0 : 14 }}>
+      {!last && <span style={{ position: "absolute", left: 6, top: 15, bottom: 0, width: 1, background: "var(--line)" }} />}
+      <span style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid " + m[1], background: m[2] ? m[1] : "var(--card)", marginTop: 2, boxSizing: "border-box" }} />
+      <span style={{ minWidth: 0 }}><b style={{ fontSize: 12.5, display: "block", lineHeight: 1.35 }}>{m[0]} by {e.by || "unknown"}</b><span style={{ fontSize: 11, color: "var(--muted)" }}>{fmt(e.at)}{still ? " \u00b7 still open" : ""}</span></span>
+    </div>; })}</div>;
   const rel = (audit || []).filter((x) => x.detail && c.text && String(x.detail).toLowerCase().includes(String(c.text).toLowerCase())).slice(0, 3);
-  return <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5 }}>This constraint predates history tracking, so no record exists on it.{rel.length ? <> Related audit entries:{rel.map((x, i) => <span key={i} style={{ display: "block", marginTop: 4 }}><b style={{ color: "var(--ink)" }}>{x.action}</b> by {x.user || "unknown"}, {fmt(x.ts)}</span>)}</> : " The audit trail shows no related entries."}</div>;
+  return <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55 }}>This constraint predates history tracking, so no record exists on it.{rel.length ? <> Related audit entries:{rel.map((x, i) => <span key={i} style={{ display: "block", marginTop: 5 }}><b style={{ color: "var(--ink)" }}>{x.action}</b> by {x.user || "unknown"}, {fmt(x.ts)}</span>)}</> : " The audit trail shows no related entries."}</div>;
 }
 const openCount = (a) => a.constraints.filter((c) => !c.done).length;
 const uid = (p) => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
@@ -7160,9 +7170,14 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
         <table className="lk-tbl lk-grid"><thead><tr><th style={{ width: 62 }} /><th style={{ width: 30 }} /><th>Activity</th><th>Company</th><th>Location</th><th>Cx Stage</th><th style={{ minWidth: 96, whiteSpace: "nowrap" }}>Start</th><th>Constraint</th><th style={{ minWidth: 130 }}>Owner</th><th style={{ minWidth: 112, whiteSpace: "nowrap" }}>Need-by</th></tr></thead>
           <tbody>
             {rows.map(({ a, c }) => { const ed = editKey === (a.id + c.id); const can = canEdit(a); const overdue = c.due && !c.done && c.due < fmtISO(new Date()); return <tr key={a.id + c.id} className={ed ? "ed" : ""}>
-              <td>{ed
+              <td style={{ position: "relative" }}>{ed
                 ? <span style={{ display: "inline-flex", gap: 2 }}><button title="Save" onClick={() => saveC(a)}><Icon n="check" s={14} /></button><button title="Cancel" onClick={cancelC}><Icon n="x" s={14} /></button></span>
-                : <button title={can ? "Edit this constraint" : "Only your own company's constraints are editable"} disabled={!can} onClick={() => beginC(a, c)} style={{ opacity: can ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}<button title="View history: who raised, cleared, and reopened this constraint" onClick={() => setHistC(histC && histC.c.id === c.id ? null : { a, c })} style={{ marginLeft: 4, color: histC && histC.c.id === c.id ? "var(--accent)" : undefined }}><Icon n="clock" s={13} /></button></td>
+                : <button title={can ? "Edit this constraint" : "Only your own company's constraints are editable"} disabled={!can} onClick={() => beginC(a, c)} style={{ opacity: can ? 1 : 0.3 }}><Icon n="pen" s={13} /></button>}<button title="View history: who raised, cleared, and reopened this constraint" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setHistC(histC && histC.c.id === c.id ? null : { a, c, up: r.top > window.innerHeight * 0.55 }); }} style={{ marginLeft: 4, color: histC && histC.c.id === c.id ? "var(--accent)" : undefined }}><Icon n="clock" s={13} /></button>{histC && histC.c.id === c.id && histC.a.id === a.id && <div style={{ position: "absolute", left: 34, zIndex: 60, width: 400, maxWidth: "78vw", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 14px 40px rgba(0,0,0,.5)", padding: "14px 16px", textAlign: "left", cursor: "default", ...(histC.up ? { bottom: "calc(100% + 4px)" } : { top: "calc(100% + 4px)" }) }} onClick={(e) => e.stopPropagation()}>
+                <button title="Close" onClick={() => setHistC(null)} style={{ position: "absolute", top: 10, right: 12, background: "none", border: 0, color: "var(--muted)", cursor: "pointer", padding: 2 }}><Icon n="x" s={14} /></button>
+                <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.35, marginBottom: 2, paddingRight: 24, color: "var(--ink)" }}>{histC.c.text}</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, paddingRight: 24 }}>{histC.a.desc || "Untitled"}{" \u00b7 "}{coName(histC.a.companyId)}{histC.c.owner ? " \u00b7 owner " + histC.c.owner : ""}{histC.c.due ? " \u00b7 need-by " + histC.c.due : ""}</div>
+                <ConstraintHistoryBody c={histC.c} audit={S.audit} />
+              </div>}</td>
               <td><input type="checkbox" checked={c.done} disabled={!can} onChange={() => toggle(a.id, c.id)} /></td>
               <td><span className="lnk" onClick={() => onOpen(a)}>{a.desc || "Untitled"}</span></td>
               <td>{coName(a.companyId)}</td>
@@ -7177,12 +7192,6 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
           </tbody></table>
       </div>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>{rows.length} shown · {totalOpen} open across the whole project</div>
-      {histC && <div style={{ position: "fixed", right: 24, bottom: 24, width: 400, maxWidth: "92vw", zIndex: 80, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 14px 40px rgba(0,0,0,.45)", padding: "14px 16px" }}>
-        <button title="Close" onClick={() => setHistC(null)} style={{ position: "absolute", top: 10, right: 12, background: "none", border: 0, color: "var(--muted)", cursor: "pointer" }}><Icon n="x" s={14} /></button>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2, paddingRight: 22 }}>{histC.c.text}</div>
-        <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>{histC.a.desc || "Untitled"}{" \u00b7 "}{coName(histC.a.companyId)}{histC.c.owner ? " \u00b7 owner " + histC.c.owner : ""}{histC.c.due ? " \u00b7 need-by " + histC.c.due : ""}</div>
-        <ConstraintHistoryBody c={histC.c} audit={S.audit} />
-      </div>}
     </div>);
 }
 
