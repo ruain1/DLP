@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV236",
+    "date": "2026-07-11",
+    "items": [
+      "Import / Export v2 foundations. One import engine now sits behind both the Admin importer and the board's Import Activities, replacing two drifted copies. The new workbook template carries four sheets: Activities with every field the platform runs on (discipline, witness type, duration and days, crews, estimated hours, percent complete, predecessors), Constraints keyed by activity ref with owner and need-by (stamped into constraint history as raised by the importer), Reference feeding every dropdown from the project's live values, and README with generated rules and a version stamp that the importer checks on upload.",
+      "Member imports: the template comes with the Company column prefilled and locked to your company and the Building column prefilled when the project has one building; rows naming another company are rejected with the row and column named, never silently rewritten. Rows with no description, system and planned start are treated as blank, so prefilled columns on unused rows are harmless.",
+      "Predecessors import as semicolon lists: a plain number links to that Ref within the file, #57 links to the existing activity with that code. Rows carrying a Code are rejected for now so an edited export cannot be double-imported; Sync mode, which updates existing activities by Code, is the next revision.",
+      "Admin, Import / Export gains Activities workbook (import shape): Activities and Constraints sheets identical to the template, including each activity's Code, so export, edit and re-import round-trips. Both surfaces' descriptions rewritten to match what the importer actually does, and import results now report constraints raised and amber notices (unknown template version, defaulted values) alongside the written-row count."
+    ]
+  },
+  {
     "rev": "REV235",
     "date": "2026-07-11",
     "items": [

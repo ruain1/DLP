@@ -876,6 +876,186 @@ const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMo
 // imports. Constraints from before this revision have no stamps; the viewer falls back to
 // a best-effort audit-trail search and says so.
 const cHist = (c, t, by) => ({ ...c, hist: [...(c.hist || []), { t, by: by || "", at: new Date().toISOString() }] });
+// ===================== REV236: Import / Export v2 foundations =====================
+// One engine behind both import surfaces. The workbook template carries every field the
+// platform now runs on; the parser is pure so it can be tested outside the app; export
+// emits the identical shape so a file can round-trip. Sync mode (updating by Code) is the
+// next revision; until then rows carrying a Code are rejected so an edited export cannot
+// be double-imported by accident.
+const IMP_TPL_VERSION = 2;
+const IMP_HEADERS_V2 = ["Ref", "Code", "Description", "Company", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Discipline", "Milestone", "Planned start", "Duration (d)", "Planned finish", "Committed", "Status", "Percent", "Actual start", "Actual finish", "Witness invite", "Witness date & time", "Witness type", "Witness duration (min)", "Witness days", "Crews", "Est hours", "Predecessors", "Notes"];
+const impNormDate = (s) => { if (s == null || s === "") return ""; if (s instanceof Date) return isNaN(s) ? "" : fmtISO(s); s = String(s).trim(); if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/); if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0"); m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); } m = s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3,9})[-\/ ](\d{2}|\d{4})$/); if (m) { const mo = ({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 })[m[2].slice(0, 3).toLowerCase()]; if (mo) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + String(mo).padStart(2, "0") + "-" + m[1].padStart(2, "0"); } } const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
+const impNormDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+function impColMap(hdr) {
+  const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
+  const exact = (nm) => hdr.findIndex((h) => h === nm);
+  return { ref: exact("ref"), codecol: exact("code"), desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), disc: idx(["discipline"]), ms: idx(["milestone"]), pstart: idx(["planned start", "start"]), dur: idx(["duration", "days (calendar)"]), pfin: idx(["planned finish", "finish", "end"]), commit: idx(["committed", "commit"]), status: idx(["status"]), pct: idx(["percent"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date & time", "witness date", "witness time", "witness at"]), wtype: idx(["witness type"]), wmin: idx(["witness duration", "witness mins", "witness minutes"]), wdays: idx(["witness days"]), crew: idx(["crews", "crew"]), esth: idx(["est hours", "estimated hours", "hrs"]), preds: idx(["predecessors", "predecessor"]), cons: idx(["constraints", "constraint"]), notes: idx(["notes", "comment", "comments"]) };
+}
+function parseActivityRowsV2(rows, consRows, ctx) {
+  const errors = [], notices = [], staged = [];
+  const creates = { companies: [], areas: [], subAreas: [], tier3s: [], systems: [], crews: [] };
+  const out = () => ({ staged, errors, notices, creates });
+  if (!rows || rows.length < 2) { errors.push("The file has no activity rows under the header."); return out(); }
+  const hdr = rows[0].map((h) => String(h == null ? "" : h).trim().toLowerCase());
+  const ci = impColMap(hdr);
+  if (ci.desc < 0) { errors.push("The header row is missing Description. Download the v2 template and keep its header row."); return out(); }
+  const yes = (v) => /^(y|yes|true|1)$/i.test(v);
+  const coByName = new Map(ctx.companies.map((c) => [c.name.toLowerCase(), c]));
+  const discCanon = new Map((ctx.disciplines || []).map((d) => [d.toLowerCase(), d]));
+  const crewCanon = new Map((ctx.crewNames || []).map((c) => [c.toLowerCase(), c]));
+  const areaHas = (v) => ctx.areas.find((a) => a.toLowerCase() === v.toLowerCase());
+  const sysHas = (v) => ctx.systems.find((s) => s.toLowerCase() === v.toLowerCase());
+  const subHas = (area, v) => (ctx.subAreas || []).find((s) => s.area === area && s.name.toLowerCase() === v.toLowerCase());
+  const t3Has = (area, sub, v) => (ctx.tier3s || []).find((t) => t.area === area && t.subArea === sub && t.name.toLowerCase() === v.toLowerCase());
+  const refIds = new Map();
+  const pendingPreds = [];
+  let noticedStage = false, noticedStatus = false;
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : "");
+    const ln = r + 1; const e = [];
+    const desc = g(ci.desc);
+    // Prefilled templates leave Ref, Company and Building on unused rows: a row with no
+    // Description, System and Planned start is blank by definition, never an error.
+    if (!desc && !g(ci.system) && !g(ci.pstart)) continue;
+    if (!desc) e.push("column Description: required");
+    if (g(ci.codecol)) e.push("column Code: rows carrying a Code need Sync mode (next revision); clear the Code to import as a new activity");
+    let companyId = ctx.cuCompanyId; const coRaw = g(ci.company);
+    if (ctx.isAdmin) {
+      if (!coRaw) { if (ctx.createMissing) companyId = (ctx.companies[0] || {}).id || null; else e.push("column Company: required (name an existing company)"); }
+      else { const c = coByName.get(coRaw.toLowerCase()); if (c) companyId = c.id; else if (ctx.createMissing) { const nc = { id: ctx.uid("co"), name: coRaw }; ctx.companies.push(nc); coByName.set(coRaw.toLowerCase(), nc); creates.companies.push(nc); companyId = nc.id; } else e.push('column Company: "' + coRaw + '" is not on this project'); }
+    } else if (coRaw) {
+      const c = coByName.get(coRaw.toLowerCase());
+      if (!c) e.push('column Company: "' + coRaw + '" does not exist');
+      else if (c.id !== ctx.cuCompanyId) e.push("column Company: you can only import activities for " + (ctx.myCoName || "your own company"));
+    }
+    const isMs = yes(g(ci.ms));
+    const areaRaw = g(ci.area); let area = "";
+    if (areaRaw) { const m = areaHas(areaRaw); if (m) area = m; else if (ctx.createMissing) { area = areaRaw; ctx.areas.push(areaRaw); creates.areas.push(areaRaw); } else e.push('column Building: "' + areaRaw + '" does not exist'); }
+    else if (!isMs) e.push("column Building: required");
+    const subRaw = g(ci.subarea); let subArea = "";
+    if (subRaw) { if (area) { const m = subHas(area, subRaw); if (m) subArea = m.name; else if (ctx.createMissing) { subArea = subRaw; const nv = { area, name: subRaw }; ctx.subAreas.push(nv); creates.subAreas.push(nv); } else e.push('column Level: "' + subRaw + '" does not exist under building "' + areaRaw + '"'); } else if (!ctx.createMissing) e.push("column Level: set a valid Building first"); }
+    const t3Raw = g(ci.tier3); let tier3 = "";
+    if (t3Raw) { if (area && subArea) { const m = t3Has(area, subArea, t3Raw); if (m) tier3 = m.name; else if (ctx.createMissing) { tier3 = t3Raw; const nv = { area, subArea, name: t3Raw }; ctx.tier3s.push(nv); creates.tier3s.push(nv); } else e.push('column Zone / Room: "' + t3Raw + '" does not exist under "' + areaRaw + ' / ' + subRaw + '"'); } else if (!ctx.createMissing) e.push("column Zone / Room: set a valid Building and Level first"); }
+    const sysRaw = g(ci.system); let system = "";
+    if (sysRaw) { const m = sysHas(sysRaw); if (m) system = m; else if (ctx.createMissing) { system = sysRaw; ctx.systems.push(sysRaw); creates.systems.push(sysRaw); } else e.push('column System: "' + sysRaw + '" does not exist'); }
+    else if (!isMs) e.push("column System: required");
+    const lvRaw = g(ci.level).toUpperCase(); let level = ctx.lvKeys[0] || "L2";
+    if (lvRaw) { if (ctx.lvKeys.includes(lvRaw)) level = lvRaw; else if (ctx.createMissing) { if (!noticedStage) { notices.push('Unknown Cx stages were set to ' + level + ' (valid: ' + ctx.lvKeys.join(", ") + ').'); noticedStage = true; } } else e.push('column Cx Stage: "' + lvRaw + '" is not one of ' + ctx.lvKeys.join(", ")); }
+    const discipline = []; const discRaw = g(ci.disc);
+    if (discRaw) discRaw.split(/\s*;\s*/).filter(Boolean).forEach((t) => { const m = discCanon.get(t.toLowerCase()); if (m) { if (!discipline.includes(m)) discipline.push(m); } else e.push('column Discipline: "' + t + '" is not one of ' + (ctx.disciplines || []).join(", ")); });
+    const start = impNormDate(g(ci.pstart)); const pfin = impNormDate(g(ci.pfin)); const durRaw = g(ci.dur);
+    if (!g(ci.pstart)) e.push("column Planned start: required (YYYY-MM-DD)");
+    else if (!start) e.push("column Planned start: invalid date (use YYYY-MM-DD)");
+    let duration = 1; if (durRaw && +durRaw > 0) duration = Math.round(+durRaw); else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
+    const statusRaw = g(ci.status); let status = "planned";
+    if (statusRaw) { const st = statusRaw.toLowerCase().replace(/\s+/g, "_"); if (["planned", "in_progress", "complete"].includes(st)) status = st; else if (ctx.createMissing) { if (!noticedStatus) { notices.push("Unknown Status values were set to Planned (valid: Planned, In progress, Complete)."); noticedStatus = true; } } else e.push('column Status: "' + statusRaw + '" is not Planned, In progress or Complete'); }
+    let pctVal = null; const pctRaw = g(ci.pct);
+    if (pctRaw !== "") { const n = Math.round(+pctRaw); if (isNaN(n) || n < 0 || n > 100) e.push("column Percent: must be 0 to 100"); else pctVal = n; }
+    const actualStart = impNormDate(g(ci.astart)); const actualFinish = impNormDate(g(ci.afin));
+    const witnessInvite = yes(g(ci.wit)); const witAt = impNormDT(g(ci.witat));
+    if (witnessInvite && !witAt) e.push("column Witness date & time: required when Witness invite is Yes (YYYY-MM-DD HH:MM)");
+    const wtype = g(ci.wtype);
+    let wmin = 0; const wminRaw = g(ci.wmin); if (wminRaw !== "") { const n = Math.round(+wminRaw); if (isNaN(n) || n <= 0) e.push("column Witness duration (min): must be a positive number of minutes"); else wmin = n; }
+    let wdays = 0; const wdaysRaw = g(ci.wdays); if (wdaysRaw !== "") { const n = Math.round(+wdaysRaw); if (isNaN(n) || n < 1) e.push("column Witness days: must be 1 or more"); else wdays = n; }
+    const crew = []; const crewRaw = g(ci.crew);
+    if (crewRaw) crewRaw.split(/\s*;\s*/).filter(Boolean).forEach((t) => { const m = crewCanon.get(t.toLowerCase()); if (m) { if (!crew.includes(m)) crew.push(m); } else if (ctx.createMissing) { crew.push(t); ctx.crewNames.push(t); crewCanon.set(t.toLowerCase(), t); creates.crews.push(t); } else e.push('column Crews: "' + t + '" is not a crew on this project (add crews in Admin, Lookahead & Targets, first)'); });
+    let estHours = ""; const esthRaw = g(ci.esth); if (esthRaw !== "") { const n = +esthRaw; if (isNaN(n) || n <= 0) e.push("column Est hours: must be a positive number"); else estHours = n; }
+    const consText = g(ci.cons);
+    const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: ctx.uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x), owner: "", ownerType: "", ownerId: null, due: "", hist: [{ t: "raised", by: ctx.byName || "", at: ctx.nowISO }] })) : [];
+    if (e.length) { errors.push("Row " + ln + ": " + e.join("; ")); continue; }
+    const sid = ctx.uid("a");
+    const act = { id: sid, predecessors: [], desc, companyId, area, subArea, tier3, asset: g(ci.asset), system, level, isMilestone: isMs, witnessInvite, witnessAt: witnessInvite ? witAt : "", notes: g(ci.notes), start: start || ctx.todayISO, duration, committed: yes(g(ci.commit)), status, actualStart, actualFinish, constraints };
+    if (discipline.length) act.discipline = discipline;
+    if (crew.length) act.crew = crew;
+    if (estHours !== "") act.estHours = estHours;
+    if (pctVal != null) act.percent = pctVal;
+    if (wtype) act.witnessType = wtype;
+    if (wmin) act.witnessDurationMin = wmin;
+    if (wdays) act.witnessDays = wdays;
+    const refRaw = g(ci.ref); if (refRaw) refIds.set(refRaw, sid);
+    const predsRaw = g(ci.preds); if (predsRaw) pendingPreds.push({ sid, tokens: predsRaw.split(/\s*;\s*/).filter(Boolean), ln });
+    staged.push(act);
+  }
+  for (const p of pendingPreds) {
+    const ids = [];
+    for (const t of p.tokens) {
+      if (/^#\d+$/.test(t)) { const id = (ctx.existingByCode || new Map()).get(+t.slice(1)); if (id) ids.push(id); else errors.push("Row " + p.ln + ": column Predecessors: " + t + " matches no existing activity code"); }
+      else if (/^\d+$/.test(t)) { const id = refIds.get(t); if (id) { if (id !== p.sid) ids.push(id); } else errors.push("Row " + p.ln + ": column Predecessors: no row in this file has Ref " + t); }
+      else errors.push('Row ' + p.ln + ': column Predecessors: "' + t + '" is neither a Ref from this file nor an existing code like #57');
+    }
+    const act = staged.find((a) => a.id === p.sid); if (act) act.predecessors = ids;
+  }
+  if (consRows && consRows.length > 1) {
+    const chdr = consRows[0].map((h) => String(h == null ? "" : h).trim().toLowerCase());
+    const cidx = (names) => { for (const nm of names) { const i = chdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
+    const cc = { ref: cidx(["activity ref", "ref"]), text: cidx(["constraint"]), owner: cidx(["owner"]), due: cidx(["need-by", "need by", "due"]), done: cidx(["cleared", "done"]) };
+    for (let r = 1; r < consRows.length; r++) {
+      const row = consRows[r] || []; const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : "");
+      const txt = g(cc.text); if (!txt) continue;
+      if (/DELETE before importing/i.test(txt)) continue;
+      const ref = g(cc.ref); const sid = refIds.get(ref);
+      if (!sid) { errors.push('Constraints sheet row ' + (r + 1) + ': Activity ref "' + ref + '" matches no imported row'); continue; }
+      const act = staged.find((a) => a.id === sid);
+      act.constraints.push({ id: ctx.uid("c"), text: txt, done: yes(g(cc.done)), owner: g(cc.owner), ownerType: "", ownerId: null, due: impNormDate(g(cc.due)), hist: [{ t: "raised", by: ctx.byName || "", at: ctx.nowISO }] });
+    }
+  }
+  return out();
+}
+async function buildActivityWorkbookV2(ExcelJS, cfg) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Activities");
+  const cs = wb.addWorksheet("Constraints");
+  const ref = wb.addWorksheet("Reference");
+  const rd = wb.addWorksheet("README");
+  const colLetter = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+  const lists = [["Buildings", cfg.buildings], ["Levels", cfg.levelNames], ["Zones / Rooms", cfg.zoneNames], ["Systems", cfg.systems], ["Cx stages", cfg.stages], ["Companies", cfg.companyList], ["Disciplines", cfg.disciplines], ["Crews", cfg.crewNames], ["Status", ["Planned", "In progress", "Complete"]], ["Yes / No", ["Yes", "No"]]];
+  lists.forEach(([title, arr], cIdx) => { ref.getCell(1, cIdx + 1).value = title; (arr || []).forEach((v, i) => { ref.getCell(i + 2, cIdx + 1).value = v; }); ref.getColumn(cIdx + 1).width = Math.max(14, title.length + 3); });
+  ref.getRow(1).font = { bold: true };
+  ws.addRow(IMP_HEADERS_V2); ws.getRow(1).font = { bold: true };
+  const exA = cfg.buildings[0] || ""; const exSub = (cfg.subAreas || []).find((s) => s.area === exA); const sub = exSub ? exSub.name : "";
+  const exT3 = exSub ? (cfg.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null; const t3 = exT3 ? exT3.name : "";
+  const sys = cfg.systems[0] || ""; const stage = cfg.stages[0] || "L2";
+  const co1 = cfg.mode === "member" ? cfg.myCoName : (cfg.companyList[0] || "");
+  const co2 = cfg.mode === "member" ? cfg.myCoName : (cfg.companyList[1] || cfg.companyList[0] || "");
+  const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " 09:00"; })();
+  ws.addRow([1, "", "Example 1: terminate cables (DELETE before importing)", co1, exA, sub, t3, "", sys, stage, (cfg.disciplines || [])[1] || "", "No", cfg.todayISO, 3, "", "No", "Planned", "", "", "", "No", "", "", "", "", (cfg.crewNames || [])[0] || "", "", "", "Delete this example row"]);
+  ws.addRow([2, "", "Example 2: MV switchgear test (DELETE before importing)", co2, exA, sub, t3, "EPOD108.DB001.U003", sys, stage, (cfg.disciplines || [])[1] || "", "No", cfg.todayISO, 2, "", "Yes", "Planned", "", "", "", "Yes", wit, "SAT", 90, 1, "", 16, "1", "Predecessor 1 means the row with Ref 1 in this file. Delete this row"]);
+  const LAST = 400;
+  for (let r = 4; r <= LAST; r++) ws.getCell("A" + r).value = r - 1;
+  const coCol = IMP_HEADERS_V2.indexOf("Company") + 1, bCol = IMP_HEADERS_V2.indexOf("Building") + 1;
+  if (cfg.mode === "member" && cfg.myCoName) for (let r = 4; r <= LAST; r++) ws.getCell(colLetter(coCol) + r).value = cfg.myCoName;
+  if (cfg.buildings.length === 1) for (let r = 4; r <= LAST; r++) ws.getCell(colLetter(bCol) + r).value = cfg.buildings[0];
+  [["Company", 6], ["Building", 1], ["Level", 2], ["Zone / Room", 3], ["System", 4], ["Cx Stage", 5], ["Discipline", 7], ["Milestone", 10], ["Committed", 10], ["Witness invite", 10], ["Status", 9]].forEach(([name, listCol]) => {
+    const cnt = (lists[listCol - 1][1] || []).length; const ci2 = IMP_HEADERS_V2.indexOf(name) + 1; if (ci2 < 1 || cnt < 1) return;
+    const cl = colLetter(ci2), ll = colLetter(listCol); const strict = name === "Company" && cfg.mode === "member";
+    for (let r = 2; r <= LAST; r++) ws.getCell(cl + r).dataValidation = { type: "list", allowBlank: !strict, showErrorMessage: strict, formulae: ["Reference!$" + ll + "$2:$" + ll + "$" + (cnt + 1)] };
+  });
+  ws.columns.forEach((c, i) => { c.width = Math.max(11, String(IMP_HEADERS_V2[i] || "").length + 3); });
+  cs.addRow(["Activity ref", "Constraint", "Owner", "Need-by", "Cleared"]); cs.getRow(1).font = { bold: true };
+  cs.addRow([1, "Example: permits outstanding (DELETE before importing)", cfg.companyList[0] || "", cfg.todayISO, "No"]);
+  [12, 52, 20, 14, 10].forEach((w, i) => { cs.getColumn(i + 1).width = w; });
+  rd.getCell(1, 1).value = "DLP activities template"; rd.getCell(1, 2).value = "v" + IMP_TPL_VERSION;
+  rd.getCell(2, 1).value = "Project"; rd.getCell(2, 2).value = cfg.projCode;
+  rd.getCell(3, 1).value = "Generated"; rd.getCell(3, 2).value = cfg.todayISO;
+  (cfg.rules || []).forEach((t, i) => { rd.getCell(5 + i, 1).value = t; });
+  rd.getColumn(1).width = 118; rd.getRow(1).font = { bold: true };
+  return wb;
+}
+function actsToWorkbookRowsV2(activities, coNameOf) {
+  const byId = new Map(activities.map((a) => [a.id, a]));
+  const human = (st) => st === "in_progress" ? "In progress" : st === "complete" ? "Complete" : "Planned";
+  const actRows = [IMP_HEADERS_V2.slice()];
+  const consRows = [["Activity ref", "Constraint", "Owner", "Need-by", "Cleared"]];
+  activities.forEach((a, i) => {
+    const rf = i + 1;
+    actRows.push([rf, a.code != null ? "#" + a.code : "", a.desc || "", coNameOf(a.companyId) || "", a.area || "", a.subArea || "", a.tier3 || "", a.asset || "", a.system || "", a.level || "", (a.discipline || []).join("; "), a.isMilestone ? "Yes" : "No", a.start || "", a.duration || 1, "", a.committed ? "Yes" : "No", human(a.status), a.percent == null ? "" : a.percent, a.actualStart || "", a.actualFinish || "", a.witnessInvite ? "Yes" : "No", (a.witnessAt || "").replace("T", " "), a.witnessType || "", a.witnessDurationMin || "", a.witnessDays || "", (a.crew || []).join("; "), a.estHours || "", (a.predecessors || []).map((pid) => { const p = byId.get(pid); return p && p.code != null ? "#" + p.code : ""; }).filter(Boolean).join("; "), a.notes || ""]);
+    (a.constraints || []).forEach((c) => consRows.push([rf, c.text || "", c.owner || "", c.due || "", c.done ? "Yes" : "No"]));
+  });
+  return { actRows, consRows };
+}
+// ================= end REV236 foundations =================
+
 function ConstraintHistoryBody({ c, audit }) {
   const ev = c.hist || [];
   const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso; } };
@@ -5066,39 +5246,45 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     setTplBusy(true);
     try {
       const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
-      const colLetter = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("Activities");
-      const lists = wb.addWorksheet("Lists"); lists.state = "veryHidden";
-      const companyList = scopeCompanies(S.companies, S.projectCompanyIds).map((c) => c.name);
-      const buildings = S.areas.slice();
-      const levels = [...new Set((S.subAreas || []).map((s) => s.name))];
-      const zones = [...new Set((S.tier3s || []).map((t) => t.name))];
-      const systems = S.systems.slice();
-      const stages = Object.keys(S.levels);
-      [["Buildings", buildings], ["Levels", levels], ["Zones", zones], ["Systems", systems], ["Cx stages", stages], ["Companies", companyList]].forEach(([title, arr], cIdx) => { lists.getCell(1, cIdx + 1).value = title; arr.forEach((v, rIdx) => { lists.getCell(rIdx + 2, cIdx + 1).value = v; }); });
-      const headers = ["Description", "Company", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"];
-      const exA = S.areas[0] || ""; const exSub = (S.subAreas || []).find((s) => s.area === exA); const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
-      const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = stages[0] || "L2";
-      const start = fmtISO(new Date()); const pad = (n) => String(n).padStart(2, "0");
-      const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T09:00`; })();
-      const ex1 = ["Example 1: terminate cables (DELETE before importing)", companyList[0] || "", exA, sub, t3, "", sys, lv, start, 3, "No", "No", "", "Set Company to whichever contractor owns the work. Delete this row"];
-      const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", companyList[1] || companyList[0] || "", exA, sub, t3, "EPOD108.DB001.U003", sys, lv, start, 2, "Yes", "Yes", wit, "Witness invite Yes needs a date and time. Delete this row"];
-      ws.addRow(headers); ws.addRow(ex1); ws.addRow(ex2);
-      ws.getRow(1).font = { bold: true };
-      ws.columns.forEach((c, i) => { c.width = Math.max(12, String(headers[i] || "").length + 3); });
-      const LAST = 400;
-      [["Company", companyList.length, 6], ["Building", buildings.length, 1], ["Level", levels.length, 2], ["Zone / Room", zones.length, 3], ["System", systems.length, 4], ["Cx Stage", stages.length, 5]].forEach(([name, count, listCol]) => {
-        const ci = headers.indexOf(name) + 1; if (ci < 1 || count < 1) return;
-        const cl = colLetter(ci); const ll = colLetter(listCol);
-        for (let r = 2; r <= LAST; r++) ws.getCell(`${cl}${r}`).dataValidation = { type: "list", allowBlank: true, showErrorMessage: false, formulae: [`Lists!$${ll}$2:$${ll}$${count + 1}`] };
-      });
+      const cfg = {
+        projCode: projCode || "DLP", mode: "admin", myCoName: "",
+        companyList: scopeCompanies(S.companies, S.projectCompanyIds).map((c) => c.name),
+        buildings: S.areas.slice(), subAreas: (S.subAreas || []).slice(), tier3s: (S.tier3s || []).slice(),
+        levelNames: [...new Set((S.subAreas || []).map((x) => x.name))], zoneNames: [...new Set((S.tier3s || []).map((x) => x.name))],
+        systems: S.systems.slice(), stages: Object.keys(S.levels), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
+        todayISO: fmtISO(new Date()), rules: [
+          "Set the Company column per row to load every contractor in one file. Companies, buildings, levels, zones, systems and crews that do not yet exist are created by this Admin importer.",
+          "Required on every row: Description, Building, System and Planned start. Milestone rows (Milestone = Yes) relax Building and System.",
+          "Rows with no Description, System and Planned start are ignored, so prefilled columns on unused rows are harmless.",
+          "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
+          "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
+          "Constraints live on their own sheet, keyed by Activity ref; imports stamp them as raised by you in the constraint history.",
+          "Leave the Code column empty: it belongs to exports, and Sync mode (updating existing activities by Code) arrives in the next revision.",
+          "Delete the example rows before importing. Choose Append to merge or Override to replace the project's activities.",
+        ] };
+      const wb = await buildActivityWorkbookV2(ExcelJS, cfg);
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const a = document.createElement("a"); a.href = url; a.download = (projCode || "DLP") + "-activities-admin-template.xlsx"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { alert("Template failed: " + (e && e.message ? e.message : e)); }
     setTplBusy(false);
   };
+  const exportActivitiesWorkbook = async () => {
+    setTplBusy(true);
+    try {
+      const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
+      const { actRows, consRows } = actsToWorkbookRowsV2(S.activities, (id) => (S.companies.find((c) => c.id === id) || {}).name || "");
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Activities"); actRows.forEach((r) => ws.addRow(r)); ws.getRow(1).font = { bold: true }; ws.columns.forEach((c, i) => { c.width = Math.max(11, String(actRows[0][i] || "").length + 3); });
+      const cws = wb.addWorksheet("Constraints"); consRows.forEach((r) => cws.addRow(r)); cws.getRow(1).font = { bold: true }; [12, 52, 20, 14, 10].forEach((w, i) => { cws.getColumn(i + 1).width = w; });
+      const rd = wb.addWorksheet("README"); rd.getCell(1, 1).value = "DLP activities template"; rd.getCell(1, 2).value = "v" + IMP_TPL_VERSION; rd.getCell(2, 1).value = "Exported"; rd.getCell(2, 2).value = fmtISO(new Date()); rd.getCell(4, 1).value = "Same shape as the import template. Clear the Code column to import rows as new activities; Sync mode (matching by Code) arrives in the next revision."; rd.getColumn(1).width = 118;
+      const buf = await wb.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const a = document.createElement("a"); a.href = url; a.download = (projCode || "DLP") + "-activities-workbook.xlsx"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { alert("Export failed: " + (e && e.message ? e.message : e)); }
+    setTplBusy(false);
+  };
+
   const addSub = (area) => { const name = (subInput[area] || "").trim(); if (!name) return; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area, name }].filter((s, i, arr) => arr.findIndex((x) => x.area === s.area && x.name === s.name) === i) }), { action: "Add level", detail: `${area} / ${name}` }); setSubInput({ ...subInput, [area]: "" }); };
   const delSub = (area, name) => update((p) => ({ ...p, subAreas: (p.subAreas || []).filter((s) => !(s.area === area && s.name === name)), tier3s: (p.tier3s || []).filter((t) => !(t.area === area && t.subArea === name)) }), { action: "Remove level", detail: `${area} / ${name}` });
   const addT3 = (area, subArea) => { const key = area + "\u0001" + subArea; const name = (t3Input[key] || "").trim(); if (!name) return; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area, subArea, name }].filter((t, i, arr) => arr.findIndex((x) => x.area === t.area && x.subArea === t.subArea && x.name === t.name) === i) }), { action: "Add zone / room", detail: `${area} / ${subArea} / ${name}` }); setT3Input({ ...t3Input, [key]: "" }); };
@@ -5383,44 +5569,50 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     if (g.kind === "csv") commitImportCSV(g.payload); else commitImportJSON(g.payload);
     if (g.hash) recordImportFingerprint(S.projectId, g.hash, g.rowCount, g.mode, (cu && cu.name) || "");
   };
-  const commitImportCSV = (text) => {
+  const commitImportCSV = (payload) => {
+    const text = typeof payload === "string" ? payload : payload.text;
+    const consRows = (payload && typeof payload === "object" && payload.consRows) || null;
+    const tplV = (payload && typeof payload === "object") ? payload.tplV : undefined;
     const rows = parseCSV(text).filter((r) => r.length && r.some((c) => c.trim() !== ""));
-    if (rows.length < 2) { setImpMsg("CSV has no data rows."); return; }
-    const hdr = rows[0].map((h) => h.trim().toLowerCase());
-    const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor", "vendor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness date & time"]), notes: idx(["notes", "comment", "comments"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]), crew: idx(["crew"]), esth: idx(["est hours", "estimated hours", "hours", "hrs"]), disc: idx(["discipline"]) };
-    const normDT = (s) => { if (!s) return ""; const d = new Date(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) ? s.replace(" ", "T") : s); if (isNaN(d)) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
-    let built = 0, crewsNew = 0;
+    if (rows.length < 2) { setImpMsg("The file has no data rows."); return; }
+    const override = impMode === "override";
+    const ctx = {
+      isAdmin: true, createMissing: true, cuCompanyId: (cu && cu.companyId) || null, myCoName: "",
+      companies: S.companies.map((c) => ({ id: c.id, name: c.name })), // REV192: global, add-only in every mode
+      areas: override ? [] : S.areas.slice(),
+      subAreas: override ? [] : (S.subAreas || []).slice(),
+      tier3s: override ? [] : (S.tier3s || []).slice(),
+      systems: override ? [] : S.systems.slice(),
+      lvKeys: Object.keys(S.levels), disciplines: DISCIPLINES,
+      crewNames: override ? [] : (S.crews || []).slice(),
+      existingByCode: new Map((override ? [] : S.activities).filter((a) => a.code != null).map((a) => [a.code, a.id])),
+      uid, byName: (cu && cu.name) || "", nowISO: new Date().toISOString(), todayISO: fmtISO(new Date()),
+    };
+    const res = parseActivityRowsV2(rows, consRows, ctx);
+    if (res.errors.length) { setImpMsg("Nothing was imported. Fix these rows and upload again: " + res.errors.slice(0, 10).join(" | ") + (res.errors.length > 10 ? " | and " + (res.errors.length - 10) + " more" : "")); return; }
+    if (!res.staged.length) { setImpMsg("No activity rows found."); return; }
+    let built = 0;
     update((p) => {
-      let companies = [...p.companies]; // REV192: companies are global; imports only ever add, never reset
-      let areas = impMode === "override" ? [] : [...p.areas];
-      let systems = impMode === "override" ? [] : [...p.systems];
-      let subAreas = impMode === "override" ? [] : [...(p.subAreas || [])];
-      let tier3s = impMode === "override" ? [] : [...(p.tier3s || [])];
-      let crews = impMode === "override" ? [] : [...(p.crews || [])];
-      const findCo = (name) => { if (!name) return (companies[0] || {}).id || null; let c = companies.find((x) => x.name.toLowerCase() === name.toLowerCase()); if (!c) { c = { id: uid("co"), name }; companies.push(c); } return c.id; };
-      const ensure = (arr, val) => { if (val && !arr.some((x) => x.toLowerCase() === val.toLowerCase())) arr.push(val); };
-      const ensureSub = (area, name) => { if (area && name && !subAreas.some((s) => s.area === area && s.name.toLowerCase() === name.toLowerCase())) subAreas.push({ area, name }); };
-      const ensureT3 = (area, subArea, name) => { if (area && subArea && name && !tier3s.some((t) => t.area === area && t.subArea === subArea && t.name.toLowerCase() === name.toLowerCase())) tier3s.push({ area, subArea, name }); };
-      const ensureCrew = (name) => { if (name && !crews.some((x) => x.toLowerCase() === name.toLowerCase())) crews.push(name); };
-      const newActs = []; let codeC = impMode === "override" ? 0 : p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
-      for (let r = 1; r < rows.length; r++) { const row = rows[r]; const g = (i) => (i >= 0 && i < row.length ? row[i].trim() : "");
-        const desc = g(ci.desc); if (!desc) continue;
-        const companyId = findCo(g(ci.company)); const area = g(ci.area); ensure(areas, area); const subArea = g(ci.subarea); ensureSub(area, subArea); const tier3 = g(ci.tier3); ensureT3(area, subArea, tier3); const asset = g(ci.asset); const system = g(ci.system); ensure(systems, system);
-        let level = g(ci.level).toUpperCase(); if (!S.levels[level]) level = Object.keys(S.levels)[0] || "L2";
-        const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
-        let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
-        const consText = g(ci.cons); const constraints = consText ? consText.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
-        const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-        const crew = g(ci.crew).split(/\s*;\s*/).filter(Boolean); crew.forEach(ensureCrew); const estHours = (() => { const v = g(ci.esth); return v && +v > 0 ? +v : ""; })(); const discipline = g(ci.disc).split(/\s*;\s*/).filter(Boolean);
-        newActs.push({ id: uid("a"), code: ++codeC, predecessors: [], desc, companyId, area, subArea, tier3, asset, system, level, isMilestone: yes(g(ci.ms)), witnessInvite: yes(g(ci.wit)), witnessAt: normDT(g(ci.witat)), notes: g(ci.notes), start: start || fmtISO(new Date()), duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), crew, estHours, discipline, constraints });
-      }
-      built = newActs.length; crewsNew = crews.length - (impMode === "override" ? 0 : (p.crews || []).length);
-      const activities = impMode === "override" ? newActs : [...p.activities, ...newActs];
+      const companies = [...p.companies, ...res.creates.companies];
+      const areas = override ? res.creates.areas : [...p.areas, ...res.creates.areas];
+      const subAreas = override ? res.creates.subAreas : [...(p.subAreas || []), ...res.creates.subAreas];
+      const tier3s = override ? res.creates.tier3s : [...(p.tier3s || []), ...res.creates.tier3s];
+      const systems = override ? res.creates.systems : [...p.systems, ...res.creates.systems];
+      const crews = override ? res.creates.crews : [...(p.crews || []), ...res.creates.crews];
+      let codeC = override ? 0 : p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
+      const newActs = res.staged.map((a) => ({ ...a, code: ++codeC }));
+      built = newActs.length;
+      const activities = override ? newActs : [...p.activities, ...newActs];
       return { ...p, companies, areas, subAreas, tier3s, systems, crews, activities };
     }, { action: `Import CSV (${impMode})`, detail: `${rows.length - 1} rows` });
-    setImpMsg(`Built ${built} activities from ${rows.length - 1} rows (${impMode})${crewsNew > 0 ? ", " + crewsNew + " new crew" + (crewsNew === 1 ? "" : "s") : ""}. Saving to the database; if the save is rejected a red Database error banner will appear.`);
+    const consN = res.staged.reduce((n, a) => n + (a.constraints || []).length, 0);
+    const bits = [];
+    if (res.creates.companies.length) bits.push(res.creates.companies.length + " new compan" + (res.creates.companies.length === 1 ? "y" : "ies"));
+    if (res.creates.crews.length) bits.push(res.creates.crews.length + " new crew" + (res.creates.crews.length === 1 ? "" : "s"));
+    if (consN) bits.push(consN + " constraint" + (consN === 1 ? "" : "s") + " raised");
+    setImpMsg(`Built ${built} activities from ${rows.length - 1} rows (${impMode})${bits.length ? ", " + bits.join(", ") : ""}${res.notices.length ? ". Note: " + res.notices.join(" ") : ""}${tplV == null && typeof payload === "object" ? " Note: no v2 README sheet found; download the latest template for every column and the Constraints sheet." : ""}. Saving to the database; if the save is rejected a red Database error banner will appear.`);
   };
+
   const cellToStr = (v) => { if (v == null) return ""; if (v instanceof Date) { const p = (n) => String(n).padStart(2, "0"); const dd = `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`; const hh = v.getUTCHours(), mm = v.getUTCMinutes(); return (hh || mm) ? `${dd}T${p(hh)}:${p(mm)}` : dd; } if (typeof v === "object") { if (v.text != null) return String(v.text); if (v.result != null) return String(v.result); if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join(""); if (v.hyperlink) return String(v.hyperlink); return ""; } return String(v); };
   const rowsToCSV = (rows) => rows.map((r) => r.map((c) => { const s = cellToStr(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");
   const handleImportFile = async (e) => {
@@ -5432,7 +5624,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
         const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
         const ws = wb.getWorksheet("Activities") || wb.worksheets[0];
         const rows = []; ws.eachRow({ includeEmpty: false }, (row) => { const arr = []; row.eachCell({ includeEmpty: true }, (cell) => arr.push(cell.value)); rows.push(arr); });
-        const csvText = rowsToCSV(rows); await stageImport("csv", csvText, csvText, Math.max(0, rows.length - 1));
+        const cws2 = wb.getWorksheet("Constraints"); const consRows = []; if (cws2) cws2.eachRow({ includeEmpty: false }, (row) => { const arr = []; row.eachCell({ includeEmpty: true }, (cell) => arr.push(cellToStr(cell.value))); consRows.push(arr); });
+        const rws2 = wb.getWorksheet("README"); const tplV = rws2 ? String(rws2.getCell(1, 2).value || "") || null : null;
+        const csvText = rowsToCSV(rows); await stageImport("csv", { text: csvText, consRows: consRows.length > 1 ? consRows : null, tplV }, csvText, Math.max(0, rows.length - 1));
       } else {
         const txt = (await file.text()).replace(/^\uFEFF/, "");
         if (name.endsWith(".json")) { const parsed = JSON.parse(txt); if (impMode === "override") await stageImport("json", parsed, txt, (parsed.activities || []).length); else setJsonPreview(parsed); } else await stageImport("csv", txt, txt, Math.max(0, txt.split(/\r?\n/).filter((l) => l.trim()).length - 1));
@@ -6101,10 +6295,10 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 <button className="lk-btn primary" disabled={tplBusy} onClick={downloadAdminTemplate}><Icon n="download" s={14} />{tplBusy ? "Building…" : "Excel template (with dropdowns)"}</button>
                 <button className="lk-btn" onClick={downloadCsvTemplate}><Icon n="download" s={14} />CSV template</button>
               </div>
-              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>Admin import: set the <b style={{ color: "var(--ink)" }}>Company</b> column per row, so you can load work for every contractor in one file. The Excel template carries dropdowns for Company, Building, Level, Zone / Room, System and Cx stage pre-loaded with this project's values, but you may type new ones too: any Building, Level, Zone / Room or System that does not yet exist is created on import. Required on every row: Description, Building, System and Planned start. Dates use YYYY-MM-DD; Witness invite Yes needs a Witness date &amp; time (YYYY-MM-DD HH:MM). Delete the two example rows before importing. Choose Append to merge or Override to replace below.</div>
+              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>Admin import: set the <b>Company</b> column per row to load every contractor in one file. The v2 workbook has four sheets: <b>Activities</b> with every field the platform carries (discipline, witness type, duration and days, crews, est hours, percent, predecessors), <b>Constraints</b> keyed by Activity ref with owner and need-by, <b>Reference</b> feeding the dropdowns from this project's live values, and <b>README</b> with the rules and a version stamp. This importer creates companies, buildings, levels, zones, systems and crews that do not yet exist. Required per row: Description, Building, System and Planned start (relaxed on milestone rows). Leave Code empty; Sync mode arrives in the next revision. Choose Append to merge or Override to replace below.</div>
             </div>
             <div className="lk-f"><label>Export</label>
-              <div className="lk-row"><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button>
+              <div className="lk-row"><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button><button className="lk-btn" disabled={tplBusy} onClick={exportActivitiesWorkbook} title="Activities and Constraints sheets in the exact import-template shape, so a file can round-trip"><Icon n="download" s={14} />Activities workbook (import shape)</button>
                 <button className="lk-btn" onClick={exportProject}><Icon n="download" s={14} />Project (JSON)</button></div></div>
             <div className="lk-f"><label>Import Mode</label>
               <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
@@ -8885,98 +9079,74 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
     setBusy(true); setResult(null);
     try {
       const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("Activities");
-      const lists = wb.addWorksheet("Lists"); lists.state = "veryHidden";
-      const myCo = (S.companies.find((c) => c.id === cu.companyId) || {}).name || "";
-      const co = myCo;
-      const companyList = myCo ? [myCo] : [];
-      const buildings = S.areas.slice();
-      const levels = [...new Set((S.subAreas || []).map((s) => s.name))];
-      const zones = [...new Set((S.tier3s || []).map((t) => t.name))];
-      const systems = S.systems.slice();
-      const stages = Object.keys(LV);
-      [["Buildings", buildings], ["Levels", levels], ["Zones", zones], ["Systems", systems], ["Cx stages", stages], ["Companies", companyList]].forEach(([title, arr], cIdx) => { lists.getCell(1, cIdx + 1).value = title; arr.forEach((v, rIdx) => { lists.getCell(rIdx + 2, cIdx + 1).value = v; }); });
-      const headers = ["Description", "Company", "Building", "Level", "Zone / Room", "Asset", "System", "Cx Stage", "Planned start", "Duration (d)", "Committed", "Witness invite", "Witness date & time", "Notes"];
-      const exA = S.areas[0] || ""; const exSub = (S.subAreas || []).find((s) => s.area === exA); const exT3 = exSub ? (S.tier3s || []).find((t) => t.area === exA && t.subArea === exSub.name) : null;
-      const sub = exSub ? exSub.name : ""; const t3 = exT3 ? exT3.name : ""; const sys = S.systems[0] || ""; const lv = stages[0] || "L2";
-      const start = fmtISO(new Date()); const p = (n) => String(n).padStart(2, "0");
-      const wit = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T09:00`; })();
-      const ex1 = ["Example 1: terminate cables (DELETE before importing)", co, exA, sub, t3, "", sys, lv, start, 3, "No", "No", "", "Delete this example row"].filter((x) => x !== null);
-      const ex2 = ["Example 2: MV switchgear test (DELETE before importing)", co, exA, sub, t3, "EPOD108.DB001.U003", sys, lv, start, 2, "Yes", "Yes", wit, "Asset is free text and optional. Witness invite Yes needs a date and time. Delete this row"].filter((x) => x !== null);
-      ws.addRow(headers); ws.addRow(ex1); ws.addRow(ex2);
-      ws.getRow(1).font = { bold: true };
-      ws.columns.forEach((c, i) => { c.width = Math.max(12, String(headers[i] || "").length + 3); });
-      const LAST = 300;
-      [["Company", companyList.length, 6], ["Building", buildings.length, 1], ["Level", levels.length, 2], ["Zone / Room", zones.length, 3], ["System", systems.length, 4], ["Cx Stage", stages.length, 5]].forEach(([name, count, listCol]) => {
-        const ci = headers.indexOf(name) + 1; if (ci < 1 || count < 1) return;
-        const cl = colLetter(ci); const ll = colLetter(listCol);
-        const allowBlank = name !== "Company";
-        for (let r = 2; r <= LAST; r++) ws.getCell(`${cl}${r}`).dataValidation = { type: "list", allowBlank, formulae: [`Lists!$${ll}$2:$${ll}$${count + 1}`] };
-      });
+      const myCoName = (S.companies.find((c) => c.id === cu.companyId) || {}).name || "";
+      const mode = isAdmin ? "admin" : "member";
+      const cfg = {
+        projCode: (S.brand && S.brand.projectName) || "DLP", mode, myCoName,
+        companyList: isAdmin ? scopeCompanies(S.companies, S.projectCompanyIds).map((c) => c.name) : (myCoName ? [myCoName] : []),
+        buildings: S.areas.slice(), subAreas: (S.subAreas || []).slice(), tier3s: (S.tier3s || []).slice(),
+        levelNames: [...new Set((S.subAreas || []).map((x) => x.name))], zoneNames: [...new Set((S.tier3s || []).map((x) => x.name))],
+        systems: S.systems.slice(), stages: Object.keys(LV), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
+        todayISO: fmtISO(new Date()), rules: [
+          mode === "member" ? "You import under " + (myCoName || "your own company") + ": the Company column is prefilled, its dropdown offers only your company, and any row naming another company is rejected." : "Set the Company column per row; it must name a company already on the project (only the Admin importer creates companies).",
+          "Required on every row: Description, Building, System and Planned start. Milestone rows (Milestone = Yes) relax Building and System.",
+          "Rows with no Description, System and Planned start are ignored, so the prefilled columns on unused rows are harmless.",
+          "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
+          "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
+          "Constraints live on their own sheet, keyed by Activity ref; each import stamps them as raised by you in the constraint history.",
+          "Leave the Code column empty: it belongs to exports, and Sync mode (updating existing activities by Code) arrives in the next revision.",
+          "Every value must match this project: pick from the dropdowns, fed by the Reference sheet. Anything that does not match is rejected, not created. Nothing is written unless every row passes.",
+        ] };
+      const wb = await buildActivityWorkbookV2(ExcelJS, cfg);
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "DLP-activity-import-template.xlsx"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
-    } catch (err) { setResult({ imported: 0, errors: ["Could not build the Excel template: " + (err && err.message ? err.message : "unknown error")] }); }
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = cfg.projCode + "-activity-import-template.xlsx"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) { setResult({ imported: 0, errors: ["Could not build the Excel template: " + (err && err.message ? err.message : "unknown error")], notices: [] }); }
     setBusy(false);
   };
-  const validate = (rows) => {
-    rows = rows.filter((r) => r && r.length && r.some((c) => String(c == null ? "" : c).trim() !== ""));
-    if (rows.length < 2) return { imported: 0, errors: ["The file has no activity rows under the header."] };
-    const hdr = rows[0].map((h) => String(h == null ? "" : h).trim().toLowerCase());
-    const idx = (names) => { for (const nm of names) { const i = hdr.findIndex((h) => h === nm || h.includes(nm)); if (i >= 0) return i; } return -1; };
-    const ci = { desc: idx(["description", "activity description", "activity", "desc"]), company: idx(["company", "contractor"]), area: idx(["building", "area"]), subarea: idx(["level", "floor", "sub-area", "sub area", "subarea"]), tier3: idx(["zone", "room", "tier 3 area", "tier3 area", "tier 3", "tier3"]), asset: idx(["asset", "equipment", "tag"]), system: idx(["system"]), level: idx(["cx stage", "cx", "stage"]), ms: idx(["milestone"]), wit: idx(["witness invite", "witness"]), witat: idx(["witness date", "witness time", "witness at"]), notes: idx(["notes", "comment"]), pstart: idx(["planned start", "start"]), pfin: idx(["planned finish", "finish", "end"]), dur: idx(["duration", "days"]), astart: idx(["actual start"]), afin: idx(["actual finish"]), status: idx(["status"]), commit: idx(["committed", "commit"]), cons: idx(["constraints", "constraint"]) };
-    if (ci.desc < 0 || ci.area < 0 || ci.system < 0) return { imported: 0, errors: ["The header is missing one of Description, Building or System. Download the template and keep its header row."] };
-    const areaMap = new Map(S.areas.map((a) => [a.toLowerCase(), a]));
-    const sysMap = new Map(S.systems.map((s) => [s.toLowerCase(), s]));
-    const subSet = new Set((S.subAreas || []).map((s) => `${s.area.toLowerCase()}|${s.name.toLowerCase()}`));
-    const t3Set = new Set((S.tier3s || []).map((t) => `${t.area.toLowerCase()}|${t.subArea.toLowerCase()}|${t.name.toLowerCase()}`));
-    const coByName = new Map(S.companies.map((c) => [c.name.toLowerCase(), c]));
-    const myCoName = (S.companies.find((c) => c.id === cu.companyId) || {}).name || "";
-    const lvKeys = Object.keys(LV);
-    const yes = (v) => /^(y|yes|true|1)$/i.test(v);
-    const errors = [], staged = [];
-    for (let r = 1; r < rows.length; r++) {
-      const row = rows[r];
-      const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : ""); const ln = r + 1; const e = [];
-      const desc = g(ci.desc); if (!desc) e.push("missing Description");
-      let companyId = cu.companyId; const coRaw = g(ci.company);
-      if (isAdmin) { if (!coRaw) e.push("missing Company (name an existing company on each row)"); else { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else companyId = c.id; } }
-      else { if (coRaw) { const c = coByName.get(coRaw.toLowerCase()); if (!c) e.push(`company "${coRaw}" does not exist`); else if (c.id !== cu.companyId) e.push(`you can only import activities for your own company (${myCoName || "your company"})`); } if (!companyId) e.push("your account has no company assigned; ask an admin to set one before importing"); }
-      const isMs = yes(g(ci.ms));
-      const areaRaw = g(ci.area); let area = ""; if (areaRaw) { const m = areaMap.get(areaRaw.toLowerCase()); if (!m) e.push(`building "${areaRaw}" does not exist`); else area = m; } else if (!isMs) e.push("missing Building");
-      const subRaw = g(ci.subarea); let subArea = ""; if (subRaw) { if (area && subSet.has(`${area.toLowerCase()}|${subRaw.toLowerCase()}`)) subArea = subRaw; else e.push(`level "${subRaw}" does not exist under building "${areaRaw}"`); }
-      const t3Raw = g(ci.tier3); let tier3 = ""; if (t3Raw) { if (area && subArea && t3Set.has(`${area.toLowerCase()}|${subArea.toLowerCase()}|${t3Raw.toLowerCase()}`)) tier3 = t3Raw; else e.push(`zone/room "${t3Raw}" does not exist under "${areaRaw}" / "${subRaw}"`); }
-      const sysRaw = g(ci.system); let system = ""; if (sysRaw) { const m = sysMap.get(sysRaw.toLowerCase()); if (!m) e.push(`system "${sysRaw}" does not exist`); else system = m; } else if (!isMs) e.push("missing System");
-      const lvRaw = g(ci.level).toUpperCase(); let level = lvKeys[0] || "L2"; if (lvRaw) { if (lvKeys.includes(lvRaw)) level = lvRaw; else e.push(`Cx stage "${lvRaw}" is not one of ${lvKeys.join(", ")}`); }
-      const start = normDate(g(ci.pstart)); const pfin = normDate(g(ci.pfin)); const durRaw = g(ci.dur);
-      if (!start) e.push("missing or invalid Planned start (use YYYY-MM-DD)");
-      let duration = 1; if (durRaw && +durRaw > 0) duration = +durRaw; else if (start && pfin) duration = Math.max(1, Math.round((parseD(pfin) - parseD(start)) / DAYMS) + 1);
-      const witInvite = yes(g(ci.wit)); const witAt = normDT(g(ci.witat));
-      if (witInvite && !witAt) e.push("Witness invite is Yes, so a valid Witness date & time is required (YYYY-MM-DD HH:MM)");
-      const cons = g(ci.cons); const constraints = cons ? cons.split(";").map((x) => x.trim()).filter(Boolean).map((x) => ({ id: uid("c"), text: x.replace(/^\[[ xX]\]\s*/, ""), done: /^\[[xX]\]/.test(x) })) : [];
-      if (e.length) { errors.push(`Row ${ln}: ${e.join("; ")}`); continue; }
-      staged.push({ id: uid("a"), desc, companyId, area, subArea, tier3, asset: g(ci.asset), system, level, isMilestone: isMs, witnessInvite: witInvite, witnessAt: witInvite ? witAt : "", notes: g(ci.notes), start, duration, committed: yes(g(ci.commit)), status: (g(ci.status) || "planned").toLowerCase().replace(/\s+/g, "_"), actualStart: normDate(g(ci.astart)), actualFinish: normDate(g(ci.afin)), constraints });
-    }
-    if (errors.length) return { imported: 0, errors };
-    if (!staged.length) return { imported: 0, errors: ["No activity rows found."] };
-    update((p) => ({ ...p, activities: [...p.activities, ...staged] }), { action: "Import activities", detail: `${staged.length} rows` });
-    return { imported: staged.length, errors: [] };
+
+  const validate = (rows, consRows, tplV) => {
+    rows = (rows || []).filter((r) => r && r.length && r.some((c) => String(c == null ? "" : c).trim() !== ""));
+    const notices = [];
+    if (tplV == null) notices.push("This file has no v2 README sheet, so it predates the current template. Download the latest for every column, the dropdowns and the Constraints sheet.");
+    if (rows.length < 2) return { imported: 0, errors: ["The file has no activity rows under the header."], notices };
+    const ctx = {
+      isAdmin, createMissing: false, cuCompanyId: cu.companyId,
+      myCoName: (S.companies.find((c) => c.id === cu.companyId) || {}).name || "",
+      companies: S.companies.map((c) => ({ id: c.id, name: c.name })),
+      areas: S.areas.slice(), subAreas: (S.subAreas || []).slice(), tier3s: (S.tier3s || []).slice(),
+      systems: S.systems.slice(), lvKeys: Object.keys(LV), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
+      existingByCode: new Map(S.activities.filter((a) => a.code != null).map((a) => [a.code, a.id])),
+      uid, byName: cu.name || "", nowISO: new Date().toISOString(), todayISO: fmtISO(new Date()),
+    };
+    const res = parseActivityRowsV2(rows, consRows, ctx);
+    notices.push(...res.notices);
+    if (res.errors.length) return { imported: 0, errors: res.errors, notices };
+    if (!res.staged.length) return { imported: 0, errors: ["No activity rows found."], notices };
+    update((p) => {
+      let codeC = p.activities.reduce((m, a) => Math.max(m, a.code || 0), 0);
+      const withCodes = res.staged.map((a) => ({ ...a, code: ++codeC }));
+      return { ...p, activities: [...p.activities, ...withCodes] };
+    }, { action: "Import activities", detail: `${res.staged.length} rows` });
+    const consN = res.staged.reduce((n, a) => n + (a.constraints || []).length, 0);
+    return { imported: res.staged.length, consN, errors: [], notices };
   };
   const onFile = async (e) => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     setBusy(true); setResult(null);
     try {
-      const nm = f.name.toLowerCase(); let rows;
+      const nm = f.name.toLowerCase(); let rows; let consRowsX = null, tplVX = null;
       if (nm.endsWith(".xlsx") || nm.endsWith(".xlsm")) {
         const _xl = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = _xl.default || _xl;
         const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer());
         const ws = wb.getWorksheet("Activities") || wb.worksheets[0]; rows = [];
         ws.eachRow({ includeEmpty: false }, (rw) => { const vals = rw.values; const arr = []; for (let i = 1; i < vals.length; i++) arr.push(cellToStr(vals[i])); rows.push(arr); });
+        const cws2 = wb.getWorksheet("Constraints"); consRowsX = []; if (cws2) cws2.eachRow({ includeEmpty: false }, (rw) => { const vals = rw.values; const arr = []; for (let i = 1; i < vals.length; i++) arr.push(cellToStr(vals[i])); consRowsX.push(arr); });
+        const rws2 = wb.getWorksheet("README"); tplVX = rws2 ? String(rws2.getCell(1, 2).value || "") || null : null;
       } else {
         rows = parseCSV(String(await f.text()).replace(/^\uFEFF/, ""));
       }
-      setResult(validate(rows));
+      setResult(validate(rows, consRowsX && consRowsX.length > 1 ? consRowsX : null, tplVX));
     } catch (err) { setResult({ imported: 0, errors: ["Could not read the file: " + (err && err.message ? err.message : "unknown error")] }); }
     setBusy(false); e.target.value = "";
   };
@@ -8985,7 +9155,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       <div className="lk-modal" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Import Activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
-          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel template. Members import under their own company; admins can set any existing company per row.</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel workbook template. Members import under their own company: the Company and Building columns come prefilled, the Company dropdown offers only your company, and any row naming another company is <b>rejected</b>. Admins can set any existing company per row. The workbook's <b>Reference</b> sheet feeds every dropdown with this project's live values, the <b>Constraints</b> sheet raises make-ready constraints against your rows (stamped into each constraint's history), and the <b>README</b> sheet carries the full rules. Values must already exist on this project; anything that does not match is rejected, not created, and nothing is written unless every row passes.</div>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
             <ul>
@@ -9010,9 +9180,10 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
             <label className={"lk-btn primary" + (busy ? " disabled" : "")} style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}><Icon n="upload" s={14} />Choose file (.xlsx or .csv)<input type="file" accept=".xlsx,.xlsm,.csv" disabled={busy} style={{ display: "none" }} onChange={onFile} /></label>
             {busy && <span style={{ fontSize: 12, color: "var(--muted)" }}>Working…</span>}
           </div>
+          {result && !!(result.notices || []).length && <div style={{ fontSize: 12, color: "#E0A106", margin: "6px 0", lineHeight: 1.5 }}>{result.notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
           {result && (result.errors.length
             ? <div className="lk-res-err"><b>Nothing was imported.</b> Fix {result.errors.length} row{result.errors.length === 1 ? "" : "s"} and upload again:<ul>{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul></div>
-            : <div className="lk-res-ok">Imported {result.imported} activit{result.imported === 1 ? "y" : "ies"}. They are on your board now.</div>)}
+            : <div className="lk-res-ok">Imported {result.imported} activit{result.imported === 1 ? "y" : "ies"}{result.consN ? " and raised " + result.consN + " constraint" + (result.consN === 1 ? "" : "s") : ""}. They are on your board now.</div>)}
         </div>
       </div>
     </div>);
