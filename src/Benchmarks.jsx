@@ -289,7 +289,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                   <td style={S.td}>{r.activityId
                     ? <a href="#" onClick={(e) => { e.preventDefault(); if (onOpenActivity) onOpenActivity(r.activityId); }} title={"Open this activity on the planning board"} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "rgba(79,155,217,.14)", color: "#8fb6dc", textDecoration: "none", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>{r.activityCode != null ? "#" + r.activityCode : "On board"}</a>
                     : <span style={{ color: "var(--faint)" }}>-</span>}</td>
-                  <td style={S.td}>{pill(r)}</td>
+                  <td style={S.td}>{pill(r)}{r.status === "removed" && r.boardDone ? <span title="Witness passed on the board; the row has since left the register (expected for finished FOKs)" style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "rgba(52,209,163,.16)", color: "#7fe3b8", marginLeft: 6, whiteSpace: "nowrap" }}>Completed</span> : null}</td>
                   {admin && <td style={S.td}><button className="lk-btn" style={{ padding: "3px 9px", fontSize: 11 }} onClick={() => toggleComplete(r)}>{r.completed_at ? "Restore" : "Complete"}</button></td>}
                 </tr>
               ))}

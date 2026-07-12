@@ -193,6 +193,13 @@ export function reconcileFok(registerRows, activities, opts) {
 //   changed  -> on the board, but the ACC date or assignee has since moved (resend to update)
 //   on_board -> on the board and matching ACC
 //   completed -> the board activity is complete, or its witness passed (REV256)
+// REV257: the linked board activity's work is done: the activity is complete, or its
+// witness is recorded as succeeded. Outcome only counts on invite-flagged rows,
+// mirroring the board's own witnessOutcome gate.
+export function boardActivityDone(activity) {
+  return !!(activity && (activity.status === "complete"
+    || ((activity.witnessInvite || activity.witness_invite) && activity.outcome === "succeeded")));
+}
 function benchDate(v) { return v ? String(v).slice(0, 10) : null; }
 function benchEmail(v) { return v ? String(v).toLowerCase() : null; }
 
@@ -203,10 +210,10 @@ export function benchmarkStatus(benchmark, activity) {
   // wins over a missing date; a done FOK is done regardless of register hygiene.
   // REV256: a witness recorded as succeeded on the board also completes the benchmark,
   // not only a fully completed activity. Derived, never stored, so a corrected outcome
-  // (revert, retest) flows straight back. Outcome only counts on invite-flagged rows,
-  // mirroring the board's own witnessOutcome gate.
-  if (activity && (activity.status === "complete"
-    || ((activity.witnessInvite || activity.witness_invite) && activity.outcome === "succeeded"))) return "completed";
+  // (revert, retest) flows straight back. REV257: the predicate is shared as
+  // boardActivityDone so a Removed row can carry a completion flag without giving up
+  // its register-integrity status; removal still wins here by design.
+  if (boardActivityDone(activity)) return "completed";
   if (!b.planned_date) return "no_date";
   if (!activity) return "ready";
   const dateMoved = benchDate(b.planned_date) !== benchDate(activity.witness_at || activity.witnessAt || activity.planned_date);
@@ -232,7 +239,7 @@ export function benchmarksWithStatus(benchmarks, activities) {
       || byRef.get(String(b.fok_ref))
       || byTitle.get(normKey(b.title || ""))
       || null;
-    return { ...b, status: benchmarkStatus(b, act), activityId: act ? act.id : null, activityCode: act && act.code != null ? act.code : null };
+    return { ...b, status: benchmarkStatus(b, act), activityId: act ? act.id : null, activityCode: act && act.code != null ? act.code : null, boardDone: boardActivityDone(act) };
   });
   const summary = rows.reduce((s, r) => { s[r.status] = (s[r.status] || 0) + 1; return s; }, {});
   summary.sendable = rows.filter((r) => r.status === "ready" || r.status === "changed").length;

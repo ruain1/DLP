@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV257",
+    "date": "2026-07-12",
+    "items": [
+      "Benchmarks: a row that dropped out of the register after its witness passed keeps its Removed In ACC status (removal remains a register fact and is never masked) but now carries a green Completed flag beside it, with a tooltip noting that finished FOKs leaving the register is expected. The row stays greyed out as removed rows already were. Rows removed while still pending or failed are unchanged and keep the plain Removed chip."
+    ]
+  },
+  {
     "rev": "REV256",
     "date": "2026-07-12",
     "items": [
