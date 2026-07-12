@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV279",
+    "date": "2026-07-12",
+    "items": [
+      "Page-level error boundary. A render error inside any page (the board, the table, analytics, assets, docs, admin and the rest) used to blank the entire app; now it is caught and shown as a small recoverable panel while the sidebar, project switcher and Help stay live. Switching to another page clears the error automatically, and the panel offers a Try again and a Reload. This closes the white-screen failure mode structurally: the boot self-test already guarded start-up, and this guards everything after it."
+    ]
+  },
+  {
     "rev": "REV278",
     "date": "2026-07-12",
     "items": [

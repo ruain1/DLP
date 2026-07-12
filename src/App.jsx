@@ -2802,6 +2802,33 @@ async function runPool(items, limit, fn) {
   await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
   return results;
 }
+// REV279: page-level error boundary. The boot smoke guards the boot path, but a throw
+// inside a mounted page component still blanked the whole app (the failure mode behind
+// the presence-feature crashes). This catches a page render error, keeps the rail and
+// project switcher alive, and offers recovery; changing page clears the error via the
+// resetKey prop so navigating away from a broken page recovers without a full reload.
+class ErrorBoundaryInner extends React.Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null }); }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div className="lk-scroll" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 320 }}>
+        <div style={{ maxWidth: 460, textAlign: "center", padding: "28px 32px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>This page hit an error</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 18 }}>The rest of the app is fine and your work is not lost. Try this page again, or switch to another page from the sidebar. If it keeps happening, a full reload usually clears it.</div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <button className="lk-btn" onClick={() => this.setState({ err: null })}>Try again</button>
+            <button className="lk-btn primary" onClick={() => window.location.reload()}>Reload the app</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+function PageBoundary({ resetKey, children }) { return <ErrorBoundaryInner resetKey={resetKey}>{children}</ErrorBoundaryInner>; }
+
 export default function App({ session }) {
   const [S, setS] = useState(null);
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
@@ -4054,7 +4081,7 @@ export default function App({ session }) {
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
       </div>
-      {page === "board" && <div className="lk-boardpage" style={{ "--bd-fs": BD.cardText === "s" ? 0.9 : BD.cardText === "l" ? 1.12 : 1 }}>
+      {page === "board" && <PageBoundary resetKey={page}><div className="lk-boardpage" style={{ "--bd-fs": BD.cardText === "s" ? 0.9 : BD.cardText === "l" ? 1.12 : 1 }}>
       <div className="lk-toolbar">
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ position: "relative" }}>
@@ -4198,7 +4225,8 @@ export default function App({ session }) {
         <span className="it"><span className="lk-chip fail">failed</span>witness failed (ghosted, locked)</span>
         <span className="it"><span style={{ height: 0, width: 18, borderTop: "1.5px dashed var(--st-warn)", display: "inline-block" }} />retest link</span>
       </div>
-      </div>}
+      </div></PageBoundary>}
+      <PageBoundary resetKey={page}>
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} can={can} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <div className="lk-scroll"><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
@@ -4210,6 +4238,7 @@ export default function App({ session }) {
       {page === "benchmarks" && (isAdmin || (S.settings && S.settings.benchmarksVisible)) && <div className="lk-fillpage"><BenchmarksPage projectId={selProj} isAdmin={isAdmin} isOwner={isOwner} cu={cu} activities={S.activities} settings={S.settings} update={update} onSendToBoard={sendBenchmarksToBoard} onOpenActivity={(id) => { const act = S.activities.find((x) => x.id === id); if (act) { setPage("board"); setEditing({ ...act }); } }} users={S.users} companies={S.companies} /></div>}
       {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
       {page === "help" && <HelpPage initialTopic={PAGE_HELP[prevPageRef.current] || "r_overview"} dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
+      </PageBoundary>
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
       </div>
