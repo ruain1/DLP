@@ -65,6 +65,15 @@ const THEMES = {
   dark: { ink: "#E6EAF0", paper: "#10151C", card: "#1A222D", line: "#2A3543", muted: "#8A97A6", accent: "#6B9BF2", head: "#7FB0FF", weekend: "#161D26", todcell: "#18222F", todhead: "#1B2737", todedge: "#476AA0", hover: "#202B38", chipbg: "#22324A" },
 };
 
+// REV253: the single page registry. Every page-key list in the app derives from this
+// const: the boot deep-link whitelist and PAGES (main shell), the page-restore check,
+// and DESIGN_PAGES (Design system: icons, naming, per-page scopes). Adding a page here
+// registers it everywhere except the two deliberately visible surfaces, which stay
+// hand-placed so an omission is seen immediately: the rail button and the Help topic.
+// Triples are [key, default label, default icon].
+const PAGE_REGISTRY = [["board", "Planning Board", "board"], ["table", "Activity Table", "grid"], ["constraints", "Constraints Log", "alert"], ["schedule", "Schedule", "gantt"], ["reports", "Analytics", "chart"], ["reporthub", "Reports", "mail"], ["cx", "Weekly Cx Progress", "checkcircle"], ["assets", "Asset Status", "package"], ["benchmarks", "Benchmarks", "shield"], ["docs", "Documentation", "file"], ["help", "Help", "help"], ["admin", "Admin", "cog"]];
+const PAGE_KEYS = PAGE_REGISTRY.map((pg) => pg[0]);
+
 const AV_BG = ["#2C4A7A", "#3A6B5C", "#7A5230", "#5A4A7A", "#445C77", "#6B4A4A", "#3C6B45", "#7A6030"];
 const avBg = (seed) => { const s = String(seed || "?"); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return AV_BG[h % AV_BG.length]; };
 const avInit = (n) => (n || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
@@ -2957,7 +2966,7 @@ export default function App({ session }) {
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("dlp_page"); return ["board", "table", "schedule", "constraints", "reports", "reporthub", "help", "admin", "cx", "assets", "docs", "benchmarks"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
+  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("dlp_page"); return PAGE_KEYS.includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
   // ---- multi-project ----
@@ -3004,7 +3013,7 @@ export default function App({ session }) {
       const fa = DEEPLINK_ACT; DEEPLINK_ACT = "";
       const fasset = DEEPLINK_ASSET; DEEPLINK_ASSET = "";
       let fpage = DEEPLINK_PAGE; DEEPLINK_PAGE = "";
-      const PAGES = ["board", "table", "schedule", "constraints", "reports", "reporthub", "help", "admin", "cx", "assets", "docs", "benchmarks"];
+      const PAGES = PAGE_KEYS; // REV253: derived from PAGE_REGISTRY at the top of the file
       if (!PAGES.includes(fpage)) fpage = "";
       if (target) {
         const ip = fpage || (fasset ? "assets" : undefined);
@@ -3995,6 +4004,7 @@ export default function App({ session }) {
     <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
         {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#C0392B", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)", display: "flex", gap: 10, alignItems: "center" }}><b style={{ whiteSpace: "nowrap" }}>Database error</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{syncErr ? "Save failed: " + syncErr : "Load failed. " + S.loadErrors.join(" | ")}</span>{!!syncErr && <button onClick={() => setSyncErr("")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>}
+      {/* REV253: adding a page? Register it in PAGE_REGISTRY (top of file), then add its button here. */}
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
         <button title={pageLabel("board", "Planning Board")} className={page === "board" ? "on" : ""} onClick={() => setPage("board")}><Icon n={pageIcon("board", "board")} s={20} /><span className="lbl">{pageLabel("board", "Planning Board")}</span></button>
@@ -5228,7 +5238,7 @@ function VendorsTab({ projectId }) {
   </div>);
 }
 
-const DESIGN_PAGES = [["board", "Planning Board", "board"], ["table", "Activity Table", "grid"], ["constraints", "Constraints Log", "alert"], ["schedule", "Schedule", "gantt"], ["reports", "Analytics", "chart"], ["reporthub", "Reports", "mail"], ["cx", "Weekly Cx Progress", "checkcircle"], ["assets", "Asset Status", "package"], ["benchmarks", "Benchmarks", "shield"], ["docs", "Documentation", "file"], ["help", "Help", "help"], ["admin", "Admin", "cog"]];
+const DESIGN_PAGES = PAGE_REGISTRY; // REV253: single source, see PAGE_REGISTRY at the top of the file
 const DESIGN_ICON_CHOICES = ["board", "grid", "gantt", "chart", "list", "checkcircle", "package", "shield", "file", "cal", "clock", "alert", "cog", "help", "eye", "office", "person", "users", "wrench", "hammer", "target", "layers", "clipboard", "database", "zap", "flag", "bookmark", "pin", "bell", "sliders", "folder", "gitbranch", "truck", "award", "hexagon", "flame", "activity", "compass", "gauge"];
 // REV178: Design settings, tranche 1. Per-page sidebar icon, picked from the expanded built-in
 // set, with a duplicate guard so no two pages can share a mark. Stored on project settings so it

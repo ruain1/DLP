@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV253",
+    "date": "2026-07-12",
+    "items": [
+      "Page registry unified: one PAGE_REGISTRY const at the top of the app now feeds every page-key list, the boot deep-link whitelist, the page-restore check on refresh, and the Design system's page table (icons, naming, per-page scopes). Previously these were three separate literals and a new page had to be added to each; two of this week's integration bugs came from exactly that. The rail button and Help topic remain deliberately hand-placed, since a missing button is seen immediately, and pointer comments at those sites say where to register the page first. No visual or behavioural change."
+    ]
+  },
+  {
     "rev": "REV252",
     "date": "2026-07-12",
     "items": [
