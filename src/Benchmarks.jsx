@@ -22,7 +22,7 @@ const STATUS_ORDER = ["ready", "changed", "on_board", "no_date", "completed", "r
 const norm = (x) => String(x || "").trim().toLowerCase();
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = false, cu, activities = [], settings = {}, update, onSendToBoard, users = [], companies = [] }) {
+export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = false, cu, activities = [], settings = {}, update, onSendToBoard, onOpenActivity, users = [], companies = [] }) {
   const admin = isAdmin || isOwner;
   const [benchmarks, setBenchmarks] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -45,6 +45,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   const [rowAction, setRowAction] = useState({});
   const [hidePastStb, setHidePastStb] = useState(true);
   const [histOpen, setHistOpen] = useState(false);   // REV177: register change log
+  const [diffOpen, setDiffOpen] = useState(null);     // REV256: fok_ref whose send-diff is expanded
   const [imports, setImports] = useState([]);
   const [idxA, setIdxA] = useState(0);
   const [idxB, setIdxB] = useState(1);
@@ -220,8 +221,10 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   const pill = (r) => {
     const key = r.completed_at ? "completed" : r.status;
     const m = STATUS_META[key] || STATUS_META.no_date;
-    const code = (key === "on_board" || key === "changed") && r.activityCode != null ? " #" + r.activityCode : "";
-    return <span title={code ? "On the planning board as activity #" + r.activityCode : ""} style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 10px", color: m.fg, background: m.bg }}>{m.label}{code}</span>;
+    // REV256: the Board column now carries the activity code for every state, so the
+    // chip is purely about state again; the tooltip keeps the linkage readable here.
+    const code = "";
+    return <span title={r.activityId ? "On the planning board" + (r.activityCode != null ? " as activity #" + r.activityCode : "") : ""} style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 10px", color: m.fg, background: m.bg }}>{m.label}</span>;
   };
 
   return (
@@ -259,7 +262,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
         </select>
         <button className={"lk-btn" + (hidePast ? " primary" : "")} onClick={() => setHidePast((v) => !v)} title="Hide anything in the past and focus on present and future">{hidePast ? "Showing Present & Future" : "Hide Past"}</button>
         <label style={S.switch()} onClick={() => setShowDone((v) => !v)}><span style={S.track(showDone)}><span style={S.knob(showDone)} /></span>Show Completed</label>
-        <span style={S.count}>{shown.length} of {rows.length} benchmarks</span>
+        <span style={S.count}>{shown.length} of {rows.length} benchmarks{(() => { const n = rows.filter((r) => r.activityId).length; return n ? " \u00b7 " + n + " on the board" : ""; })()}</span>
       </div>
 
       <div style={S.scroll}>
@@ -271,7 +274,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
               <th style={S.th}>FOK Ref</th><th style={S.th}>Discipline</th><th style={S.th}>Title</th><th style={S.th}>Planned Date</th>
-              <th style={S.th}>Assignee</th><th style={S.th}>Company</th><th style={S.th}>ACC</th><th style={S.th}>Board Status</th>{admin && <th style={S.th}></th>}
+              <th style={S.th}>Assignee</th><th style={S.th}>Company</th><th style={S.th}>ACC</th><th style={S.th}>Board</th><th style={S.th}>Board Status</th>{admin && <th style={S.th}></th>}
             </tr></thead>
             <tbody>
               {shown.map((r) => (
@@ -283,6 +286,9 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                   <td style={S.td} title={r.resolved_email || r.assignee_email || ""}>{(() => { const a = String(r.resolved_email || r.assignee_email || ""); if (!a) return ""; const u = a.indexOf("@") !== -1 ? users.find((x) => norm(x.name) === localName(a)) : users.find((x) => norm(x.name) === norm(a)); return u ? u.name : a; })()}</td>
                   <td style={S.td}>{companyName(r.company_id) || <span style={{ color: "var(--faint)" }}>-</span>}</td>
                   <td style={S.td}>{r.acc_url ? <a href={r.acc_url} target="_blank" rel="noreferrer" style={{ color: "#4f9bd9", textDecoration: "none" }}>Open</a> : ""}</td>
+                  <td style={S.td}>{r.activityId
+                    ? <a href="#" onClick={(e) => { e.preventDefault(); if (onOpenActivity) onOpenActivity(r.activityId); }} title={"Open this activity on the planning board"} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "rgba(79,155,217,.14)", color: "#8fb6dc", textDecoration: "none", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>{r.activityCode != null ? "#" + r.activityCode : "On board"}</a>
+                    : <span style={{ color: "var(--faint)" }}>-</span>}</td>
                   <td style={S.td}>{pill(r)}</td>
                   {admin && <td style={S.td}><button className="lk-btn" style={{ padding: "3px 9px", fontSize: 11 }} onClick={() => toggleComplete(r)}>{r.completed_at ? "Restore" : "Complete"}</button></td>}
                 </tr>
@@ -328,7 +334,33 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
           </div>
         </div>;
       })()}
-      {stbOpen && admin && (
+      {/* REV256: what Send will change vs the live card. Proposed reflects the row's
+          current edits in this dialog, so the comparison is exactly what Send will do. */}
+      {stbOpen && admin && (() => {
+        const boardDiff = (r) => {
+          const a = (activities || []).find((x) => x.id === r.activityId);
+          if (!a) return null;
+          const title = rowTitle[r.fok_ref] != null ? rowTitle[r.fok_ref] : (r.title || "");
+          const date = rowDate[r.fok_ref] != null ? rowDate[r.fok_ref] : (r.planned_date || "");
+          const time = rowTime[r.fok_ref] != null ? rowTime[r.fok_ref] : defTime;
+          const hrs = rowHours[r.fok_ref] != null ? rowHours[r.fok_ref] : defHours;
+          const asg = rowAssignee[r.fok_ref] != null ? rowAssignee[r.fok_ref] : (r.resolved_email || r.assignee_email || "");
+          const bw = String(a.witnessAt || "");
+          const bDate = bw ? bw.slice(0, 10) : "";
+          const bTime = bw.length >= 16 ? bw.slice(11, 16) : "";
+          const bDur = a.witnessDurationMin != null ? a.witnessDurationMin / 60 : null;
+          const bAsg = String(a.assigneeEmail || "");
+          const bAcc = String(a.accUrl || "");
+          const nAcc = String(r.acc_url || "");
+          return [
+            { field: "Title", board: a.desc || "Not set", proposed: title || "Not set", moved: String(a.desc || "") !== String(title || "") },
+            { field: "Date & time", board: bDate ? bDate + (bTime ? ", " + bTime : "") : "Not set", proposed: date ? date + ", " + time : "Not set", moved: bDate !== date || (bTime && bTime !== time) },
+            { field: "Assignee", board: bAsg || "Not set", proposed: asg || "Not set", moved: bAsg.toLowerCase() !== String(asg || "").toLowerCase() },
+            { field: "Duration", board: bDur != null ? bDur + " h" : "Not set", proposed: hrs + " h", moved: bDur != null ? Number(bDur) !== Number(hrs) : true },
+            { field: "ACC link", board: bAcc ? "Set" : "Not set", proposed: nAcc ? (nAcc === bAcc ? "Set (unchanged)" : "Set (new link)") : "Not set", moved: bAcc !== nAcc },
+          ];
+        };
+        return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(4,8,12,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", zIndex: 60 }} onClick={() => setStbOpen(false)}>
           <div style={{ width: 920, maxWidth: "100%", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>
@@ -349,9 +381,10 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                 </tr></thead>
                 <tbody>
                   {modalRows.map((r) => { const att = attendees(r.discipline); const inv = rowInvite[r.fok_ref] != null ? rowInvite[r.fok_ref] : att.length > 0; return (
-                    <tr key={r.fok_ref}>
+                    <React.Fragment key={r.fok_ref}>
+                    <tr>
                       <td style={S.td}><input type="checkbox" checked={!!sel[r.fok_ref]} onChange={(e) => setSel((m) => ({ ...m, [r.fok_ref]: e.target.checked }))} style={{ accentColor: "#34d1a3" }} /></td>
-                      <td style={{ ...S.td, fontFamily: "ui-monospace, monospace", color: "var(--muted)", whiteSpace: "nowrap" }}>{r.fok_ref}{r.status === "changed" ? <span style={{ color: "#e0a83a", fontSize: 10, marginLeft: 6 }}>changed</span> : null}</td>
+                      <td style={{ ...S.td, fontFamily: "ui-monospace, monospace", color: "var(--muted)", whiteSpace: "nowrap" }}>{r.fok_ref}{r.status === "changed" ? <><span style={{ color: "#e0a83a", fontSize: 10, marginLeft: 6 }}>changed</span>{r.activityId ? <button title="Show exactly what Send will change vs the board" onClick={() => setDiffOpen((v) => (v === r.fok_ref ? null : r.fok_ref))} style={{ marginLeft: 6, width: 17, height: 17, borderRadius: "50%", border: 0, background: diffOpen === r.fok_ref ? "rgba(79,155,217,.34)" : "rgba(79,155,217,.16)", color: "#8fb6dc", fontSize: 10.5, fontWeight: 800, cursor: "pointer", verticalAlign: "-3px", padding: 0 }}>i</button> : null}</> : null}</td>
                       <td style={S.td}><input value={rowTitle[r.fok_ref] != null ? rowTitle[r.fok_ref] : (r.title || "")} onChange={(e) => setRowTitle((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 210 }} /></td>
                       <td style={{ ...S.td, whiteSpace: "nowrap" }}>{r.discipline}</td>
                       <td style={S.td}>{r.status === "changed"
@@ -363,6 +396,23 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                       <td style={S.td}><input value={rowTime[r.fok_ref] != null ? rowTime[r.fok_ref] : defTime} onChange={(e) => setRowTime((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 56, textAlign: "center" }} /></td>
                       <td style={S.td}><input type="number" min="0.5" step="0.5" value={rowHours[r.fok_ref] != null ? rowHours[r.fok_ref] : defHours} onChange={(e) => setRowHours((m) => ({ ...m, [r.fok_ref]: Number(e.target.value) }))} style={{ ...S.inp, width: 48, textAlign: "center" }} /></td>
                     </tr>
+                    {diffOpen === r.fok_ref && (() => { const d = boardDiff(r); if (!d) return null; return (
+                      <tr><td colSpan={10} style={{ padding: "0 12px 14px", background: "rgba(79,155,217,.05)", borderBottom: "1px solid var(--line)" }}>
+                        <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden", marginTop: 2 }}>
+                          <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 800, color: "#8fb6dc", background: "rgba(79,155,217,.10)", letterSpacing: ".04em" }}>{"WHAT SEND WILL CHANGE" + (r.activityCode != null ? " ON ACTIVITY #" + r.activityCode : "") + " \u00b7 PROPOSED REFLECTS YOUR EDITS IN THIS DIALOG"}</div>
+                          <table style={{ width: "100%", borderCollapse: "collapse" }}><tbody>
+                            <tr><td style={{ padding: "7px 10px" }}></td><td style={{ padding: "7px 10px", fontSize: 10, fontWeight: 800, letterSpacing: ".07em", color: "var(--muted)" }}>ON THE BOARD</td><td style={{ padding: "7px 10px", fontSize: 10, fontWeight: 800, letterSpacing: ".07em", color: "var(--muted)" }}>PROPOSED</td></tr>
+                            {d.map((x) => (
+                              <tr key={x.field}>
+                                <td style={{ padding: "6px 10px", fontSize: 10.5, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--faint)", whiteSpace: "nowrap" }}>{x.field}{x.moved ? <span style={{ fontSize: 9.5, fontWeight: 800, color: "#e0a83a", marginLeft: 7, letterSpacing: ".05em" }}>CHANGED</span> : null}</td>
+                                <td style={{ padding: "6px 10px", fontSize: 12, color: x.moved ? "#e0a83a" : "var(--muted)", fontWeight: x.moved ? 700 : 400 }}>{x.board}</td>
+                                <td style={{ padding: "6px 10px", fontSize: 12, color: x.moved ? "var(--ink)" : "var(--muted)", fontWeight: x.moved ? 600 : 400 }}>{x.proposed}</td>
+                              </tr>
+                            ))}
+                          </tbody></table>
+                        </div>
+                      </td></tr>); })()}
+                    </React.Fragment>
                   ); })}
                 </tbody>
               </table>
@@ -376,7 +426,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
             </div>
           </div>
         </div>
-      )}
+        ); })()}
     </div>
   );
 }

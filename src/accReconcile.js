@@ -192,6 +192,7 @@ export function reconcileFok(registerRows, activities, opts) {
 //   ready    -> dated and not yet on the board (a Send to Board candidate)
 //   changed  -> on the board, but the ACC date or assignee has since moved (resend to update)
 //   on_board -> on the board and matching ACC
+//   completed -> the board activity is complete, or its witness passed (REV256)
 function benchDate(v) { return v ? String(v).slice(0, 10) : null; }
 function benchEmail(v) { return v ? String(v).toLowerCase() : null; }
 
@@ -200,7 +201,12 @@ export function benchmarkStatus(benchmark, activity) {
   if (b.present === false) return "removed";
   // REV197: a finished board activity makes its benchmark Completed, and completion
   // wins over a missing date; a done FOK is done regardless of register hygiene.
-  if (activity && activity.status === "complete") return "completed";
+  // REV256: a witness recorded as succeeded on the board also completes the benchmark,
+  // not only a fully completed activity. Derived, never stored, so a corrected outcome
+  // (revert, retest) flows straight back. Outcome only counts on invite-flagged rows,
+  // mirroring the board's own witnessOutcome gate.
+  if (activity && (activity.status === "complete"
+    || ((activity.witnessInvite || activity.witness_invite) && activity.outcome === "succeeded"))) return "completed";
   if (!b.planned_date) return "no_date";
   if (!activity) return "ready";
   const dateMoved = benchDate(b.planned_date) !== benchDate(activity.witness_at || activity.witnessAt || activity.planned_date);

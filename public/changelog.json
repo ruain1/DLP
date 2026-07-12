@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV256",
+    "date": "2026-07-12",
+    "items": [
+      "Benchmarks: a new Board column shows, for every register row the matcher links to a board activity, a clickable #code chip that opens that card on the planning board; unlinked rows show a dash. The link was always computed (stored link, then FOK ref, then title match) but only surfaced on Changed rows; No Date, Completed and Removed rows now show their card too. The filter bar gains an on-the-board count, and the status chip drops its old #code suffix since the Board column now carries the code for every state.",
+      "Benchmarks completion sync: a benchmark now reads Completed when its board activity is complete or its witness is recorded as passed on the board. Derived live from the board rather than stored, so a corrected outcome (revert, retest) flows straight back.",
+      "Send to Board: changed rows carry an info icon that expands an exact comparison of what Send will change against the live card, across Title, Date and time, Assignee, Duration and ACC link, with drifted fields highlighted. The proposed side reflects the row's current edits in the dialog, so the comparison is precisely what Send will do."
+    ]
+  },
+  {
     "rev": "REV255",
     "date": "2026-07-12",
     "items": [
