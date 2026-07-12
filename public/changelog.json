@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV250",
+    "date": "2026-07-12",
+    "items": [
+      "Reports page fully integrated into the shell: the expanded sidebar now shows its label (REV248 rendered only the icon), and the page joins the Design system's page list, so its sidebar icon can be customised in Design > Icons (default: mail, greyed for other pages once used), it can be renamed in Design > Naming, and it participates in per-page design scopes like every other page.",
+      "Help updated: the Admin update emails topic is now Report emails and the Reports page, opening with where everything lives (the Reports page), the Morning Cx Update and the archive."
+    ]
+  },
+  {
     "rev": "REV249",
     "date": "2026-07-12",
     "items": [
