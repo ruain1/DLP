@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV262",
+    "date": "2026-07-12",
+    "items": [
+      "Help overhaul, tranche 4, the structural finish. Every page now names its help topic in a checked map beside the page registry, and the Help button is smart: it lands on the topic for the page you came from (a member is never landed on an admin-gated topic). An unmapped page announces itself instead of staying silently undocumented.",
+      "The coverage check immediately caught its second orphan: the Documentation Tracker had no help topic. It now has one, covering the equipment-type by document matrix, the SharePoint-fed workbook source, Codes mode and the short-code vocabulary, responsible parties, overrides that survive the sync, per-vendor targets and the Excel export.",
+      "Witness invites: the required invite type is now documented with its verified option list (L2 FOK, W2, IVC, L3 FOK, L3 SU, L3 SAT, L4 FPT, L5 IST) and where it travels: subject, body, updates, retests and the schedule pills."
+    ]
+  },
+  {
     "rev": "REV261",
     "date": "2026-07-12",
     "items": [

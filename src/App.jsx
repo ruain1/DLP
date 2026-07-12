@@ -68,11 +68,17 @@ const THEMES = {
 // REV253: the single page registry. Every page-key list in the app derives from this
 // const: the boot deep-link whitelist and PAGES (main shell), the page-restore check,
 // and DESIGN_PAGES (Design system: icons, naming, per-page scopes). Adding a page here
-// registers it everywhere except the two deliberately visible surfaces, which stay
-// hand-placed so an omission is seen immediately: the rail button and the Help topic.
+// registers it everywhere except the rail button (hand-placed so an omission is seen
+// immediately) and PAGE_HELP below, which names the page's help topic and is checked.
 // Triples are [key, default label, default icon].
 const PAGE_REGISTRY = [["board", "Planning Board", "board"], ["table", "Activity Table", "grid"], ["constraints", "Constraints Log", "alert"], ["schedule", "Schedule", "gantt"], ["reports", "Analytics", "chart"], ["reporthub", "Reports", "mail"], ["cx", "Weekly Cx Progress", "checkcircle"], ["assets", "Asset Status", "package"], ["benchmarks", "Benchmarks", "shield"], ["docs", "Documentation", "file"], ["help", "Help", "help"], ["admin", "Admin", "cog"]];
 const PAGE_KEYS = PAGE_REGISTRY.map((pg) => pg[0]);
+// REV262: every page must name its help topic here. The Help button lands on the
+// current page's topic through this map, so a missing entry is felt immediately
+// (Help opens on the overview instead of the page you came from), and the console
+// warning below names the gap. help itself maps to null (it has no topic of its own).
+const PAGE_HELP = { board: "r_board", table: "r_table", constraints: "r_constraints", schedule: "r_schedpage", reports: "r_analytics", reporthub: "r_digests", cx: "r_cxprog", assets: "r_assets_status", benchmarks: "r_benchmarks", docs: "r_docs", admin: "r_admin", help: null };
+PAGE_REGISTRY.forEach((pg) => { if (!(pg[0] in PAGE_HELP)) console.warn("PAGE_HELP is missing an entry for page: " + pg[0]); });
 
 const AV_BG = ["#2C4A7A", "#3A6B5C", "#7A5230", "#5A4A7A", "#445C77", "#6B4A4A", "#3C6B45", "#7A6030"];
 const avBg = (seed) => { const s = String(seed || "?"); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return AV_BG[h % AV_BG.length]; };
@@ -2938,6 +2944,8 @@ export default function App({ session }) {
   }, []);
   useEffect(() => { const t = THEMES[S?.theme] || THEMES.light; document.documentElement.style.background = t.paper; document.body.style.background = t.paper; }, [S?.theme]);
   useEffect(() => { try { localStorage.setItem("dlp_page", page); } catch (e) {} }, [page]);
+  const prevPageRef = useRef("board"); // REV262: the page you came to Help from
+  useEffect(() => { if (page !== "help") prevPageRef.current = page; }, [page]);
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks", "palette", "nameCase"];
@@ -4128,7 +4136,7 @@ export default function App({ session }) {
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
       {page === "benchmarks" && (isAdmin || (S.settings && S.settings.benchmarksVisible)) && <div className="lk-fillpage"><BenchmarksPage projectId={selProj} isAdmin={isAdmin} isOwner={isOwner} cu={cu} activities={S.activities} settings={S.settings} update={update} onSendToBoard={sendBenchmarksToBoard} onOpenActivity={(id) => { const act = S.activities.find((x) => x.id === id); if (act) { setPage("board"); setEditing({ ...act }); } }} users={S.users} companies={S.companies} /></div>}
       {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
-      {page === "help" && <HelpPage dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
+      {page === "help" && <HelpPage initialTopic={PAGE_HELP[prevPageRef.current] || "r_overview"} dark={S.theme === "dark"} admin={cu.role === "admin" || isSuper} brandLogo={brandLogo} proj={(() => { const sp = projects.find((p) => p.id === selProj) || {}; return { code: sp.code || S.brand?.projectName || "", client: sp.client || "", location: sp.location || "" }; })()} />}
       <div className="lk-foot">DLP by QMC Cx Software Solutions{"\u2122"} {"\u00B7"} {"\u00A9"} {new Date().getFullYear()} Quantum Mission Critical. All rights reserved.</div>
       </div>
       </div>
@@ -7852,8 +7860,8 @@ function LatestOnline({ users, ustat, pres }) {
 // CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
 // stale-iframe issue). It is deliberately independent of changelog.json, which lags and
 // would not change on a help-only revision.
-const HELP_VERSION = "rev261";
-function HelpPage({ dark, admin, brandLogo, proj }) {
+const HELP_VERSION = "rev262";
+function HelpPage({ dark, admin, brandLogo, proj, initialTopic }) {
   // REV130: the visible Help nav lives HERE, in App.jsx, not in help.html (whose own nav is
   // hidden in embed mode). This mirrors the help.html NAV exactly so every page and tutorial is
   // reachable. Keep in step with public/help.html NAV.
@@ -7871,8 +7879,11 @@ function HelpPage({ dark, admin, brandLogo, proj }) {
   ];
   const NAV_LABEL = {}; NAV.forEach(([g, items]) => items.forEach(([k, l]) => { NAV_LABEL[k] = l; }));
   const NAV_CHAP = {}; NAV.forEach(([g, items]) => items.forEach(([k]) => { NAV_CHAP[k] = g; }));
-  const [hp, setHp] = useState("r_overview");
-  const [openChaps, setOpenChaps] = useState(() => new Set([NAV_CHAP["r_overview"]]));
+  // REV262: land on the topic for the page the person came from, falling back to
+  // the overview when there is none or when the topic is admin-gated for them.
+  const startTopic = (initialTopic && NAV_CHAP[initialTopic] && (admin || !ADMIN_ONLY.has(initialTopic))) ? initialTopic : "r_overview";
+  const [hp, setHp] = useState(startTopic);
+  const [openChaps, setOpenChaps] = useState(() => new Set([NAV_CHAP[startTopic]]));
   const [hq, setHq] = useState("");
   const goPage = (k) => { setHp(k); setOpenChaps(new Set([NAV_CHAP[k]])); setHq(""); };
   const toggleChap = (g) => setOpenChaps((prev) => { const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n; });
