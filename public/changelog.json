@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV277",
+    "date": "2026-07-12",
+    "items": [
+      "Morning Cx Update, second generation. The email now opens with an AI-written executive summary in short paragraphs: it names blockers, calls out late activities that are pushing their successors through the predecessor links, and flags tomorrow's at-risk starts before they slip; a new AI-instructions box in the morning configuration tailors its tone and emphasis any time, figures always come from that morning's data, and the email sends normally if the AI is unreachable. The body gains a Yesterday / Today / Tomorrow structure with the previous day's daily updates quoted inline, and constraint lines now carry an owner or a red unowned mark plus what each constraint blocks. Every button in every DLP email, the morning update, admin digests, witness invites and asset notifications, is rebuilt on the bulletproof pattern so Outlook renders a proper rounded button instead of a text-hugging box."
+    ]
+  },
+  {
     "rev": "REV276",
     "date": "2026-07-12",
     "items": [

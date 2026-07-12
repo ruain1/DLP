@@ -7943,7 +7943,7 @@ function LatestOnline({ users, ustat, pres }) {
 // CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
 // stale-iframe issue). It is deliberately independent of changelog.json, which lags and
 // would not change on a help-only revision.
-const HELP_VERSION = "rev265";
+const HELP_VERSION = "rev277";
 function HelpPage({ dark, admin, brandLogo, proj, initialTopic }) {
   // REV130: the visible Help nav lives HERE, in App.jsx, not in help.html (whose own nav is
   // hidden in embed mode). This mirrors the help.html NAV exactly so every page and tutorial is
@@ -9232,6 +9232,19 @@ async function assembleMorning(St, due) {
   let ups = [];
   try { ups = await fetchUpdatesBetween(St.projectId, from.toISOString(), to.toISOString()); } catch (e) { ups = []; }
   const data = m.morningData(St, due, ups);
+  // REV277: the AI executive summary. Facts come from the assembled data; the project's
+  // aiSteer shapes tone and emphasis. Any failure or a slow response degrades to no
+  // block: the morning email never waits on the AI and never fails because of it.
+  data.ai = "";
+  if (cfg.sections && cfg.sections.ai !== false) {
+    try {
+      const facts = m.buildMorningAiFacts(data);
+      const steer = (((cfg.aiSteer || "") + " Write two or three short paragraphs separated by blank lines.").trim()).slice(0, 400);
+      const call = supabase.functions.invoke("super-action", { body: { mode: "section", section: "Morning executive summary", facts, steer } });
+      const res = await Promise.race([call, new Promise((r) => setTimeout(() => r({ __timeout: true }), 20000))]);
+      if (res && !res.__timeout && !res.error && res.data && res.data.text) data.ai = String(res.data.text);
+    } catch (e) { data.ai = ""; }
+  }
   const pnm = (St.brand && St.brand.projectName) || (St.projectMeta && St.projectMeta.name) || "";
   const pline = St.projectMeta ? [St.projectMeta.client, St.projectMeta.location].filter(Boolean).join(" ") : "";
   const { subject, dateLine } = m.morningSubject(pnm || null, due);
@@ -9383,7 +9396,7 @@ function ScheduledReports({ S, update }) {
   const segBtn = (on, lb, click) => <button key={lb} className="lk-btn" style={{ fontSize: 10.5, fontWeight: 700, padding: "5px 12px", borderColor: on ? "var(--accent)" : undefined, color: on ? "var(--accent)" : undefined, background: on ? "rgba(91,155,243,.08)" : "none" }} onClick={click}>{lb}</button>;
   const fld = { display: "block", fontSize: 9, fontWeight: 800, letterSpacing: ".7px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 7 };
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const SECS = [["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
+  const SECS = [["ytt", "Yesterday / Today / Tomorrow"], ["ai", "AI summary"], ["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
   const exNames = (cfg.excludeCoIds || []).map((id) => ((S.companies || []).find((cc) => cc.id === id) || {}).name).filter(Boolean);
   const coList = exAll ? (S.companies || []) : (S.companies || []).slice(0, 8);
   return (
@@ -9433,6 +9446,7 @@ function ScheduledReports({ S, update }) {
               </div>
             </div>}
             <div><label style={fld}>Sections</label><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{SECS.map(([k, lb]) => segBtn(cfg.sections[k] !== false, lb, () => save({ sections: { [k]: !(cfg.sections[k] !== false) } })))}</div></div>
+            <div><label style={fld}>AI instructions</label><textarea className="lk-in" rows={3} maxLength={320} defaultValue={cfg.aiSteer || ""} onBlur={(e) => save({ aiSteer: e.target.value.slice(0, 320) })} placeholder="Steer the summary, e.g. Name the most urgent action first and address the site team directly." style={{ width: "100%", resize: "vertical", fontSize: 12, lineHeight: 1.5 }} /><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4, lineHeight: 1.5 }}>Tailor any time (up to 320 characters). Guides tone and emphasis only; every figure, date and name comes from that morning's data. If the AI is unreachable the email still sends, without the summary block.</div></div>
           </div>
           <div style={{ padding: "14px 18px", borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ fontSize: 10.5, color: "var(--muted)", flex: 1 }}>Changes save automatically.</span>

@@ -5,6 +5,7 @@
 // PATCHing it sends meeting updates, and the cancel action sends cancellations.
 // Events are sent as wall-clock time in the site timezone (Europe/Helsinki), so the
 // server owns the DST maths across the October and March clock changes.
+import { emailBtn } from "./digestCore";
 import { PublicClientApplication } from "@azure/msal-browser";
 
 const CLIENT_ID = "fa956186-27d4-4fae-b276-6c9fb2454457";
@@ -327,8 +328,8 @@ export function buildInviteBodyHtml(p) {
     + `</table></td></tr>`
     + constraintsBlock(p)
     + (p.notes ? `<tr><td style="padding:0 18px 12px 18px;font-size:12px;color:#374151;line-height:1.5;${FSTACK}">${eH(p.notes)}</td></tr>` : "")
-    + (p.accUrl ? `<tr><td style="padding:2px 18px 4px 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;"><a href="${eH(p.accUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">LINK TO ACC FILES</a></td></tr></table></td></tr>` : "")
-    + (p.activityUrl ? `<tr><td style="padding:2px 18px 14px 18px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;"><a href="${eH(p.activityUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">Open This Activity In DLP</a></td></tr></table></td></tr>` : "")
+    + (p.accUrl ? `<tr><td style="padding:2px 18px 4px 18px;">${emailBtn(eH(p.accUrl), `LINK TO ACC FILES`, TPL.blue)}</td></tr>` : "")
+    + (p.activityUrl ? `<tr><td style="padding:2px 18px 14px 18px;">${emailBtn(eH(p.activityUrl), `Open This Activity In DLP`, TPL.blue)}</td></tr>` : "")
     + `<tr><td style="padding:10px 18px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Issued from DLP by ${eH(p.organiser || "")} &#183; CSN Commissioning &#183; replies and responses go to the organiser</td></tr>`
     + `</table>`;
 }
@@ -371,7 +372,7 @@ export function buildReportEmailHtml(p) {
     + strip
     + `<tr><td style="padding:16px 20px 4px 20px;"><span style="font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Executive Summary</span>${paras}</td></tr>`
     + attachedBlock
-    + `<tr><td style="padding:14px 20px 16px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;font-size:12.5px;font-weight:bold;${FSTACK}"><a href="${APP_ORIGIN}" style="color:#ffffff;text-decoration:none;">Open DLP</a></td></tr></table></td></tr>`
+    + `<tr><td style="padding:14px 20px 16px 20px;">${emailBtn(APP_ORIGIN, `Open DLP`, TPL.blue)}</td></tr>`
     + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">${p.projectName ? eH(p.projectName) + " &#183; CSN Commissioning" : "FIN04 &#183; atnorth Koski &#183; CSN Commissioning"}</td></tr>`
     + `</table>`;
 }
@@ -442,7 +443,7 @@ export function buildUserInviteEmailHtml(p) {
     + stepRow(2, p.projectName ? "You are signed straight in and land on the " + eH(p.projectName) + " Planning Board." : "You are signed straight in and land on the project portal.")
     + stepRow(3, `Afterwards, sign in any time at <span style="font-family:Consolas,ui-monospace,monospace;font-size:12px;color:${TPL.blueInk};">${APP_HOST}</span> with this email address.`)
     + `</table></td></tr>`
-    + `<tr><td style="padding:10px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:10px 26px;font-size:13px;font-weight:bold;${FSTACK}"><a href="${eH(p.link)}" style="color:#ffffff;text-decoration:none;">${btnLabel}</a></td></tr></table></td></tr>`
+    + `<tr><td style="padding:10px 20px 4px 20px;">${emailBtn(eH(p.link), `${btnLabel}`, TPL.blue)}</td></tr>`
     + `<tr><td style="padding:8px 20px 12px 20px;font-size:11.5px;color:${TPL.mut};line-height:1.6;${FSTACK}">If the button does not work, open this link:<br><span style="font-family:Consolas,ui-monospace,monospace;font-size:11px;color:${TPL.blueInk};">${eH(p.link)}</span></td></tr>`
     + `<tr><td style="padding:0 20px 14px 20px;font-size:11.5px;color:${TPL.faint};line-height:1.6;${FSTACK}">This link is valid for ${days} days and is personal to you. If it has expired, reply to this email and a fresh one will be issued. If you were not expecting this invitation, you can ignore this email.</td></tr>`
     + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Sent by ${eH(p.sentByName)}${p.projectName ? " &#183; " + eH(p.projectName) : ""} &#183; CSN Commissioning</td></tr>`
@@ -467,7 +468,7 @@ export function buildRffeEmailHtml(p) {
   }
   const eeTarget = multi ? "each asset listed above" : `<b>${eH(a[0].tag)}</b>`;
   const linkRow = p.appUrl
-    ? `<tr><td style="padding:14px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${TPL.blue};padding:9px 22px;"><a href="${eH(p.appUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">Open ${multi ? "These Assets" : "This Asset"} In DLP</a></td></tr></table></td></tr>`
+    ? `<tr><td style="padding:14px 20px 4px 20px;">${emailBtn(eH(p.appUrl), `Open ${multi ? "These Assets" : "This Asset"} In DLP`, TPL.blue)}</td></tr>`
     : "";
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
     + `<tr><td style="padding:0;background-color:${TPL.blue};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="padding:12px 18px;font-size:15px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 Request For Energisation</td><td align="right" style="padding:12px 18px;font-size:11px;color:#cfe0f7;${FSTACK}">Yellow Tag approved</td></tr></table></td></tr>`
@@ -502,7 +503,7 @@ export function buildEnergisedEmailHtml(p) {
     assetBlock = P(`${bAsset(a[0])} is now marked as <b>Equipment Energised</b>.`);
   }
   const linkRow = p.appUrl
-    ? `<tr><td style="padding:14px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${GRN};padding:9px 22px;"><a href="${eH(p.appUrl)}" target="_blank" style="font-size:12.5px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;${FSTACK}">Open ${multi ? "These Assets" : "This Asset"} In DLP</a></td></tr></table></td></tr>`
+    ? `<tr><td style="padding:14px 20px 4px 20px;">${emailBtn(eH(p.appUrl), `Open ${multi ? "These Assets" : "This Asset"} In DLP`, GRN)}</td></tr>`
     : "";
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
     + `<tr><td style="padding:0;background-color:${GRN};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="padding:12px 18px;font-size:15px;font-weight:bold;color:#ffffff;${FSTACK}">FIN04 Equipment Energised</td><td align="right" style="padding:12px 18px;font-size:11px;color:#d6f0e0;${FSTACK}">Loop closed</td></tr></table></td></tr>`

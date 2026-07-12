@@ -405,3 +405,15 @@ export function actRowsFromClient(acts: any[]): ActRow[] {
     witness_invite: !!a.witnessInvite, outcome: a.outcome || null, outcome_at: a.outcomeAt || null,
   }));
 }
+
+// REV277: the bulletproof email button, shared by every mail DLP sends. Outlook's
+// Word engine ignores padding on anchors, which squashed the old buttons into
+// text-hugging boxes; here the padding lives on the anchor for modern clients and
+// a VML roundrect gives Outlook the same rounded pill. Callers pass escaped hrefs.
+export function emailBtn(href: string, labelHtml: string, color?: string, width?: number) {
+  const c = color || "#2456A6"; const w = width || 210;
+  return '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td>'
+    + '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="' + href + '" style="height:38px;v-text-anchor:middle;width:' + w + 'px;" arcsize="16%" strokecolor="' + c + '" fillcolor="' + c + '"><w:anchorlock/><center style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;font-weight:bold;">' + labelHtml + '</center></v:roundrect><![endif]-->'
+    + '<!--[if !mso]><!-- --><a href="' + href + '" target="_blank" style="display:inline-block;background:' + c + ';padding:11px 26px;border-radius:6px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;font-weight:bold;text-decoration:none;">' + labelHtml + '</a><!--<![endif]-->'
+    + '</td></tr></table>';
+}
