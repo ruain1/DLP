@@ -5389,7 +5389,7 @@ function groupTeamRows(rows, cn) {
 }
 
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections", "design"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("dlp_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
@@ -7852,21 +7852,21 @@ function LatestOnline({ users, ustat, pres }) {
 // CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
 // stale-iframe issue). It is deliberately independent of changelog.json, which lags and
 // would not change on a help-only revision.
-const HELP_VERSION = "rev259";
+const HELP_VERSION = "rev260";
 function HelpPage({ dark, admin, brandLogo, proj }) {
   // REV130: the visible Help nav lives HERE, in App.jsx, not in help.html (whose own nav is
   // hidden in embed mode). This mirrors the help.html NAV exactly so every page and tutorial is
   // reachable. Keep in step with public/help.html NAV.
-  const ADMIN_ONLY = new Set(["weekly", "r_admin", "r_delay", "excuse", "r_connect", "r_cxprog", "r_digests", "r_roles", "r_people"]);
+  const ADMIN_ONLY = new Set(["weekly", "r_admin", "r_delay", "excuse", "r_connect", "r_cxprog", "r_digests", "r_roles", "r_people", "r_design"]);
   const HOWTO_SIM = new Set(["board", "views", "analytics", "complete", "witness", "gaugeread", "recon", "assetstatus"]);
   const NAV = [
-    ["Getting started", [["r_overview", "Sign in & scope"], ["r_navigate", "Find your way around"], ["r_hub", "Projects & the hub"]]],
+    ["Getting started", [["r_overview", "Sign in & scope"], ["r_navigate", "Find your way around"], ["r_hub", "Projects & the hub"], ["r_display", "Your Display settings"]]],
     ["The board", [["r_board", "The Planning Board"], ["r_card", "The activity card"], ["r_reading", "Reading the schedule"], ["r_markers", "Markers & chips"], ["r_failed", "Failed witnesses & retests"], ["r_table", "The Activity Table"], ["r_schedpage", "The Schedule page"]]],
     ["Planning & delivery", [["r_commit", "Committing & PPC"], ["r_qappc", "Quality-Adjusted PPC & targets"], ["r_constraints", "Constraints & make-ready"], ["r_delay", "Delays & excusing"], ["r_complete", "Marking work complete"], ["ytt", "YTT daily focus"]]],
     ["Witnessing", [["r_witness", "Witness invites & schedule"], ["r_verdicts", "Slips vs pass / fail"], ["r_benchmarks", "Benchmarks & the FOK register"], ["r_connect", "Connecting Outlook & SharePoint"]]],
     ["Reporting", [["r_analytics", "Analytics & reports"], ["r_cxprog", "Weekly Cx Progress"], ["r_digests", "Report emails & Reports page"]]],
     ["Assets", [["r_assets_status", "Asset Status matrix"], ["r_assets", "Assets & auto-fill"], ["r_codes", "Location codes"], ["r_cxstages", "Cx stages & colours"], ["r_discipline", "Discipline"]]],
-    ["Administration", [["r_roles", "Roles & privileges"], ["r_people", "Managing people"], ["r_admin", "Admin & settings"]]],
+    ["Administration", [["r_roles", "Roles & privileges"], ["r_people", "Managing people"], ["r_admin", "Admin & settings"], ["r_design", "Design & appearance"]]],
     ["Tutorials (Try It)", [["gaugeread", "Reading the gauge"], ["recon", "The reconciliation line"], ["assetstatus", "Asset Status matrix"], ["board", "Add via Planning Board"], ["table", "Add via Activity Table"], ["import", "Bulk import (Excel/CSV)"], ["views", "Switch & read views"], ["reschedule", "Reschedule & links"], ["constraints", "Make-ready walkthrough"], ["complete", "Mark work complete"], ["witness", "Witness invites"], ["excuse", "Excuse a delay"], ["analytics", "Dashboard & popouts"], ["weekly", "Weekly Report"]]],
   ];
   const NAV_LABEL = {}; NAV.forEach(([g, items]) => items.forEach(([k, l]) => { NAV_LABEL[k] = l; }));

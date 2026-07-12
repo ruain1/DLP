@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV260",
+    "date": "2026-07-12",
+    "items": [
+      "Help overhaul, tranche 2: the appearance systems get documented. Your Display settings (Getting started, everyone) explains the per-person palette choices, what the three palettes actually recolour and where, the light and dark theme toggle, and the PPC readout. Design & appearance (Administration, admins) covers the project-wide Admin Design tab: global versus per-page scope, all seven sections (Icons with the full library, Colour, Typography, Layout content widths and which pages honour them, Board options, Naming, Effects with depth and reduced motion), and the boundary with Branding.",
+      "Refreshing while on Admin's Design tab now stays there; the tab-restore list was missing the design entry and bounced to Companies."
+    ]
+  },
+  {
     "rev": "REV259",
     "date": "2026-07-12",
     "items": [
