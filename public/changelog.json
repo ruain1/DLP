@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV243",
+    "date": "2026-07-12",
+    "items": [
+      "YTT Focus: one card per activity, spanning the days it covers. An activity running yesterday through tomorrow is now a single band across the columns instead of three duplicated cards with three constraint lists, the span itself showing where it sits in the window; a faint blue band marks today's column and small edge arrows mean the activity extends beyond the three days. Row order is global: open constraints first, then committed, then start.",
+      "Each activity now carries one status anchored to today rather than a different chip per column: FINISH OVERDUE when its planned finish has passed uncompleted, FINISH DUE with the day when it finishes today or tomorrow, STARTS with its dates, ONGOING with its end date, FINISHED for completed work. Badges moved out of the meta line to the card's top right and switched from low-contrast tints to solid fills with dark or white text, the same treatment as the WILL and WIT tags: amber for due, red for overdue, house blue for ongoing, green for starts; FINISHED stays a quiet outline so done work does not compete for attention."
+    ]
+  },
+  {
     "rev": "REV242",
     "date": "2026-07-12",
     "items": [
