@@ -1225,7 +1225,11 @@ function auditRelTime(ts, now) {
 // REV244: YTT card expansion. Percent editing follows the REV230 rule (canPct);
 // daily updates are an append-only log (canNote = admins and the owner). ups is the
 // fetched log for this activity: null while loading, { err } when the fetch failed.
-function YttExpand({ a, ups, canPct, canNote, busy, onSave }) {
+function YttExpand({ a, ups, canPct, canNote, canCons, onAddCons, busy, onSave }) {
+  const [ct, setCt] = useState("");
+  const [co, setCo] = useState("");
+  const [cd, setCd] = useState("");
+  const [cBusy, setCBusy] = useState(false);
   const [pct, setPct] = useState(a.percent == null ? "" : String(a.percent));
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
@@ -1236,6 +1240,16 @@ function YttExpand({ a, ups, canPct, canNote, busy, onSave }) {
   const when = (ts) => new Date(ts).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   return (
     <div style={{ marginTop: 9, borderTop: "1px solid var(--line)", paddingTop: 9 }} onClick={(e) => e.stopPropagation()}>
+      {canCons && <>
+        <div style={lbl}>Add constraint</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <input className="lk-in" style={{ flex: 1, minWidth: 0 }} placeholder="What is blocking this activity?" value={ct} onChange={(e) => setCt(e.target.value)} />
+          <input className="lk-in" style={{ width: 96 }} placeholder="Owner" value={co} onChange={(e) => setCo(e.target.value)} />
+          <input className="lk-in" type="date" style={{ width: 130 }} value={cd} onChange={(e) => setCd(e.target.value)} />
+          <button className="lk-btn primary" disabled={cBusy || !ct.trim()} onClick={async () => { setCBusy(true); setErr(""); try { await onAddCons({ text: ct.trim(), owner: co.trim(), due: cd }); setCt(""); setCo(""); setCd(""); } catch (e) { setErr(String((e && e.message) || e)); } finally { setCBusy(false); } }}>Add</button>
+        </div>
+        <div style={{ fontSize: 10.5, color: "var(--muted)", margin: "4px 0 10px" }}>Adds an open constraint to this activity and records it in the audit log.</div>
+      </>}
       <div style={lbl}>Percent complete</div>
       {canPct
         ? <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
@@ -2871,6 +2885,11 @@ export default function App({ session }) {
         .catch((e) => setYttUps((prev) => ({ ...prev, [a.id]: { err: String((e && e.message) || e) } })));
     }
   };
+  const yttAddConsFor = (a) => async ({ text, owner, due }) => {
+    update((p) => ({ ...p, activities: p.activities.map((x) => x.id === a.id
+      ? { ...x, constraints: [...(x.constraints || []), { id: uid("c"), text, done: false, owner: owner || "", ownerType: "", ownerId: null, due: due || "", hist: [{ t: "raised", by: cu.name || "", at: new Date().toISOString() }] }] }
+      : x) }));
+  };
   const yttSaveFor = (a) => async ({ pct, note }) => {
     setYttBusy(a.id);
     try {
@@ -4317,7 +4336,7 @@ export default function App({ session }) {
                             <span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span>
                           </label>)}</div>
                         : (a.status !== "complete" && <div className="ytt-ready">No open constraints</div>)}
-                      {yttEx[a.id] && <YttExpand a={a} ups={yttUps[a.id] === undefined ? null : yttUps[a.id]} canPct={!isClientViewer && (can("editAny") || (can("editOwn") && a.companyId === cu.companyId))} canNote={isAdmin} busy={yttBusy === a.id} onSave={yttSaveFor(a)} />}
+                      {yttEx[a.id] && <YttExpand a={a} ups={yttUps[a.id] === undefined ? null : yttUps[a.id]} canPct={!isClientViewer && (can("editAny") || (can("editOwn") && a.companyId === cu.companyId))} canNote={isAdmin} canCons={isAdmin} onAddCons={yttAddConsFor(a)} busy={yttBusy === a.id} onSave={yttSaveFor(a)} />}
                     </div>; })}
                 </div>
               </div>

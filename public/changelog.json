@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV246",
+    "date": "2026-07-12",
+    "items": [
+      "Constraints can be raised directly from YTT Focus. The card expansion gains an Add constraint row (what is blocking, owner, needed-by date) above percent and daily updates, for admins and the owner, matching the YTT clearing gate. The added constraint uses the same shape as the editor's constraints, including the raised-by history stamp, appears on the card immediately, and the change lands in the audit log via the activity triggers."
+    ]
+  },
+  {
     "rev": "REV245",
     "date": "2026-07-12",
     "items": [
