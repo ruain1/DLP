@@ -9,6 +9,7 @@ import { loadBenchmarks, writeBenchmarks, resolveBenchmarkCompanies, setBenchmar
 import { benchmarksWithStatus } from "./accReconcile";
 import { importFokWorkbook } from "./benchmarkImport";
 import { witnessRecipients } from "./witnessContacts";
+import { MultiSel, inSel } from "./multisel";
 
 // REV258: chips colour through the theme and palette variables (with color-mix for
 // the tints), so the Display palette toggle and light mode finally reach this page.
@@ -40,8 +41,8 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   const [benchmarks, setBenchmarks] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [disc, setDisc] = useState("all");
-  const [stat, setStat] = useState("all");
+  const [disc, setDisc] = useState([]);   // REV270: multi-select; empty = all
+  const [stat, setStat] = useState([]);   // REV270: multi-select; empty = all
   const [hidePast, setHidePast] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const fileRef = useRef(null);
@@ -77,8 +78,8 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
   const today = todayISO();
   const shown = rows
     .filter((r) => ((r.completed_at || r.status === "completed") ? showDone : true)) // REV197: board-complete counts as completed
-    .filter((r) => disc === "all" || r.discipline === disc)
-    .filter((r) => stat === "all" || r.status === stat)
+    .filter((r) => inSel(disc, r.discipline))
+    .filter((r) => inSel(stat, r.status))
     // REV198: completed rows are exempt from the past filter; finished work is past by
     // nature, so hiding the past silently overruled Show Completed and the toggle read
     // as dead. Completed visibility is governed by its own toggle alone.
@@ -265,15 +266,8 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
       {msg && <div style={{ padding: "9px 20px", fontSize: 12, color: msg.indexOf("failed") !== -1 ? "var(--red)" : "var(--muted)", borderBottom: "1px solid var(--line)" }}>{msg}</div>}
 
       <div style={S.filters}>
-        <select style={S.sel} value={disc} onChange={(e) => setDisc(e.target.value)}>
-          <option value="all">All Disciplines</option>
-          {disciplines.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select style={S.sel} value={stat} onChange={(e) => setStat(e.target.value)}>
-          <option value="all">All Statuses</option>
-          <option value="completed">Completed</option>
-          {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-        </select>
+        <MultiSel label="All Disciplines" options={disciplines} value={disc} onChange={setDisc} />
+        <MultiSel label="All Statuses" options={[{ v: "completed", t: "Completed" }, ...STATUS_ORDER.map((k) => ({ v: k, t: STATUS_META[k].label }))]} value={stat} onChange={setStat} />
         <button className={"lk-btn" + (hidePast ? " primary" : "")} onClick={() => setHidePast((v) => !v)} title="Hide anything in the past and focus on present and future">{hidePast ? "Showing Present & Future" : "Hide Past"}</button>
         <label style={S.switch()} onClick={() => setShowDone((v) => !v)}><span style={S.track(showDone)}><span style={S.knob(showDone)} /></span>Show Completed</label>
         <span style={S.count}>{shown.length} of {rows.length} benchmarks{(() => { const n = rows.filter((r) => r.activityId).length; return n ? " \u00b7 " + n + " on the board" : ""; })()}</span>

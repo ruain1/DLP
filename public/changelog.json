@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV270",
+    "date": "2026-07-12",
+    "items": [
+      "Multi-select filters, tranche 1 of 4. A shared filter control lands (summary button, instant-apply checkbox popover, Select all clears back to All, Esc or click-away closes, active filters get the accent border) and Benchmarks converts first: Disciplines and Statuses now take any combination. Show Completed remains the master switch; ticking Completed in the status filter narrows within what the toggle allows and never resurrects hidden rows. Value-editing dropdowns across the app deliberately stay single-choice. Remaining tranches: Activity Table and Board, then Asset Status and Docs, then witness, team, audit and analytics filters."
+    ]
+  },
+  {
     "rev": "REV269",
     "date": "2026-07-12",
     "items": [
