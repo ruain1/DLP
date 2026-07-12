@@ -1,8 +1,10 @@
 // Captured verbatim from the live Supabase deployment on 2026-07-12 (dashboard Code tab).
 // The repo previously held no copy of this function; this file is the deployable truth.
-// Known follow-up: this function performs NO caller verification (no getUser, no role
-// check). Anyone holding the public anon key can invoke it and spend Anthropic API
-// credits. A future REV should add a session gate like admin-users before doing work.
+// REV280: caller gate added. The function now requires a valid signed-in user (the
+// same Authorization-header pattern admin-users uses); anonymous callers holding only
+// the public anon key are rejected with 401 before any Anthropic call is made. The app
+// invokes this via supabase.functions.invoke, which attaches the session token, so
+// legitimate weekly and morning narratives pass unchanged.
 // Supabase Edge Function (the app invokes the slug "super-action")
 // Rewrites the deterministic weekly-report summary into cleaner prose, and
 // (REV194) writes short per-section narratives from supplied fact blocks.
@@ -15,6 +17,7 @@
 // the client independently rejects any output whose figures drift.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const MODEL = Deno.env.get("REPORT_NARRATIVE_MODEL") || "claude-sonnet-4-6";
@@ -67,6 +70,17 @@ Deno.serve(async (req: Request) => {
     if (!ANTHROPIC_API_KEY) return json({ error: "no_key" });
 
     const body = await req.json().catch(() => ({}));
+
+    // REV280: caller gate. Require a real signed-in user before spending API credits.
+    // The app attaches the session token automatically via functions.invoke; a caller
+    // with only the public anon key has no user and is rejected here.
+    const url = Deno.env.get("SUPABASE_URL");
+    const anon = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!url || !anon) return json({ error: "no_auth_config" }, 500);
+    const authHeader = req.headers.get("Authorization") || "";
+    const caller = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user } } = await caller.auth.getUser();
+    if (!user) return json({ error: "not_signed_in" }, 401);
 
     // REV194: section narrative mode. Additive; requests without mode fall
     // through to the original polish path untouched.

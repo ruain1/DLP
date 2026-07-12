@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV280",
+    "date": "2026-07-12",
+    "items": [
+      "The AI narrative function is no longer an open endpoint. super-action, which spends Anthropic credits to write the weekly and morning summaries, now requires a valid signed-in user before it does any work, using the same session check the admin-users function uses; a caller holding only the public site key is turned away with an unauthorised response before any API call is made. The app's own calls are unaffected because they already carry the signed-in session. This must be deployed to the super-action edge function to take effect; the repository copy is now the gated version."
+    ]
+  },
+  {
     "rev": "REV279",
     "date": "2026-07-12",
     "items": [
