@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV259",
+    "date": "2026-07-12",
+    "items": [
+      "Help overhaul, tranche 1. The Benchmarks page gets its first help topic (Benchmarks & the FOK register, under Witnessing): the register vs the board, reading the Board column and the six status chips, completion following the board, the removed-plus-completed pairing, Import Register and its no-dates guard, Match Assignees, the full Send to Board flow including the exact-change comparison, import History, and member visibility.",
+      "The YTT daily focus tutorial is rebuilt around the current feature set: the spanning three-day layout with pinned day headers, the solid status badges, the in-place expansion with the percent slider and the append-only daily updates log, and the admin constraint quick-add.",
+      "The report emails topic now covers the Morning Cx Update and its configuration, the Test vs Send now semantics on every tile, and the sent-reports archive with search, kind filters and exact-copy viewing."
+    ]
+  },
+  {
     "rev": "REV258",
     "date": "2026-07-12",
     "items": [
