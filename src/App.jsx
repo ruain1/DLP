@@ -9197,8 +9197,11 @@ async function assembleDigest(core, St, kind, due) {
   // failure-tolerant: a missing or oversized logo degrades that block to its name, never the send.
   const attachments = [];
   let qmc = null;
-  const qb = await fetchLogoAsset(window.location.origin + "/qmc-logo.png");
-  if (qb) { attachments.push({ name: "qmc-logo.png", contentType: qb.type, contentBytes: qb.b64, contentId: "qmc-logo" }); qmc = { cid: "qmc-logo", w: 56, h: 54 }; }
+  // REV289: the digest header is a dark band, so use the light-ink logo variant made for dark
+  // backgrounds; fall back to the on-white original if the dark asset is not deployed yet.
+  let qb = await fetchLogoAsset(window.location.origin + "/qmc-logo-dark.png");
+  if (!qb) qb = await fetchLogoAsset(window.location.origin + "/qmc-logo.png");
+  if (qb) { attachments.push({ name: "qmc-logo.png", contentType: qb.type, contentBytes: qb.b64, contentId: "qmc-logo" }); qmc = { cid: "qmc-logo", w: 58, h: 56 }; }
   for (const b of vendors.blocks) {
     if (b.id === "__unattr") continue;
     const co = b.id === "__csn"

@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV289",
+    "date": "2026-07-12",
+    "items": [
+      "The QMC mark in the admin digest header now uses a light version made for the dark band, so it sits inside the header instead of on a white tile. A dark-background logo (white mark on a transparent ground) is stored alongside the existing one and the digest picks it up automatically, falling back to the original if it is not present. The updated QMC artwork supplied is now the stored logo."
+    ]
+  },
+  {
     "rev": "REV288",
     "date": "2026-07-12",
     "items": [
