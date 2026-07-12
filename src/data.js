@@ -1451,3 +1451,24 @@ export async function setBenchmarkComplete(projectId, fokRef, done) {
   const { error } = await supabase.from("acc_benchmarks").update({ completed_at: done ? new Date().toISOString() : null }).eq("project_id", projectId).eq("fok_ref", fokRef);
   return { error: error ? error.message : null };
 }
+
+// ---- REV244: append-only daily updates (activity_updates table) ----
+// Read is project-member scoped, insert is admin/owner only, and the table carries no
+// update or delete policies, so entries are immutable by design.
+export async function fetchActivityUpdates(projectId, activityIds) {
+  if (!activityIds || !activityIds.length) return {};
+  const { data, error } = await supabase.from("activity_updates").select("*")
+    .eq("project_id", projectId).in("activity_id", activityIds)
+    .order("at", { ascending: false }).limit(1000);
+  if (error) throw error;
+  const by = {};
+  (data || []).forEach((u) => { (by[u.activity_id] = by[u.activity_id] || []).push(u); });
+  return by;
+}
+export async function addActivityUpdate(projectId, activityId, note, pct, byName) {
+  const row = { project_id: projectId, activity_id: activityId, note, by_name: byName || "" };
+  if (pct != null) row.pct = pct;
+  const { data, error } = await supabase.from("activity_updates").insert(row).select("*").single();
+  if (error) throw error;
+  return data;
+}

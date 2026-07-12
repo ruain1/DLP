@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV244",
+    "date": "2026-07-12",
+    "items": [
+      "Daily updates: every YTT card now carries a chevron that expands to percent complete and an append-only daily-update log. Updates are added by admins and the owner only, each entry stamped with date, time, author and the percent at the time; entries can never be edited or removed by anyone, enforced at the database level (the new activity_updates table has no update or delete policies at all). Everyone on the project can read the log; percent editing keeps the existing rule (owning company's members, admins, owner) with the slider and number in the expansion, and the current percent shows on the collapsed card as a chip.",
+      "Every daily update also lands in the audit log as a Daily update entry (new teal UPDATE chip, filed under Activities), so Admin > Audit doubles as the project's daily-update record. Requires the 2026-07-12_activity-updates migration to be applied in the Supabase SQL Editor; until then the expansion shows a banner naming the migration instead of failing."
+    ]
+  },
+  {
     "rev": "REV243",
     "date": "2026-07-12",
     "items": [

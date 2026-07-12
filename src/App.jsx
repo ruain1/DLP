@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -1183,7 +1183,7 @@ const AUDIT_CATS = [
   ["imp", "Imports & exports", ["import%", "export%", "send benchmarks%"]],
   ["wit", "Witnessing", ["%witness%", "%retest%"]],
   ["team", "Team & access", ["%member%", "%privilege%", "%request%", "%role%", "%invite resent%"]],
-  ["act", "Activities", ["%activity%", "%activities%", "%constraint%", "%milestone%"]],
+  ["act", "Activities", ["%activity%", "%activities%", "%constraint%", "%milestone%", "daily update%"]],
 ];
 function auditCatOf(action) {
   const a = String(action || "").toLowerCase();
@@ -1193,6 +1193,7 @@ function auditCatOf(action) {
 }
 function auditChipOf(action) {
   const a = String(action || "").toLowerCase();
+  if (a.startsWith("daily update")) return { t: "UPDATE", c: "#2dd4bf" };
   if (a.startsWith("revert") || a.startsWith("restore")) return { t: "REVERT", c: "#E0A106" };
   if (a.includes("witness") || a.includes("retest")) return { t: "WITNESS", c: "#b79bf0" };
   if (a.startsWith("import")) return { t: "IMPORT", c: "#a78bfa" };
@@ -1220,6 +1221,50 @@ function auditRelTime(ts, now) {
   const h = Math.floor(m / 60);
   if (h < 24) return h + " h ago";
   return Math.floor(h / 24) + " d ago";
+}
+// REV244: YTT card expansion. Percent editing follows the REV230 rule (canPct);
+// daily updates are an append-only log (canNote = admins and the owner). ups is the
+// fetched log for this activity: null while loading, { err } when the fetch failed.
+function YttExpand({ a, ups, canPct, canNote, busy, onSave }) {
+  const [pct, setPct] = useState(a.percent == null ? "" : String(a.percent));
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const pctN = pct === "" ? null : Math.max(0, Math.min(100, Math.round(+pct) || 0));
+  const pctChanged = pctN != null && pctN !== (a.percent == null ? null : a.percent);
+  const canSave = !busy && ((canNote && note.trim()) || (canPct && pctChanged));
+  const lbl = { fontSize: 9, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", margin: "0 0 5px" };
+  const when = (ts) => new Date(ts).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return (
+    <div style={{ marginTop: 9, borderTop: "1px solid var(--line)", paddingTop: 9 }} onClick={(e) => e.stopPropagation()}>
+      <div style={lbl}>Percent complete</div>
+      {canPct
+        ? <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
+            <input type="range" min={0} max={100} value={pctN == null ? 0 : pctN} style={{ flex: 1, accentColor: "var(--accent)" }} onChange={(e) => setPct(e.target.value)} />
+            <input className="lk-in" style={{ width: 62, textAlign: "center", fontWeight: 700 }} value={pct} placeholder="\u00b7" onChange={(e) => setPct(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} />
+          </div>
+        : <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{a.percent == null ? "Not recorded." : a.percent + "%"}</div>}
+      <div style={lbl}>Daily updates</div>
+      {ups == null && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Loading updates...</div>}
+      {ups && ups.err && <div style={{ fontSize: 11.5, color: "#E0A106", lineHeight: 1.5 }}>Daily updates are unavailable: {ups.err}. If this mentions a missing table, run the 2026-07-12_activity-updates migration in the Supabase SQL Editor.</div>}
+      {ups && !ups.err && (ups.length === 0
+        ? <div style={{ fontSize: 11.5, color: "var(--muted)" }}>No daily updates yet.</div>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
+            {ups.map((u) => <div key={u.id} style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+              <span style={{ color: "var(--muted)", fontWeight: 700 }}>{when(u.at)} {"\u00b7"} {u.by_name || "admin"}{u.pct != null ? <span style={{ color: "var(--accent)", fontWeight: 800 }}> {"\u00b7"} {u.pct}%</span> : null}:</span> {u.note}
+            </div>)}
+          </div>)}
+      {canNote
+        ? <>
+            <textarea className="lk-in" style={{ width: "100%", minHeight: 66, marginTop: 8, resize: "vertical", lineHeight: 1.5 }} placeholder="Today's update..." value={note} onChange={(e) => setNote(e.target.value)} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+              <span style={{ fontSize: 10.5, color: "var(--muted)", flex: 1 }}>Appends a stamped entry; entries cannot be edited or removed.</span>
+              <button className="lk-btn primary" disabled={!canSave} onClick={async () => { setErr(""); try { await onSave({ pct: canPct && pctChanged ? pctN : null, note: note.trim() }); setNote(""); } catch (e) { setErr(String((e && e.message) || e)); } }}>{busy ? "Saving..." : "Save update"}</button>
+            </div>
+          </>
+        : <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>Daily updates can be added by admins and the owner.{canPct && pctChanged ? " Your percent change saves with the button below." : ""}{canPct ? <div style={{ marginTop: 6, textAlign: "right" }}><button className="lk-btn primary" disabled={!canSave} onClick={async () => { setErr(""); try { await onSave({ pct: pctChanged ? pctN : null, note: "" }); } catch (e) { setErr(String((e && e.message) || e)); } }}>{busy ? "Saving..." : "Save percent"}</button></div> : null}</div>}
+      {err && <div style={{ fontSize: 11, color: "#F87171", fontWeight: 600, marginTop: 6 }}>{err}</div>}
+    </div>
+  );
 }
 function ImportStepsV2({ step }) {
   const steps = ["Template", "Mode", "Upload", "Review", "Apply"];
@@ -2811,6 +2856,31 @@ export default function App({ session }) {
   const [syncErr, setSyncErr] = useState("");
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
+  // REV244: YTT expansion state. yttUps is a lazy per-activity cache of the append-only
+  // daily-update log; entries load on first expand, and everything resets when YTT closes.
+  const [yttEx, setYttEx] = useState({});
+  const [yttUps, setYttUps] = useState({});
+  const [yttBusy, setYttBusy] = useState("");
+  useEffect(() => { if (!ytt) { setYttEx({}); setYttUps({}); setYttBusy(""); } }, [ytt]);
+  const yttToggle = (a) => {
+    const opening = !yttEx[a.id];
+    setYttEx((prev) => ({ ...prev, [a.id]: opening }));
+    if (opening && yttUps[a.id] === undefined) {
+      fetchActivityUpdates(S.projectId, [a.id])
+        .then((m) => setYttUps((prev) => ({ ...prev, [a.id]: m[a.id] || [] })))
+        .catch((e) => setYttUps((prev) => ({ ...prev, [a.id]: { err: String((e && e.message) || e) } })));
+    }
+  };
+  const yttSaveFor = (a) => async ({ pct, note }) => {
+    setYttBusy(a.id);
+    try {
+      if (note) {
+        const u = await addActivityUpdate(S.projectId, a.id, note, pct != null ? pct : (a.percent != null ? a.percent : null), cu.name);
+        setYttUps((prev) => { const cur = Array.isArray(prev[a.id]) ? prev[a.id] : []; return { ...prev, [a.id]: [u, ...cur] }; });
+      }
+      if (pct != null && pct !== a.percent) await savePercent(a.id, pct);
+    } finally { setYttBusy(""); }
+  };
   const [witSched, setWitSched] = useState(false);
   const [capOpen, setCapOpen] = useState(false);
   const [witPeriod, setWitPeriod] = useState("4w");
@@ -4225,6 +4295,7 @@ export default function App({ session }) {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                         <div className="ytt-card-desc" onClick={() => setEditing({ ...a })}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
                         <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".3px", padding: "3px 9px", borderRadius: 6, whiteSpace: "nowrap", flex: "none", ...badgeSt[st] }}>{stTxt}</span>
+                        <button className="lk-btn icon" title={yttEx[a.id] ? "Collapse" : "Percent and daily updates"} style={{ flex: "none", width: 22, height: 20, padding: 0, fontSize: 9, color: yttEx[a.id] ? "var(--accent)" : "var(--muted)", borderColor: yttEx[a.id] ? "var(--accent)" : undefined, transform: yttEx[a.id] ? "rotate(180deg)" : "none" }} onClick={(e) => { e.stopPropagation(); yttToggle(a); }}>{"\u25BC"}</button>
                       </div>
                       <div className="ytt-card-meta">
                         <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : open.length ? "#E0A106" : "#0E9384" }} />
@@ -4232,6 +4303,7 @@ export default function App({ session }) {
                         {a.committed && <span className="lk-chip commit">will</span>}
                         {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
                         {a.status === "complete" && <span style={{ color: "#0E9384", fontWeight: 700 }}>done</span>}
+                        {a.percent != null && <span style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", border: "1px solid rgba(91,155,243,.4)", borderRadius: 5, padding: "1px 6px" }}>{a.percent}%</span>}
                         <span className="ytt-loc">{coName(a.companyId)} {"\u00b7"} {locCode(a)}</span>
                       </div>
                       {open.length > 0
@@ -4240,6 +4312,7 @@ export default function App({ session }) {
                             <span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span>
                           </label>)}</div>
                         : (a.status !== "complete" && <div className="ytt-ready">No open constraints</div>)}
+                      {yttEx[a.id] && <YttExpand a={a} ups={yttUps[a.id] === undefined ? null : yttUps[a.id]} canPct={!isClientViewer && (can("editAny") || (can("editOwn") && a.companyId === cu.companyId))} canNote={isAdmin} busy={yttBusy === a.id} onSave={yttSaveFor(a)} />}
                     </div>; })}
                 </div>
               </div>
