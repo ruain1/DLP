@@ -1149,6 +1149,39 @@ function actsToWorkbookRowsV2(activities, coNameOf) {
 }
 // ================= end REV236 foundations =================
 
+function buildImportRulesV2(mode, myCoName) {
+  return [
+    mode === "member"
+      ? "You import under " + (myCoName || "your own company") + ": the Company column is prefilled, its dropdown offers only your company, and any row naming another company is rejected. The same lock applies in Sync: you can only update your own company's activities."
+      : "Set the Company column per row to load every contractor in one file. Companies, buildings, levels, zones, systems and crews that do not yet exist are created by the Admin importer.",
+    "Required on every row when adding: Description, Building, System and Planned start; on a single-building project a blank Building fills itself. Milestone rows (Milestone = Yes) relax Building and System.",
+    "Rows with no Description, System, Planned start and Code are ignored, so prefilled columns on unused rows are harmless.",
+    "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
+    "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
+    "Constraints live on their own sheet, keyed by Activity ref; each import stamps them as raised by you in the constraint history.",
+    "Leave the Code column empty when adding. To update existing activities, export the workbook, edit it and re-import in Sync mode: filled cells overwrite, blank cells leave fields untouched.",
+    mode === "member"
+      ? "Values must match this project: pick from the dropdowns, fed by the Reference sheet. Anything that does not match is rejected, not created. Every upload opens a review screen first; error rows are skipped and reported, and nothing is written until you apply."
+      : "Every upload opens a review screen first: adds, updates with per-field diffs, and errors named by row and column; error rows are skipped on Apply and exportable as a report. Append adds rows, Sync updates by #code, Override replaces after a typed confirmation.",
+  ];
+}
+function ImportStepsV2({ step }) {
+  const steps = ["Template", "Mode", "Upload", "Review", "Apply"];
+  return (
+    <div style={{ display: "flex", alignItems: "center", margin: "4px 0 12px", flexWrap: "wrap", rowGap: 6 }}>
+      {steps.map((lb, i) => { const n = i + 1; const on = n === step; const done = n < step; return (
+        <React.Fragment key={lb}>
+          {i > 0 && <div style={{ width: 20, height: 1, background: done || on ? "var(--accent)" : "var(--line)", margin: "0 7px" }} />}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, background: on ? "var(--accent)" : done ? "rgba(91,155,243,.16)" : "transparent", color: on ? "#fff" : done ? "var(--accent)" : "var(--muted)", border: "1px solid " + (on || done ? "var(--accent)" : "var(--line)"), boxSizing: "border-box" }}>{done ? "\u2713" : n}</div>
+            <div style={{ fontSize: 10.5, fontWeight: on ? 800 : 600, color: on ? "var(--ink, inherit)" : "var(--muted)", letterSpacing: ".2px" }}>{lb}</div>
+          </div>
+        </React.Fragment>
+      ); })}
+    </div>
+  );
+}
+
 function ImportReviewPanel({ rows, notices, syncOn, applying, onApply, onCancel }) {
   const [filt, setFilt] = useState("all");
   const addN = rows.filter((r) => r.st === "add").length;
@@ -5362,6 +5395,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [impMode, setImpMode] = useState("append");
   const [impGate, setImpGate] = useState(null); // REV192: staged import awaiting confirmation
   const [impReview, setImpReview] = useState(null); // REV238: parsed import awaiting review
+  const [tplDoneA, setTplDoneA] = useState(false); // REV239: stepper progress
+  const [impDone, setImpDone] = useState(false);
   const [impGateText, setImpGateText] = useState("");
   const [impMsg, setImpMsg] = useState("");
   const [userMsg, setUserMsg] = useState("");
@@ -5399,16 +5434,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
         buildings: S.areas.slice(), subAreas: (S.subAreas || []).slice(), tier3s: (S.tier3s || []).slice(),
         levelNames: [...new Set((S.subAreas || []).map((x) => x.name))], zoneNames: [...new Set((S.tier3s || []).map((x) => x.name))],
         systems: S.systems.slice(), stages: Object.keys(S.levels), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
-        todayISO: fmtISO(new Date()), rules: [
-          "Set the Company column per row to load every contractor in one file. Companies, buildings, levels, zones, systems and crews that do not yet exist are created by this Admin importer.",
-          "Required on every row: Description, Building, System and Planned start; on a single-building project a blank Building fills itself. Milestone rows (Milestone = Yes) relax Building and System.",
-          "Rows with no Description, System and Planned start are ignored, so prefilled columns on unused rows are harmless.",
-          "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
-          "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
-          "Constraints live on their own sheet, keyed by Activity ref; imports stamp them as raised by you in the constraint history.",
-          "Leave the Code column empty when adding new activities. To update existing ones, export the workbook, edit it and re-import in Sync mode: filled cells overwrite, blank cells leave fields untouched.",
-          "Delete the example rows before importing. Choose Append to merge or Override to replace the project's activities.",
-        ] };
+        todayISO: fmtISO(new Date()), rules: buildImportRulesV2("admin", "") };
       const wb = await buildActivityWorkbookV2(ExcelJS, cfg);
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
@@ -5743,6 +5769,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     const actById = new Map(S.activities.map((a) => [a.id, a]));
     const revRows = buildImportReviewRows(res, actById, (id) => (S.companies.find((c) => c.id === id) || {}).name || "");
     setImpMsg("");
+    setImpDone(false);
     setImpReview({ res, rows: revRows, notices, fpText, rowCount, override });
   };
   const applyReviewedImport = async () => {
@@ -5767,6 +5794,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     const skipped = rv.rows.filter((r) => r.st === "err").length;
     setImpMsg(`Applied ${addsN} added and ${updsN} updated (${g.mode})${bits.length ? ", " + bits.join(", ") : ""}${skipped ? "; " + skipped + " error row" + (skipped === 1 ? "" : "s") + " skipped" : ""}. Saving to the database; if the save is rejected a red Database error banner will appear.`);
     setImpReview(null);
+    setImpDone(true);
   };
   const cellToStr = (v) => { if (v == null) return ""; if (v instanceof Date) { const p = (n) => String(n).padStart(2, "0"); const dd = `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`; const hh = v.getUTCHours(), mm = v.getUTCMinutes(); return (hh || mm) ? `${dd}T${p(hh)}:${p(mm)}` : dd; } if (typeof v === "object") { if (v.text != null) return String(v.text); if (v.result != null) return String(v.result); if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join(""); if (v.hyperlink) return String(v.hyperlink); return ""; } return String(v); };
   const rowsToCSV = (rows) => rows.map((r) => r.map((c) => { const s = cellToStr(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");
@@ -6445,27 +6473,36 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4 }}>Add as many Cx stages or sub-steps as the project needs. Leave the key blank to auto-number, or set your own (L5, L4a, IST). Deleting a stage moves any activities on it to the first remaining stage.</div>
           </div>}
           {tab === "data" && <>
-            <div className="lk-f"><label>Templates</label>
+            <div className="lk-f"><label>Import activities (.xlsx or .csv)</label>
+              <ImportStepsV2 step={impReview ? 4 : impDone ? 5 : tplDoneA ? 3 : 1} />
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", margin: "8px 0 5px" }}>Step 1: Template</div>
               <div className="lk-row" style={{ flexWrap: "wrap" }}>
-                <button className="lk-btn primary" disabled={tplBusy} onClick={downloadAdminTemplate}><Icon n="download" s={14} />{tplBusy ? "Building…" : "Excel template (with dropdowns)"}</button>
-                <button className="lk-btn" onClick={downloadCsvTemplate}><Icon n="download" s={14} />CSV template</button>
+                <button className="lk-btn primary" disabled={tplBusy} onClick={() => { setTplDoneA(true); downloadAdminTemplate(); }}><Icon n="download" s={14} />{tplBusy ? "Building…" : "Excel template (with dropdowns)"}</button>
+                <button className="lk-btn" onClick={() => { setTplDoneA(true); downloadCsvTemplate(); }}><Icon n="download" s={14} />CSV template</button>
               </div>
-              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginTop: 6 }}>Admin import: set the <b>Company</b> column per row to load every contractor in one file. The v2 workbook has four sheets: <b>Activities</b> with every field the platform carries (discipline, witness type, duration and days, crews, est hours, percent, predecessors), <b>Constraints</b> keyed by Activity ref with owner and need-by, <b>Reference</b> feeding the dropdowns from this project's live values, and <b>README</b> with the rules and a version stamp. This importer creates companies, buildings, levels, zones, systems and crews that do not yet exist. Required per row: Description, Building, System and Planned start (relaxed on milestone rows). Every upload opens a review screen first: adds, updates with per-field diffs, and errors with the row and column named; error rows are skipped and can be exported as a report. Choose Append to add rows, Sync to update existing activities by their #code (filled cells overwrite, blank cells leave fields untouched), or Override to replace below.</div>
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ fontSize: 11, fontWeight: 700, cursor: "pointer", color: "var(--muted)" }}>The rules (generated for this project, also in the workbook README)</summary>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 10.5, color: "var(--muted)", lineHeight: 1.55 }}>{buildImportRulesV2("admin", "").map((t, i) => <li key={i}>{t}</li>)}</ul>
+              </details>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", margin: "8px 0 5px" }}>Step 2: Mode</div>
+              <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "sync" ? "sel" : ""} onClick={() => setImpMode("sync")}>Sync</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4, lineHeight: 1.45 }}>{impMode === "append" ? "Append adds every row as a new activity; rows carrying a Code are rejected so an edited export cannot be double-imported." : impMode === "sync" ? "Sync updates existing activities by their #code: filled cells overwrite, blank cells leave fields untouched; codeless rows are added in the same pass." : "Override replaces the project's activities after a typed confirmation; companies are never removed."}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", margin: "8px 0 5px" }}>Step 3: Upload</div>
+              <input className="lk-in" type="file" accept=".csv,.xlsx" onChange={handleImportFile} />
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4 }}>Steps 4 and 5 happen on the review screen: nothing is written until you apply what it shows.</div>
             </div>
-            <div className="lk-f"><label>Export</label>
-              <div className="lk-row"><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button><button className="lk-btn" disabled={tplBusy} onClick={exportActivitiesWorkbook} title="Activities and Constraints sheets in the exact import-template shape, so a file can round-trip"><Icon n="download" s={14} />Activities workbook (import shape)</button>
-                <button className="lk-btn" onClick={exportProject}><Icon n="download" s={14} />Project (JSON)</button></div></div>
-            <div className="lk-f"><label>Import Mode</label>
-              <div className="lk-status"><button className={impMode === "append" ? "sel" : ""} onClick={() => setImpMode("append")}>Append</button><button className={impMode === "sync" ? "sel" : ""} onClick={() => setImpMode("sync")}>Sync</button><button className={impMode === "override" ? "sel" : ""} onClick={() => setImpMode("override")}>Override</button></div></div>
-            <div className="lk-f"><label>Import File (.xlsx or .csv Activities, or .json Project)</label>
-              <input className="lk-in" type="file" accept=".json,.csv,.xlsx" onChange={handleImportFile} /></div>
             {impReview && <div className="lk-modal-bg" style={{ zIndex: 60 }} onClick={() => setImpReview(null)}>
               <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 900, width: "min(900px, 94vw)" }} onClick={(e) => e.stopPropagation()}>
                 <div className="lk-dh"><h3>Review import ({impMode})</h3><button className="lk-btn icon" onClick={() => setImpReview(null)}><Icon n="x" /></button></div>
                 <ImportReviewPanel rows={impReview.rows} notices={impReview.notices} syncOn={impMode === "sync"} applying={false} onApply={applyReviewedImport} onCancel={() => setImpReview(null)} />
               </div>
             </div>}
-            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces the project wholesale; Append in JSON opens a review screen where you overwrite, ignore or clone each clashing item.</div>
+            <div className="lk-f"><label>Export</label>
+              <div className="lk-row" style={{ flexWrap: "wrap" }}><button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Activities (CSV)</button><button className="lk-btn" disabled={tplBusy} onClick={exportActivitiesWorkbook} title="Activities and Constraints sheets in the exact import-template shape, so a file can round-trip"><Icon n="download" s={14} />Activities workbook (import shape)</button>
+              <button className="lk-btn" onClick={exportProject}><Icon n="download" s={14} />Project (JSON)</button></div></div>
+            <div className="lk-f"><label>Project restore (.json)</label>
+              <input className="lk-in" type="file" accept=".json" onChange={handleImportFile} />
+              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces the project wholesale; Append in JSON opens a review screen where you overwrite, ignore or clone each clashing item.</div></div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
           {tab === "audit" && <>
@@ -9232,6 +9269,9 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
   const [result, setResult] = useState(null);
   const [review, setReview] = useState(null);
   const [umode, setUmode] = useState("append");
+  const [tplDone, setTplDone] = useState(false); // REV239: stepper progress
+  const [modeTouched, setModeTouched] = useState(false);
+  const myCoNameR = (S.companies.find((c) => c.id === cu.companyId) || {}).name || "";
   const [busy, setBusy] = useState(false);
   const parseCSV = (text) => { const rows = []; let row = [], cur = "", q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; } else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c === "\r") {} else cur += c; } } if (cur !== "" || row.length) { row.push(cur); rows.push(row); } return rows; };
   const normDate = (s) => { if (s == null || s === "") return ""; if (s instanceof Date) return isNaN(s) ? "" : fmtISO(s); s = String(s).trim(); if (!s) return ""; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/); if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0"); m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); } m = s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3,9})[-\/ ](\d{2}|\d{4})$/); if (m) { const mo = ({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 })[m[2].slice(0, 3).toLowerCase()]; if (mo) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return y + "-" + String(mo).padStart(2, "0") + "-" + m[1].padStart(2, "0"); } } const d = new Date(s); return isNaN(d) ? "" : fmtISO(d); };
@@ -9250,16 +9290,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
         buildings: S.areas.slice(), subAreas: (S.subAreas || []).slice(), tier3s: (S.tier3s || []).slice(),
         levelNames: [...new Set((S.subAreas || []).map((x) => x.name))], zoneNames: [...new Set((S.tier3s || []).map((x) => x.name))],
         systems: S.systems.slice(), stages: Object.keys(LV), disciplines: DISCIPLINES, crewNames: (S.crews || []).slice(),
-        todayISO: fmtISO(new Date()), rules: [
-          mode === "member" ? "You import under " + (myCoName || "your own company") + ": the Company column is prefilled, its dropdown offers only your company, and any row naming another company is rejected." : "Set the Company column per row; it must name a company already on the project (only the Admin importer creates companies).",
-          "Required on every row: Description, Building, System and Planned start; on a single-building project a blank Building fills itself. Milestone rows (Milestone = Yes) relax Building and System.",
-          "Rows with no Description, System and Planned start are ignored, so the prefilled columns on unused rows are harmless.",
-          "Dates are YYYY-MM-DD. Witness invite Yes needs Witness date & time as YYYY-MM-DD HH:MM. Witness columns store scheduling data only; invites are always sent from the witness flow.",
-          "Discipline, Crews and Predecessors take semicolon-separated lists. Predecessors accept a Ref from this file (plain number) or an existing activity code written as #57.",
-          "Constraints live on their own sheet, keyed by Activity ref; each import stamps them as raised by you in the constraint history.",
-          "Leave the Code column empty when adding new activities. To update existing ones, export the workbook, edit it and re-import in Sync mode: filled cells overwrite, blank cells leave fields untouched.",
-          "Every value must match this project: pick from the dropdowns, fed by the Reference sheet. Anything that does not match is rejected, not created. Nothing is written unless every row passes.",
-        ] };
+        todayISO: fmtISO(new Date()), rules: buildImportRulesV2(mode, myCoName) };
       const wb = await buildActivityWorkbookV2(ExcelJS, cfg);
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -9323,42 +9354,49 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
       <div className="lk-modal" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
         <div className="lk-dh"><h3>Import Activities</h3><button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button></div>
         <div className="bd">
-          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>Bulk add activities from the Excel workbook template. Members import under their own company: the Company and Building columns come prefilled, the Company dropdown offers only your company, and any row naming another company is <b>rejected</b>. Admins can set any existing company per row. The workbook's <b>Reference</b> sheet feeds every dropdown with this project's live values, the <b>Constraints</b> sheet raises make-ready constraints against your rows (stamped into each constraint's history), and the <b>README</b> sheet carries the full rules. Values must already exist on this project; anything that does not match is rejected, not created, and nothing is written until you apply what the review screen shows.</div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "10px 0 2px" }}>
-            <div className="lk-status"><button className={umode === "append" ? "sel" : ""} onClick={() => { setUmode("append"); setReview(null); }}>Append</button><button className={umode === "sync" ? "sel" : ""} onClick={() => { setUmode("sync"); setReview(null); }}>Sync</button></div>
-            <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.4 }}>{umode === "sync" ? "Sync updates existing activities by their #code from an exported workbook: filled cells overwrite, blank cells leave fields untouched; rows without a Code are added." : "Append adds every row as a new activity; rows carrying a Code are rejected so an edited export cannot be double-imported."}</div>
-          </div>
-          {review && <ImportReviewPanel rows={review.rows} notices={review.notices} syncOn={umode === "sync"} applying={busy} onApply={applyReview} onCancel={() => setReview(null)} />}
-          {!review && <>
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 600 }}>The rules</div>
-            <ul>
-              <li><b>Company:</b> members can only import under their own company; <b>admins</b> can name any existing company per row (it must match a company on the project).</li>
-              <li>The <b>Excel template has dropdowns</b> for Building, Level, Zone / Room, System and Cx Stage, pre-loaded with this project's current values. Pick from them rather than typing.</li>
-              <li><b>Those values must already exist</b> on the project. Anything that does not match is rejected, it is not created for you.</li>
-              <li>Matching ignores case but the spelling must be exact. The dropdowns do not enforce which Level belongs to which Building, so the app still checks that on import.</li>
-              <li>Every upload opens a <b>review screen</b> first: adds, updates with per-field diffs, and errors with the row and column named. Rows with errors are skipped; apply the clean rows and take the error report, or fix and re-upload.</li><li><b>Sync mode</b> matches rows to existing activities by the #code from an exported workbook. Members can only update their own company's activities.</li>
-              <li>Dates use YYYY-MM-DD. Committed and Witness invite take Yes or No.</li>
-              <li>If <b>Witness invite</b> is Yes, a <b>Witness date &amp; time</b> is required, format YYYY-MM-DD HH:MM (see example 2).</li>
-              <li>The template has <b>two example rows</b>. Delete them and import only your own activities.</li>
-              <li>Description and Planned start are required on every row; Building and System too, <b>except on milestone rows</b> (Milestone = Yes), where they are optional. You can upload the filled .xlsx, or a .csv if you prefer.</li>
-            </ul>
-          </div>
-          <div className="ref"><b>Valid buildings</b>{S.areas.length ? S.areas.map((a) => <span key={a} className="lk-tag">{a}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
-          <div className="ref"><b>Valid levels (floors)</b>{(S.subAreas || []).length ? [...new Set((S.subAreas || []).map((s) => s.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
-          <div className="ref"><b>Valid zones / rooms</b>{(S.tier3s || []).length ? [...new Set((S.tier3s || []).map((t) => t.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
-          <div className="ref"><b>Valid systems</b>{S.systems.length ? S.systems.map((s) => <span key={s} className="lk-tag">{s}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
-          <div className="ref"><b>Valid Cx stages</b>{Object.keys(LV).map((k) => <span key={k} className="lk-tag">{k} {LV[k].name}</span>)}</div>
+          <ImportStepsV2 step={result ? 5 : review ? 4 : (tplDone ? (modeTouched ? 3 : 2) : 1)} />
+          {!review && !result && <>
+            <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55 }}>{isAdmin ? "Bulk add or update activities from the Excel workbook. Admins can set any existing company per row." : "Bulk add or update activities for " + (myCoNameR || "your company") + " from the Excel workbook. The Company column comes prefilled and locked to your company; rows naming another company are rejected."}</div>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>Step 1: Template</div>
+              <button className="lk-btn primary" onClick={() => { setTplDone(true); downloadTemplate(); }} disabled={busy}><Icon n="download" s={14} />Download Excel template</button>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Four sheets: Activities, Constraints, Reference (feeds every dropdown with this project's live values) and README (the rules below, generated for this project).</div>
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>The rules</summary>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55 }}>{buildImportRulesV2(isAdmin ? "admin" : "member", myCoNameR).map((t, i) => <li key={i}>{t}</li>)}</ul>
+              </details>
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Valid values on this project</summary>
+                <div className="ref"><b>Valid buildings</b>{S.areas.length ? S.areas.map((a) => <span key={a} className="lk-tag">{a}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+                <div className="ref"><b>Valid levels (floors)</b>{(S.subAreas || []).length ? [...new Set((S.subAreas || []).map((s) => s.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+                <div className="ref"><b>Valid zones / rooms</b>{(S.tier3s || []).length ? [...new Set((S.tier3s || []).map((t) => t.name))].map((n) => <span key={n} className="lk-tag">{n}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+                <div className="ref"><b>Valid systems</b>{S.systems.length ? S.systems.map((s) => <span key={s} className="lk-tag">{s}</span>) : <span style={{ color: "var(--muted)" }}>none defined yet</span>}</div>
+                <div className="ref"><b>Valid Cx stages</b>{Object.keys(LV).map((k) => <span key={k} className="lk-tag">{k} {LV[k].name}</span>)}</div>
+              </details>
+            </div>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>Step 2: Mode</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div className="lk-status"><button className={umode === "append" ? "sel" : ""} onClick={() => { setUmode("append"); setModeTouched(true); setReview(null); }}>Append</button><button className={umode === "sync" ? "sel" : ""} onClick={() => { setUmode("sync"); setModeTouched(true); setReview(null); }}>Sync</button></div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.4, flex: 1, minWidth: 220 }}>{umode === "sync" ? "Sync updates existing activities by their #code from an exported workbook: filled cells overwrite, blank cells leave fields untouched; rows without a Code are added." : "Append adds every row as a new activity; rows carrying a Code are rejected so an edited export cannot be double-imported."}</div>
+              </div>
+            </div>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>Step 3: Upload</div>
+              <div className="lk-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <label className={"lk-btn primary" + (busy ? " disabled" : "")} style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}><Icon n="upload" s={14} />Choose file (.xlsx or .csv)<input type="file" accept=".xlsx,.xlsm,.csv" disabled={busy} style={{ display: "none" }} onChange={onFile} /></label>
+                {busy && <span style={{ fontSize: 12, color: "var(--muted)" }}>Working…</span>}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>Steps 4 and 5 happen on the review screen: nothing is written until you apply what it shows.</div>
+            </div>
           </>}
-          <div className="lk-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <button className="lk-btn" onClick={downloadTemplate} disabled={busy}><Icon n="download" s={14} />Download Excel template</button>
-            <label className={"lk-btn primary" + (busy ? " disabled" : "")} style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}><Icon n="upload" s={14} />Choose file (.xlsx or .csv)<input type="file" accept=".xlsx,.xlsm,.csv" disabled={busy} style={{ display: "none" }} onChange={onFile} /></label>
-            {busy && <span style={{ fontSize: 12, color: "var(--muted)" }}>Working…</span>}
-          </div>
-          {result && !!(result.notices || []).length && <div style={{ fontSize: 12, color: "#E0A106", margin: "6px 0", lineHeight: 1.5 }}>{result.notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
-          {result && (result.errors.length
+          {review && <ImportReviewPanel rows={review.rows} notices={review.notices} syncOn={umode === "sync"} applying={busy} onApply={applyReview} onCancel={() => setReview(null)} />}
+          {result && <div style={{ marginTop: 4 }}>
+            {!!(result.notices || []).length && <div style={{ fontSize: 12, color: "#E0A106", margin: "6px 0", lineHeight: 1.5 }}>{result.notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
             ? <div className="lk-res-err"><b>Nothing was imported.</b> Fix {result.errors.length} row{result.errors.length === 1 ? "" : "s"} and upload again:<ul>{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul></div>
             : <div className="lk-res-ok">Applied {result.imported} added{result.updated ? " and " + result.updated + " updated" : ""}{result.consN ? ", raising " + result.consN + " constraint" + (result.consN === 1 ? "" : "s") : ""}{result.skipped ? "; " + result.skipped + " error row" + (result.skipped === 1 ? "" : "s") + " skipped" : ""}. The board reflects it now.</div>)}
+            <div style={{ marginTop: 8 }}><button className="lk-btn" onClick={() => { setResult(null); setReview(null); }}>Import another file</button></div>
+          </div>}
         </div>
       </div>
     </div>);

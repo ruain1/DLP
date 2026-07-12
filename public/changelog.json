@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV239",
+    "date": "2026-07-11",
+    "items": [
+      "Both import surfaces rebuilt as the approved five-step flow: Template, Mode, Upload, Review, Apply, with a progress rail that tracks where you are (template downloaded, mode chosen, file up, review open, applied). The board's Import Activities modal groups each step into its own block; the Admin Import / Export card follows the same shape, with the JSON project restore separated out under its own upload.",
+      "One rules source. The import rules are now generated per project and mode by a single function that feeds both the on-screen rules block (collapsible, next to the valid-value chips) and the workbook's README sheet, so the screen and the file can never drift apart again. Member rules spell out the company lock, including in Sync; stale claims from the pre-review era (nothing imported on any error, Sync arriving later) are gone everywhere.",
+      "Small flow touches: the user modal ends with an Import another file reset after applying, the Admin mode toggle explains what Append, Sync and Override each do as you switch, and the Admin activities upload accepts only .xlsx and .csv while .json moved to the Project restore input (both feed the same handler, so nothing changes underneath)."
+    ]
+  },
+  {
     "rev": "REV238",
     "date": "2026-07-11",
     "items": [
