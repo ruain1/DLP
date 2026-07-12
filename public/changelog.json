@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV288",
+    "date": "2026-07-12",
+    "items": [
+      "The internal admin digests (daily and weekly) get the modern header from the mockup. The plain white header becomes a dark QMC band carrying the Quantum Mission Critical logo, a kicker (DAILY or WEEKLY UPDATE, ADMIN), the FIN04 DLP headline and a mono kind chip, with the four-colour rule sitting flush beneath. Same structural language as the atnorth stakeholder reports so the whole email suite reads as one family, while the QMC logo keeps the internal digests distinct."
+    ]
+  },
+  {
     "rev": "REV287",
     "date": "2026-07-12",
     "items": [

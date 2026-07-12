@@ -316,12 +316,22 @@ export function buildDigestHtml(p: {
 }) {
   const nm = p.projectName ? p.projectName + " DLP" : APP_NAME;
   const title = p.kind === "daily" ? `${nm} Daily Update` : `${nm} Weekly Update`;
+  const kicker = p.kind === "daily" ? "DAILY UPDATE &#183; ADMIN" : "WEEKLY UPDATE &#183; ADMIN";
+  const headline = p.projectName ? esc(p.projectName) + " DLP" : APP_NAME;
   const sc = (p.stageColors && p.stageColors.length === 4) ? p.stageColors : ["#C0392B", "#E0A106", "#0E9384", "#2456A6"];
+  const barCells = (h: number) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>` + sc.map((col) => `<td width="25%" style="background-color:${col};font-size:0;line-height:0;height:${h}px;">&nbsp;</td>`).join("") + `</tr></table>`;
   const bar = (h: number) => `<tr><td style="padding:0;font-size:0;line-height:0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>` + sc.map((col) => `<td width="25%" height="${h}" style="background-color:${col};font-size:0;line-height:0;">&nbsp;</td>`).join("") + `</tr></table></td></tr>`;
-  const header = `<tr><td style="padding:16px 20px 12px 20px;background-color:#ffffff;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
-    + (p.qmc ? `<td width="${p.qmc.w + 10}" style="vertical-align:middle;"><img src="cid:${p.qmc.cid}" width="${p.qmc.w}" height="${p.qmc.h}" alt="Quantum Mission Critical" style="display:block;"></td>` : "")
-    + `<td style="vertical-align:middle;${p.qmc ? "padding-left:6px;" : ""}"><span style="font-size:18px;font-weight:bold;color:#111827;${F}">${title}</span><br><span style="font-size:11.5px;color:#6b7280;${F}">${esc(p.dateLine)}</span></td>`
-    + `</tr></table></td></tr>` + bar(6);
+  const header = `<tr><td style="padding:0;background-color:#16202e;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="padding:20px 24px 18px 24px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
+    + `<td style="vertical-align:middle;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>`
+    + (p.qmc ? `<td width="${p.qmc.w + 13}" style="vertical-align:middle;"><img src="cid:${p.qmc.cid}" width="${p.qmc.w}" height="${p.qmc.h}" alt="Quantum Mission Critical" style="display:block;"></td>` : "")
+    + `<td style="vertical-align:middle;"><div style="color:#8a93a3;font-size:9.5px;letter-spacing:.16em;font-weight:bold;${F}">${kicker}</div>`
+    + `<div style="color:#ffffff;font-size:19px;font-weight:bold;letter-spacing:-.3px;padding-top:2px;${F}">${headline}</div></td>`
+    + `</tr></table></td>`
+    + `<td align="right" style="vertical-align:middle;"><div style="display:inline-block;font-family:'Courier New',monospace;font-size:10px;letter-spacing:.1em;color:#8fb4e0;border:1px solid #37485f;border-radius:4px;padding:3px 8px;">${p.kind === "daily" ? "DAILY" : "WEEKLY"}</div>`
+    + `<div style="color:#9aa6b5;font-size:11px;padding-top:7px;${F}">${esc(p.dateLine)}</div></td>`
+    + `</tr></table></td></tr>`
+    + `<tr><td style="padding:0;">${barCells(4)}</td></tr>`
+    + `</table></td></tr>`;
   const kpiStrip = p.kpi
     ? `<tr><td style="padding:16px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr>`
       + tile(p.kpi.ppc == null ? "n/a" : p.kpi.ppc + "%", "PPC", "#111827", B)
