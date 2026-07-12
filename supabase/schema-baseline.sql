@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict dNkuH6ChhVgUcgTyO1oFJP5zvXgdCJa4EITNtWaEDyJ6U8ElmzW3JWdK4jgxZVa
+\restrict N7NjI1KPZgfKoRlrDqOzQImahxHoKaKyDvWHg4fY967u2XJHD8uqCGSMnZ3bKzp
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -210,6 +210,24 @@ begin
 
   if (tg_op = 'DELETE') then return old; else return new; end if;
 end; $$;
+
+
+--
+-- Name: audit_activity_updates(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audit_activity_updates() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare uname text;
+begin
+  select coalesce(name,'') into uname from profiles where id = auth.uid();
+  insert into audit_log(user_id, user_name, action, entity, entity_id, detail, project_id)
+  values (auth.uid(), coalesce(nullif(uname, ''), new.by_name), 'Daily update', 'activity', new.activity_id::text,
+          left(new.note, 160) || case when new.pct is not null then ' (' || new.pct || '%)' else '' end, new.project_id);
+  return new;
+end $$;
 
 
 --
@@ -1085,6 +1103,24 @@ ALTER TABLE public.activity_snapshots ALTER COLUMN id ADD GENERATED ALWAYS AS ID
 
 
 --
+-- Name: activity_updates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.activity_updates (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    activity_id uuid NOT NULL,
+    at timestamp with time zone DEFAULT now() NOT NULL,
+    by_id uuid DEFAULT auth.uid(),
+    by_name text DEFAULT ''::text NOT NULL,
+    pct integer,
+    note text NOT NULL,
+    CONSTRAINT activity_updates_note_len CHECK (((char_length(note) >= 1) AND (char_length(note) <= 4000))),
+    CONSTRAINT activity_updates_pct_range CHECK (((pct IS NULL) OR ((pct >= 0) AND (pct <= 100))))
+);
+
+
+--
 -- Name: areas; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1585,7 +1621,9 @@ CREATE TABLE public.report_runs (
     status text DEFAULT 'sent'::text NOT NULL,
     detail text,
     project_id uuid DEFAULT 'f1040000-0000-4000-a000-000000000001'::uuid NOT NULL,
-    CONSTRAINT report_runs_kind_check CHECK ((kind = ANY (ARRAY['daily'::text, 'weekly'::text])))
+    subject text,
+    html text,
+    CONSTRAINT report_runs_kind_check CHECK ((kind = ANY (ARRAY['daily'::text, 'weekly'::text, 'morning'::text, 'report'::text])))
 );
 
 
@@ -1731,6 +1769,14 @@ ALTER TABLE ONLY public.activities
 
 ALTER TABLE ONLY public.activity_snapshots
     ADD CONSTRAINT activity_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: activity_updates activity_updates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.activity_updates
+    ADD CONSTRAINT activity_updates_pkey PRIMARY KEY (id);
 
 
 --
@@ -2082,6 +2128,20 @@ CREATE UNIQUE INDEX activities_code_key ON public.activities USING btree (code) 
 
 
 --
+-- Name: activity_updates_act_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX activity_updates_act_at_idx ON public.activity_updates USING btree (activity_id, at DESC);
+
+
+--
+-- Name: activity_updates_project_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX activity_updates_project_at_idx ON public.activity_updates USING btree (project_id, at DESC);
+
+
+--
 -- Name: asset_vendor_project_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2205,6 +2265,13 @@ CREATE TRIGGER trg_assign_activity_code BEFORE INSERT ON public.activities FOR E
 --
 
 CREATE TRIGGER trg_audit_activities AFTER INSERT OR DELETE OR UPDATE ON public.activities FOR EACH ROW EXECUTE FUNCTION public.audit_activities();
+
+
+--
+-- Name: activity_updates trg_audit_activity_updates; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_activity_updates AFTER INSERT ON public.activity_updates FOR EACH ROW EXECUTE FUNCTION public.audit_activity_updates();
 
 
 --
@@ -2425,6 +2492,14 @@ ALTER TABLE ONLY public.activities
 
 ALTER TABLE ONLY public.activities
     ADD CONSTRAINT activities_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES auth.users(id);
+
+
+--
+-- Name: activity_updates activity_updates_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.activity_updates
+    ADD CONSTRAINT activity_updates_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
 
 
 --
@@ -2768,6 +2843,12 @@ ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.activity_snapshots ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: activity_updates; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.activity_updates ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: acc_benchmarks admin_acc_benchmarks; Type: POLICY; Schema: public; Owner: -
@@ -3221,6 +3302,13 @@ CREATE POLICY insert_access_requests ON public.access_requests FOR INSERT TO aut
 
 
 --
+-- Name: activity_updates insert_activity_updates; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY insert_activity_updates ON public.activity_updates FOR INSERT TO authenticated WITH CHECK (public.is_cx_admin(project_id));
+
+
+--
 -- Name: invite_requests insert_invite_requests; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3378,6 +3466,15 @@ CREATE POLICY read_acc_sync ON public.acc_sync FOR SELECT TO authenticated USING
 --
 
 CREATE POLICY read_acc_sync_events ON public.acc_sync_events FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: activity_updates read_activity_updates; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY read_activity_updates ON public.activity_updates FOR SELECT TO authenticated USING ((public.is_cx_admin(project_id) OR (EXISTS ( SELECT 1
+   FROM public.project_members m
+  WHERE ((m.project_id = activity_updates.project_id) AND (m.user_id = auth.uid()))))));
 
 
 --
@@ -3670,5 +3767,5 @@ CREATE POLICY write_project_companies ON public.project_companies TO authenticat
 -- PostgreSQL database dump complete
 --
 
-\unrestrict dNkuH6ChhVgUcgTyO1oFJP5zvXgdCJa4EITNtWaEDyJ6U8ElmzW3JWdK4jgxZVa
+\unrestrict N7NjI1KPZgfKoRlrDqOzQImahxHoKaKyDvWHg4fY967u2XJHD8uqCGSMnZ3bKzp
 
