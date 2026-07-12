@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV287",
+    "date": "2026-07-12",
+    "items": [
+      "Two touches on the weekly report email. The header now leads with the week number (Week 28, week ending...) rather than just the end date. The four KPI toppers get their colours back: the coloured accent bars above PPC, Delayed, Witness Passed and Make-Ready were relying on CSS variables that email clients drop, so they all rendered dark; they now use literal colours (house blue, red, green and amber) that Outlook and Gmail keep."
+    ]
+  },
+  {
     "rev": "REV286",
     "date": "2026-07-12",
     "items": [

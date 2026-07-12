@@ -9009,12 +9009,12 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   const composeParts = (ol, organiserLabel) => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
     const mk = (th) => buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", logoDark: (S.brand && S.brand.logoDark) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
-    const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
+    const lbl = mode === "week" ? "Week " + isoWeek(defWeek.end) + " &#183; week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
-    if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
-    if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "var(--red, #C0392B)" });
-    if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "var(--st-done)" });
-    if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "var(--st-warn)" });
+    if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#2456A6" });
+    if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "#C0392B" });
+    if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "#0E9384" });
+    if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "#E0A106" });
     const base = ((S.brand && S.brand.projectName) || "DLP") + "-weekly-report-" + fmtISO(start);
     return { fullLight: mk("light"), fullDark: mk("dark"), lbl, tiles, organiserLabel, names: { light: base + "-light.html", dark: base + "-dark.html" }, emlName: base + ".eml" };
   };
