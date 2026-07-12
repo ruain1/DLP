@@ -568,6 +568,17 @@ export async function recordImportFingerprint(projectId, hash, rowCount, mode, b
   try { await supabase.from("import_fingerprints").insert({ project_id: projectId, hash, row_count: rowCount || 0, mode: mode || "append", by_name: byName || "" }); } catch (e) { console.warn("[DLP] fingerprint record failed", e); }
 }
 
+// REV265: latest audit entry per user, for the rail presence popout. One indexed
+// query per popout open; first-per-user picked client-side from the newest 300.
+export async function loadLatestAuditByUser(projectId) {
+  const q = supabase.from("audit_log").select("user_id,user_name,action,entity,entity_id,detail,ts").order("ts", { ascending: false }).limit(300);
+  const { data, error } = await (projectId ? q.eq("project_id", projectId) : q);
+  if (error) throw error;
+  const m = {};
+  (data || []).forEach((r) => { if (r.user_id && !m[r.user_id]) m[r.user_id] = r; });
+  return m;
+}
+
 // ---- presence ("Latest online") ----
 export async function heartbeat() {
   try {

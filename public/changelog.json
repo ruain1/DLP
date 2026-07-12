@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV265",
+    "date": "2026-07-12",
+    "items": [
+      "Who is online, on the rail (admins and the owner). The collapsed rail shows a people icon with a live count; the expanded rail shows a face pile with the online count. Clicking either opens the presence popout: online-now and earlier sections, each person with their most recent audit entry in plain words and an Audit button that opens Admin > Audit filtered to them; the footer opens the full log. Presence polls every 30 seconds; the activity lines load once per open."
+    ]
+  },
+  {
     "rev": "REV264",
     "date": "2026-07-12",
     "items": [

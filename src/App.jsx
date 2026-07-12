@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -353,6 +353,27 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk{--st-warn:#E0A106;--st-warn-ink:#1c1303;--st-ok:#34D399;--st-ok-ink:#06261b;--st-done:#0E9384;--st-over:#D64545;--st-over-ink:#fff}
 .lk.pal-hc{--green:#0E9E6E;--red:#D62828;--amber:#B45309;--st-warn:#B45309;--st-warn-ink:#fff;--st-ok:#0E9E6E;--st-ok-ink:#fff;--st-done:#0E9E6E;--st-over:#D62828;--st-over-ink:#fff}
 .lk.pal-cb{--green:#1E7FC0;--red:#DA5A1A;--amber:#E0A106;--st-warn:#E0A106;--st-warn-ink:#1c1303;--st-ok:#1E7FC0;--st-ok-ink:#fff;--st-done:#1E7FC0;--st-over:#DA5A1A;--st-over-ink:#fff}
+/* REV265: rail presence (admins and owner): facepile when expanded, badge icon collapsed */
+.lk-pres{position:relative;width:100%;display:flex;justify-content:center;margin-top:auto}
+.lk-pres+.lk-disp{margin-top:0}
+.lk-presbtn{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.lk-rail.open .lk-presbtn{width:100%;justify-content:flex-start;gap:11px;padding:0 11px;height:44px}
+.lk-presbtn:hover{background:#2a333f;color:#dfe6ef}
+.lk-presbtn .ic{position:relative;display:flex}
+.lk-rail.open .lk-presbtn .ic{display:none}
+.lk-presbtn .fp{display:none;align-items:center}
+.lk-rail.open .lk-presbtn .fp{display:inline-flex}
+.lk-presbtn .lbl{display:none}
+.lk-rail.open .lk-presbtn .lbl{display:inline;font-size:11.5px;font-weight:650;line-height:1.25;text-align:left}
+.lk-presbadge{position:absolute;top:-6px;right:-8px;min-width:15px;height:15px;border-radius:8px;background:var(--st-ok);color:var(--st-ok-ink);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid #1b232e}
+.lk-presav{position:relative;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;color:#fff;font-size:9px;font-weight:800;border:2px solid #1b232e;flex:0 0 auto}
+.lk-presav+.lk-presav{margin-left:-8px}
+.lk-presav .pdot{position:absolute;right:-2px;bottom:-2px;width:8px;height:8px;border-radius:50%;background:var(--st-ok);border:2px solid #1b232e}
+.lk-presfly{position:absolute;left:calc(100% + 16px);bottom:0;width:332px;max-height:440px;overflow:auto;background:#232c38;border:1px solid #384556;border-radius:12px;box-shadow:6px 12px 20px rgba(0,0,0,.45);padding:9px 0;z-index:60;text-align:left}
+.lk-rail.open .lk-presfly{left:calc(100% + 12px)}
+.lk-presfly h5{margin:4px 14px 6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#8b98ab;font-weight:800}
+.lk-pres-row{display:flex;gap:10px;padding:8px 14px;align-items:flex-start;border-bottom:1px solid #2c3644}
+.lk-presfly .lk-pres-row:last-of-type{border-bottom:0}
 /* REV146: rail Display control + palette flyout */
 .lk-disp{position:relative;width:100%;display:flex;justify-content:center;margin-top:auto}
 .lk-dispbtn{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
@@ -2890,6 +2911,13 @@ export default function App({ session }) {
   useEffect(() => { projectsRef.current = projects; }, [projects]);
 
   const [dispOpen, setDispOpen] = useState(false);   // REV146: palette flyout
+  // REV265: rail presence (admin/owner only). Heartbeats poll every 30s while eligible;
+  // the latest-audit map loads once per popout open, never as a subscription.
+  const [presOpen, setPresOpen] = useState(false);
+  const [railPres, setRailPres] = useState({});
+  const [presAudit, setPresAudit] = useState(null);
+  useEffect(() => { if (!isAdmin) return; let on = true; const go = () => loadPresence().then((pp) => { if (on) setRailPres(pp); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, [isAdmin]);
+  useEffect(() => { if (!presOpen) return; setPresAudit(null); loadLatestAuditByUser(projectId).then(setPresAudit).catch(() => setPresAudit({})); }, [presOpen]);
   const prefs = () => { try { return JSON.parse(localStorage.getItem("dlp_prefs") || "{}"); } catch { return {}; } };
 
   const enterProject = async (projectId, projList, focusActId, initialPage) => {
@@ -3926,6 +3954,37 @@ export default function App({ session }) {
         <button title={pageLabel("docs", "Documentation Tracker")} className={page === "docs" ? "on" : ""} onClick={() => setPage("docs")}><Icon n={pageIcon("docs", "file")} s={20} /><span className="lbl">{pageLabel("docs", "Documentation")}</span></button>
         <button title={pageLabel("help", "Help")} className={page === "help" ? "on" : ""} onClick={() => setPage("help")}><Icon n={pageIcon("help", "help")} s={20} /><span className="lbl">{pageLabel("help", "Help")}</span></button>
         {isAdmin && <button title="Admin" className={page === "admin" ? "on" : ""} onClick={() => setPage("admin")}><Icon n={pageIcon("admin", "cog")} s={20} /><span className="lbl">Admin</span></button>}
+        {isAdmin && (() => {
+          const now = Date.now(); const ONLINE_MS = 150000;
+          const prows = (S.users || []).map((u) => { const t = railPres[u.id] ? new Date(railPres[u.id]).getTime() : 0; if (!t) return null; return { id: u.id, name: u.name || "Unknown", last: t, online: (now - t) < ONLINE_MS }; }).filter(Boolean).sort((x, y) => y.last - x.last);
+          const on = prows.filter((r) => r.online); const off = prows.filter((r) => !r.online).slice(0, 8);
+          const fmtSeen = (t) => { const d = new Date(t); const today = new Date().toDateString() === d.toDateString(); return d.toLocaleString("en-GB", today ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); };
+          const actLine = (r) => { if (presAudit == null) return "Loading latest activity\u2026"; const e = presAudit[r.id]; if (!e) return "No recorded activity yet"; return (e.detail || (e.action + (e.entity ? " " + e.entity : "") + (e.entity_id ? " " + e.entity_id : ""))).slice(0, 90); };
+          const jump = (name) => { setPresOpen(false); window.__DLP_AUDIT_JUMP = { user: name }; window.dispatchEvent(new CustomEvent("dlp-audit-jump", { detail: { user: name } })); setPage("admin"); };
+          const prow = (r) => <div key={r.id} className="lk-pres-row">
+            <span className="lk-presav" style={{ background: avBg(r.id), width: 30, height: 30, fontSize: 11, marginLeft: 0 }}>{avInit(r.name)}{r.online && <span className="pdot" />}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "baseline", gap: 7 }}><b style={{ fontSize: 12.5, color: "#e6edf6" }}>{r.name}</b><span style={{ fontSize: 10.5, fontWeight: 650, color: r.online ? "var(--st-ok)" : "#8b98ab" }}>{r.online ? "Online now" : "Last seen " + fmtSeen(r.last)}</span></span>
+              <span style={{ display: "block", fontSize: 11, color: "#9aa7b8", marginTop: 2, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{actLine(r)}</span>
+            </span>
+            <button className="lk-btn" style={{ padding: "2px 9px", fontSize: 10.5, fontWeight: 700, flex: "0 0 auto" }} onClick={() => jump(r.name)}>Audit</button>
+          </div>;
+          return <div className="lk-pres">
+            {presOpen && <div className="lk-dispback" onClick={() => setPresOpen(false)} />}
+            <button className="lk-presbtn" title="Who is online" onClick={() => setPresOpen((v) => !v)}>
+              <span className="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="9" cy="8" r="3.1" /><path d="M3.4 19c.7-3 3-4.6 5.6-4.6s4.9 1.6 5.6 4.6" /><circle cx="16.6" cy="9" r="2.4" /><path d="M15.5 14.7c2.3.2 4.2 1.6 4.9 4" /></svg>{on.length > 0 && <span className="lk-presbadge">{on.length}</span>}</span>
+              <span className="fp">{prows.slice(0, 3).map((r) => <span key={r.id} className="lk-presav" style={{ background: avBg(r.id) }}>{avInit(r.name)}{r.online && <span className="pdot" />}</span>)}{prows.length > 3 && <span className="lk-presav" style={{ background: "#33415a" }}>+{prows.length - 3}</span>}</span>
+              <span className="lbl">Online<br /><b style={{ color: "var(--st-ok)", fontWeight: 750 }}>{on.length} now</b></span>
+            </button>
+            {presOpen && <div className="lk-presfly">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 14px 6px" }}><b style={{ fontSize: 13, color: "#e6edf6" }}>Who is online</b><span style={{ fontSize: 10.5, fontWeight: 750, color: "var(--st-ok)" }}>{on.length} online</span></div>
+              {prows.length === 0 && <div style={{ padding: "6px 14px 10px", fontSize: 11.5, color: "#9aa7b8" }}>No presence recorded yet.</div>}
+              {on.length > 0 && <><h5>Online now</h5>{on.map(prow)}</>}
+              {off.length > 0 && <><h5 style={{ marginTop: 8 }}>Earlier</h5>{off.map(prow)}</>}
+              <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 14px 3px" }}><button className="lk-btn" style={{ padding: "3px 11px", fontSize: 11, fontWeight: 700 }} onClick={() => jump("all")}>Open full audit</button></div>
+            </div>}
+          </div>;
+        })()}
         <div className="lk-disp">
           {dispOpen && <div className="lk-dispback" onClick={() => setDispOpen(false)} />}
           <button className="lk-dispbtn" title="Display, palette and contrast" onClick={() => setDispOpen((v) => !v)}>
@@ -5432,6 +5491,14 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   };
   const [nv, setNv] = useState("");
   const [auditUser, setAuditUser] = useState("all");
+  // REV265: rail presence popout hands off "show me this person's audit" here. The event
+  // covers the already-mounted case; the window flag covers arriving via navigation.
+  useEffect(() => {
+    const apply = (u) => { setTab("audit"); setAuditUser(u && u !== "all" ? u : "all"); };
+    if (window.__DLP_AUDIT_JUMP) { apply(window.__DLP_AUDIT_JUMP.user); window.__DLP_AUDIT_JUMP = null; }
+    const h = (e) => { apply(e.detail && e.detail.user); window.__DLP_AUDIT_JUMP = null; };
+    window.addEventListener("dlp-audit-jump", h); return () => window.removeEventListener("dlp-audit-jump", h);
+  }, []);
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditQ, setAuditQ] = useState("");
   const [createdOpen, setCreatedOpen] = useState(false);
@@ -7865,7 +7932,7 @@ function LatestOnline({ users, ustat, pres }) {
 // CHANGES, so browsers refetch help.html instead of serving a stale cached copy (the REV126
 // stale-iframe issue). It is deliberately independent of changelog.json, which lags and
 // would not change on a help-only revision.
-const HELP_VERSION = "rev262";
+const HELP_VERSION = "rev265";
 function HelpPage({ dark, admin, brandLogo, proj, initialTopic }) {
   // REV130: the visible Help nav lives HERE, in App.jsx, not in help.html (whose own nav is
   // hidden in embed mode). This mirrors the help.html NAV exactly so every page and tutorial is
