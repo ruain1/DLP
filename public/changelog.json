@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV254",
+    "date": "2026-07-12",
+    "items": [
+      "The frozen in-bundle changelog copy is deleted. It was a fossil at REV158 while changelog.json carried the truth; the app already fetched the json at load, with the fossil as a fallback whose only effect was showing months-stale entries in the weekly report if the fetch failed. The report's changelog rows now come solely from changelog.json.",
+      "Width-cap sweep: the Reports page now follows the Design > Layout content width setting (it was fixed at 1160px and ignored the variable; it keeps 1160 as its default when no width is chosen). The sweep confirmed the Activity Table, Constraints Log and Analytics already respect the cap, and the board stays full-bleed by design."
+    ]
+  },
+  {
     "rev": "REV253",
     "date": "2026-07-12",
     "items": [
