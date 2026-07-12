@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV275",
+    "date": "2026-07-12",
+    "items": [
+      "The weekly report masthead now picks the logo for its theme: the dark report takes the brand's dark-background logo, the light report the light one, each falling back to the other slot before the built-in image. If the dark report has only a light-background asset to work with, the logo sits on a small white chip instead of washing out against the dark header. Configure both logo slots under Branding for the cleanest result."
+    ]
+  },
+  {
     "rev": "REV274",
     "date": "2026-07-12",
     "items": [

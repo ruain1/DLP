@@ -8346,7 +8346,7 @@ function draftSummary(r){
   return s.trim();
 }
 
-function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml, logoUrl, projectName, projectLocation }){
+function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml, logoUrl, logoDark, projectName, projectLocation }){
   // REV195: per-section narrative block, defined first because scheduleSection uses it
   // long before the blocks assembly (REV194 declared it mid-body, so building the
   // schedule hit the const in its temporal dead zone and Generate died silently).
@@ -8693,7 +8693,7 @@ body.dark .chip.wit{color:#9F7AEA}
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
 <div class="mast"><div class="mast-top">
-<div class="brand"><img class="logo" src="${logoUrl || ATNORTH_LOGO}" alt="${esc(projectName || "project")}"><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
+<div class="brand"><img class="logo" src="${(theme === "dark" ? (logoDark || logoUrl) : (logoUrl || logoDark)) || ATNORTH_LOGO}" alt="${esc(projectName || "project")}"${(theme === "dark" && !logoDark) ? ' style="background:#fff;padding:4px 8px;border-radius:6px"' : ""}><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
 <div class="issued">Issued <b>${fmtFull(r.today)}</b><br>${esc(by||"")}</div></div>
 <h1>Weekly DLP Report</h1><div class="wk num">${periodLabel} &nbsp;|&nbsp; lookahead to ${fmtFull(r.laEnd)}</div></div>
 <div class="body">
@@ -8924,7 +8924,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   };
   const generate = () => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const html = buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
+    const html = buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", logoDark: (S.brand && S.brand.logoDark) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(start)}${theme==="dark"?"-dark":""}.html`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
@@ -8973,7 +8973,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   // Both themes are always generated; the Appearance toggle governs only the on-screen Generate.
   const composeParts = (ol, organiserLabel) => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const mk = (th) => buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
+    const mk = (th) => buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", logoDark: (S.brand && S.brand.logoDark) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
     const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
@@ -9557,7 +9557,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const repData = useMemo(() => repOpen ? computeReport({ S, LV, coName, start: repStart, end: repEnd }) : null, [repOpen, S, LV, repStart.getTime(), repEnd.getTime()]);
   const repSummaryVal = repSummary != null ? repSummary : (repData ? draftSummary(repData) : "");
   const generateReport = () => {
-    const html = buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
+    const html = buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", logoDark: (S.brand && S.brand.logoDark) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(repStart)}${repTheme === "dark" ? "-dark" : ""}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
