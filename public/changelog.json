@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV278",
+    "date": "2026-07-12",
+    "items": [
+      "Email button fix, take two. The rounded VML button did not survive the journey: mail sent through Microsoft Graph has its HTML sanitised and the Outlook-conditional markup arrived mangled, clipping the label. The shared button now uses the padded-cell pattern the witness invites have always rendered correctly with: padding on the cell so Outlook honours it, rounded corners where supported, and a label that cannot clip. The executive summary header also drops its AI attribution tag."
+    ]
+  },
+  {
     "rev": "REV277",
     "date": "2026-07-12",
     "items": [

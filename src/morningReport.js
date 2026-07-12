@@ -126,7 +126,7 @@ export function buildMorningEmail(d, cfg, meta) {
   if (sec.ai !== false && d.ai) {
     const paras = String(d.ai).split(/\n{2,}/).map((t) => t.trim()).filter(Boolean);
     body += `<tr><td style="padding:16px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fc; border-left:3px solid #2456A6;">`
-      + `<tr><td style="padding:12px 16px 4px; font-size:10.5px; letter-spacing:.08em; font-weight:bold; color:#2456A6;">EXECUTIVE SUMMARY <span style="color:#68727f; font-weight:normal; letter-spacing:0;">${MID}AI, from this morning's data</span></td></tr>`
+      + `<tr><td style="padding:12px 16px 4px; font-size:10.5px; letter-spacing:.08em; font-weight:bold; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
       + paras.map((t) => `<tr><td style="padding:2px 16px 10px; font-size:12px; line-height:1.65; color:#1c2733;">${esc(t)}</td></tr>`).join("")
       + `</table></td></tr>`;
   }
