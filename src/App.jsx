@@ -26,6 +26,7 @@ import DocsStatusPage from "./DocsStatus.jsx";
 import RffeCompose from "./RffeCompose.jsx";
 import { loadAssetEventsNamed, setAssetEventState } from "./data";
 import { loadDocsStatus, saveAssetVendor } from "./data";
+import { MultiSel, inSel } from "./multisel";
 import { trySendEnergisedConfirmations } from "./energisedConfirm";
 import { supabase } from "./supabaseClient";
 
@@ -7655,10 +7656,12 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [q, setQ] = useState("");
-  const [fCo, setFCo] = useState(savedView.fCo || "all");
-  const [fStatus, setFStatus] = useState(savedView.fStatus || "all");
-  const [fAr, setFAr] = useState(savedView.fAr || "all");
-  const [fLv, setFLv] = useState(savedView.fLv || "all");
+  // REV272: filters are multi-select arrays; old saved views stored scalars, upgraded here.
+  const mvOld = (v) => (Array.isArray(v) ? v : (v && v !== "all" ? [v] : []));
+  const [fCo, setFCo] = useState(mvOld(savedView.fCo));
+  const [fStatus, setFStatus] = useState(mvOld(savedView.fStatus));
+  const [fAr, setFAr] = useState(mvOld(savedView.fAr));
+  const [fLv, setFLv] = useState(mvOld(savedView.fLv));
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
@@ -7694,10 +7697,10 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
   const subsFor = (area) => (S.subAreas || []).filter((s) => s.area === area);
   const zonesFor = (area, sub) => (S.tier3s || []).filter((t) => t.area === area && t.subArea === sub);
   const list = S.activities.filter((a) => {
-    if (fStatus !== "all" && a.status !== fStatus) return false;
-    if (fCo === "none") { if (a.companyId) return false; } else if (fCo !== "all" && a.companyId !== fCo) return false;
-    if (fAr !== "all" && a.area !== fAr) return false;
-    if (fLv !== "all" && a.level !== fLv) return false;
+    if (!inSel(fStatus, a.status)) return false;
+    if (fCo.length && !((fCo.includes("none") && !a.companyId) || (a.companyId && fCo.includes(a.companyId)))) return false;
+    if (!inSel(fAr, a.area)) return false;
+    if (!inSel(fLv, a.level)) return false;
     if (fFrom && (a.start || "") < fFrom) return false;
     if (fTo && (a.start || "") > fTo) return false;
     if (q.trim() && !(`${a.desc || ""} ${cn(a.companyId)} ${a.system || ""}`.toLowerCase().includes(q.trim().toLowerCase()))) return false;
@@ -7743,10 +7746,10 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
     <div className="lk-tblwrap" style={cssVars(S.theme, S.settings, "table")}><style>{css}</style>
       <div className="lk-ufilter" style={{ padding: "10px 16px 0", alignItems: "flex-end" }}>
         <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Activity, company, system…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        {S.areas.length > 1 && <div className="lk-f" style={{ minWidth: 120 }}><label>Building</label><select className="lk-select" value={fAr} onChange={(e) => setFAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>}
-        <div className="lk-f" style={{ minWidth: 90 }}><label>Cx Stage</label><select className="lk-select" value={fLv} onChange={(e) => setFLv(e.target.value)}><option value="all">All</option>{Object.keys(S.levels).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 105 }}><label>Status</label><select className="lk-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select></div>
+        <div className="lk-f" style={{ minWidth: 130 }}><label>Company</label><MultiSel label="All companies" options={[{ v: "none", t: "No company" }, ...scopeCompanies(S.companies, S.projectCompanyIds).map((c) => ({ v: c.id, t: c.name }))]} value={fCo} onChange={setFCo} /></div>
+        {S.areas.length > 1 && <div className="lk-f" style={{ minWidth: 120 }}><label>Building</label><MultiSel label="All buildings" options={S.areas} value={fAr} onChange={setFAr} /></div>}
+        <div className="lk-f" style={{ minWidth: 90 }}><label>Cx Stage</label><MultiSel label="All" options={Object.keys(S.levels)} value={fLv} onChange={setFLv} /></div>
+        <div className="lk-f" style={{ minWidth: 105 }}><label>Status</label><MultiSel label="All statuses" options={[{ v: "planned", t: "Planned" }, { v: "in_progress", t: "In progress" }, { v: "complete", t: "Complete" }]} value={fStatus} onChange={setFStatus} /></div>
         <div className="lk-f" style={{ minWidth: 124 }}><label>Start From</label><input className="lk-in mono" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} /></div>
         <div className="lk-f" style={{ minWidth: 124 }}><label>Start To</label><input className="lk-in mono" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} /></div>
         <div style={{ position: "relative" }}>
@@ -7834,8 +7837,8 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
 }
 
 function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
-  const [co, setCo] = useState("all");
-  const [ar, setAr] = useState("all");
+  const [co, setCo] = useState([]);   // REV272: multi-select; empty = all
+  const [ar, setAr] = useState([]);   // REV272: multi-select; empty = all
   const [openOnly, setOpenOnly] = useState(true);
   const [q, setQ] = useState("");
   const [editKey, setEditKey] = useState(null);
@@ -7857,8 +7860,8 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
   const cell = { padding: "calc(5px*var(--pad,1)) calc(7px*var(--pad,1))", fontSize: 11.5 };
   const rows = [];
   S.activities.forEach((a) => {
-    if (co !== "all" && a.companyId !== co) return;
-    if (ar !== "all" && a.area !== ar) return;
+    if (!inSel(co, a.companyId)) return;
+    if (!inSel(ar, a.area)) return;
     (a.constraints || []).forEach((c) => {
       if (openOnly && c.done) return;
       if (q && !(`${a.desc} ${c.text}`.toLowerCase().includes(q.toLowerCase()))) return;
@@ -7872,8 +7875,8 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
     <div className="lk-rep">
       <div className="lk-rep-filters">
         <div className="lk-f" style={{ minWidth: 180 }}><label>Search</label><input className="lk-in" placeholder="Activity or constraint…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><MultiSel label="All companies" options={scopeCompanies(S.companies, S.projectCompanyIds).map((c) => ({ v: c.id, t: c.name }))} value={co} onChange={setCo} /></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><MultiSel label="All buildings" options={S.areas} value={ar} onChange={setAr} /></div>
         <button className={"lk-btn" + (openOnly ? " on" : "")} onClick={() => setOpenOnly((v) => !v)}>{openOnly ? "Open Only" : "Showing All"}</button>
         <button className="lk-btn" onClick={exportCsv}><Icon n="download" s={14} />Export</button>
       </div>
