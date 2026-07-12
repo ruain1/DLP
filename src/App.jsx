@@ -135,7 +135,7 @@ const css = `
 .lk-ment-tag{margin-left:auto;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .lk-ncard{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--st-warn);border-radius:9px;background:var(--card);cursor:pointer}
 .lk-ncard:hover{box-shadow:0 3px 10px rgba(0,0,0,calc(.14*var(--fx-sh,1)))}
-.lk-ncard.over{border-left-color:#C0392B}
+.lk-ncard.over{border-left-color:var(--red)}
 .lk-colead{height:22px;max-width:96px;object-fit:contain;display:block;border-radius:3px}
 .lk-pill{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
 .lk-pill.admin{background:#7C3AED;color:#fff}.lk-pill.member{background:var(--chipbg);color:var(--accent)}
@@ -194,14 +194,14 @@ const css = `
 .lk-chip.late{background:#F6D6D3;color:#9B1C16}
 .lk-chip.wit{background:#7C3AED;color:#EDE9FE}
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
-.lk-chip.fail{background:rgba(192,57,58,.18);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
+.lk-chip.fail{background:color-mix(in srgb,var(--red) 18%,transparent);color:var(--red);border:1px solid color-mix(in srgb,var(--red) 50%,transparent)}
 .lk-chip.pass{background:color-mix(in srgb, var(--st-done) 16%, transparent);color:var(--st-done);border:1px solid color-mix(in srgb, var(--st-done) 50%, transparent)}
 .lk-chip.hrs{background:var(--chipbg);color:var(--accent);text-transform:none;font-weight:700}
 .lk-chip.retest{background:color-mix(in srgb, var(--st-warn) 14%, transparent);color:#9A6A00;border:1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)}
-.lk-ticket.ghostfail{background:repeating-linear-gradient(135deg,rgba(192,57,58,.14) 0 6px,rgba(192,57,58,.04) 6px 12px);border-left-color:#C0392B;cursor:pointer;overflow:visible}
+.lk-ticket.ghostfail{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--red) 14%,transparent) 0 6px,color-mix(in srgb,var(--red) 4%,transparent) 6px 12px);border-left-color:var(--red);cursor:pointer;overflow:visible}
 .lk-ticket.ghostfail .desc,.lk-ticket.ghostfail .meta{opacity:.45}
-.lk-ticket.ghostfail .desc{text-decoration:line-through;text-decoration-color:rgba(192,57,58,.9);text-decoration-thickness:1.5px}
-.lk-failx{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;background:#C0392B;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--card);z-index:3;pointer-events:none}
+.lk-ticket.ghostfail .desc{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--red) 90%,transparent);text-decoration-thickness:1.5px}
+.lk-failx{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--card);z-index:3;pointer-events:none}
 .lk-rlink{align-self:center;height:0;border-top:1.5px dashed var(--st-warn);opacity:.75;z-index:0;pointer-events:none}
 .lk-fc{align-self:stretch;margin:3px 2px;border:1.5px dashed var(--st-warn);background:color-mix(in srgb, var(--st-warn) 10%, transparent);border-radius:6px;z-index:0;pointer-events:none}
 .lk-ghost{opacity:.5;pointer-events:none;z-index:0}.lk-ghost.bar{align-self:stretch;margin:3px 2px;border:1.5px dashed var(--muted);border-radius:6px;background:transparent}.lk-ghost.ms{align-self:center;display:flex;align-items:center;justify-content:center}.lk-ghost.ms .dia{width:12px;height:12px;transform:rotate(45deg);border:1.5px dashed var(--muted);background:transparent}
@@ -215,7 +215,7 @@ const css = `
 .lk-ms .ms-head{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .lk-ms .ms-head .mslbl2{font-size:10.5px;font-weight:600}
 .lk-ms .ms-chip{font-size:8.5px;font-weight:700;padding:1px 6px;border-radius:999px;line-height:1.5;letter-spacing:.2px}
-.lk-ms .ms-chip.late{background:rgba(192,57,58,.2);color:#FCA89E}
+.lk-ms .ms-chip.late{background:color-mix(in srgb,var(--red) 20%,transparent);color:#FCA89E}
 .lk-ms .ms-chip.fore{background:rgba(224,161,6,.2);color:#F0C552}
 .lk-grow{display:grid}
 .lk-grow .gl{position:sticky;left:0;z-index:3;background:var(--paper);border-right:1px solid var(--line);border-bottom:1px solid var(--line);
@@ -351,7 +351,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-rail.open .lk-railppc span.railqa{display:inline-flex}
 .lk-rail.open .lk-railppc div.railqa{display:block}
 /* REV146: palette (Display) overrides for status colours on the main app */
-.lk{--st-warn:#E0A106;--st-warn-ink:#1c1303;--st-ok:#34D399;--st-ok-ink:#06261b;--st-done:#0E9384;--st-over:#D64545;--st-over-ink:#fff}
+.lk{--st-warn:#E0A106;--st-warn-ink:#1c1303;--st-ok:#34D399;--st-ok-ink:#06261b;--st-done:#0E9384;--st-over:#D64545;--st-over-ink:#fff;--red:#C0392B}
 .lk.pal-hc{--green:#0E9E6E;--red:#D62828;--amber:#B45309;--st-warn:#B45309;--st-warn-ink:#fff;--st-ok:#0E9E6E;--st-ok-ink:#fff;--st-done:#0E9E6E;--st-over:#D62828;--st-over-ink:#fff}
 .lk.pal-cb{--green:#1E7FC0;--red:#DA5A1A;--amber:#E0A106;--st-warn:#E0A106;--st-warn-ink:#1c1303;--st-ok:#1E7FC0;--st-ok-ink:#fff;--st-done:#1E7FC0;--st-over:#DA5A1A;--st-over-ink:#fff}
 /* REV265: rail presence (admins and owner): facepile when expanded, badge icon collapsed */
@@ -482,13 +482,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .wsch-acct{border:1px solid rgba(107,155,242,.5);color:var(--accent);background:rgba(107,155,242,.1);border-radius:6px;padding:2px 8px;font-weight:700;font-size:11px}
 .wsch-olhint{color:var(--muted);font-size:11.5px}
 .wsch-olmsg{padding:7px 18px;font-size:11.5px;border-bottom:1px solid var(--line);color:var(--st-done);background:color-mix(in srgb, var(--st-done) 7%, transparent);flex-shrink:0}
-.wsch-olmsg.err{color:#C0392B;background:rgba(192,57,58,.07)}
+.wsch-olmsg.err{color:var(--red);background:color-mix(in srgb,var(--red) 7%,transparent)}
 .wsch-st{display:inline-block;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.3px;width:max-content}
 .wsch-st.notsent{background:var(--chipbg);color:var(--muted);border:1px solid var(--line)}
 .wsch-st.sent{background:color-mix(in srgb, var(--st-done) 13%, transparent);color:var(--st-done);border:1px solid color-mix(in srgb, var(--st-done) 45%, transparent)}
 .wsch-st.changed{background:color-mix(in srgb, var(--st-warn) 12%, transparent);color:var(--st-warn);border:1px solid color-mix(in srgb, var(--st-warn) 50%, transparent)}
 .wsch-st.partial{background:color-mix(in srgb, var(--st-warn) 12%, transparent);color:var(--st-warn);border:1px solid color-mix(in srgb, var(--st-warn) 50%, transparent)}
-.wsch-st.cancelled{background:rgba(192,57,58,.11);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
+.wsch-st.cancelled{background:color-mix(in srgb,var(--red) 11%,transparent);color:var(--red);border:1px solid color-mix(in srgb,var(--red) 50%,transparent)}
 .wsch-act{display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:center}
 .wsch-dpill{border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:9.5px;font-weight:700;color:var(--muted)}
 .wsch-dpill.s{border-color:color-mix(in srgb, var(--st-done) 50%, transparent);color:var(--st-done)}
@@ -1474,7 +1474,7 @@ function defaults() {
 
 function portalVars(theme) {
   const D = { "--ink": "#E8EDF3", "--ink-2": "#B4C0CD", "--muted": "#8593A2", "--paper": "#161D26", "--backdrop": "#0C1116", "--card": "#141B24", "--line": "#27313D", "--line-2": "#1E2732", "--signal": "#5B9BF5", "--green": "#2FB6A6", "--amber": "#E0A33A", "--red": "#E76A5C", "--chip": "#1B232E", "--ring-track": "#26303B" };
-  const L = { "--ink": "#0F1E2E", "--ink-2": "#33485C", "--muted": "#647689", "--paper": "#FFFFFF", "--backdrop": "#EEF1F5", "--card": "#FFFFFF", "--line": "#E2E7EE", "--line-2": "#EEF2F6", "--signal": "#1E63D6", "--green": "var(--st-done)", "--amber": "#C07A00", "--red": "#C0392B", "--chip": "#F2F5F9", "--ring-track": "#E6EBF1" };
+  const L = { "--ink": "#0F1E2E", "--ink-2": "#33485C", "--muted": "#647689", "--paper": "#FFFFFF", "--backdrop": "#EEF1F5", "--card": "#FFFFFF", "--line": "#E2E7EE", "--line-2": "#EEF2F6", "--signal": "#1E63D6", "--green": "var(--st-done)", "--amber": "#C07A00", "--red": "var(--red, #C0392B)", "--chip": "#F2F5F9", "--ring-track": "#E6EBF1" };
   return { ...(theme === "dark" ? D : L), "--display": '"Space Grotesk","Inter",system-ui,sans-serif', "--body": '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif' };
 }
 const PORTAL_CSS = `
@@ -1980,7 +1980,7 @@ function HubGlobalSettings({ theme, userName, projects }) {
             <button className="lk-btn primary" disabled={bulkBusy} onClick={hBulk}>{bulkBusy ? `Creating\u2026 (${(bulkResults || []).length})` : "Create all"}</button>
             {bulkResults && <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status.startsWith("Created")).length} created, {bulkResults.filter((r) => !r.status.startsWith("Created")).length} need attention</div>
-              <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "#C0392B" : r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "var(--st-warn)") : "#C0392B" }}>{(r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status) + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
+              <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "var(--red, #C0392B)" : r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "var(--st-warn)") : "var(--red, #C0392B)" }}>{(r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status) + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 <button className="lk-btn" disabled={emailBusy || !bulkResults.some((r) => r.link)} title="Sends the invitation email to every created account with a link, one by one, from your connected Outlook" onClick={async () => {
                   setEmailBusy(true);
@@ -2234,7 +2234,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     if (tileSel === "active") return { title: "Active projects", sub: homeSet.length + " project" + (homeSet.length === 1 ? "" : "s") + (clients ? " across " + clients + " client" + (clients === 1 ? "" : "s") : ""), rows: homeSet.map((p) => ({ id: p.id, name: p.name, sub: (p.code || "") + (p.client ? " \u00B7 " + p.client : ""), chip: p.stats.total + " act", color: "var(--muted)" })) };
     if (tileSel === "progress") return { title: "Activities in progress", sub: tot.inProgress + " in progress portfolio-wide", rows: homeSet.filter((p) => (p.stats.inProgress || 0) > 0).sort((a, b) => (b.stats.inProgress || 0) - (a.stats.inProgress || 0)).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: (p.stats.inProgress || 0) + " in progress", color: "var(--accent)" })) };
     if (tileSel === "complete") return { title: "Complete", sub: pcomplete + "% \u00B7 " + tot.complete + " of " + tot.total + " activities complete", rows: homeSet.map((p) => { const pc = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return { id: p.id, name: p.name, sub: p.stats.complete + " of " + p.stats.total + " complete", chip: pc + "%", color: "#1FB6A6", bar: pc }; }) };
-    if (tileSel === "overdue") return { title: "Overdue", sub: tot.overdue + " activit" + (tot.overdue === 1 ? "y" : "ies") + " need attention", rows: homeSet.filter((p) => p.stats.overdue > 0).sort((a, b) => b.stats.overdue - a.stats.overdue).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: p.stats.overdue + " overdue", color: "#C0392B" })) };
+    if (tileSel === "overdue") return { title: "Overdue", sub: tot.overdue + " activit" + (tot.overdue === 1 ? "y" : "ies") + " need attention", rows: homeSet.filter((p) => p.stats.overdue > 0).sort((a, b) => b.stats.overdue - a.stats.overdue).map((p) => ({ id: p.id, name: p.name, sub: p.code || "", chip: p.stats.overdue + " overdue", color: "var(--red, #C0392B)" })) };
     return null;
   })();
   const fmtAgo = (ts) => { if (!ts) return ""; const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const d = Math.floor(h / 24); if (d === 1) return "yesterday"; if (d < 7) return d + " days ago"; return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
@@ -3751,7 +3751,7 @@ export default function App({ session }) {
       if (!complete && late && todayUnit > fe) fe = todayUnit;   // overdue: project out to today
       const planned = sU(a);
       const step = a._stepMax ? `translateY(${(a._step - a._stepMax / 2) * MS_STEP}px)` : undefined;
-      const accent = late ? "#C0392B" : (S.theme === "dark" ? "#F0C552" : "#E0A106");
+      const accent = late ? "var(--red, #C0392B)" : (S.theme === "dark" ? "#F0C552" : "#E0A106");
       const chip = late ? `${a.delayDays || a.totalShift}d late` : `forecast +${a.totalShift}d`;
       const showSlip = hasSlip && fe > planned && fe >= 0 && planned < cols;
       if (showSlip) {
@@ -3761,7 +3761,7 @@ export default function App({ session }) {
           <span className="dia ghost" style={{ position: "absolute", left: `${h}%`, top: "50%", transform: "translate(-50%,-50%) rotate(45deg)" }} title={`Planned ${a.start}`} />
           <span className="ms-conn" style={{ position: "absolute", top: "50%", left: `calc(${h}% + 8px)`, right: `calc(${h}% + 8px)`, borderTopColor: accent, borderTopStyle: complete ? "solid" : "dashed" }} />
           <div className="ms-head" style={{ position: "absolute", left: `calc(${(100 - h).toFixed(4)}% - 6px)`, top: "50%", transform: "translateY(-50%)", cursor: movable ? "grab" : "pointer" }} draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
-            <span className="dia" style={late ? { background: "#C0392B" } : { background: "transparent", border: `1.5px solid ${accent}` }} title={tipOf(a)} />
+            <span className="dia" style={late ? { background: "var(--red, #C0392B)" } : { background: "transparent", border: `1.5px solid ${accent}` }} title={tipOf(a)} />
             <span className="mslbl2">{a.desc || "Milestone"}</span>
             <span className={"ms-chip " + (late ? "late" : "fore")} title={complete ? "Delivered late (recorded)" : (late ? "Overdue" : "Forecast slip")}>{chip}</span>
           </div>
@@ -3769,7 +3769,7 @@ export default function App({ session }) {
       }
       return <div className="lk-ms" style={{ gridColumn: `${s + 1} / ${s + 2}`, gridRow: row + 1, transform: step }}
         draggable={movable} onDragStart={() => movable && (dragId.current = a.id)} onClick={() => setEditing({ ...a })}>
-        <span className="dia" style={{ background: late ? "#C0392B" : lv.color }} title={tipOf(a)} />
+        <span className="dia" style={{ background: late ? "var(--red, #C0392B)" : lv.color }} title={tipOf(a)} />
         <span className="mslbl">{a.desc || "Milestone"}{hasSlip ? (late ? ` +${a.delayDays || a.totalShift}d` : ` (forecast +${a.totalShift}d)`) : ""}</span>
       </div>;
     }
@@ -3808,9 +3808,9 @@ export default function App({ session }) {
     const tailLate = a.delayed && !a.excuse;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "") + (failedInv ? " ghostfail" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : boardEdge(a, lv, constrained)), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "color-mix(in srgb, var(--st-warn) 85%, transparent)"}` } : {}) }}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "var(--red, #C0392B)" : (carried ? "var(--red, #C0392B)" : boardEdge(a, lv, constrained)), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "color-mix(in srgb, var(--st-warn) 85%, transparent)"}` } : {}) }}
         draggable={movable && !rz && !failedInv} onDragStart={() => movable && !failedInv && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={failedInv ? `Witness failed${a.outcomeAt ? " " + a.outcomeAt : ""}${a.outcomeReason ? " \u00b7 " + a.outcomeReason : ""} \u00b7 ${tipOf(a)}` : carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
-        <div className="desc">{(carried || failCarried) && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{castName(a.desc || "Untitled activity", S.nameCase)}</div>
+        <div className="desc">{(carried || failCarried) && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "var(--red, #C0392B)", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{castName(a.desc || "Untitled activity", S.nameCase)}</div>
         <div className="meta">
           <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "var(--st-warn)" : "var(--st-done)" }} />
           {!BH.commit && a.committed && <span className="lk-chip commit">will</span>}
@@ -3928,7 +3928,7 @@ export default function App({ session }) {
           const chip = clip && (grain === "week" || N >= 3);
           out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}>
             <div style={{ position: "absolute", top: -1, left: clip && clipLeft ? "16px" : inset, right: clip && !clipLeft ? "16px" : inset, borderTop: "2px dotted #C0392B" }} />
-            {clip && <span style={{ position: "absolute", [clipLeft ? "left" : "right"]: 2, top: 0, transform: "translateY(-52%)", color: "#C0392B", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>{clipLeft ? "\u25C2" : "\u25B8"}</span>}
+            {clip && <span style={{ position: "absolute", [clipLeft ? "left" : "right"]: 2, top: 0, transform: "translateY(-52%)", color: "var(--red, #C0392B)", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>{clipLeft ? "\u25C2" : "\u25B8"}</span>}
             {chip && <span style={{ position: "absolute", [clipLeft ? "left" : "right"]: 20, top: -15, font: "600 10px/1.4 Consolas, ui-monospace, monospace", color: "#f0b9b2", background: "rgba(192,57,58,.14)", border: "1px solid rgba(192,57,58,.55)", borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>from {fmtWC(parseD(rs[0].from))}</span>}
           </div>);
         }
@@ -3947,7 +3947,7 @@ export default function App({ session }) {
           const chip = clip && (grain === "week" || N >= 3);
           out.push(<div key="rt" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, alignSelf: "center", position: "relative", height: 0, zIndex: 0, pointerEvents: "none" }} title={`Rescheduled from ${rs[0].from}`}>
             <div style={{ position: "absolute", top: -1, left: clip && originLeft ? 16 : -2, right: clip && !originLeft ? 16 : -2, borderTop: "2px dotted #C0392B" }} />
-            {clip && <span style={{ position: "absolute", [originLeft ? "left" : "right"]: 2, top: 0, transform: "translateY(-52%)", color: "#C0392B", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>{originLeft ? "\u25C2" : "\u25B8"}</span>}
+            {clip && <span style={{ position: "absolute", [originLeft ? "left" : "right"]: 2, top: 0, transform: "translateY(-52%)", color: "var(--red, #C0392B)", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>{originLeft ? "\u25C2" : "\u25B8"}</span>}
             {chip && <span style={{ position: "absolute", [originLeft ? "left" : "right"]: 20, top: -15, font: "600 10px/1.4 Consolas, ui-monospace, monospace", color: "#f0b9b2", background: "rgba(192,57,58,.14)", border: "1px solid rgba(192,57,58,.55)", borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>from {fmtWC(parseD(rs[0].from))}</span>}
           </div>);
         }
@@ -3974,7 +3974,7 @@ export default function App({ session }) {
   return (
     <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
-        {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#C0392B", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)", display: "flex", gap: 10, alignItems: "center" }}><b style={{ whiteSpace: "nowrap" }}>Database error</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{syncErr ? "Save failed: " + syncErr : "Load failed. " + S.loadErrors.join(" | ")}</span>{!!syncErr && <button onClick={() => setSyncErr("")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>}
+        {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "var(--red, #C0392B)", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)", display: "flex", gap: 10, alignItems: "center" }}><b style={{ whiteSpace: "nowrap" }}>Database error</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{syncErr ? "Save failed: " + syncErr : "Load failed. " + S.loadErrors.join(" | ")}</span>{!!syncErr && <button onClick={() => setSyncErr("")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>}
       {/* REV253: adding a page? Register it in PAGE_REGISTRY (top of file), then add its button here. */}
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
@@ -4126,7 +4126,7 @@ export default function App({ session }) {
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Ready To Run", items: ready })}><span className="v" style={{ color: "var(--st-done)" }}>{ready.length}</span><span className="l">Ready to run</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Need Make-Ready", items: needMR })}><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Committed This Week", items: committedWk })}><span className="v" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
-        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Delayed", items: delayedList })}><span className="v" style={{ color: "#C0392B" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Delayed", items: delayedList })}><span className="v" style={{ color: "var(--red, #C0392B)" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "At Risk", items: atRiskList })}><span className="v" style={{ color: "var(--st-warn)" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
       </div>
 
@@ -4243,7 +4243,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "color-mix(in srgb, var(--st-done) 14%, transparent)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "var(--st-done)" : "#C0392B"), color: digestNote.ok ? "var(--st-done)" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
+      {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "color-mix(in srgb, var(--st-done) 14%, transparent)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "var(--st-done)" : "#C0392B"), color: digestNote.ok ? "var(--st-done)" : "var(--red, #C0392B)", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onSavePercent={savePercent} canPercent={!isClientViewer && (can("editAny") || (can("editOwn") && editing.companyId === cu.companyId))} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
@@ -4514,7 +4514,7 @@ export default function App({ session }) {
                           <div className="wsch-btnrow">
                             {["notsent", "partial", "changed", "cancelled", "behindplan"].includes(st) && <button className="lk-btn primary" style={btn} disabled={!olAcct || busy} title={!olAcct ? "Connect Outlook first" : st === "behindplan" ? "The witness date drifted out of the plan; realign it to the current start and send the update" : undefined} onClick={() => st === "behindplan" ? realignAndSend(a) : runInv(a, "send")}>{busy ? "Working..." : st === "changed" ? "Update Invite" : st === "behindplan" ? "Realign & Update" : st === "partial" ? "Send Remaining" : st === "cancelled" ? "Send Again" : "Send"}</button>}
                             {st === "sent" && <button className="lk-btn" style={btn} disabled title="Nothing has changed since this invite was sent">Update</button>}
-                            {es.length > 0 && st !== "cancelled" && <button className="lk-btn" style={{ ...btn, color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} disabled={!olAcct || busy} onClick={() => runInv(a, "cancel")}>Cancel</button>}
+                            {es.length > 0 && st !== "cancelled" && <button className="lk-btn" style={{ ...btn, color: "var(--red, #C0392B)", borderColor: "rgba(192,57,58,.5)" }} disabled={!olAcct || busy} onClick={() => runInv(a, "cancel")}>Cancel</button>}
                             <button className="lk-btn" style={btn} disabled={!olAcct || busy} title="Creates this event in your calendar only, with the real template and vendor logo. Nothing goes to the witnesses and no status changes; delete it from your calendar after checking." onClick={() => testInv(a)}>Test To Me</button>
                           </div>
                         </div>;
@@ -4734,7 +4734,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             <div className="lk-row">
               <div className="lk-f"><label>Activity Name</label><input className="lk-in" value={rtName} onChange={(e) => setRtName(e.target.value)} />
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Auto-suffixed with the attempt number; editable.</span></div>
-              <div className="lk-f"><label>Planned Start <span style={{ color: "#C0392B" }}>*</span></label><input className="lk-in mono" type="date" value={rtStart} onChange={(e) => setRtStart(e.target.value)} /></div>
+              <div className="lk-f"><label>Planned Start <span style={{ color: "var(--red, #C0392B)" }}>*</span></label><input className="lk-in mono" type="date" value={rtStart} onChange={(e) => setRtStart(e.target.value)} /></div>
             </div>
             <div className="lk-f"><label>Retest Of</label>
               <div style={{ background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--muted)" }}>#{a.code ?? "?"} {a.desc || "Untitled"} (Failed{a.outcomeAt ? " " + a.outcomeAt : ""})</div>
@@ -4779,9 +4779,9 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
               <option value="">--</option>{(S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}{isAdmin && !dis && a.subArea && ADD_OPT}</select>
             {!isAdmin && a.subArea && (S.tier3s || []).filter((t) => t.area === a.area && t.subArea === a.subArea).length === 0 && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>No zones or rooms defined for {a.subArea}.</span>}
             {renderAdd("tier3", "New zone / room name", { area: a.area, subArea: a.subArea })}</>}</div>
-          <div className="lk-f"><label>Discipline{a.witnessInvite && <span style={{ color: "#C0392B" }}> *</span>}</label>
+          <div className="lk-f"><label>Discipline{a.witnessInvite && <span style={{ color: "var(--red, #C0392B)" }}> *</span>}</label>
             <div className="lk-levels">{DISCIPLINES.map((d) => { const on = (a.discipline || []).includes(d); return <div key={d} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.discipline || []; set("discipline", on ? cur.filter((x) => x !== d) : [...cur, d]); }}>{d}</div>; })}</div>
-            {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "#C0392B" }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
+            {a.witnessInvite && !(a.discipline || []).length && <span style={{ fontSize: 11, color: "var(--red, #C0392B)" }}>Select at least one discipline so the witness invite has recipients.</span>}</div>
           {!!S.settings.crewsEnabled && <div className="lk-f"><label>Crew</label>
             <div className="lk-levels">{(S.crews || []).map((c) => { const on = (a.crew || []).includes(c); return <div key={c} className={"lk-lvl" + (on ? " sel" : "")} onClick={() => { if (disPlan) return; const cur = a.crew || []; set("crew", on ? cur.filter((x) => x !== c) : [...cur, c]); }}>{c}</div>; })}{!(S.crews || []).length && <span style={{ fontSize: 11, color: "var(--muted)" }}>No crews defined yet. Add them in Settings, Project Setup, Crews.</span>}</div></div>}
           <div className="lk-f"><label>System</label>
@@ -4822,7 +4822,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             <button className="lk-btn primary" style={{ marginTop: 8 }} disabled={!rsDate || !rsReason.trim() || rsDate === a.start} onClick={doReschedule}><Icon n="loader" s={13} />Reschedule</button>
             {(a.reschedules || []).length > 0 && <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>Reschedule History</div>
-              {(a.reschedules || []).map((r, i) => <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11.5, padding: "3px 0", borderTop: i ? "1px solid var(--line)" : "none" }}><span className="mono">{r.from}</span><span style={{ color: "#C0392B" }}>{"\u2192"}</span><span className="mono">{r.to}</span><span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--muted)" }}>{r.by || "-"} · <span className="mono">{r.at}</span></span>{r.reason && <span style={{ flexBasis: "100%", fontSize: 10.5, color: "var(--muted)" }}>{r.reason}</span>}</div>)}
+              {(a.reschedules || []).map((r, i) => <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11.5, padding: "3px 0", borderTop: i ? "1px solid var(--line)" : "none" }}><span className="mono">{r.from}</span><span style={{ color: "var(--red, #C0392B)" }}>{"\u2192"}</span><span className="mono">{r.to}</span><span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--muted)" }}>{r.by || "-"} · <span className="mono">{r.at}</span></span>{r.reason && <span style={{ flexBasis: "100%", fontSize: 10.5, color: "var(--muted)" }}>{r.reason}</span>}</div>)}
             </div>}
           </div>}
           <div className="lk-f"><label>Predecessors <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this starts after these finish; a slip upstream pushes this forward)</span></label>
@@ -4856,16 +4856,16 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             </div>}</div>
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => { if (planLocked) return; set("committed", !a.committed); }}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
           <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => { if (planLocked || !can("witnessReq")) return; set("witnessInvite", !a.witnessInvite); }}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
-          {a.witnessInvite && <div className="lk-f"><label>Invite Type <span style={{ color: "#C0392B" }}>*</span></label>
+          {a.witnessInvite && <div className="lk-f"><label>Invite Type <span style={{ color: "var(--red, #C0392B)" }}>*</span></label>
             <select className="lk-select" value={a.witnessType || ""} disabled={disPlan} onChange={(e) => set("witnessType", e.target.value)}>
               <option value="">Select type...</option>
               {["L2 FOK", "W2", "IVC", "L3 FOK", "L3 SU", "L3 SAT", "L4 FPT", "L5 IST"].map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
-            {!a.witnessType && <span style={{ fontSize: 11, color: "#C0392B" }}>An invite type is required before this activity can be saved.</span>}
+            {!a.witnessType && <span style={{ fontSize: 11, color: "var(--red, #C0392B)" }}>An invite type is required before this activity can be saved.</span>}
             {a.witnessType && <span style={{ fontSize: 11, color: "var(--muted)" }}>Appears in the invite subject and body.</span>}</div>}
-          {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "#C0392B" }}>*</span></label>
+          {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "var(--red, #C0392B)" }}>*</span></label>
             <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={disPlan} onChange={(e) => set("witnessAt", e.target.value)} />
-            {!a.witnessAt && <span style={{ fontSize: 11, color: "#C0392B" }}>A witness time is required before this activity can be saved.</span>}
+            {!a.witnessAt && <span style={{ fontSize: 11, color: "var(--red, #C0392B)" }}>A witness time is required before this activity can be saved.</span>}
             {a.witnessAt && a.start && (() => {
               // The witness date and the planned span are deliberately separate fields, but a witness
               // sitting outside the plan almost always means the event moved and the plan was not
@@ -4877,7 +4877,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
               const early = ws < a.start;
               return <span style={{ fontSize: 11, color: "var(--st-warn)", fontWeight: 600 }}>{early ? `The witness date is before the planned start (${a.start}).` : `The witness ${Math.max(1, a.witnessDays || 1) > 1 ? "sessions run" : "date falls"} past the planned finish (${pf}).`} If the event moved, Reschedule the activity on the Schedule tab so the plan matches reality.</span>;
             })()}</div>}
-          {a.witnessInvite && <div className="lk-f"><label>Witness duration <span style={{ color: "#C0392B" }}>*</span></label>
+          {a.witnessInvite && <div className="lk-f"><label>Witness duration <span style={{ color: "var(--red, #C0392B)" }}>*</span></label>
             <select className="lk-select" value={a.witnessDurationMin || 60} disabled={disPlan} onChange={(e) => set("witnessDurationMin", parseInt(e.target.value, 10))}>
               <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option><option value={240}>Half day (4 h)</option><option value={480}>Full day (8 h)</option>
             </select>
@@ -4902,7 +4902,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
                 {twBusy ? "Sending..." : "Test Invite To Me"}</button>
               <span style={{ fontSize: 11, color: "var(--muted)" }}>Self only. Tests exactly what this drawer currently shows, including unsaved changes.</span>
             </div>
-            {twNote && <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 8, border: "1px solid " + (twNote.ok ? "color-mix(in srgb, var(--st-done) 50%, transparent)" : "rgba(192,57,58,.5)"), color: twNote.ok ? "var(--st-done)" : "#C0392B", background: twNote.ok ? "color-mix(in srgb, var(--st-done) 7%, transparent)" : "rgba(192,57,58,.07)" }}>{twNote.text}</div>}
+            {twNote && <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 8, border: "1px solid " + (twNote.ok ? "color-mix(in srgb, var(--st-done) 50%, transparent)" : "rgba(192,57,58,.5)"), color: twNote.ok ? "var(--st-done)" : "var(--red, #C0392B)", background: twNote.ok ? "color-mix(in srgb, var(--st-done) 7%, transparent)" : "rgba(192,57,58,.07)" }}>{twNote.text}</div>}
           </div>}
           {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = inviteRecipients(a); if (rcp.unconfigured) return <div style={{ fontSize: 11.5, color: "var(--st-warn)", fontWeight: 600, lineHeight: 1.5 }}>No witness contact routing is configured for {rcp.unconfigured}. Invites would go to nobody; set up this project's contact matrix before witnessing goes live.</div>; return (
             <div className="lk-f"><label>Invite recipients <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(set by discipline)</span></label>
@@ -4931,7 +4931,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {a.witnessInvite && (a.outcome || "pending") === "succeeded" && <div className="lk-f"><label>Outcome Date</label><input className="lk-in mono" type="date" value={a.outcomeAt || ""} disabled={dis} onChange={(e) => set("outcomeAt", e.target.value)} /></div>}
           {a.witnessInvite && (a.outcome || "pending") === "failed" && <div style={{ border: "1px solid rgba(192,57,58,.4)", background: "rgba(192,57,58,.06)", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             <div className="lk-row">
-              <div className="lk-f"><label>Failure Reason <span style={{ color: "#C0392B" }}>*</span></label>
+              <div className="lk-f"><label>Failure Reason <span style={{ color: "var(--red, #C0392B)" }}>*</span></label>
                 <select className="lk-select" value={a.outcomeReason || ""} disabled={dis} onChange={(e) => set("outcomeReason", e.target.value)}>
                   <option value="">-- record why it failed --</option>{WITNESS_FAIL_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>
               <div className="lk-f"><label>Outcome Date</label><input className="lk-in mono" type="date" value={a.outcomeAt || ""} disabled={dis} onChange={(e) => set("outcomeAt", e.target.value)} /></div>
@@ -4944,7 +4944,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
                   <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Create Linked Retest</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 9 }}>Clones this activity as a new witness invitation linked back to this record, so the attempt history stays connected and first-time-pass stays computable. You can also save without a retest and add one later.</div>
                   <button className="lk-btn primary" disabled={incomplete} onClick={openRetest} title={incomplete ? "Complete the required fields first" : "Create a linked retest"}>Create Retest</button>
-                  {can("witnessSend") && hasLiveInvite && onCancelInvite && <button className="lk-btn" style={{ color: "#C0392B", borderColor: "rgba(192,57,58,.5)" }} onClick={() => onCancelInvite(act)} title="Send a calendar cancellation to all attendees of this witness event (deliberately manual: a failure recorded mid-session should not vaporise the meeting)">Cancel Outlook Invite</button>}
+                  {can("witnessSend") && hasLiveInvite && onCancelInvite && <button className="lk-btn" style={{ color: "var(--red, #C0392B)", borderColor: "rgba(192,57,58,.5)" }} onClick={() => onCancelInvite(act)} title="Send a calendar cancellation to all attendees of this witness event (deliberately manual: a failure recorded mid-session should not vaporise the meeting)">Cancel Outlook Invite</button>}
                 </div>)}
           </div>}
           {a.isMilestone
@@ -4961,7 +4961,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>0 while Planned, 100 on Complete. Keeps the Gantt fill and exports clean.</span></div>
             : <div className="lk-f"><label>Percent complete</label><input className="lk-in mono" type="number" min="0" max="100" step="5" value={a.percent == null ? "" : a.percent} disabled={locked || !canPercent} placeholder={a.status === "complete" ? "100" : "0"} onChange={(e) => { const v = e.target.value; setPct(v === "" ? null : Math.max(0, Math.min(100, Math.round(Number(v) || 0)))); }} />
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Manual progress you set. Left blank it reads {a.status === "complete" ? "100" : "0"}% from the status.</span></div>}
-          {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "var(--st-done)" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
+          {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "var(--red, #C0392B)" : "var(--st-done)" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
           {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
             <select className="lk-select" value={a.slipReason || ""} disabled={!canEdit} onChange={(e) => setReason(e.target.value)}>
               <option value="">-- record why it slipped --</option>{SLIP_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>; })()}
@@ -5024,8 +5024,8 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
         </div>
         {canEdit && <div className="lk-df">
           {!isNew && !planLocked && (confirmDel
-            ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete this activity?</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => onDelete(a)}>Yes, delete</button><button className="lk-btn" onClick={() => setConfirmDel(false)}>No</button></span>
-            : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
+            ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12.5, color: "var(--red, #C0392B)", fontWeight: 600 }}>Delete this activity?</span><button className="lk-btn" style={{ background: "var(--red, #C0392B)", color: "#fff", borderColor: "var(--red, #C0392B)" }} onClick={() => onDelete(a)}>Yes, delete</button><button className="lk-btn" onClick={() => setConfirmDel(false)}>No</button></span>
+            : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "var(--red, #C0392B)" }}><Icon n="trash" s={14} />Delete</button>)}
           <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "var(--st-warn)", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
           <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
         </div>}
@@ -5194,7 +5194,7 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
         </tbody>
       </table>
     </div>}
-    {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.startsWith("Save failed") ? "#C0392B" : "var(--st-done)" }}>{msg}</div>}
+    {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.startsWith("Save failed") ? "var(--red, #C0392B)" : "var(--st-done)" }}>{msg}</div>}
     {isOwner && pendCount > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
       <span style={{ fontSize: 12.5, fontWeight: 650 }}><span style={{ color: "var(--st-warn)" }}>{pendCount}</span> change{pendCount === 1 ? "" : "s"} pending</span>
       <button className="lk-btn" onClick={() => setPending({})} disabled={busy}>Discard</button>
@@ -6426,7 +6426,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               <button className="lk-btn primary" disabled={pBulkBusy} onClick={pBulkCreate}>{pBulkBusy ? `Creating\u2026 (${(pBulkResults || []).length})` : "Create all"}</button>
               {pBulkResults && <div style={{ marginTop: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{pBulkResults.filter((r) => /^(Created \u00b7 added|Added)/.test(r.status)).length} added, {pBulkResults.filter((r) => !/^(Created \u00b7 added|Added|Already)/.test(r.status)).length} need attention</div>
-                <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{pBulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "#C0392B" : /^(Created \u00b7 added|Added|Already)/.test(r.status) ? "var(--muted)" : "#C0392B" }}>{r.status + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
+                <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{pBulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "var(--red, #C0392B)" : /^(Created \u00b7 added|Added|Already)/.test(r.status) ? "var(--muted)" : "var(--red, #C0392B)" }}>{r.status + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
                 <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                   <button className="lk-btn" disabled={emailBusy || !pBulkResults.some((r) => r.link)} title="Sends the invitation email to every created account with a link, one by one, from your connected Outlook" onClick={async () => {
                     setEmailBusy(true);
@@ -6925,10 +6925,10 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                         </div>}
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>Unchanged fields are not touched. The revert is recorded in the audit log and is itself revertible.</div>
                   </>}
-                  {rvErr && <div style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>{rvErr}</div>}
+                  {rvErr && <div style={{ fontSize: 12.5, color: "var(--red, #C0392B)", fontWeight: 600 }}>{rvErr}</div>}
                 </div>
                 <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" disabled={rvBusy} onClick={() => setRv(null)}>Cancel</button>
-                  <button className="lk-btn primary" disabled={rvBusy || noChange} style={isOvr || rv.mode === "remove" ? { background: "#C0392B", borderColor: "#C0392B" } : undefined} onClick={doRevert}>
+                  <button className="lk-btn primary" disabled={rvBusy || noChange} style={isOvr || rv.mode === "remove" ? { background: "var(--red, #C0392B)", borderColor: "var(--red, #C0392B)" } : undefined} onClick={doRevert}>
                     <Icon n="check" s={14} />{rvBusy ? "Working..." : rv.mode === "restore" ? "Restore" : rv.mode === "remove" ? "Remove" : isOvr ? "Force revert" : "Undo change"}</button>
                 </div>
               </div>
@@ -6940,7 +6940,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
         <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
           <div className="lk-dh"><h3>Are you sure?</h3><button className="lk-btn icon" onClick={() => setConfirmAsk(null)}><Icon n="x" /></button></div>
           <div className="bd"><div style={{ fontSize: 14, lineHeight: 1.5 }}>{confirmAsk.msg}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>This cannot be undone.</div></div>
-          <div className="rep-foot"><button className="lk-btn" onClick={() => setConfirmAsk(null)}>No</button><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => { const fn = confirmAsk.fn; setConfirmAsk(null); fn && fn(); }}><Icon n="trash" s={14} />Yes, delete</button></div>
+          <div className="rep-foot"><button className="lk-btn" onClick={() => setConfirmAsk(null)}>No</button><button className="lk-btn" style={{ background: "var(--red, #C0392B)", color: "#fff", borderColor: "var(--red, #C0392B)" }} onClick={() => { const fn = confirmAsk.fn; setConfirmAsk(null); fn && fn(); }}><Icon n="trash" s={14} />Yes, delete</button></div>
         </div>
       </div>}
       {approve && (() => {
@@ -6986,7 +6986,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             <div style={{ fontSize: 14 }}>Reject the request from <b>{rejecting.req.name || rejecting.req.email}</b>?</div>
             <div className="lk-f"><label>Reason (Optional, Internal)</label><textarea className="lk-in" rows={3} value={rejecting.reason} onChange={(e) => setRejecting((r) => ({ ...r, reason: e.target.value }))} style={{ resize: "vertical", fontFamily: "inherit" }} /></div>
           </div>
-          <div className="rep-foot"><button className="lk-btn" disabled={reqBusy} onClick={() => setRejecting(null)}>Cancel</button><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} disabled={reqBusy} onClick={doReject}>{reqBusy ? "Working…" : "Reject Request"}</button></div>
+          <div className="rep-foot"><button className="lk-btn" disabled={reqBusy} onClick={() => setRejecting(null)}>Cancel</button><button className="lk-btn" style={{ background: "var(--red, #C0392B)", color: "#fff", borderColor: "var(--red, #C0392B)" }} disabled={reqBusy} onClick={doReject}>{reqBusy ? "Working…" : "Reject Request"}</button></div>
         </div>
       </div>}
     </div>);
@@ -7196,7 +7196,7 @@ function CreatedEntriesModal({ S, LV, coName, onClose }) {
 
         <div className="drill-body">
           {rows == null ? <div className="ytt-empty" style={{ padding: 16 }}>Loading entries...</div>
-            : err ? <div className="ytt-empty" style={{ padding: 16, color: "#C0392B" }}>{err}</div>
+            : err ? <div className="ytt-empty" style={{ padding: 16, color: "var(--red, #C0392B)" }}>{err}</div>
             : !range ? <div className="ytt-empty" style={{ padding: 16 }}>Choose a valid from and to date.</div>
             : list.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>No activities were created in this window.</div>
             : list.map((a) => { const lv = lvOf(LV, a.level); const c = creatorOf(a.createdBy); const open = (a.constraints || []).filter((x) => !x.done).length;
@@ -7348,7 +7348,7 @@ function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P, br
   const todayX = leftW + dayOff(new Date(todayMid())) * ppd;
   const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || P.ink} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
   const BASE = dark ? "#8A97A6" : "#94A3B8";
-  const LATE = dark ? "#F87171" : "#C0392B", EARLY = dark ? "var(--st-ok)" : "var(--st-done)";
+  const LATE = dark ? "#F87171" : "var(--red, #C0392B)", EARLY = dark ? "var(--st-ok)" : "var(--st-done)";
 
   const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
   const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${brandName || "DLP"}-compare-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
@@ -7580,7 +7580,7 @@ function SchedulePage({ S, coName, onOpen }) {
                         const complete = a.status === "complete";
                         const todayOff = dayOff(new Date(todayMid()));
                         const isLate = complete || todayOff > g.pE;
-                        const accent = isLate ? "#C0392B" : "#D97706";
+                        const accent = isLate ? "var(--red, #C0392B)" : "#D97706";
                         const ex = xOf(projE);
                         return <g>
                           <line x1={g.x} y1={yc} x2={ex} y2={yc} stroke={accent} strokeWidth="1.4" strokeDasharray={complete ? undefined : "4 3"} />
@@ -7814,7 +7814,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
         </div>}
         <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
           {frConfirm
-            ? <><span style={{ fontSize: 12, color: "#C0392B", fontWeight: 600 }}>Apply to {frMatched.length} activit{frMatched.length === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }} onClick={frApply}>Yes, Apply</button><button className="lk-btn" onClick={() => setFrConfirm(false)}>Cancel</button></>
+            ? <><span style={{ fontSize: 12, color: "var(--red, #C0392B)", fontWeight: 600 }}>Apply to {frMatched.length} activit{frMatched.length === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }} onClick={frApply}>Yes, Apply</button><button className="lk-btn" onClick={() => setFrConfirm(false)}>Cancel</button></>
             : <><button className="lk-btn primary" disabled={frMatched.length === 0 || (frIsText && !frFind)} onClick={() => setFrConfirm(true)}>{frIsText ? "Replace" : "Apply"}</button><button className="lk-btn" onClick={() => { setFrOpen(false); setFrConfirm(false); }}>Close</button></>}
         </div>
       </div>}
@@ -7823,8 +7823,8 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><select className="lk-select" style={{ fontSize: 12, padding: "5px 8px" }} value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Set status to…</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete">Complete</option></select><button className="lk-btn" disabled={!bulkStatus} onClick={setSelStatus}>Apply</button></span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><select className="lk-select" style={{ fontSize: 12, padding: "5px 8px" }} value={bulkCommitted} onChange={(e) => setBulkCommitted(e.target.value)}><option value="">Set committed to…</option><option value="yes">Yes</option><option value="no">No</option></select><button className="lk-btn" disabled={!bulkCommitted} onClick={() => setSelCommitted(bulkCommitted === "yes")}>Apply</button></span>
         {confirmBulk
-          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete {sel.size} activit{sel.size === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={delSelected}><Icon n="trash" s={14} />Yes, delete</button><button className="lk-btn" onClick={() => setConfirmBulk(false)}>Cancel</button></span>
-          : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><button className="lk-btn" style={{ color: "#C0392B" }} onClick={() => setConfirmBulk(true)}><Icon n="trash" s={14} />Delete selected</button><button className="lk-btn" onClick={() => setSel(new Set())}>Clear</button></span>}
+          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, color: "var(--red, #C0392B)", fontWeight: 600 }}>Delete {sel.size} activit{sel.size === 1 ? "y" : "ies"}? This cannot be undone.</span><button className="lk-btn" style={{ background: "var(--red, #C0392B)", color: "#fff", borderColor: "var(--red, #C0392B)" }} onClick={delSelected}><Icon n="trash" s={14} />Yes, delete</button><button className="lk-btn" onClick={() => setConfirmBulk(false)}>Cancel</button></span>
+          : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><button className="lk-btn" style={{ color: "var(--red, #C0392B)" }} onClick={() => setConfirmBulk(true)}><Icon n="trash" s={14} />Delete selected</button><button className="lk-btn" onClick={() => setSel(new Set())}>Clear</button></span>}
       </div>}
       <div className="lk-tblscroll">
         <table className="lk-grid">
@@ -7921,7 +7921,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
               <td className="mono" style={{ whiteSpace: "nowrap" }}>{a.start}</td>
               <td className={c.done ? "lk-cdone" : ""} style={{ minWidth: 160 }}>{ed ? <input className="lk-in" style={cell} value={cd.text} onChange={(e) => setD("text", e.target.value)} /> : c.text}</td>
               <td style={{ minWidth: 130 }}>{ed ? <OwnerField value={cd.owner} ownerType={cd.ownerType} ownerId={cd.ownerId} companies={scopeCompaniesWith(S.companies, S.projectCompanyIds, cd.ownerType === "company" ? cd.ownerId : null)} users={S.users} style={{ minWidth: 110 }} onChange={(name, t, id) => setCd((d) => ({ ...d, owner: name, ownerType: t, ownerId: id }))} /> : (c.owner || "")}</td>
-              <td className="mono" style={{ whiteSpace: "nowrap", color: overdue ? "#C0392B" : undefined, fontWeight: overdue ? 700 : undefined }}>{ed ? <input className="lk-in mono" style={{ ...cell, maxWidth: 140 }} type="date" value={cd.due || ""} onChange={(e) => setD("due", e.target.value)} /> : (c.due || "")}</td>
+              <td className="mono" style={{ whiteSpace: "nowrap", color: overdue ? "var(--red, #C0392B)" : undefined, fontWeight: overdue ? 700 : undefined }}>{ed ? <input className="lk-in mono" style={{ ...cell, maxWidth: 140 }} type="date" value={cd.due || ""} onChange={(e) => setD("due", e.target.value)} /> : (c.due || "")}</td>
             </tr>; })}
             {rows.length === 0 && <tr><td colSpan={10} style={{ padding: 14, color: "var(--muted)" }}>No constraints match these filters.</td></tr>}
           </tbody></table>
@@ -8073,7 +8073,7 @@ function PpcInfo({ target, small }) {
           </div>
           <div className="ref"><b style={{ color: "var(--st-done)" }}>PPC, Percent Plan Complete</b>A promise is kept when the activity is Complete with an actual finish on or before its promised finish. This is plan reliability: did the team do what it said, when it said. A witnessed event held on its promised day counts as kept even if the test failed; the failure is a quality verdict, recorded separately.</div>
           <div className="ref"><b style={{ color: "#D97706" }}>Quality-Adjusted PPC</b>The same calculation, except an on-time completion whose witness outcome is Failed does not count as kept. Of the work promised, how much was done on time and passed.</div>
-          <div className="ref"><b style={{ color: "#C0392B" }}>Target{target != null ? " \u00b7 " + target + "%" : ""}</b>The red marker is this project's PPC target, set by admins in Admin, Lookahead &amp; Targets. It applies to PPC, the core reliability metric, not the quality-adjusted figure.</div>
+          <div className="ref"><b style={{ color: "var(--red, #C0392B)" }}>Target{target != null ? " \u00b7 " + target + "%" : ""}</b>The red marker is this project's PPC target, set by admins in Admin, Lookahead &amp; Targets. It applies to PPC, the core reliability metric, not the quality-adjusted figure.</div>
           <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}><b style={{ color: "var(--ink)" }}>Example:</b> 10 committed activities due. 8 finished on time (PPC 80%). 2 were witnessed tests that failed on the day (Quality-Adjusted 60%). The failures also lower First-Time Pass and each carries a linked retest, which earns its own PPC verdict when its promised date passes.</div>
           <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="lk-btn primary" onClick={(e) => { e.stopPropagation(); setOpen(false); }}>Got It</button></div>
         </div>
@@ -8338,11 +8338,11 @@ function computeReport({ S, LV, coName, start, end }){
       { label:"ready to run", color:"var(--st-done)", n:stPlanned.filter((a)=>openOf(a)===0).length },
       { label:"need make-ready", color:"#C07A00", n:stPlanned.filter((a)=>openOf(a)>0).length } ] },
     { k:"in_progress", name:"In progress", color:"#2563EB", n:stProg.length, subs:[
-      { label:"running late", color:"#C0392B", n:stProg.filter(isDelayed).length },
+      { label:"running late", color:"var(--red, #C0392B)", n:stProg.filter(isDelayed).length },
       { label:"constrained", color:"#C07A00", n:stProg.filter((a)=>openOf(a)>0).length } ] },
     { k:"complete", name:"Complete", color:"var(--st-done)", n:stDone.length, subs:[
       { label:"on time", color:"#14B8A6", n:stDone.filter(onTimeDone).length },
-      { label:"finished late", color:"#C0392B", n:stDone.filter((a)=>!onTimeDone(a)).length } ] },
+      { label:"finished late", color:"var(--red, #C0392B)", n:stDone.filter((a)=>!onTimeDone(a)).length } ] },
   ];
   const wfIsFailed = (a) => a.witnessInvite && (a.outcome||"pending")==="failed";
   const commDueAll = acts.filter((a)=>a.committed && a.start && finishOf(a).getTime()<today.getTime());
@@ -9006,7 +9006,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
-    if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "#C0392B" });
+    if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "var(--red, #C0392B)" });
     if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "var(--st-done)" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "var(--st-warn)" });
     const base = ((S.brand && S.brand.projectName) || "DLP") + "-weekly-report-" + fmtISO(start);
@@ -9122,8 +9122,8 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
             <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>Email Report sends directly from your connected Outlook account: an email-safe summary in the body with the full report attached as an HTML file. Send Test To Me delivers only to you first.</div>
           </div>}
         </div>
-        {repMsg && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: repMsg.ok ? "var(--st-done)" : "#C0392B" }}>{repMsg.text}</div>}
-        {!repOl && repDiag && (!repDiag.ok || (repDiag.hadHash && !repDiag.account)) && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: "#C0392B" }}>Sign-in return: {repDiag.ok ? "response processed but no account arrived" : (repDiag.code || "error") + ": " + repDiag.message}</div>}
+        {repMsg && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: repMsg.ok ? "var(--st-done)" : "var(--red, #C0392B)" }}>{repMsg.text}</div>}
+        {!repOl && repDiag && (!repDiag.ok || (repDiag.hadHash && !repDiag.account)) && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: "var(--red, #C0392B)" }}>Sign-in return: {repDiag.ok ? "response processed but no account arrived" : (repDiag.code || "error") + ": " + repDiag.message}</div>}
         <div className="rep-foot" style={{ flexWrap: "wrap", gap: 8 }}><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button>
           {!repOl && <button className="lk-btn" onClick={connectRep} title="Signs in via a quick full-page Microsoft redirect and returns here">Connect Outlook</button>}
           {repOl && <button className="lk-btn" disabled={!!repBusy || !rData} onClick={() => sendReport(true)} title={"Send only to " + repOl}>{repBusy === "test" ? "Sending..." : "Send Test To Me"}</button>}
@@ -9642,7 +9642,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
     { l: "In progress", f: (a) => a.status === "in_progress" },
     { l: "Ready to run", c: "var(--st-done)", f: (a) => openOf(a) === 0 && a.status !== "complete" },
     { l: "Need make-ready", c: "#D97706", f: (a) => openOf(a) > 0 && a.status !== "complete" },
-    { l: "Delayed", c: "#C0392B", f: isDelayed },
+    { l: "Delayed", c: "var(--red, #C0392B)", f: isDelayed },
     { l: "Witness required", c: "#5B33C7", f: (a) => a.witnessInvite },
   ];
   const cards = cardDefs.map((d) => ({ ...d, v: acts.filter(d.f).length }));
@@ -9668,12 +9668,12 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       { label: "need make-ready", color: "#D97706", items: stPlanned.filter((a) => openOf(a) > 0) },
     ] },
     { k: "in_progress", name: "In progress", color: "#2563EB", n: stProg.length, subs: [
-      { label: "running late", color: "#C0392B", items: stProg.filter(isDelayed) },
+      { label: "running late", color: "var(--red, #C0392B)", items: stProg.filter(isDelayed) },
       { label: "constrained", color: "#D97706", items: stProg.filter((a) => openOf(a) > 0) },
     ] },
     { k: "complete", name: "Complete", color: "var(--st-done)", n: stDone.length, subs: [
       { label: "on time", color: "#14B8A6", items: stDone.filter(onTimeDone) },
-      { label: "finished late", color: "#C0392B", items: stDone.filter((a) => !onTimeDone(a)) },
+      { label: "finished late", color: "var(--red, #C0392B)", items: stDone.filter((a) => !onTimeDone(a)) },
     ] },
   ];
   const maxCo = Math.max(1, ...byCompany.map((x) => x.n));
@@ -9784,7 +9784,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
             <b style={{ color: "var(--ink)" }}>{witFailedAll.length} witness failure{witFailedAll.length === 1 ? "" : "s"} in scope:</b>{" "}
             {[
               { n: qaFails.length, label: "on-time kept promise", tail: " (the quality gap)", color: "#D97706", title: "Witness failures \u00b7 on-time kept promises (the quality gap)", items: qaFails },
-              { n: wfLate.length, label: "late", tail: " (already broken promises in PPC)", color: "#C0392B", title: "Witness failures \u00b7 late, already broken promises in PPC", items: wfLate },
+              { n: wfLate.length, label: "late", tail: " (already broken promises in PPC)", color: "var(--red, #C0392B)", title: "Witness failures \u00b7 late, already broken promises in PPC", items: wfLate },
               { n: wfNotDue.length, label: "not yet due", tail: "", color: "var(--accent)", title: "Witness failures \u00b7 promised finish has not passed", items: wfNotDue },
               { n: wfUncommitted.length, label: "not committed", tail: "", color: "var(--muted)", title: "Witness failures \u00b7 never committed, outside PPC entirely", items: wfUncommitted },
             ].filter((b) => b.n > 0).map((b, i, arr) => <span key={b.title}>
@@ -9803,9 +9803,9 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       <div className="lk-rep-2col">
       <div className="lk-rep-sec"><h3>Reasons For Non-Completion</h3>
         {misses.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No missed commitments to date. Every committed activity whose promised finish has passed was completed on time.</div>
-          : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#C0392B" }}>{misses.length}</b> committed activit{misses.length === 1 ? "y" : "ies"} due to date {misses.length === 1 ? "was" : "were"} not completed as promised{reasonTally["Unattributed"] ? <>, of which <b style={{ color: "var(--ink)" }}>{reasonTally["Unattributed"]}</b> {reasonTally["Unattributed"] === 1 ? "has" : "have"} no reason recorded</> : ""}. Bar length is each reason's share of all misses; {"\u03A3"} is the running total of what is breaking the plan.</div>
+          : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "var(--red, #C0392B)" }}>{misses.length}</b> committed activit{misses.length === 1 ? "y" : "ies"} due to date {misses.length === 1 ? "was" : "were"} not completed as promised{reasonTally["Unattributed"] ? <>, of which <b style={{ color: "var(--ink)" }}>{reasonTally["Unattributed"]}</b> {reasonTally["Unattributed"] === 1 ? "has" : "have"} no reason recorded</> : ""}. Bar length is each reason's share of all misses; {"\u03A3"} is the running total of what is breaking the plan.</div>
             <ParetoHead />
-            {reasonRowsP.map((x) => <RepBar key={x.name} label={x.name} n={x.n} share={x.share} cum={x.cum} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} onClick={() => openDrill("Missed \u00b7 " + x.name, misses.filter((m) => (m.slipReason || "Unattributed") === x.name))} />)}</>}
+            {reasonRowsP.map((x) => <RepBar key={x.name} label={x.name} n={x.n} share={x.share} cum={x.cum} color={x.name === "Unattributed" ? "#94A3B8" : "var(--red, #C0392B)"} onClick={() => openDrill("Missed \u00b7 " + x.name, misses.filter((m) => (m.slipReason || "Unattributed") === x.name))} />)}</>}
         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>Task misses only. A failed witness where the work was executed as committed still counts as a kept promise here; witness quality lives in Invitation Outcomes.</div>
       </div>
       <div className="lk-rep-sec"><h3>Invitation Outcomes</h3>
@@ -9818,7 +9818,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
               <OutKpi v={ftp == null ? "--" : ftp + "%"} l="First-Time Pass" c="#14B8A6" onClick={witRoots.length ? () => openDrill("Witness outcomes \u00b7 first attempts", witRoots) : undefined} />
             </div>
             {failRowsP.length > 0 && <ParetoHead />}
-            {failRowsP.map((x) => <RepBar key={x.name} label={x.name} n={x.n} share={x.share} cum={x.cum} color={x.name === "Unattributed" ? "#94A3B8" : "#C0392B"} onClick={() => openDrill("Failed \u00b7 " + x.name, witFailed.filter((m) => (m.outcomeReason || "Unattributed") === x.name))} />)}
+            {failRowsP.map((x) => <RepBar key={x.name} label={x.name} n={x.n} share={x.share} cum={x.cum} color={x.name === "Unattributed" ? "#94A3B8" : "var(--red, #C0392B)"} onClick={() => openDrill("Failed \u00b7 " + x.name, witFailed.filter((m) => (m.outcomeReason || "Unattributed") === x.name))} />)}
             <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>First-Time Pass = succeeded first attempts divided by first attempts with an outcome. Retest chains count once at the root, so a pass on attempt #2 does not inflate the number.</div></>}
       </div>
       </div>

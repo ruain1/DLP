@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV282",
+    "date": "2026-07-12",
+    "items": [
+      "Colour-token cleanup: the danger red is now a theme variable. Roughly seventy interface surfaces that had the red hardcoded (failure chips, overdue card borders, the fail badge, destructive-action buttons, late-ticket tints and more) now read it from a single --red token, defined to the exact shade they used before so the default theme looks identical, pixel for pixel. The practical gain: the high-contrast and colour-blind palettes now recolour these surfaces too, where before they were left behind. SVG chart marks, email templates and gradient fills keep their literal colour by design, since CSS variables are unreliable in those contexts."
+    ]
+  },
+  {
     "rev": "REV281",
     "date": "2026-07-12",
     "items": [
