@@ -6,6 +6,24 @@ import Login from "./Login.jsx";
 import SetPassword from "./SetPassword.jsx";
 import SetupAccount from "./SetupAccount.jsx";
 
+// REV255: deployment skew guard. Every deploy replaces the hashed chunk files, so a tab
+// opened before a deploy fails its next lazy import (workbook parser, icon catalogue,
+// PDF export) with "Failed to fetch dynamically imported module". Vite fires its
+// preload-error event for exactly this case. Reload once to pick up the fresh index; the
+// sessionStorage one-shot stops a genuine outage from reload-looping, and the flag is
+// cleared shortly after a healthy boot so a later deploy in the same tab is covered too.
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", (e) => {
+    try {
+      if (sessionStorage.getItem("dlp_chunk_reload")) return;
+      sessionStorage.setItem("dlp_chunk_reload", "1");
+      e.preventDefault();
+      window.location.reload();
+    } catch (err) { /* fall through to the visible error */ }
+  });
+  window.setTimeout(() => { try { sessionStorage.removeItem("dlp_chunk_reload"); } catch (e2) {} }, 20000);
+}
+
 // The inline script in index.html captured the URL hash before supabase-js
 // stripped it. Invite and recovery links arrive as #...type=invite / type=recovery.
 const initialHash = (typeof window !== "undefined" && window.__INITIAL_HASH__) || "";

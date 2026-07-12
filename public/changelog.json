@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV255",
+    "date": "2026-07-12",
+    "items": [
+      "Deployment skew guard: a tab opened before a deploy used to fail its next lazily loaded feature (workbook import, the icon catalogue, PDF export) with a failed-to-fetch-module error, because the deploy replaced the hashed chunk files the old tab still references. The app now detects that exact failure and reloads itself once to pick up the fresh version; a one-shot guard prevents reload loops during a genuine outage, and clears after a healthy start so repeated deploys in one sitting are also covered."
+    ]
+  },
+  {
     "rev": "REV254",
     "date": "2026-07-12",
     "items": [
