@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV252",
+    "date": "2026-07-12",
+    "items": [
+      "Weekly Cx Progress no longer carries the Weekly Report builder button; the builder lives on the Reports page only.",
+      "Refreshing while on the Reports page stays on the Reports page. Two causes fixed: the page-restore whitelist read on load did not include the new page, and the admin guard could bounce even an admin to the board in the moment before project membership loaded; it now waits until members are loaded before judging.",
+      "The Reports page header is readable in light mode: it referenced a theme variable that does not exist, so a hardcoded dark fallback applied in both themes; it now uses the real surface variable and follows the theme."
+    ]
+  },
+  {
     "rev": "REV251",
     "date": "2026-07-12",
     "items": [

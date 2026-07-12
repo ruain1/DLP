@@ -2957,7 +2957,7 @@ export default function App({ session }) {
   useEffect(() => { if (!ytt) return; const h = (e) => { if (e.key === "Escape") setYtt(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [ytt]);
   const [editing, setEditing] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("dlp_page"); return ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs", "benchmarks"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
+  const [page, setPage] = useState(() => { try { const p = localStorage.getItem("dlp_page"); return ["board", "table", "schedule", "constraints", "reports", "reporthub", "help", "admin", "cx", "assets", "docs", "benchmarks"].includes(p) ? p : "board"; } catch (e) { return "board"; } });
   const dragId = useRef(null);
 
   // ---- multi-project ----
@@ -3175,7 +3175,7 @@ export default function App({ session }) {
   // REV249: reporthub guard. This must not be a hook: `page` and `isAdmin` initialise at
   // different points around an early return, and a useEffect deps array evaluates during
   // render, which is exactly the TDZ crash REV248 shipped. A guarded deferred redirect is safe.
-  if (page === "reporthub" && !isAdmin) setTimeout(() => setPage((cur) => (cur === "reporthub" ? "board" : cur)), 0);
+  if (page === "reporthub" && (S.users || []).length > 0 && !isAdmin) setTimeout(() => setPage((cur) => (cur === "reporthub" ? "board" : cur)), 0);
   digestRef.current = { S, admin: isAdmin };
   const csnCompanyId = cu.companyId ? cu.companyId : (cu.role === "admin" ? (((S.companies || []).find((c) => (c.name || "").trim().toLowerCase() === "csn") || {}).id || null) : null);
 
@@ -4217,7 +4217,7 @@ export default function App({ session }) {
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} update={update} /></div>}
       {page === "reporthub" && isAdmin && <div className="lk-scroll"><ReportsHub S={S} update={update} coName={coName} LV={LV} by={cu.name} canWeekly={can("weekly")} canDist={can("distList")} projectId={selProj} exportActivities={exportActivities} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} projCode={(((projects || []).find((p) => p.id === selProj) || {}).code || "").trim()} /></div>}
-      {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
+      {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
       {page === "benchmarks" && (isAdmin || (S.settings && S.settings.benchmarksVisible)) && <div className="lk-fillpage"><BenchmarksPage projectId={selProj} isAdmin={isAdmin} isOwner={isOwner} cu={cu} activities={S.activities} settings={S.settings} update={update} onSendToBoard={sendBenchmarksToBoard} users={S.users} companies={S.companies} /></div>}
       {page === "docs" && <div className="lk-fillpage"><DocsStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditDocs={can("editDocs")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} /></div>}
@@ -9468,7 +9468,7 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
   const list = listAll.filter((r) => (!arcK || r.kind === arcK) && (!needle || ((r.subject || "") + " " + (r.detail || "")).toLowerCase().includes(needle)));
   return (
     <div className="lk-page" style={{ maxWidth: 1160, margin: "0 auto", padding: "0 14px 30px" }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--bg, #0d1422)", display: "flex", alignItems: "center", gap: 12, padding: "14px 2px 10px", borderBottom: "1px solid var(--line)" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--paper)", display: "flex", alignItems: "center", gap: 12, padding: "14px 2px 10px", borderBottom: "1px solid var(--line)" }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Reports</h2>
         <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".6px", padding: "3px 9px", borderRadius: 999, border: "1px solid rgba(224,161,6,.5)", color: "#E0A106", textTransform: "uppercase" }}>Admins &amp; owner</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--muted)" }}>{acct ? "Outlook: " + acct : "Outlook not connected"}</span>
