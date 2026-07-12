@@ -1,17 +1,24 @@
 name: schema-dump
 # Replaces the local "supabase db dump" step (no Node/CLI needed on your machine).
-# Manual-only: Actions tab > schema-dump > Run workflow. Produces
-# schema-baseline.sql as a downloadable artifact: tables, triggers, functions
-# and RLS policies, no data. Re-run quarterly or after any hand edit made
-# directly in the dashboard, per the schema-truth runbook.
+# Manual-only: Actions tab > schema-dump > Run workflow. Dumps tables, triggers,
+# functions and RLS policies (no data), publishes schema-baseline.sql as an
+# artifact AND commits it to supabase/schema-baseline.sql on the branch when it
+# changed, so the repo's source of truth refreshes with one button press.
+# Re-run after applying any migration or after any hand edit made directly in
+# the dashboard, per the schema-truth runbook.
 
 on:
   workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
   dump:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Install postgres client 17
         run: |
           sudo apt-get update -qq
@@ -36,3 +43,16 @@ jobs:
           name: schema-baseline
           path: schema-baseline.sql
           retention-days: 14
+      - name: Commit baseline when changed
+        run: |
+          mkdir -p supabase
+          if cmp -s schema-baseline.sql supabase/schema-baseline.sql; then
+            echo "Baseline unchanged; nothing to commit."
+            exit 0
+          fi
+          cp schema-baseline.sql supabase/schema-baseline.sql
+          git config user.name "DLP schema-dump"
+          git config user.email "r.burrows@quantum-mc.com"
+          git add supabase/schema-baseline.sql
+          git commit -m "schema-baseline refresh: automated dump of the live schema (schema-dump workflow)"
+          git push
