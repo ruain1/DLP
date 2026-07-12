@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict cG2qp0req6qgsbU8PEFVszgeQY80UcuLgk4cIxbsL6xANU3u3PJlr9h7XT6HGAv
+\restrict eEQ7gZx3q8edMa48aTXjAIZXIj7UITZcgc1fZnQ09meQV2zWY5tgfwgtYTZK6eJ
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -547,8 +547,10 @@ CREATE FUNCTION public.is_admin_somewhere() RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select public.is_super() or exists (
-    select 1 from project_members where user_id = auth.uid() and role = 'admin');
+  select exists (select 1 from profiles
+                  where id = auth.uid() and platform_role in ('super', 'owner'))
+      or exists (select 1 from project_members
+                  where user_id = auth.uid() and role = 'admin');
 $$;
 
 
@@ -2928,24 +2930,10 @@ CREATE POLICY admin_crews ON public.crews TO authenticated USING (public.is_admi
 
 
 --
--- Name: cx_config admin_cx_config; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY admin_cx_config ON public.cx_config TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
 -- Name: cx_step_reference admin_cx_step_reference; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY admin_cx_step_reference ON public.cx_step_reference TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
--- Name: cx_week admin_cx_week; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY admin_cx_week ON public.cx_week TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 
 --
@@ -3057,7 +3045,7 @@ CREATE POLICY admin_report_recipients ON public.report_recipients TO authenticat
 -- Name: report_runs admin_report_runs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_report_runs ON public.report_runs TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_report_runs ON public.report_runs TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
@@ -3767,5 +3755,5 @@ CREATE POLICY write_project_companies ON public.project_companies TO authenticat
 -- PostgreSQL database dump complete
 --
 
-\unrestrict cG2qp0req6qgsbU8PEFVszgeQY80UcuLgk4cIxbsL6xANU3u3PJlr9h7XT6HGAv
+\unrestrict eEQ7gZx3q8edMa48aTXjAIZXIj7UITZcgc1fZnQ09meQV2zWY5tgfwgtYTZK6eJ
 
