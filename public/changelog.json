@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV283",
+    "date": "2026-07-12",
+    "items": [
+      "Buttons now show a keyboard focus ring and a press state. Every button built on the shared style (which is almost all of them, the board toggles you already like, dialog actions, table controls and the rest) now draws a clear accent outline when reached by keyboard, matching the ring inputs already had, and dips slightly when pressed for tactile feedback. The ring is keyboard-only, so mouse clicks stay clean. The multi-select filter buttons get the same focus treatment. This closes the keyboard-accessibility gap the audit flagged without changing how anything looks under the mouse."
+    ]
+  },
+  {
     "rev": "REV282",
     "date": "2026-07-12",
     "items": [

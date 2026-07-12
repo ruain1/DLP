@@ -43,7 +43,7 @@ export function MultiSel({ label, options, value, onChange, minWidth, light }) {
 
   return (
     <span style={C.wrap} ref={ref}>
-      <button type="button" style={C.btn} onClick={() => setOpen((v) => !v)} title={active ? sel.map(tOf).join(", ") : label}>
+      <button type="button" style={C.btn} onClick={() => setOpen((v) => !v)} onFocus={(e) => { e.currentTarget.style.outline = "2px solid " + (light ? "#2456A6" : "var(--accent, #5B9BF3)"); e.currentTarget.style.outlineOffset = "2px"; }} onBlur={(e) => { e.currentTarget.style.outline = "none"; }} title={active ? sel.map(tOf).join(", ") : label}>
         {summary}<span style={C.caret}>{"\u25be"}</span>
       </button>
       {open && (

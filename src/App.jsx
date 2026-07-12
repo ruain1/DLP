@@ -119,6 +119,8 @@ const css = `
 .lk-btn.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .lk-btn.pill.on svg{color:#fff}
 .lk-btn:disabled{opacity:.45;cursor:not-allowed}
+.lk-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lk-btn:active:not(:disabled){transform:translateY(1px)}
 .lk-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
 .lk-seg button{border:0;background:transparent;padding:7px 11px;font-size:12px;cursor:pointer;color:var(--muted);font-weight:600}
 .lk-seg button.sel{background:var(--ink);color:var(--paper)}
@@ -1730,6 +1732,8 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-btn.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .lk-btn.pill.on svg{color:#fff}
 .lk-btn:disabled{opacity:.45;cursor:not-allowed}
+.lk-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lk-btn:active:not(:disabled){transform:translateY(1px)}
 .lk-dh{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:2;flex:none}
 .lk-dh h3{margin:0;font-size:15px;font-weight:700;color:var(--head)}
 .lk-f label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
