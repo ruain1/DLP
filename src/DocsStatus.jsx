@@ -11,6 +11,7 @@
 // parser still captures overall, so no data is lost). The row vendor figure
 // counts VEN and VEN/CON columns.
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { MultiSel, inSel } from "./multisel";
 import { loadDocsStatus, saveDocsMatrix, saveDocsStatusConfig, saveDocsOverride, deleteDocsOverride, computeDocsConflicts, saveDocsVendorTarget, projName } from "./data";
 
 /* ---------- constants ---------- */
@@ -117,9 +118,9 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   const [spAcct, setSpAcct] = useState("");
 
   const [q, setQ] = useState("");
-  const [fLevel, setFLevel] = useState("");
-  const [fResp, setFResp] = useState("");
-  const [fVendor, setFVendor] = useState("");
+  const [fLevel, setFLevel] = useState([]);   // REV273: multi-select; empty = all
+  const [fResp, setFResp] = useState([]);
+  const [fVendor, setFVendor] = useState([]);
   const [fStatus, setFStatus] = useState("");
   const [grpBy, setGrpBy] = useState("none");
   const [closed, setClosed] = useState({});
@@ -239,7 +240,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
   /* ---------- derived ---------- */
   const resps = useMemo(() => [...new Set(columns.map((c) => c.resp || c.responsible).filter(Boolean))].sort(), [columns]);
   const vendorList = useMemo(() => [...new Set(matrix.map((r) => vendors[r.equip_type] || "TBC"))].sort(), [matrix, vendors]);
-  const visibleCols = useMemo(() => columns.filter((c) => (!fLevel || c.level === fLevel) && (!fResp || (c.resp || c.responsible) === fResp)), [columns, fLevel, fResp]);
+  const visibleCols = useMemo(() => columns.filter((c) => inSel(fLevel, c.level) && inSel(fResp, c.resp || c.responsible)), [columns, fLevel, fResp]);
   const rowStats = (r) => { let y = 0, ap = 0; columns.forEach((c) => { const s = r.status[c.doc_key]; if (s && s !== "a") { ap++; if (s === "y") y++; } }); return { y, ap, pct: ap ? Math.round(100 * y / ap) : 0, out: ap - y }; };
   const venCols = useMemo(() => columns.filter((c) => { const rp = c.resp || c.responsible; return rp === "VEN" || rp === "VEN/CON"; }), [columns]);
   // REV144: per-column received stat and the clicked-title popover.
@@ -267,7 +268,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
     return matrix.filter((r) => {
       const vend = vendors[r.equip_type] || "TBC";
       if (ql && !(r.equip_type.toLowerCase().includes(ql) || vend.toLowerCase().includes(ql) || columns.some((c) => c.doc_name.toLowerCase().includes(ql)))) return false;
-      if (fVendor && vend !== fVendor) return false;
+      if (!inSel(fVendor, vend)) return false;
       const st = rowStats(r);
       if (fStatus === "out" && st.out === 0) return false;
       if (tagFilter) { const keys = columns.filter((c) => c.level === tagFilter).map((c) => c.doc_key); if (!keys.some((k) => r.status[k] && r.status[k] !== "a")) return false; }
@@ -409,9 +410,9 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
 
           <div className="dts-tools">
             <div className="dts-f"><span>Search</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type, vendor or document..." /></div>
-            <div className="dts-f"><span>Level</span><select value={fLevel} onChange={(e) => { setFLevel(e.target.value); setTagFilter(e.target.value || null); }}><option value="">All levels</option>{STAGE_ORDER.map((lv) => <option key={lv} value={lv}>{lv} {STAGE_NAME[lv]}</option>)}</select></div>
-            <div className="dts-f"><span>Responsible</span><select value={fResp} onChange={(e) => setFResp(e.target.value)}><option value="">All parties</option>{resps.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>
-            <div className="dts-f"><span>Vendor</span><select value={fVendor} onChange={(e) => setFVendor(e.target.value)}><option value="">All vendors</option>{vendorList.map((v) => <option key={v} value={v}>{v}</option>)}</select></div>
+            <div className="dts-f"><span>Level</span><MultiSel label="All levels" options={STAGE_ORDER.map((lv) => ({ v: lv, t: lv + " " + STAGE_NAME[lv] }))} value={fLevel} onChange={(v) => { setFLevel(v); setTagFilter(v.length === 1 ? v[0] : null); }} /></div>
+            <div className="dts-f"><span>Responsible</span><MultiSel label="All parties" options={resps} value={fResp} onChange={setFResp} /></div>
+            <div className="dts-f"><span>Vendor</span><MultiSel label="All vendors" options={vendorList} value={fVendor} onChange={setFVendor} /></div>
             <div className="dts-f"><span>Status</span><select value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="">All rows</option><option value="out">Has outstanding</option></select></div>
             <div className="dts-f"><span>Group by</span><div className="dts-seg">{[["none", "None"], ["level", "Lead level"], ["vendor", "Vendor"]].map(([g, lbl]) => <button key={g} className={grpBy === g ? "sel" : ""} onClick={() => { setGrpBy(g); setClosed({}); }}>{lbl}</button>)}</div></div>
             <div className="dts-f"><span>Header</span><div className="dts-seg">{[["codes", "Codes"], ["labels", "Labels"]].map(([m, lbl]) => <button key={m} className={headerMode === m ? "sel" : ""} onClick={() => setHeaderMode(m)}>{lbl}</button>)}</div></div>

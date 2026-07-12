@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV273",
+    "date": "2026-07-12",
+    "items": [
+      "Multi-select filters, tranche 3: Asset Status (Hall, Level, Type, and Status where the three modes combine as any-of: overdue, in progress, not started; the clickable KPI tiles now toggle membership in that set) and the Documentation Tracker (Level, Responsible party, Vendor). The Docs level filter's stage highlight follows when exactly one level is chosen and steps aside for combinations. The Docs Status select stays native: it has one real option (Has outstanding), and a one-checkbox popover would be worse than the toggle it effectively is. Remaining: witness, team, audit and analytics filters."
+    ]
+  },
+  {
     "rev": "REV272",
     "date": "2026-07-12",
     "items": [

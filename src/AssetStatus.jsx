@@ -5,6 +5,7 @@
 // by position: between W25 and W26 the register dropped SFAT and W3 and renamed
 // FAT/DOF, QC and CYT, which would have silently corrupted a positional parser.
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from "react";
+import { MultiSel, inSel } from "./multisel";
 import { loadAssetStatus, saveAssetRegister, saveStepReference, saveAssetStatusConfig, loadAssetOverrides, saveAssetOverride, deleteAssetOverride, computeSyncConflicts, projName } from "./data";
 
 /* ---------- constants ---------- */
@@ -128,10 +129,10 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
   // view state
   const [q, setQ] = useState("");
   const [fMe, setFMe] = useState("");
-  const [fHall, setFHall] = useState("");
-  const [fLvl, setFLvl] = useState("");
-  const [fType, setFType] = useState("");
-  const [fStatus, setFStatus] = useState("");
+  const [fHall, setFHall] = useState([]);     // REV273: multi-select; empty = all
+  const [fLvl, setFLvl] = useState([]);
+  const [fType, setFType] = useState([]);
+  const [fStatus, setFStatus] = useState([]);  // status modes; any selected mode passes
   const [grpBy, setGrpBy] = useState("type");
   const [bandsOn, setBandsOn] = useState({ L1: true, L2: true, L3: true, L4: true, L5: true });
   const [cellMode, setCellMode] = useState("dots");
@@ -204,13 +205,16 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
     return enriched.filter((a) => {
       if (ql && !(a.tag.toLowerCase().includes(ql) || a.name.toLowerCase().includes(ql) || a.type.toLowerCase().includes(ql) || a.hall.toLowerCase().includes(ql))) return false;
       if (fMe && a.discipline !== fMe) return false;
-      if (fHall && a.hall !== fHall) return false;
-      if (fLvl && a.level !== fLvl) return false;
-      if (fType && a.type !== fType) return false;
+      if (!inSel(fHall, a.hall)) return false;
+      if (!inSel(fLvl, a.level)) return false;
+      if (!inSel(fType, a.type)) return false;
       if (hideDone && a.pct === 100) return false;
-      if (fStatus === "overdue" && !a.overdue.length) return false;
-      if (fStatus === "prog" && (!a.started || a.pct === 100)) return false;
-      if (fStatus === "ns" && a.started) return false;
+      if (fStatus.length) {
+        const hit = (fStatus.includes("overdue") && a.overdue.length > 0)
+          || (fStatus.includes("prog") && a.started && a.pct < 100)
+          || (fStatus.includes("ns") && !a.started);
+        if (!hit) return false;
+      }
       return true;
     });
   }, [enriched, dq, fMe, fHall, fLvl, fType, fStatus, hideDone]);
@@ -485,7 +489,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
         {STAGE_ORDER.filter((st) => tagStepByStage[st]).map((st) => (
           <div key={st} className="ast-kpi"><div className="v">{tagCount(st, list)}</div><div className="l">{STAGE_NAME[st]}ged</div><div className="s">{list.length ? Math.round(tagCount(st, list) / list.length * 100) : 0}% of view</div></div>
         )).slice(0, 3)}
-        <div className={"ast-kpi warn click" + (fStatus === "overdue" ? " on" : "")} onClick={() => setFStatus(fStatus === "overdue" ? "" : "overdue")}><div className="v">{overdueCount}</div><div className="l">Overdue Vs Plan</div><div className="s">Planned tag date passed</div></div>
+        <div className={"ast-kpi warn click" + (fStatus.includes("overdue") ? " on" : "")} onClick={() => setFStatus(fStatus.includes("overdue") ? fStatus.filter((x) => x !== "overdue") : [...fStatus, "overdue"])}><div className="v">{overdueCount}</div><div className="l">Overdue Vs Plan</div><div className="s">Planned tag date passed</div></div>
       </div>
 
       <div className="ast-pipe">
@@ -504,10 +508,10 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
       <div className="ast-tools">
         <div className="ast-f"><span>Search</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tag, name, type, hall..." /></div>
         <div className="ast-f"><span>Discipline</span><div className="ast-seg">{[["", "All"], ["M", "Mech"], ["E", "Elec"]].map(([v, l]) => <button key={v} className={fMe === v ? "sel" : ""} onClick={() => setFMe(v)}>{l}</button>)}</div></div>
-        <div className="ast-f"><span>Hall</span><select value={fHall} onChange={(e) => setFHall(e.target.value)}><option value="">All halls</option>{halls.map((h) => <option key={h}>{h}</option>)}</select></div>
-        <div className="ast-f"><span>Level</span><select value={fLvl} onChange={(e) => setFLvl(e.target.value)}><option value="">All levels</option>{lvls.map((h) => <option key={h}>{h}</option>)}</select></div>
-        <div className="ast-f"><span>Type</span><select value={fType} onChange={(e) => setFType(e.target.value)}><option value="">All types</option>{types.map((h) => <option key={h}>{h}</option>)}</select></div>
-        <div className="ast-f"><span>Status</span><select value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="">All statuses</option><option value="overdue">Overdue vs plan</option><option value="prog">In progress</option><option value="ns">Not started</option></select></div>
+        <div className="ast-f"><span>Hall</span><MultiSel label="All halls" options={halls} value={fHall} onChange={setFHall} /></div>
+        <div className="ast-f"><span>Level</span><MultiSel label="All levels" options={lvls} value={fLvl} onChange={setFLvl} /></div>
+        <div className="ast-f"><span>Type</span><MultiSel label="All types" options={types} value={fType} onChange={setFType} /></div>
+        <div className="ast-f"><span>Status</span><MultiSel label="All statuses" options={[{ v: "overdue", t: "Overdue vs plan" }, { v: "prog", t: "In progress" }, { v: "ns", t: "Not started" }]} value={fStatus} onChange={setFStatus} /></div>
         <div className="ast-f"><span>Group By</span><select value={grpBy} onChange={(e) => { setGrpBy(e.target.value); }}><option value="type">Type</option><option value="hall">Hall</option><option value="lvl">Level</option><option value="me">Discipline</option><option value="">None</option></select></div>
         <div className="ast-f ast-rel"><span>&nbsp;</span><button className="ast-btn" onClick={() => setColsOpen(!colsOpen)}>Columns {"\u25BE"}</button>
           {colsOpen && <div className="ast-pop" onClick={(e) => e.stopPropagation()}>
