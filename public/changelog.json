@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV251",
+    "date": "2026-07-12",
+    "items": [
+      "Reports page modernized per the approved design: the three scheduled reports are now status tiles showing state, schedule, next send, last send and their Test and Send now actions; the daily and weekly digests present as separate tiles over the unchanged single scheduler. Next send is computed from the same boundary helpers the scheduler uses, so a tile can never disagree with what will actually happen; a disabled report reads not scheduled.",
+      "All of the Morning Cx Update's configuration moved off the page into a slide-over drawer behind Configure: enabled, send time, days, recipients, company exclusions (collapsing past eight companies) and section toggles, saving on change as before. The permanent settings form and the wall of exclusion pills are gone from the page.",
+      "On demand is two proper tiles (the Weekly Report builder and Exports), and the Reports archive gained a search box and kind filter pills (All, Morning, Daily, Weekly, Report) over the loaded rows. The superseded flat cards were removed outright rather than left as dead code."
+    ]
+  },
+  {
     "rev": "REV250",
     "date": "2026-07-12",
     "items": [

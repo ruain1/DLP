@@ -9256,6 +9256,182 @@ async function resolveDigestRecipients(St) {
 // REV248: the Reports page. Admin/owner only: scheduled report cards, the Weekly Report
 // builder, the activities export, and the archive of every sent report (viewable when the
 // html was captured; runs from before the archive existed show a plain note instead).
+// REV251: the modernized scheduled-report tiles. State, schedule, next send (computed
+// from the same helpers the scheduler uses), last send and actions on the tile; all of
+// the morning report's configuration lives in a slide-over drawer. The daily and weekly
+// digests present as separate tiles over the unchanged single scheduler underneath.
+function ReportTile({ glyph, glyphBg, glyphColor, title, state, lines, actions }) {
+  return (
+    <div className="lk-card" style={{ padding: "15px 16px 13px", display: "flex", flexDirection: "column", gap: 8, borderRadius: 14, backgroundImage: "linear-gradient(180deg, rgba(255,255,255,.022), rgba(255,255,255,0) 46%)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <span style={{ width: 30, height: 30, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flex: "none", background: glyphBg, color: glyphColor }}>{glyph}</span>
+        <h3 style={{ fontSize: 13, margin: 0, flex: 1 }}>{title}</h3>
+        {state != null && <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".5px", padding: "3px 9px", borderRadius: 999, ...(state ? { color: "#34D399", background: "rgba(52,211,153,.1)", border: "1px solid rgba(52,211,153,.35)" } : { color: "var(--muted)", background: "rgba(255,255,255,.03)", border: "1px solid var(--line)" }) }}>{state ? "ON" : "OFF"}</span>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "var(--muted)", flex: 1 }}>{lines}</div>
+      <div style={{ display: "flex", gap: 7, borderTop: "1px solid var(--line)", paddingTop: 10, marginTop: 2, alignItems: "center" }}>{actions}</div>
+    </div>
+  );
+}
+function ScheduledReports({ S, update }) {
+  const [runs, setRuns] = useState({});
+  const [acct, setAcct] = useState(null);
+  const [busy, setBusy] = useState(null);        // "morning" | "morningTest" | "daily" | ...
+  const [msg, setMsg] = useState(null);
+  const [cfg, setCfg] = useState(null);
+  const [drOpen, setDrOpen] = useState(false);
+  const [exAll, setExAll] = useState(false);
+  const mrRef = React.useRef(null);
+  useEffect(() => { import("./morningReport").then((m) => { mrRef.current = m; setCfg(m.morningCfg(S.settings || {})); }); }, [S.settings]);
+  const load = async () => {
+    try {
+      const r = await supabase.from("report_runs").select("kind, sent_at, status, recipients").eq("project_id", S.projectId).in("kind", ["daily", "weekly", "morning"]).order("sent_at", { ascending: false }).limit(30);
+      const by = {}; (r.data || []).forEach((x) => { if (!by[x.kind]) by[x.kind] = x; });
+      setRuns(by);
+    } catch (e) { setRuns({}); }
+    try { const ol = await import("./outlook"); const a = await ol.outlookAccount(); setAcct(a ? a.username : null); } catch (e) { setAcct(null); }
+  };
+  useEffect(() => { load(); }, []);
+  const save = (patch) => {
+    const next = { ...cfg, ...patch, sections: { ...cfg.sections, ...(patch.sections || {}) } };
+    setCfg(next);
+    update((pp) => ({ ...pp, settings: { ...pp.settings, morningReport: next } }));
+  };
+  const lastLine = (k) => { const r = runs[k]; if (!r) return "last: never sent"; const t = new Date(r.sent_at); return (r.status === "sent" ? "last: " : "last: " + r.status + " ") + t.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + (r.status === "sent" ? " \u00b7 " + r.recipients + " recipient" + (r.recipients === 1 ? "" : "s") : ""); };
+  const nextLine = (sched, enabled) => { const m = mrRef.current; if (!m) return ""; const d = enabled ? m.nextSendAfter(new Date(), sched) : null; return "next: " + m.fmtNextSend(d, new Date()); };
+  const sendMorning = async (testOnly) => {
+    setBusy(testOnly ? "morningTest" : "morning"); setMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const a = await ol.outlookAccount();
+      if (!a) throw new Error("Connect Outlook first: open the Weekly Report window or the Witness Schedule and press Connect Outlook, then retry.");
+      const m = mrRef.current || await import("./morningReport");
+      const core = await import("./digestCore");
+      const bnds = m.morningBoundaries(new Date(), 9 * 24, { ...cfg, enabled: true });
+      const due = bnds.length ? bnds[bnds.length - 1].due : new Date();
+      const asm = await assembleMorning(S, due);
+      if (testOnly) { await ol.sendMailMessage({ subject: "[Test] " + asm.subject, html: asm.html, to: [a.username] }); setMsg({ ok: true, text: "Morning test sent to " + a.username + "." }); setBusy(null); return; }
+      const runDate = core.helDateStr(due);
+      let claimId = null;
+      const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("project_id", S.projectId).eq("kind", "morning").eq("run_date", runDate).maybeSingle();
+      if (ex.data) {
+        if (ex.data.status === "sent") { const t = new Date(ex.data.sent_at); if (!window.confirm("The morning update for " + runDate + " was already sent at " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + ". Send it again to everyone?")) { setBusy(null); return; } }
+        claimId = ex.data.id;
+      } else {
+        const claim = await claimReportRun(supabase, "morning", runDate, { projectId: S.projectId });
+        if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("project_id", S.projectId).eq("kind", "morning").eq("run_date", runDate).maybeSingle(); claimId = ex2.data && ex2.data.id; }
+        else if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim: " + claim.error.message);
+        else claimId = claim.id;
+      }
+      const rr = await resolveMorningRecipients(S);
+      if (!rr.recipients.length) throw new Error("no recipient email addresses resolved");
+      await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
+      if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " (no email for: " + rr.missing.join(", ") + ")" : "") }).eq("id", claimId);
+      archiveReportHtml(claimId, asm.subject, asm.html);
+      setMsg({ ok: true, text: "Morning Cx Update sent to " + rr.recipients.length + " recipient" + (rr.recipients.length === 1 ? "" : "s") + "." + (rr.missing.length ? " No email for: " + rr.missing.join(", ") + "." : "") });
+      load();
+    } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
+    setBusy(null);
+  };
+  const sendDigest = async (kind, testOnly) => {
+    setBusy(kind + (testOnly ? "Test" : "")); setMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const a = await ol.outlookAccount();
+      if (!a) throw new Error("Connect Outlook first: open the Weekly Report window or the Witness Schedule and press Connect Outlook, then retry.");
+      const core = await import("./digestCore");
+      const all = core.dueBoundaries(new Date(), 9 * 24).filter((b) => b.kind === kind);
+      if (!all.length) throw new Error("No " + kind + " boundary found in the last 9 days.");
+      const due = all[all.length - 1].due;
+      const asm = await assembleDigest(core, S, kind, due);
+      if (testOnly) { await ol.sendMailMessage({ subject: "[Test] " + asm.subject, html: asm.html, to: [a.username], attachments: asm.attachments }); setMsg({ ok: true, text: (kind === "daily" ? "Daily" : "Weekly") + " test sent to " + a.username + "." }); setBusy(null); return; }
+      const runDate = core.helDateStr(due);
+      let claimId = null;
+      const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("project_id", S.projectId).eq("kind", kind).eq("run_date", runDate).maybeSingle();
+      if (ex.data) {
+        if (ex.data.status === "sent") { const t = new Date(ex.data.sent_at); if (!window.confirm("The " + kind + " update for " + runDate + " was already sent at " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + ". Send it again?")) { setBusy(null); return; } }
+        claimId = ex.data.id;
+      } else {
+        const claim = await claimReportRun(supabase, kind, runDate, { projectId: S.projectId });
+        if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("project_id", S.projectId).eq("kind", kind).eq("run_date", runDate).maybeSingle(); claimId = ex2.data && ex2.data.id; }
+        else if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim: " + claim.error.message);
+        else claimId = claim.id;
+      }
+      const rr = await resolveDigestRecipients(S);
+      if (!rr.recipients.length) throw new Error("no admin email addresses resolved");
+      await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients, attachments: asm.attachments });
+      if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " (no email for: " + rr.missing.join(", ") + ")" : "") }).eq("id", claimId);
+      archiveReportHtml(claimId, asm.subject, asm.html);
+      setMsg({ ok: true, text: (kind === "daily" ? "Daily" : "Weekly") + " digest sent to " + rr.recipients.length + " admin" + (rr.recipients.length === 1 ? "" : "s") + "." });
+      load();
+    } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
+    setBusy(null);
+  };
+  if (!cfg) return null;
+  const act = (lb, on, primary, dis) => <button key={lb} className={"lk-btn" + (primary ? " primary" : "")} style={{ fontSize: 10.5, padding: "6px 11px" }} disabled={dis} onClick={on}>{lb}</button>;
+  const segBtn = (on, lb, click) => <button key={lb} className="lk-btn" style={{ fontSize: 10.5, fontWeight: 700, padding: "5px 12px", borderColor: on ? "var(--accent)" : undefined, color: on ? "var(--accent)" : undefined, background: on ? "rgba(91,155,243,.08)" : "none" }} onClick={click}>{lb}</button>;
+  const fld = { display: "block", fontSize: 9, fontWeight: 800, letterSpacing: ".7px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 7 };
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const SECS = [["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
+  const exNames = (cfg.excludeCoIds || []).map((id) => ((S.companies || []).find((cc) => cc.id === id) || {}).name).filter(Boolean);
+  const coList = exAll ? (S.companies || []) : (S.companies || []).slice(0, 8);
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+        <ReportTile glyph={"\u2600"} glyphBg="rgba(224,161,6,.12)" glyphColor="#E0A106" title="Morning Cx Update" state={!!cfg.enabled}
+          lines={<>
+            <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{cfg.time}</b> Helsinki {"\u00b7"} {mrRef.current ? mrRef.current.fmtDaysSummary(cfg.days) : ""} {"\u00b7"} {cfg.recipients === "team" ? "entire team" : "admins only"}{cfg.recipients === "team" && exNames.length ? " (" + exNames.length + " excluded)" : ""}</span>
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: cfg.time, days: cfg.days }, cfg.enabled)}</span>
+            <span>{lastLine("morning")}</span>
+          </>}
+          actions={<>{act("Configure", () => setDrOpen(true))}<span style={{ flex: 1 }} />{act("Test", () => sendMorning(true), false, busy === "morningTest")}{act(busy === "morning" ? "Sending..." : "Send now", () => sendMorning(false), true, !!busy)}</>} />
+        <ReportTile glyph={"\u263D"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Daily Digest" state={true}
+          lines={<>
+            <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>17:00</b> Helsinki {"\u00b7"} every day {"\u00b7"} admins</span>
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: "17:00", days: DAYS }, true)}</span>
+            <span>{lastLine("daily")}</span>
+          </>}
+          actions={<><span style={{ flex: 1 }} />{act("Test", () => sendDigest("daily", true), false, busy === "dailyTest")}{act(busy === "daily" ? "Sending..." : "Send now", () => sendDigest("daily", false), true, !!busy)}</>} />
+        <ReportTile glyph={"\u26ED"} glyphBg="rgba(183,155,240,.12)" glyphColor="#b79bf0" title="Weekly Digest" state={true}
+          lines={<>
+            <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>Fri 16:00</b> Helsinki {"\u00b7"} admins</span>
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: "16:00", days: ["Fri"] }, true)}</span>
+            <span>{lastLine("weekly")}</span>
+          </>}
+          actions={<><span style={{ flex: 1 }} />{act("Test", () => sendDigest("weekly", true), false, busy === "weeklyTest")}{act(busy === "weekly" ? "Sending..." : "Send now", () => sendDigest("weekly", false), true, !!busy)}</>} />
+      </div>
+      {msg && <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 10, color: msg.ok ? "#0E9384" : "#F87171" }}>{msg.text}</div>}
+      {drOpen && <>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(5,9,18,.62)", zIndex: 60 }} onClick={() => setDrOpen(false)} />
+        <div style={{ position: "fixed", top: 0, right: 0, width: "min(420px, 94vw)", height: "100vh", background: "var(--card)", borderLeft: "1px solid var(--line)", boxShadow: "-20px 0 50px rgba(0,0,0,.4)", zIndex: 61, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>
+            <h3 style={{ fontSize: 14, margin: 0, flex: 1 }}>Morning Cx Update {"\u00b7"} configuration</h3>
+            <button className="lk-btn icon" onClick={() => setDrOpen(false)}><Icon n="x" /></button>
+          </div>
+          <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div><label style={fld}>Enabled</label>{segBtn(cfg.enabled, "ON", () => save({ enabled: true }))} {segBtn(!cfg.enabled, "OFF", () => save({ enabled: false }))}</div>
+            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><input className="lk-in" type="time" value={cfg.time} style={{ width: 120, fontWeight: 700 }} onChange={(e) => save({ time: e.target.value || "08:00" })} /></div>
+            <div><label style={fld}>Days</label><div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{DAYS.map((dday) => segBtn(cfg.days.includes(dday), dday, () => save({ days: cfg.days.includes(dday) ? cfg.days.filter((x) => x !== dday) : [...cfg.days, dday] })))}</div></div>
+            <div><label style={fld}>Recipients</label>{segBtn(cfg.recipients === "team", "Entire project team", () => save({ recipients: "team" }))} {segBtn(cfg.recipients === "admins", "Admins only", () => save({ recipients: "admins" }))}</div>
+            {cfg.recipients === "team" && <div>
+              <label style={fld}>Excluded companies {"\u00b7"} {exNames.length}</label>
+              <div style={{ fontSize: 11.5, color: exNames.length ? "var(--ink)" : "var(--muted)", marginBottom: 8 }}>{exNames.length ? exNames.join(", ") : "No companies excluded; every member with an email receives it."}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {coList.map((cco) => segBtn(cfg.excludeCoIds.includes(cco.id), cco.name, () => save({ excludeCoIds: cfg.excludeCoIds.includes(cco.id) ? cfg.excludeCoIds.filter((x) => x !== cco.id) : [...cfg.excludeCoIds, cco.id] })))}
+                {(S.companies || []).length > 8 && segBtn(false, exAll ? "show fewer" : "+ " + ((S.companies || []).length - 8) + " more", () => setExAll(!exAll))}
+              </div>
+            </div>}
+            <div><label style={fld}>Sections</label><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{SECS.map(([k, lb]) => segBtn(cfg.sections[k] !== false, lb, () => save({ sections: { [k]: !(cfg.sections[k] !== false) } })))}</div></div>
+          </div>
+          <div style={{ padding: "14px 18px", borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 10.5, color: "var(--muted)", flex: 1 }}>Changes save automatically.</span>
+            <button className="lk-btn" onClick={() => setDrOpen(false)}>Close</button>
+          </div>
+        </div>
+      </>}
+    </>
+  );
+}
 function ReportKindChip({ kind }) {
   const map = { morning: ["MORNING", "#E0A106"], daily: ["DAILY", "#5B9BF3"], weekly: ["WEEKLY", "#b79bf0"], report: ["REPORT", "#0E9384"] };
   const [t, c] = map[kind] || [String(kind || "?").toUpperCase(), "#8593a2"];
@@ -9265,6 +9441,8 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
   const [rows, setRows] = useState(null);
   const [lim, setLim] = useState(30);
   const [view, setView] = useState(null);      // { row, html: undefined loading | null missing | string }
+  const [arcQ, setArcQ] = useState("");
+  const [arcK, setArcK] = useState("");
   const [acct, setAcct] = useState(null);
   useEffect(() => {
     let on = true;
@@ -9285,7 +9463,9 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
     } catch (e) { setView({ row: r, html: null }); }
   };
   const secLbl = { fontSize: 9.5, fontWeight: 800, letterSpacing: ".8px", textTransform: "uppercase", color: "var(--muted)", margin: "18px 0 8px" };
-  const list = Array.isArray(rows) ? rows : [];
+  const listAll = Array.isArray(rows) ? rows : [];
+  const needle = arcQ.trim().toLowerCase();
+  const list = listAll.filter((r) => (!arcK || r.kind === arcK) && (!needle || ((r.subject || "") + " " + (r.detail || "")).toLowerCase().includes(needle)));
   return (
     <div className="lk-page" style={{ maxWidth: 1160, margin: "0 auto", padding: "0 14px 30px" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--bg, #0d1422)", display: "flex", alignItems: "center", gap: 12, padding: "14px 2px 10px", borderBottom: "1px solid var(--line)" }}>
@@ -9293,19 +9473,27 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
         <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".6px", padding: "3px 9px", borderRadius: 999, border: "1px solid rgba(224,161,6,.5)", color: "#E0A106", textTransform: "uppercase" }}>Admins &amp; owner</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--muted)" }}>{acct ? "Outlook: " + acct : "Outlook not connected"}</span>
       </div>
-      <div style={{ ...secLbl }}>Scheduled {"\u00b7"} sent automatically via Outlook</div>
-      <AdminMorningCard S={S} update={update} />
-      <AdminDigestCard S={S} />
+      <div style={{ ...secLbl }}>Scheduled</div>
+      <ScheduledReports S={S} update={update} />
       <div style={secLbl}>On demand</div>
-      <div className="lk-card" style={{ padding: 16, marginBottom: 14, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={canWeekly} canDist={canDist} projectId={projectId} label="Weekly Report" />
-        <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
-        <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The metrics workbook and board PDF stay on the Analytics page beside their charts.</span>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+        <ReportTile glyph={"\u270E"} glyphBg="rgba(14,147,132,.12)" glyphColor="#0E9384" title="Weekly Report" state={null}
+          lines={<span>The stakeholder report: narrative blocks with AI drafting, figures, risk register, distribution and Outlook send.</span>}
+          actions={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={canWeekly} canDist={canDist} projectId={projectId} label="Open the builder" />} />
+        <ReportTile glyph={"\u2913"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Exports" state={null}
+          lines={<span>The full activity workbook. The metrics workbook and board PDF stay on Analytics beside their charts.</span>}
+          actions={<button className="lk-btn" style={{ fontSize: 10.5, padding: "6px 11px" }} onClick={exportActivities}><Icon n="download" s={14} />Activities (Excel)</button>} />
       </div>
       <div style={secLbl}>Reports</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <input className="lk-in" style={{ flex: 1, minWidth: 200 }} placeholder="Search sent reports" value={arcQ} onChange={(e) => setArcQ(e.target.value)} />
+        {[["", "All"], ["morning", "Morning"], ["daily", "Daily"], ["weekly", "Weekly"], ["report", "Report"]].map(([k, lb]) => (
+          <button key={k || "all"} className="lk-btn" style={{ fontSize: 10, fontWeight: 700, padding: "4px 11px", borderRadius: 999, borderColor: arcK === k ? "var(--accent)" : undefined, color: arcK === k ? "var(--accent)" : undefined, background: arcK === k ? "rgba(91,155,243,.08)" : "none" }} onClick={() => setArcK(k)}>{lb}</button>
+        ))}
+      </div>
       {rows && rows.err && <div style={{ fontSize: 12, color: "#F87171", fontWeight: 600 }}>Could not load the archive: {rows.err}</div>}
       {rows == null && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading...</div>}
-      {Array.isArray(rows) && !list.length && <div style={{ fontSize: 12, color: "var(--muted)" }}>No reports have been sent on this project yet.</div>}
+      {Array.isArray(rows) && !list.length && <div style={{ fontSize: 12, color: "var(--muted)" }}>{listAll.length ? "No sent reports match this filter." : "No reports have been sent on this project yet."}</div>}
       {list.length > 0 && <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden" }}>
         {list.map((r) => (
           <div key={r.id} className="lk-audit" style={{ flexDirection: "row", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 13px" }} onClick={() => openRow(r)}>
@@ -9318,7 +9506,7 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
           </div>
         ))}
       </div>}
-      {Array.isArray(rows) && list.length >= lim && <div style={{ textAlign: "center", marginTop: 10 }}><button className="lk-btn" onClick={() => setLim(lim + 30)}>Load 30 more</button></div>}
+      {Array.isArray(rows) && listAll.length >= lim && <div style={{ textAlign: "center", marginTop: 10 }}><button className="lk-btn" onClick={() => setLim(lim + 30)}>Load 30 more</button></div>}
       {view && (
         <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => setView(null)}>
           <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 760, width: "min(760px, 94vw)" }} onClick={(ev) => ev.stopPropagation()}>
@@ -9334,179 +9522,6 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
       )}
     </div>
   );
-}
-function AdminMorningCard({ S, update }) {
-  const mrRef = React.useRef(null);
-  const [last, setLast] = useState(null);
-  const [acct, setAcct] = useState(null);
-  const [busy, setBusy] = useState(null);
-  const [msg, setMsg] = useState(null);
-  const [cfg, setCfg] = useState(null);
-  useEffect(() => { import("./morningReport").then((m) => { mrRef.current = m; setCfg(m.morningCfg(S.settings || {})); }); }, [S.settings]);
-  const load = async () => {
-    try { const r = await supabase.from("report_runs").select("*").eq("project_id", S.projectId).eq("kind", "morning").order("run_date", { ascending: false }).limit(1); setLast((r.data || [])[0] || null); } catch (e) { setLast(null); }
-    try { const ol = await import("./outlook"); const a = await ol.outlookAccount(); setAcct(a ? a.username : null); } catch (e) { setAcct(null); }
-  };
-  useEffect(() => { load(); }, []);
-  if (!cfg) return null;
-  const save = (patch) => {
-    const next = { ...cfg, ...patch, sections: { ...cfg.sections, ...(patch.sections || {}) } };
-    setCfg(next);
-    update((p) => ({ ...p, settings: { ...p.settings, morningReport: next } }));
-  };
-  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const SECS = [["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
-  const send = async (testOnly) => {
-    setBusy(testOnly ? "test" : "now"); setMsg(null);
-    try {
-      const ol = await import("./outlook");
-      const a = await ol.outlookAccount();
-      if (!a) throw new Error("Connect Outlook first: open the Weekly Report window or the Witness Schedule and press Connect Outlook, then retry.");
-      const m = mrRef.current || await import("./morningReport");
-      const core = await import("./digestCore");
-      const bnds = m.morningBoundaries(new Date(), 9 * 24, { ...cfg, enabled: true });
-      const due = bnds.length ? bnds[bnds.length - 1].due : new Date();
-      const asm = await assembleMorning(S, due);
-      if (testOnly) {
-        await ol.sendMailMessage({ subject: "[Test] " + asm.subject, html: asm.html, to: [a.username] });
-        setMsg({ ok: true, text: "Test sent to " + a.username + "." });
-      } else {
-        const runDate = core.helDateStr(due);
-        let claimId = null;
-        const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("project_id", S.projectId).eq("kind", "morning").eq("run_date", runDate).maybeSingle();
-        if (ex.data) {
-          if (ex.data.status === "sent") {
-            const t = new Date(ex.data.sent_at);
-            if (!window.confirm("The morning update for " + runDate + " was already sent at " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + ". Send it again to everyone?")) { setBusy(null); return; }
-          }
-          claimId = ex.data.id;
-        } else {
-          const claim = await claimReportRun(supabase, "morning", runDate, { projectId: S.projectId });
-          if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("project_id", S.projectId).eq("kind", "morning").eq("run_date", runDate).maybeSingle(); claimId = ex2.data && ex2.data.id; }
-          else if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim: " + claim.error.message);
-          else claimId = claim.id;
-        }
-        const rr = await resolveMorningRecipients(S);
-        if (!rr.recipients.length) throw new Error("no recipient email addresses resolved");
-        await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
-        if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " (no email for: " + rr.missing.join(", ") + ")" : "") }).eq("id", claimId);
-        archiveReportHtml(claimId, asm.subject, asm.html);
-        setMsg({ ok: true, text: "Morning Cx Update sent to " + rr.recipients.length + " recipient" + (rr.recipients.length === 1 ? "" : "s") + "." + (rr.missing.length ? " No email for: " + rr.missing.join(", ") + "." : "") });
-        load();
-      }
-    } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
-    setBusy(null);
-  };
-  const rowSt = { display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid var(--line)", fontSize: 12, flexWrap: "wrap" };
-  const pill = (on, lb, onClick, key) => <button key={key || lb} className="lk-btn" style={{ padding: "3px 10px", fontSize: 10.5, fontWeight: 700, borderColor: on ? "var(--accent)" : undefined, color: on ? "var(--accent)" : undefined }} onClick={onClick}>{lb}</button>;
-  const fmtLast = () => {
-    if (!last) return "never sent";
-    const t = new Date(last.sent_at);
-    return (last.status === "sent" ? "sent " : last.status + " since ") + t.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + (last.status === "sent" ? " to " + last.recipients + " recipient" + (last.recipients === 1 ? "" : "s") : "");
-  };
-  return (
-    <div className="lk-card" style={{ padding: 16, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0, fontSize: 13.5 }}>Morning Cx Update</h3>
-        <span style={{ fontSize: 11, color: "var(--muted)" }}>{fmtLast()}</span>
-      </div>
-      <p style={{ fontSize: 11, color: "var(--muted)", margin: "4px 0 10px", lineHeight: 1.55 }}>A start-of-day summary for the project team: finishing today, overdue, starting, open constraints, and yesterday's daily updates. It sends from the first active session of the designated Outlook sender at or after the send time.</p>
-      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Enabled</b>{pill(cfg.enabled, cfg.enabled ? "ON" : "OFF", () => save({ enabled: !cfg.enabled }))}</div>
-      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Send at</b><input className="lk-in" type="time" value={cfg.time} style={{ width: 110 }} onChange={(e) => save({ time: e.target.value || "08:00" })} /><span style={{ fontSize: 11, color: "var(--muted)" }}>Europe/Helsinki</span></div>
-      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Days</b>{DAYS.map((dday) => pill(cfg.days.includes(dday), dday, () => save({ days: cfg.days.includes(dday) ? cfg.days.filter((x) => x !== dday) : [...cfg.days, dday] }), dday))}</div>
-      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Recipients</b>
-        {pill(cfg.recipients === "team", "Entire project team", () => save({ recipients: "team" }))}
-        {pill(cfg.recipients === "admins", "Admins only", () => save({ recipients: "admins" }))}
-      </div>
-      {cfg.recipients === "team" && <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Exclude</b>
-        {(S.companies || []).map((cco) => pill(cfg.excludeCoIds.includes(cco.id), cco.name, () => save({ excludeCoIds: cfg.excludeCoIds.includes(cco.id) ? cfg.excludeCoIds.filter((x) => x !== cco.id) : [...cfg.excludeCoIds, cco.id] }), cco.id))}
-        <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members of highlighted companies are left off the team send.</span>
-      </div>}
-      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Sections</b>{SECS.map(([k, lb]) => pill(cfg.sections[k] !== false, lb, () => save({ sections: { [k]: !(cfg.sections[k] !== false) } }), k))}</div>
-      <div style={{ ...rowSt, justifyContent: "flex-end", gap: 8 }}>
-        {acct && <span style={{ fontSize: 10.5, color: "var(--muted)", marginRight: "auto" }}>Outlook: {acct}</span>}
-        <button className="lk-btn" disabled={!!busy} onClick={() => send(true)}>{busy === "test" ? "Sending..." : "Send me a test"}</button>
-        <button className="lk-btn primary" disabled={!!busy} onClick={() => send(false)}>{busy === "now" ? "Sending..." : "Send now"}</button>
-      </div>
-      {msg && <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 8, color: msg.ok ? "#0E9384" : "#F87171" }}>{msg.text}</div>}
-    </div>
-  );
-}
-function AdminDigestCard({ S }) {
-  const [runs, setRuns] = useState(null);
-  const [acct, setAcct] = useState(null);
-  const [busyK, setBusyK] = useState(null);
-  const [msg, setMsg] = useState(null);
-  const load = async () => {
-    try {
-      const [d, w] = await Promise.all([
-        supabase.from("report_runs").select("*").eq("project_id", S.projectId).eq("kind", "daily").order("run_date", { ascending: false }).limit(1),
-        supabase.from("report_runs").select("*").eq("project_id", S.projectId).eq("kind", "weekly").order("run_date", { ascending: false }).limit(1),
-      ]);
-      setRuns({ daily: (d.data || [])[0] || null, weekly: (w.data || [])[0] || null });
-    } catch (e) { setRuns({ daily: null, weekly: null }); }
-    try { const ol = await import("./outlook"); const a = await ol.outlookAccount(); setAcct(a ? a.username : null); } catch (e) { setAcct(null); }
-  };
-  useEffect(() => { load(); }, []);
-  const fmtRun = (r) => {
-    if (!r) return "never sent";
-    const t = new Date(r.sent_at);
-    const when = t.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
-    return r.status === "sent" ? ("sent " + when + " to " + r.recipients + " recipient" + (r.recipients === 1 ? "" : "s")) : (r.status + " since " + when + "; Send Now completes it");
-  };
-  const sendNow = async (kind) => {
-    setBusyK(kind); setMsg(null);
-    try {
-      const ol = await import("./outlook");
-      const a = await ol.outlookAccount();
-      if (!a) throw new Error("Connect Outlook first: open the Weekly Report window or the Witness Schedule and press Connect Outlook, then retry.");
-      const core = await import("./digestCore");
-      const all = core.dueBoundaries(new Date(), 9 * 24).filter((b) => b.kind === kind);
-      if (!all.length) throw new Error("No " + kind + " boundary found in the last 9 days.");
-      const due = all[all.length - 1].due;
-      const runDate = core.helDateStr(due);
-      let claimId = null; let resend = false;
-      const ex = await supabase.from("report_runs").select("id, status, sent_at, recipients").eq("project_id", S.projectId).eq("kind", kind).eq("run_date", runDate).maybeSingle();
-      if (ex.data) {
-        if (ex.data.status === "sent") {
-          const t = new Date(ex.data.sent_at);
-          if (!window.confirm("The " + kind + " update for " + runDate + " was already sent at " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + " to " + ex.data.recipients + " recipient" + (ex.data.recipients === 1 ? "" : "s") + ". Send it again to all admins?")) { setBusyK(null); return; }
-          resend = true;
-        }
-        claimId = ex.data.id;
-      } else {
-        const claim = await claimReportRun(supabase, kind, runDate, { projectId: S.projectId });
-        if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("project_id", S.projectId).eq("kind", kind).eq("run_date", runDate).maybeSingle(); if (ex2.data) claimId = ex2.data.id; else throw new Error("claim race, please retry"); }
-        else if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim: " + digestErrText(claim.error.message));
-        else claimId = claim.id;
-      }
-      const asm = await assembleDigest(core, S, kind, due);
-      const rr = await resolveDigestRecipients(S);
-      if (!rr.recipients.length) throw new Error("no admin email addresses resolved");
-      await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients, attachments: asm.attachments });
-      await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " \u00b7 no email for: " + rr.missing.join(", ") : "") + (resend ? " \u00b7 resent manually" : " \u00b7 sent manually") }).eq("id", claimId);
-      archiveReportHtml(claimId, asm.subject, asm.html);
-      setMsg({ ok: true, text: (kind === "daily" ? "Daily" : "Weekly") + " update sent to " + rr.recipients.length + " admin" + (rr.recipients.length === 1 ? "" : "s") + " from " + a.username + "." + (rr.missing.length ? " No email on file for: " + rr.missing.join(", ") + "." : "") });
-      load();
-    } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
-    setBusyK(null);
-  };
-  return <div className="lk-rep-sec" style={{ marginBottom: 14 }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-      <div style={{ fontWeight: 700, fontSize: 13.5 }}>Admin Update Emails</div>
-      <span style={{ fontSize: 11, color: "var(--muted)" }}>Internal digests to all admins; separate from the stakeholder Weekly Report. Automatic sends run from the designated session at 17:00 daily and Friday 16:00; these buttons send now, from your connected Outlook.</span>
-    </div>
-    <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 8, fontSize: 12 }}>
-      <div><span style={{ color: "var(--muted)" }}>Weekly: </span><span className="mono">{runs ? fmtRun(runs.weekly) : "loading"}</span></div>
-      <div><span style={{ color: "var(--muted)" }}>Daily: </span><span className="mono">{runs ? fmtRun(runs.daily) : "loading"}</span></div>
-      <div><span style={{ color: "var(--muted)" }}>Outlook: </span><span className="mono">{acct || "not connected"}</span></div>
-    </div>
-    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-      <button className="lk-btn" disabled={!!busyK} onClick={() => sendNow("weekly")}><Icon n="mail" s={13} />{busyK === "weekly" ? "Sending..." : "Send Weekly Update Now"}</button>
-      <button className="lk-btn" disabled={!!busyK} onClick={() => sendNow("daily")}><Icon n="mail" s={13} />{busyK === "daily" ? "Sending..." : "Send Daily Update Now"}</button>
-    </div>
-    {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.ok ? "#0E9384" : "#C0392B" }}>{msg.text}</div>}
-  </div>;
 }
 function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update }) {
   const [co, setCo] = useState("all");

@@ -140,3 +140,36 @@ export function morningSubject(projName, due) {
   const dateLine = due.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric", timeZone: "Europe/Helsinki" });
   return { subject: "Morning Cx Update" + MID + (projName || "DLP") + MID + dateLine, dateLine };
 }
+
+// REV251: forward schedule helpers for the report tiles. nextSendAfter finds the next
+// occurrence of a Helsinki send time on an enabled day; fmtNextSend renders it the way
+// the tiles show it. Pure, shared by the morning, daily and weekly tiles so a tile can
+// never disagree with the scheduler.
+export function nextSendAfter(now, sched) {
+  const m = /^([0-9]{1,2}):([0-9]{2})$/.exec((sched && sched.time) || "");
+  if (!m) return null;
+  const HH = Math.min(23, +m[1]), MM = Math.min(59, +m[2]);
+  const days = (sched && sched.days) || [];
+  for (let off = 0; off <= 8; off++) {
+    const probe = helParts(new Date(now.getTime() + off * 86400000));
+    const due = utcForHelsinki(probe.y, probe.m, probe.d, HH, MM);
+    const wd = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", weekday: "short" }).format(due);
+    if (days.includes(wd) && due.getTime() > now.getTime()) return due;
+  }
+  return null;
+}
+export function fmtNextSend(due, now) {
+  if (!due) return "not scheduled";
+  const hel = (d) => helDateStr(d);
+  const t = due.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" });
+  if (hel(due) === hel(now)) return "today, " + t;
+  return due.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", timeZone: "Europe/Helsinki" }) + ", " + t;
+}
+export function fmtDaysSummary(days) {
+  const all = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const set = new Set(days || []);
+  if (set.size === 7) return "every day";
+  if (set.size === 6 && !set.has("Sun")) return "Mon-Sat";
+  if (set.size === 5 && !set.has("Sat") && !set.has("Sun")) return "Mon-Fri";
+  return all.filter((d) => set.has(d)).join(", ") || "no days";
+}
