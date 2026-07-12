@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV284",
+    "date": "2026-07-12",
+    "items": [
+      "The weekly report masthead gets a stronger identity (the refined direction from the mockup). An uppercase kicker sits over a larger, tighter headline (the week number, or Lookahead for a custom range), with the commencing and lookahead dates on a clean line beneath; the issue details move under a monospace project-and-week reference chip. The atnorth dark band and its status-colour accent stripe stay. The footer is now signed with the atnorth mark. Same footprint, a more composed document; the email templates follow in the next revision."
+    ]
+  },
+  {
     "rev": "REV283",
     "date": "2026-07-12",
     "items": [

@@ -8595,15 +8595,17 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .bar .hint{font-size:12.5px;color:#A9BBCD}.bar button{font-family:var(--body);font-size:13px;font-weight:600;border:0;border-radius:8px;background:var(--signal);color:#fff;padding:9px 16px;cursor:pointer}
 .bar button:hover{filter:brightness(1.08)}
 .sheet{max-width:880px;margin:26px auto;background:var(--paper);box-shadow:0 18px 50px rgba(15,30,46,.14);border-radius:4px;overflow:hidden}
-.mast{background:#001C26;color:#fff;padding:26px 38px 22px;position:relative}
+.mast{background:#001C26;color:#fff;padding:28px 38px 24px;position:relative}
 .mast::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--red) 0 14%,var(--amber) 14% 36%,var(--green) 36% 62%,var(--signal) 62% 100%)}
 .mast-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
-.brand{display:flex;align-items:center;gap:13px}.brand .logo{height:52px;width:auto;display:block}
+.brand{display:flex;align-items:center;gap:14px}.brand .logo{height:48px;width:auto;display:block}
 .brand .proj{border-left:1px solid rgba(255,255,255,.22);padding-left:13px;margin-left:2px}
-.brand .proj .p1{font-weight:600;font-size:14px}.brand .proj .p2{font-size:11.5px;color:#9DB0C2;margin-top:1px}
-.mast .issued{text-align:right;font-size:11.5px;color:#9DB0C2;line-height:1.55}.mast .issued b{color:#fff;font-weight:600}
-.mast h1{font-family:var(--display);font-weight:600;font-size:27px;letter-spacing:-.015em;margin:20px 0 0}
-.mast .wk{margin-top:5px;font-size:13.5px;color:#C6D3DF}
+.brand .proj .p1{font-weight:600;font-size:15px;letter-spacing:-.01em}.brand .proj .p2{font-size:11px;color:#8AA6C0;margin-top:2px;letter-spacing:.02em}
+.mast .issued{text-align:right;font-size:11px;color:#8AA6C0;line-height:1.55}.mast .issued b{color:#fff;font-weight:600}
+.mast .refchip{display:inline-block;font-family:var(--mono,ui-monospace,"SF Mono",Menlo,monospace);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#7BB2E8;border:1px solid rgba(123,178,232,.35);border-radius:5px;padding:3px 9px;margin-bottom:9px}
+.mast .kicker{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;font-weight:600;color:#5C7690;margin-top:22px}
+.mast h1{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:-.02em;margin:3px 0 0;line-height:1.05}
+.mast .wk{margin-top:6px;font-size:12px;color:#9DB0C2}
 .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .body{padding:30px 38px 12px}section{margin:0 0 30px}
 .sec-head{display:flex;align-items:center;gap:12px;margin:0 0 14px}.sec-head .eyebrow{color:var(--signal)}
@@ -8727,12 +8729,12 @@ body.dark .chip.wit{color:#9F7AEA}
 <div class="sheet">
 <div class="mast"><div class="mast-top">
 <div class="brand"><img class="logo" src="${(logoDark || logoUrl) || ATNORTH_LOGO}" alt="${esc(projectName || "project")}"${!logoDark ? ' style="background:#fff;padding:4px 8px;border-radius:6px"' : ""}><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
-<div class="issued">Issued <b>${fmtFull(r.today)}</b><br>${esc(by||"")}</div></div>
-<h1>Weekly DLP Report</h1><div class="wk num">${periodLabel} &nbsp;|&nbsp; lookahead to ${fmtFull(r.laEnd)}</div></div>
+<div class="issued"><div class="refchip">${esc(projectName || "FIN04")}${mode === "range" ? "" : " &middot; WK" + weekNo}</div><div>Issued <b>${fmtFull(r.today)}</b>${by ? " &middot; " + esc(by) : ""}</div></div></div>
+<div class="kicker">Weekly Commissioning Report</div><h1>${mode === "range" ? "Lookahead" : "Week " + weekNo}</h1><div class="wk num">${mode === "range" ? `${fmtFull(r.start)} to ${fmtFull(r.end)}` : "Commencing " + r.start.toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})} &middot; lookahead to ${fmtFull(r.laEnd)}</div></div>
 <div class="body">
 ${bodyHtml}
 </div>
-<footer>Generated from DLP &middot; ${esc(APP_HOST)} &middot; ${esc(projectName || "FIN04")} commissioning lookahead</footer>
+<footer><table width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:11px;color:var(--muted)">Generated from DLP &middot; ${esc(APP_HOST)} &middot; ${esc(projectName || "FIN04")} commissioning lookahead</td><td align="right"><img src="${(logoDark || logoUrl) || ATNORTH_LOGO}" alt="atnorth" style="height:18px;width:auto;opacity:.8;vertical-align:middle${!logoDark ? ";background:#fff;padding:2px 5px;border-radius:4px" : ""}"></td></tr></table></footer>
 </div></body></html>`;
 }
 
