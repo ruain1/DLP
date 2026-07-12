@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV268",
+    "date": "2026-07-12",
+    "items": [
+      "Third and final fix in the presence saga: clicking the online popout white-paged because its activity loader referenced projectId, which only exists as a parameter of an inner function, not in the component's scope; the crash waited for the first click because the effect body only runs when the popout opens. It now uses selProj, the component's actual selected-project binding, the effect body is defensively wrapped so a failure degrades to empty activity lines instead of a crash, and the positional proof in the patch pipeline now also covers this binding. The presence feature is functional end to end."
+    ]
+  },
+  {
     "rev": "REV267",
     "date": "2026-07-12",
     "items": [

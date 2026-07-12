@@ -2923,7 +2923,7 @@ export default function App({ session }) {
   // admin formula; cu itself is declared after the early returns and must not be read here.
   const railAdm = !!S && (isSuper || S.projectRole === "admin");
   useEffect(() => { if (!railAdm) return; let on = true; const go = () => loadPresence().then((pp) => { if (on) setRailPres(pp); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, [railAdm]);
-  useEffect(() => { if (!presOpen) return; setPresAudit(null); loadLatestAuditByUser(projectId).then(setPresAudit).catch(() => setPresAudit({})); }, [presOpen]);
+  useEffect(() => { if (!presOpen) return; setPresAudit(null); try { loadLatestAuditByUser(selProj).then(setPresAudit).catch(() => setPresAudit({})); } catch (e) { setPresAudit({}); } }, [presOpen, selProj]);
   const prefs = () => { try { return JSON.parse(localStorage.getItem("dlp_prefs") || "{}"); } catch { return {}; } };
 
   const enterProject = async (projectId, projList, focusActId, initialPage) => {
