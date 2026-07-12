@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV263",
+    "date": "2026-07-12",
+    "items": [
+      "The Display colour palettes now reach everywhere status is shown. Around fifty places coloured status by fixed hex (the constrained amber, the added/starts green, the done teal, the overdue red, and their tinted backgrounds) across the board, YTT badges, witness schedule, audit chips, admin pending markers, report tiles and legends; they now colour through a small status-variable family whose defaults are byte-identical to before, so the default palette renders exactly as it did, while High Contrast and Colourblind finally recolour these surfaces. Solid badges gain per-palette text colours, so High Contrast's darker fills carry white text and remain readable. Deliberately unchanged: the house-blue ongoing badge, the palette picker's own swatches, and two theme-tuned shades noted for a follow-up."
+    ]
+  },
+  {
     "rev": "REV262",
     "date": "2026-07-12",
     "items": [

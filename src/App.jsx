@@ -131,7 +131,7 @@ const css = `
 .lk-ment-i{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--ink)}
 .lk-ment-i:hover{background:var(--hover)}
 .lk-ment-tag{margin-left:auto;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-.lk-ncard{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid #E0A106;border-radius:9px;background:var(--card);cursor:pointer}
+.lk-ncard{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--st-warn);border-radius:9px;background:var(--card);cursor:pointer}
 .lk-ncard:hover{box-shadow:0 3px 10px rgba(0,0,0,calc(.14*var(--fx-sh,1)))}
 .lk-ncard.over{border-left-color:#C0392B}
 .lk-colead{height:22px;max-width:96px;object-fit:contain;display:block;border-radius:3px}
@@ -184,7 +184,7 @@ const css = `
 .lk-ticket.constrained{border-left-style:dashed}
 .lk-ticket.complete{opacity:.5}.lk-ticket.complete .desc{text-decoration:line-through}
 .lk-ticket.dim{opacity:.16;filter:grayscale(.6)}
-.lk-ticket.spot{box-shadow:0 0 0 2px #E0A106,0 4px 14px rgba(224,161,6,.28)}
+.lk-ticket.spot{box-shadow:0 0 0 2px var(--st-warn),0 4px 14px color-mix(in srgb, var(--st-warn) 28%, transparent)}
 .lk-chip{font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:calc(4px*var(--r,1));text-transform:uppercase}
 .lk-boardpage .lk-chip{font-size:calc(8.5px*var(--bd-fs,1))}
 .lk-chip.commit{background:#1D4ED8;color:#DBE7FB}
@@ -193,15 +193,15 @@ const css = `
 .lk-chip.wit{background:#7C3AED;color:#EDE9FE}
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
 .lk-chip.fail{background:rgba(192,57,58,.18);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
-.lk-chip.pass{background:rgba(14,147,132,.16);color:#0E9384;border:1px solid rgba(14,147,132,.5)}
+.lk-chip.pass{background:color-mix(in srgb, var(--st-done) 16%, transparent);color:var(--st-done);border:1px solid color-mix(in srgb, var(--st-done) 50%, transparent)}
 .lk-chip.hrs{background:var(--chipbg);color:var(--accent);text-transform:none;font-weight:700}
-.lk-chip.retest{background:rgba(224,161,6,.14);color:#9A6A00;border:1px solid rgba(224,161,6,.45)}
+.lk-chip.retest{background:color-mix(in srgb, var(--st-warn) 14%, transparent);color:#9A6A00;border:1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)}
 .lk-ticket.ghostfail{background:repeating-linear-gradient(135deg,rgba(192,57,58,.14) 0 6px,rgba(192,57,58,.04) 6px 12px);border-left-color:#C0392B;cursor:pointer;overflow:visible}
 .lk-ticket.ghostfail .desc,.lk-ticket.ghostfail .meta{opacity:.45}
 .lk-ticket.ghostfail .desc{text-decoration:line-through;text-decoration-color:rgba(192,57,58,.9);text-decoration-thickness:1.5px}
 .lk-failx{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;background:#C0392B;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--card);z-index:3;pointer-events:none}
-.lk-rlink{align-self:center;height:0;border-top:1.5px dashed #E0A106;opacity:.75;z-index:0;pointer-events:none}
-.lk-fc{align-self:stretch;margin:3px 2px;border:1.5px dashed #E0A106;background:rgba(224,161,6,.10);border-radius:6px;z-index:0;pointer-events:none}
+.lk-rlink{align-self:center;height:0;border-top:1.5px dashed var(--st-warn);opacity:.75;z-index:0;pointer-events:none}
+.lk-fc{align-self:stretch;margin:3px 2px;border:1.5px dashed var(--st-warn);background:color-mix(in srgb, var(--st-warn) 10%, transparent);border-radius:6px;z-index:0;pointer-events:none}
 .lk-ghost{opacity:.5;pointer-events:none;z-index:0}.lk-ghost.bar{align-self:stretch;margin:3px 2px;border:1.5px dashed var(--muted);border-radius:6px;background:transparent}.lk-ghost.ms{align-self:center;display:flex;align-items:center;justify-content:center}.lk-ghost.ms .dia{width:12px;height:12px;transform:rotate(45deg);border:1.5px dashed var(--muted);background:transparent}
 .lk-rtrail{align-self:center;height:0;border-top:2px dotted #C0392B;z-index:0;pointer-events:none}
 .lk-ms{position:relative;pointer-events:auto;display:flex;align-items:center;justify-content:center;cursor:grab;overflow:visible;align-self:center;z-index:2}
@@ -349,8 +349,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-rail.open .lk-railppc span.railqa{display:inline-flex}
 .lk-rail.open .lk-railppc div.railqa{display:block}
 /* REV146: palette (Display) overrides for status colours on the main app */
-.lk.pal-hc{--green:#0E9E6E;--red:#D62828;--amber:#B45309}
-.lk.pal-cb{--green:#1E7FC0;--red:#DA5A1A;--amber:#E0A106}
+.lk{--st-warn:#E0A106;--st-warn-ink:#1c1303;--st-ok:#34D399;--st-ok-ink:#06261b;--st-done:#0E9384;--st-over:#D64545;--st-over-ink:#fff}
+.lk.pal-hc{--green:#0E9E6E;--red:#D62828;--amber:#B45309;--st-warn:#B45309;--st-warn-ink:#fff;--st-ok:#0E9E6E;--st-ok-ink:#fff;--st-done:#0E9E6E;--st-over:#D62828;--st-over-ink:#fff}
+.lk.pal-cb{--green:#1E7FC0;--red:#DA5A1A;--amber:#E0A106;--st-warn:#E0A106;--st-warn-ink:#1c1303;--st-ok:#1E7FC0;--st-ok-ink:#fff;--st-done:#1E7FC0;--st-over:#DA5A1A;--st-over-ink:#fff}
 /* REV146: rail Display control + palette flyout */
 .lk-disp{position:relative;width:100%;display:flex;justify-content:center;margin-top:auto}
 .lk-dispbtn{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
@@ -437,7 +438,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .ytt-con input{margin-top:2px;flex-shrink:0}
 .ytt-meta2{color:var(--muted)}
 .ytt-due{color:#C0392B}
-.ytt-ready{margin-top:7px;font-size:11px;font-weight:700;color:#0E9384}
+.ytt-ready{margin-top:7px;font-size:11px;font-weight:700;color:var(--st-done)}
 .wsch-period{display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-shrink:0}
 .wsch-period select{appearance:none;background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:6px 10px;font-size:12.5px;font-family:inherit}
 .wsch-list{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px;flex:1}
@@ -449,23 +450,23 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .wsch-name{font-weight:700;font-size:13.5px;line-height:1.3;cursor:pointer}
 .wsch-name:hover{text-decoration:underline}
 .wsch-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--muted)}
-.wsch-conhdr{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#E0A106;font-weight:700;margin-top:9px}
+.wsch-conhdr{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--st-warn);font-weight:700;margin-top:9px}
 .wsch-con{display:flex;align-items:flex-start;gap:8px;font-size:12px;margin-top:5px;line-height:1.35}
-.wsch-con .cdot{width:7px;height:7px;border-radius:50%;background:#E0A106;margin-top:5px;flex:0 0 auto}
+.wsch-con .cdot{width:7px;height:7px;border-radius:50%;background:var(--st-warn);margin-top:5px;flex:0 0 auto}
 .wsch-olbar{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--line);font-size:12px;flex-shrink:0;flex-wrap:wrap}
 .wsch-acct{border:1px solid rgba(107,155,242,.5);color:var(--accent);background:rgba(107,155,242,.1);border-radius:6px;padding:2px 8px;font-weight:700;font-size:11px}
 .wsch-olhint{color:var(--muted);font-size:11.5px}
-.wsch-olmsg{padding:7px 18px;font-size:11.5px;border-bottom:1px solid var(--line);color:#0E9384;background:rgba(14,147,132,.07);flex-shrink:0}
+.wsch-olmsg{padding:7px 18px;font-size:11.5px;border-bottom:1px solid var(--line);color:var(--st-done);background:color-mix(in srgb, var(--st-done) 7%, transparent);flex-shrink:0}
 .wsch-olmsg.err{color:#C0392B;background:rgba(192,57,58,.07)}
 .wsch-st{display:inline-block;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.3px;width:max-content}
 .wsch-st.notsent{background:var(--chipbg);color:var(--muted);border:1px solid var(--line)}
-.wsch-st.sent{background:rgba(14,147,132,.13);color:#0E9384;border:1px solid rgba(14,147,132,.45)}
-.wsch-st.changed{background:rgba(224,161,6,.12);color:#E0A106;border:1px solid rgba(224,161,6,.5)}
-.wsch-st.partial{background:rgba(224,161,6,.12);color:#E0A106;border:1px solid rgba(224,161,6,.5)}
+.wsch-st.sent{background:color-mix(in srgb, var(--st-done) 13%, transparent);color:var(--st-done);border:1px solid color-mix(in srgb, var(--st-done) 45%, transparent)}
+.wsch-st.changed{background:color-mix(in srgb, var(--st-warn) 12%, transparent);color:var(--st-warn);border:1px solid color-mix(in srgb, var(--st-warn) 50%, transparent)}
+.wsch-st.partial{background:color-mix(in srgb, var(--st-warn) 12%, transparent);color:var(--st-warn);border:1px solid color-mix(in srgb, var(--st-warn) 50%, transparent)}
 .wsch-st.cancelled{background:rgba(192,57,58,.11);color:#C0392B;border:1px solid rgba(192,57,58,.5)}
 .wsch-act{display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:center}
 .wsch-dpill{border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:9.5px;font-weight:700;color:var(--muted)}
-.wsch-dpill.s{border-color:rgba(14,147,132,.5);color:#0E9384}
+.wsch-dpill.s{border-color:color-mix(in srgb, var(--st-done) 50%, transparent);color:var(--st-done)}
 .wsch-btnrow{display:flex;gap:6px}
 @media (max-width:760px){.ytt-cols{grid-template-columns:1fr}.ytt-col{border-right:0;border-bottom:1px solid var(--line)}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
@@ -647,7 +648,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-modal .ref{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:12px}
 .lk-modal .ref b{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-bottom:4px}
 .lk-tag{display:inline-block;background:var(--chipbg);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin:2px 4px 2px 0;font-size:11.5px}
-.lk-res-ok{background:#0E93841a;border:1px solid #0E9384;color:var(--ink);border-radius:9px;padding:10px 12px;font-size:12.5px}
+.lk-res-ok{background:var(--st-done)1a;border:1px solid var(--st-done);color:var(--ink);border-radius:9px;padding:10px 12px;font-size:12.5px}
 .lk-res-err{background:#C0392B14;border:1px solid #C0392B;border-radius:9px;padding:10px 12px;font-size:12px}
 .lk-res-err ul{max-height:200px;overflow:auto;color:#C0392B}
 .lk-foot{flex-shrink:0;width:100%;margin-top:auto;border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:10.5px;line-height:1;padding:9px 18px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1209,13 +1210,13 @@ function auditCatOf(action) {
 function auditChipOf(action) {
   const a = String(action || "").toLowerCase();
   if (a.startsWith("daily update")) return { t: "UPDATE", c: "#2dd4bf" };
-  if (a.startsWith("revert") || a.startsWith("restore")) return { t: "REVERT", c: "#E0A106" };
+  if (a.startsWith("revert") || a.startsWith("restore")) return { t: "REVERT", c: "var(--st-warn)" };
   if (a.includes("witness") || a.includes("retest")) return { t: "WITNESS", c: "#b79bf0" };
   if (a.startsWith("import")) return { t: "IMPORT", c: "#a78bfa" };
   if (a.startsWith("export") || a.startsWith("send benchmarks")) return { t: "EXPORT", c: "#a78bfa" };
   if (a.startsWith("completed")) return { t: "DONE", c: "#2dd4bf" };
   if (a.startsWith("remove") || a.startsWith("delete")) return { t: "REMOVED", c: "#F87171" };
-  if (a.startsWith("add") || a.startsWith("create") || a.startsWith("copy") || a.startsWith("acknowledge") || a.startsWith("clear")) return { t: "ADDED", c: "#34D399" };
+  if (a.startsWith("add") || a.startsWith("create") || a.startsWith("copy") || a.startsWith("acknowledge") || a.startsWith("clear")) return { t: "ADDED", c: "var(--st-ok)" };
   if (/^(edit|update|change|rename|move|resize|find|bulk|commit|start)/.test(a)) return { t: "EDITED", c: "#5B9BF3" };
   return { t: "OTHER", c: "#8593a2" };
 }
@@ -1274,7 +1275,7 @@ function YttExpand({ a, ups, canPct, canNote, canCons, onAddCons, busy, onSave }
         : <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{a.percent == null ? "Not recorded." : a.percent + "%"}</div>}
       <div style={lbl}>Daily updates</div>
       {ups == null && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Loading updates...</div>}
-      {ups && ups.err && <div style={{ fontSize: 11.5, color: "#E0A106", lineHeight: 1.5 }}>Daily updates are unavailable: {ups.err}. If this mentions a missing table, run the 2026-07-12_activity-updates migration in the Supabase SQL Editor.</div>}
+      {ups && ups.err && <div style={{ fontSize: 11.5, color: "var(--st-warn)", lineHeight: 1.5 }}>Daily updates are unavailable: {ups.err}. If this mentions a missing table, run the 2026-07-12_activity-updates migration in the Supabase SQL Editor.</div>}
       {ups && !ups.err && (ups.length === 0
         ? <div style={{ fontSize: 11.5, color: "var(--muted)" }}>No daily updates yet.</div>
         : <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
@@ -1320,13 +1321,13 @@ function ImportReviewPanel({ rows, notices, syncOn, applying, onApply, onCancel 
   const errN = rows.filter((r) => r.st === "err").length;
   const cleanN = addN + updN + sameN;
   const shown = rows.filter((r) => filt === "all" ? true : r.st === filt);
-  const chip = (st) => { const c = st === "add" ? ["#34D399", "rgba(52,211,153,.14)", "Add"] : st === "upd" ? ["var(--accent)", "rgba(91,155,243,.14)", "Update"] : st === "same" ? ["var(--muted)", "rgba(133,147,162,.14)", "No change"] : ["#F87171", "rgba(248,113,113,.14)", "Error"]; return <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 8px", borderRadius: 6, color: c[0], background: c[1], whiteSpace: "nowrap" }}>{c[2]}</span>; };
+  const chip = (st) => { const c = st === "add" ? ["var(--st-ok)", "color-mix(in srgb, var(--st-ok) 14%, transparent)", "Add"] : st === "upd" ? ["var(--accent)", "rgba(91,155,243,.14)", "Update"] : st === "same" ? ["var(--muted)", "rgba(133,147,162,.14)", "No change"] : ["#F87171", "rgba(248,113,113,.14)", "Error"]; return <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 8px", borderRadius: 6, color: c[0], background: c[1], whiteSpace: "nowrap" }}>{c[2]}</span>; };
   const pill = (key, label, n, red) => n === 0 && key !== "all" ? null : <button key={key} className="lk-btn" style={{ padding: "3px 10px", fontSize: 11, fontWeight: 700, borderColor: filt === key ? "var(--accent)" : undefined, color: red ? "#F87171" : undefined }} onClick={() => setFilt(key)}>{label} {n}</button>;
   const errReport = () => { const lines = ["Error"]; rows.filter((r) => r.st === "err").forEach((r) => { const t = (r.raw || r.detail || "").replace(/"/g, '""'); lines.push(/[",\n]/.test(t) ? '"' + t + '"' : t); }); downloadFile("import-errors.csv", lines.join("\n")); };
   const gcols = "52px 1.7fr 1fr 92px 2.5fr";
   return (
     <div>
-      {!!(notices || []).length && <div style={{ fontSize: 12, color: "#E0A106", margin: "0 0 8px", lineHeight: 1.5 }}>{notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
+      {!!(notices || []).length && <div style={{ fontSize: 12, color: "var(--st-warn)", margin: "0 0 8px", lineHeight: 1.5 }}>{notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
       <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden" }}>
         <div style={{ maxHeight: 320, overflowY: "auto", position: "relative" }}>
           <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--card)" }}>
@@ -1370,7 +1371,7 @@ function ConstraintHistoryBody({ c, audit }) {
   const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso; } };
   // Event marks per the approved mockup: raised = hollow blue, cleared = filled green,
   // reopened = hollow amber, joined by a rail line; the last open event says "still open".
-  const T = { raised: ["Raised", "#5B9BF3", false], cleared: ["Cleared", "#0E9384", true], reopened: ["Reopened", "#E0A106", false] };
+  const T = { raised: ["Raised", "#5B9BF3", false], cleared: ["Cleared", "var(--st-done)", true], reopened: ["Reopened", "var(--st-warn)", false] };
   if (ev.length) return <div style={{ margin: "4px 0 2px" }}>{ev.map((e, i) => {
     const m = T[e.t] || [e.t, "var(--muted)", false];
     const last = i === ev.length - 1;
@@ -1448,7 +1449,7 @@ function defaults() {
 
 function portalVars(theme) {
   const D = { "--ink": "#E8EDF3", "--ink-2": "#B4C0CD", "--muted": "#8593A2", "--paper": "#161D26", "--backdrop": "#0C1116", "--card": "#141B24", "--line": "#27313D", "--line-2": "#1E2732", "--signal": "#5B9BF5", "--green": "#2FB6A6", "--amber": "#E0A33A", "--red": "#E76A5C", "--chip": "#1B232E", "--ring-track": "#26303B" };
-  const L = { "--ink": "#0F1E2E", "--ink-2": "#33485C", "--muted": "#647689", "--paper": "#FFFFFF", "--backdrop": "#EEF1F5", "--card": "#FFFFFF", "--line": "#E2E7EE", "--line-2": "#EEF2F6", "--signal": "#1E63D6", "--green": "#0E9384", "--amber": "#C07A00", "--red": "#C0392B", "--chip": "#F2F5F9", "--ring-track": "#E6EBF1" };
+  const L = { "--ink": "#0F1E2E", "--ink-2": "#33485C", "--muted": "#647689", "--paper": "#FFFFFF", "--backdrop": "#EEF1F5", "--card": "#FFFFFF", "--line": "#E2E7EE", "--line-2": "#EEF2F6", "--signal": "#1E63D6", "--green": "var(--st-done)", "--amber": "#C07A00", "--red": "#C0392B", "--chip": "#F2F5F9", "--ring-track": "#E6EBF1" };
   return { ...(theme === "dark" ? D : L), "--display": '"Space Grotesk","Inter",system-ui,sans-serif', "--body": '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif' };
 }
 const PORTAL_CSS = `
@@ -1670,7 +1671,7 @@ const PORTAL_CSS = `
 .qp .antable .row{border-top:1px solid var(--line);cursor:pointer}
 .qp .antable .row:hover{background:var(--chip)}
 .qp .hbadge{font-size:10px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:999px;white-space:nowrap}
-.qp .hbadge.ok{background:#0E938422;color:var(--green)}
+.qp .hbadge.ok{background:var(--st-done)22;color:var(--green)}
 .qp .hbadge.watch{background:#E0A33A22;color:var(--amber)}
 .qp .hbadge.risk{background:#C0392B22;color:var(--red)}
 .qp .hbadge.zero{background:var(--chip);color:var(--muted)}
@@ -1954,7 +1955,7 @@ function HubGlobalSettings({ theme, userName, projects }) {
             <button className="lk-btn primary" disabled={bulkBusy} onClick={hBulk}>{bulkBusy ? `Creating\u2026 (${(bulkResults || []).length})` : "Create all"}</button>
             {bulkResults && <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{bulkResults.filter((r) => r.status.startsWith("Created")).length} created, {bulkResults.filter((r) => !r.status.startsWith("Created")).length} need attention</div>
-              <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "#C0392B" : r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "#E0A106") : "#C0392B" }}>{(r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status) + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
+              <div className="lk-list" style={{ maxHeight: 200, overflow: "auto" }}>{bulkResults.map((r, i) => <div key={i} className="lk-li" style={{ fontSize: 11 }}><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</span><span title={r.mailErr || undefined} style={{ fontSize: 10, color: r.mail === "Email failed" ? "#C0392B" : r.status.startsWith("Created") ? (r.link ? "var(--muted)" : "var(--st-warn)") : "#C0392B" }}>{(r.status.startsWith("Created") ? (r.link ? "link ready" : "no link") : r.status) + (r.mail ? " \u00b7 " + r.mail : "")}</span></div>)}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 <button className="lk-btn" disabled={emailBusy || !bulkResults.some((r) => r.link)} title="Sends the invitation email to every created account with a link, one by one, from your connected Outlook" onClick={async () => {
                   setEmailBusy(true);
@@ -2374,7 +2375,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); }
   };
   const submit = async () => { if (!nf.name.trim() || !nf.code.trim()) { setErr("Project name and code are required."); return; } setBusy(true); setErr(""); try { await onNew(nf); } catch (e) { setErr(e.message || String(e)); setBusy(false); } };
-  const SW = ["#1E63D6", "#0E9384", "#7C4DFF", "#C07A00", "#C0392B"];
+  const SW = ["#1E63D6", "var(--st-done)", "#7C4DFF", "#C07A00", "#C0392B"];
   const cardEl = (p) => { const pct = p.stats.total ? Math.round(p.stats.complete / p.stats.total * 100) : 0; return (
     <div key={p.id} className="pcard" onClick={() => onEnter(p.id)}>
       <div className="head" style={{ background: p.accent }} />
@@ -2641,7 +2642,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                       {rowsA.map(({ p, m }) => { const pc = m.total ? Math.round(m.complete / m.total * 100) : 0; const h = healthOf(m); return (
                         <div className="row" key={p.id} onClick={() => onOpenAnalytics(p.id)}>
                           <div><div className="pn">{p.name}</div><div className="pc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
-                          <div>{(() => { const tgt = tgOf(p.id); const tone = ppcTone(m.ppc, tgt); const gap = m.ppc == null ? null : m.ppc - tgt; return <><div className="mono" style={{ fontWeight: 800, fontSize: 15, color: tone }}>{m.ppc == null ? "\u2014" : m.ppc + "%"}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>target {tgt}{gap == null ? " \u00b7 no commitments" : <span style={{ display: "inline-block", fontWeight: 800, padding: "0 5px", borderRadius: 5, fontSize: 10, marginLeft: 5, color: tone, background: tone === "var(--green)" ? "rgba(52,211,153,.14)" : tone === "var(--amber)" ? "rgba(224,161,6,.16)" : "rgba(248,113,113,.15)" }}>{(gap >= 0 ? "+" : "") + gap}</span>}</div></>; })()}</div>
+                          <div>{(() => { const tgt = tgOf(p.id); const tone = ppcTone(m.ppc, tgt); const gap = m.ppc == null ? null : m.ppc - tgt; return <><div className="mono" style={{ fontWeight: 800, fontSize: 15, color: tone }}>{m.ppc == null ? "\u2014" : m.ppc + "%"}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>target {tgt}{gap == null ? " \u00b7 no commitments" : <span style={{ display: "inline-block", fontWeight: 800, padding: "0 5px", borderRadius: 5, fontSize: 10, marginLeft: 5, color: tone, background: tone === "var(--green)" ? "color-mix(in srgb, var(--st-ok) 14%, transparent)" : tone === "var(--amber)" ? "color-mix(in srgb, var(--st-warn) 16%, transparent)" : "rgba(248,113,113,.15)" }}>{(gap >= 0 ? "+" : "") + gap}</span>}</div></>; })()}</div>
                           <div><div className="bar"><i style={{ width: pc + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pc}% {"\u00B7"} {m.complete}/{m.total}</div></div>
                           <div className="mono">{m.inProgress}</div>
                           <div className="mono" style={{ color: m.overdue ? "var(--red)" : "var(--muted)", fontWeight: 800 }}>{m.overdue}</div>
@@ -3664,7 +3665,7 @@ export default function App({ session }) {
   const boardEdge = (a, lv, constrained) => {
     if (BD.edge === "company") { const n = coName(a.companyId); return coEdgeMap[n] || coEdgeColor(n); }
     if (BD.edge === "discipline") { const d = (a.discipline || [])[0]; return DISC_EDGE[d] || lv.color; }
-    if (BD.edge === "status") return a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384";
+    if (BD.edge === "status") return a.status === "complete" ? "#9AA6B2" : constrained ? "var(--st-warn)" : "var(--st-done)";
     return lv.color;
   };
   const Ticket = ({ a, row }) => {
@@ -3737,16 +3738,16 @@ export default function App({ session }) {
     if (!carried && !failCarried && e < s) return null;
     const carriedHatch = a.delayed
       ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
-      : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
+      : "repeating-linear-gradient(135deg,color-mix(in srgb, var(--st-warn) 28%, transparent) 0 6px,color-mix(in srgb, var(--st-warn) 6%, transparent) 6px 12px)";
     const hasTail = !carried && !failedInv && !a.excuse && a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
     const tailLate = a.delayed && !a.excuse;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "") + (failedInv ? " ghostfail" : "")}
-        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : boardEdge(a, lv, constrained)), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "rgba(224,161,6,.85)"}` } : {}) }}
+        style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "#C0392B" : (carried ? "#C0392B" : boardEdge(a, lv, constrained)), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "color-mix(in srgb, var(--st-warn) 85%, transparent)"}` } : {}) }}
         draggable={movable && !rz && !failedInv} onDragStart={() => movable && !failedInv && (dragId.current = a.id)} onClick={() => setEditing({ ...a })} title={failedInv ? `Witness failed${a.outcomeAt ? " " + a.outcomeAt : ""}${a.outcomeReason ? " \u00b7 " + a.outcomeReason : ""} \u00b7 ${tipOf(a)}` : carried ? `Carried forward \u00b7 planned finish ${fmtISO(addDays(parseD(a.start), a.duration - 1))} \u00b7 ${tipOf(a)}` : tipOf(a)}>
         <div className="desc">{(carried || failCarried) && <span title={`Slipped from w/c ${fmtWC(mondayOf(parseD(a.start)))}`} style={{ color: "#C0392B", marginRight: 4, fontWeight: 800 }}>{"\u25C2"}</span>}{castName(a.desc || "Untitled activity", S.nameCase)}</div>
         <div className="meta">
-          <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "#E0A106" : "#0E9384" }} />
+          <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : constrained ? "var(--st-warn)" : "var(--st-done)" }} />
           {!BH.commit && a.committed && <span className="lk-chip commit">will</span>}
           {a.witnessInvite && (failedInv ? <span className="lk-chip fail" title={"Witness outcome: failed" + (a.outcomeReason ? " \u00b7 " + a.outcomeReason : "")}>failed</span> : (!BH.witness && (passedInv ? <span className="lk-chip pass" title="Witness outcome: succeeded">passed</span> : <span className="lk-chip wit" title="Witness invite">WIT</span>)))}
           {!BH.witness && a.retestOf && <span className="lk-chip retest" title={"Attempt #" + attemptNo(a, S.activities) + " of this witness event"}>retest #{attemptNo(a, S.activities) - 1}</span>}
@@ -3777,7 +3778,7 @@ export default function App({ session }) {
     if (e < s) return null;
     const startsAtPlanCol = s === Math.max(0, sU(a));
     const mLeft = startsAtPlanCol ? 16 : 2;
-    return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: `0 2px 3px ${mLeft}px`, borderRadius: 3, background: "#0E9384", zIndex: 2, pointerEvents: "none" }} />;
+    return <div title="Actual progress" style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "end", height: 5, margin: `0 2px 3px ${mLeft}px`, borderRadius: 3, background: "var(--st-done)", zIndex: 2, pointerEvents: "none" }} />;
   };
 
   const Forecast = ({ a, row }) => {
@@ -3797,7 +3798,7 @@ export default function App({ session }) {
     const col = late ? (dark ? "#FCA89E" : "#C0392B") : (dark ? "#F0C552" : "#E0A106");
     const hatch = late
       ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
-      : "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 6px,rgba(224,161,6,.06) 6px 12px)";
+      : "repeating-linear-gradient(135deg,color-mix(in srgb, var(--st-warn) 28%, transparent) 0 6px,color-mix(in srgb, var(--st-warn) 6%, transparent) 6px 12px)";
     const badge = late ? `${a.delayDays || a.totalShift}d late` : `+${a.totalShift}d`;
     return <div title={late ? `Overdue: forecast to finish late` : `Forecast: projected to start ${a.totalShift} day${a.totalShift === 1 ? "" : "s"} later than plan`} style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, alignSelf: "stretch", margin: "0 2px", border: "1px solid var(--line)", borderLeft: 0, borderRadius: "0 12px 12px 0", background: hatch, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 8px", zIndex: 0, pointerEvents: "none", overflow: "hidden" }}><span style={{ fontSize: 9.5, fontWeight: 700, color: col, whiteSpace: "nowrap", textShadow: dark ? "0 1px 2px rgba(0,0,0,.6)" : "none" }}>{badge}</span></div>;
   };
@@ -3890,7 +3891,7 @@ export default function App({ session }) {
     if ((oS >= 0 && oS < cols) || (oE >= 0 && oE < cols)) {
       const gs = Math.max(0, oS), ge = Math.min(cols - 1, oE);
       if (a.isMilestone) out.push(<div key="gh" className="lk-ghost ms" style={{ gridColumn: `${gs + 1} / ${gs + 2}`, gridRow: row + 1 }} title={`Originally ${rs[0].from}`}><span className="dia" /></div>);
-      else if (a.witnessInvite) out.push(<div key="gh" className="lk-ghost bar" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, display: "flex", alignItems: "center", gap: 6, padding: "0 8px", overflow: "hidden" }} title={`Original witness invite ${rs[0].from}, rescheduled to ${a.start}${a.witnessSentAt ? "; needs re-sending" : ""}`}><span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textDecoration: "line-through", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.code != null ? "#" + a.code : (a.desc || "").slice(0, 16)}</span>{a.witnessSentAt && <span style={{ fontSize: 8.5, fontWeight: 800, color: "#E0A106", background: "rgba(224,161,6,.14)", border: "1px solid rgba(224,161,6,.5)", borderRadius: 999, padding: "0 5px", whiteSpace: "nowrap", flexShrink: 0 }}>re-send</span>}</div>);
+      else if (a.witnessInvite) out.push(<div key="gh" className="lk-ghost bar" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1, display: "flex", alignItems: "center", gap: 6, padding: "0 8px", overflow: "hidden" }} title={`Original witness invite ${rs[0].from}, rescheduled to ${a.start}${a.witnessSentAt ? "; needs re-sending" : ""}`}><span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textDecoration: "line-through", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.code != null ? "#" + a.code : (a.desc || "").slice(0, 16)}</span>{a.witnessSentAt && <span style={{ fontSize: 8.5, fontWeight: 800, color: "var(--st-warn)", background: "color-mix(in srgb, var(--st-warn) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--st-warn) 50%, transparent)", borderRadius: 999, padding: "0 5px", whiteSpace: "nowrap", flexShrink: 0 }}>re-send</span>}</div>);
       else out.push(<div key="gh" className="lk-ghost bar" style={{ gridColumn: `${gs + 1} / ${ge + 2}`, gridRow: row + 1 }} title={`Originally ${rs[0].from}`} />);
     }
     return <>{out}</>;
@@ -3941,7 +3942,7 @@ export default function App({ session }) {
         </div>
         <div className="lk-railppc" title={"PPC " + (ppcAll == null ? "\u2014" : ppcAll + "%") + " \u00B7 Committed work due to date, finished on or before its promised date \u00B7 Target " + tgtAll + "%" + (qaAll != null && qaAll !== ppcAll ? " \u00B7 Quality-adjusted " + qaAll + "% (also excludes on-time witness failures)" : "") + " \u00B7 Click to open Analytics"} onClick={() => setPage("reports")} style={{ marginTop: 2, color: "#9aa7b8" }}>
           <div style={{ fontSize: 9, letterSpacing: ".1em", display: "flex", alignItems: "center" }}>PPC<span className="railqa"><PpcInfo target={tgtAll} small /></span></div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= tgtAll ? "#34D399" : ppcAll >= tgtAll - 15 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: ppcAll == null ? "#9aa7b8" : (ppcAll >= tgtAll ? "var(--st-ok)" : ppcAll >= tgtAll - 15 ? "#FBBF24" : "#F87171") }}>{ppcAll == null ? "\u2014" : ppcAll + "%"}</div>
           {qaAll != null && qaAll !== ppcAll && <div className="railqa" style={{ fontSize: 9.5, fontWeight: 700, color: "#FBBF24" }}>QA {qaAll}%</div>}
         </div>
       </div></nav>
@@ -4023,11 +4024,11 @@ export default function App({ session }) {
 
       <div className="lk-metrics">
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "In Lookahead", items: inWindow })}><span className="v">{inWindow.length}</span><span className="l">In lookahead</span></div>
-        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Ready To Run", items: ready })}><span className="v" style={{ color: "#0E9384" }}>{ready.length}</span><span className="l">Ready to run</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Ready To Run", items: ready })}><span className="v" style={{ color: "var(--st-done)" }}>{ready.length}</span><span className="l">Ready to run</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Need Make-Ready", items: needMR })}><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Committed This Week", items: committedWk })}><span className="v" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Delayed", items: delayedList })}><span className="v" style={{ color: "#C0392B" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
-        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "At Risk", items: atRiskList })}><span className="v" style={{ color: "#E0A106" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "At Risk", items: atRiskList })}><span className="v" style={{ color: "var(--st-warn)" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
       </div>
 
       <div className="lk-board">
@@ -4116,14 +4117,14 @@ export default function App({ session }) {
 
       <div className="lk-legend">
         {Object.entries(LV).map(([k, v]) => <span key={k} className="it"><span className="sw" style={{ background: v.color }} />{k} {v.name}</span>)}
-        <span className="it"><span className="dot" style={{ width: 9, height: 9, borderRadius: "50%", background: "#0E9384" }} />ready</span>
-        <span className="it"><span className="dot" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E0A106" }} />constrained</span>
+        <span className="it"><span className="dot" style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--st-done)" }} />ready</span>
+        <span className="it"><span className="dot" style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--st-warn)" }} />constrained</span>
         <span className="it"><span className="lk-chip commit">will</span>committed promise</span>
-        <span className="it"><span style={{ height: 5, width: 16, borderRadius: 3, background: "#0E9384" }} />actual progress</span>
+        <span className="it"><span style={{ height: 5, width: 16, borderRadius: 3, background: "var(--st-done)" }} />actual progress</span>
         <span className="it"><span style={{ height: 11, width: 18, borderRadius: "0 4px 4px 0", border: "1px solid #C0392B", borderLeft: 0, background: "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 5px,rgba(192,57,58,.07) 5px 10px)" }} />delayed</span>
-        <span className="it"><span style={{ height: 11, width: 18, borderRadius: "0 4px 4px 0", border: "1px solid #E0A106", borderLeft: 0, background: "repeating-linear-gradient(135deg,rgba(224,161,6,.28) 0 5px,rgba(224,161,6,.06) 5px 10px)" }} />forecast (knock-on)</span>
+        <span className="it"><span style={{ height: 11, width: 18, borderRadius: "0 4px 4px 0", border: "1px solid var(--st-warn)", borderLeft: 0, background: "repeating-linear-gradient(135deg,color-mix(in srgb, var(--st-warn) 28%, transparent) 0 5px,color-mix(in srgb, var(--st-warn) 6%, transparent) 5px 10px)" }} />forecast (knock-on)</span>
         <span className="it"><span className="lk-chip fail">failed</span>witness failed (ghosted, locked)</span>
-        <span className="it"><span style={{ height: 0, width: 18, borderTop: "1.5px dashed #E0A106", display: "inline-block" }} />retest link</span>
+        <span className="it"><span style={{ height: 0, width: 18, borderTop: "1.5px dashed var(--st-warn)", display: "inline-block" }} />retest link</span>
       </div>
       </div>}
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} can={can} canEdit={canEdit} update={update} coName={coName} />}
@@ -4141,7 +4142,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "rgba(14,147,132,.14)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "#0E9384" : "#C0392B"), color: digestNote.ok ? "#0E9384" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
+      {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "color-mix(in srgb, var(--st-done) 14%, transparent)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "var(--st-done)" : "#C0392B"), color: digestNote.ok ? "var(--st-done)" : "#C0392B", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
       {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onSavePercent={savePercent} canPercent={!isClientViewer && (can("editAny") || (can("editOwn") && editing.companyId === cu.companyId))} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
@@ -4156,10 +4157,10 @@ export default function App({ session }) {
             <div className="ytt-list" style={{ maxHeight: "70vh", overflow: "auto" }}>
               {readyEvents.length > 0 && <div style={{ marginBottom: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 2px 8px", fontSize: 12.5, color: "var(--head)", fontWeight: 800 }}><Icon n="package" s={14} /><span>Ready For Energisation</span>{readyEvents.length > 1 && <button className="lk-btn primary" style={{ marginLeft: "auto", padding: "5px 9px", fontSize: 11.5 }} disabled={!rffePicks.size} onClick={openRffeSelected}>Email {rffePicks.size || ""} selected as one RFFE</button>}</div>
-                {readyEvents.map((e) => <div key={e.id} className="ytt-card" style={{ borderLeftColor: "#E0A106" }}>
+                {readyEvents.map((e) => <div key={e.id} className="ytt-card" style={{ borderLeftColor: "var(--st-warn)" }}>
                   <div className="ytt-card-desc" onClick={() => { setNotifOpen(false); setPage("assets"); }}>{"\u26A1 "}{e.asset_name || e.asset_tag}</div>
                   <div className="ytt-card-meta">
-                    <span className="dot" style={{ background: e.state === "rffe_sent" ? "var(--accent)" : "#E0A106" }} />
+                    <span className="dot" style={{ background: e.state === "rffe_sent" ? "var(--accent)" : "var(--st-warn)" }} />
                     <span style={{ fontSize: 12, fontWeight: 600 }}>{e.state === "rffe_sent" ? "RFFE sent" : "Ready"}, approved for Yellow Tag by Cx</span>
                     <span className="ytt-loc">{e.asset_tag}{e.created_at ? <> {"\u00b7"} {new Date(e.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</> : ""}</span>
                   </div>
@@ -4183,7 +4184,7 @@ export default function App({ session }) {
                 : byAct.map(({ a, cons }) => { const lv = lvOf(LV, a.level); return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
                     <div className="ytt-card-desc" onClick={() => { setNotifOpen(false); setPage("board"); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
                     <div className="ytt-card-meta">
-                      <span className="dot" style={{ background: "#E0A106" }} />
+                      <span className="dot" style={{ background: "var(--st-warn)" }} />
                       {a.committed && <span className="lk-chip commit">will</span>}
                       {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
                       <span className="ytt-loc">{coName(a.companyId)} {"\u00b7"} {locCode(a)}</span>
@@ -4208,8 +4209,8 @@ export default function App({ session }) {
           .sort((x, y) => (y.open.length > 0) - (x.open.length > 0) || (y.a.committed ? 1 : 0) - (x.a.committed ? 1 : 0) || (x.a.startOff - y.a.startOff));
         const dShort = (off) => addDays(anchor, off).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
         const G = 12;
-        const stC = { done: "#0E9384", overdue: "#D64545", due: "#E0A106", starts: "#34D399", ongoing: "var(--accent)" };
-        const badgeSt = { done: { color: "#0E9384", border: "1px solid rgba(14,147,132,.5)", background: "transparent", opacity: 0.85 }, overdue: { color: "#fff", background: "#D64545" }, due: { color: "#1c1303", background: "#E0A106" }, starts: { color: "#06261b", background: "#34D399" }, ongoing: { color: "#fff", background: "#2456A6" } };
+        const stC = { done: "var(--st-done)", overdue: "var(--st-over)", due: "var(--st-warn)", starts: "var(--st-ok)", ongoing: "var(--accent)" };
+        const badgeSt = { done: { color: "var(--st-done)", border: "1px solid color-mix(in srgb, var(--st-done) 50%, transparent)", background: "transparent", opacity: 0.85 }, overdue: { color: "var(--st-over-ink)", background: "var(--st-over)" }, due: { color: "var(--st-warn-ink)", background: "var(--st-warn)" }, starts: { color: "var(--st-ok-ink)", background: "var(--st-ok)" }, ongoing: { color: "#fff", background: "#2456A6" } };
         const colHd = (lb, off, on) => <div key={lb} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "10px 4px 4px", fontWeight: 700, fontSize: 13, color: on ? "var(--accent)" : undefined }}>{lb}<span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{addDays(anchor, off).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span></div>;
         return (
           <div className="lk-bg" onClick={() => setYtt(false)}>
@@ -4246,11 +4247,11 @@ export default function App({ session }) {
                         <button className="lk-btn icon" title={yttEx[a.id] ? "Collapse" : "Percent and daily updates"} style={{ flex: "none", width: 22, height: 20, padding: 0, fontSize: 9, color: yttEx[a.id] ? "var(--accent)" : "var(--muted)", borderColor: yttEx[a.id] ? "var(--accent)" : undefined, transform: yttEx[a.id] ? "rotate(180deg)" : "none" }} onClick={(e) => { e.stopPropagation(); yttToggle(a); }}>{"\u25BC"}</button>
                       </div>
                       <div className="ytt-card-meta">
-                        <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : open.length ? "#E0A106" : "#0E9384" }} />
+                        <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : open.length ? "var(--st-warn)" : "var(--st-done)" }} />
                         {missed && <span className="lk-chip late">missed</span>}
                         {a.committed && <span className="lk-chip commit">will</span>}
                         {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
-                        {a.status === "complete" && <span style={{ color: "#0E9384", fontWeight: 700 }}>done</span>}
+                        {a.status === "complete" && <span style={{ color: "var(--st-done)", fontWeight: 700 }}>done</span>}
                         {a.percent != null && <span style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", border: "1px solid rgba(91,155,243,.4)", borderRadius: 5, padding: "1px 6px" }}>{a.percent}%</span>}
                         <span className="ytt-loc">{coName(a.companyId)} {"\u00b7"} {locCode(a)}</span>
                       </div>
@@ -4282,8 +4283,8 @@ export default function App({ session }) {
             a.crew.forEach((c) => { const ci = crews.indexOf(c); if (ci >= 0) { loads[ci][off].h += per; loads[ci][off].n += 1; } });
           }
         });
-        const cellBg = (h, work) => { if (!h) return work ? "transparent" : "var(--hover)"; const r = h / cap; if (r > 1) return "rgba(192,57,58,.22)"; if (r >= 0.85) return "rgba(224,161,6,.22)"; return "rgba(14,147,132,.16)"; };
-        const cellFg = (h) => { const r = h / cap; if (r > 1) return "#C0392B"; if (r >= 0.85) return "#9A6A00"; return "#0E9384"; };
+        const cellBg = (h, work) => { if (!h) return work ? "transparent" : "var(--hover)"; const r = h / cap; if (r > 1) return "rgba(192,57,58,.22)"; if (r >= 0.85) return "color-mix(in srgb, var(--st-warn) 22%, transparent)"; return "color-mix(in srgb, var(--st-done) 16%, transparent)"; };
+        const cellFg = (h) => { const r = h / cap; if (r > 1) return "#C0392B"; if (r >= 0.85) return "#9A6A00"; return "var(--st-done)"; };
         const fmtH = (h) => (Math.round(h * 10) / 10) + "h";
         return (
           <div className="lk-bg" onClick={() => setCapOpen(false)}>
@@ -4303,8 +4304,8 @@ export default function App({ session }) {
                   </React.Fragment>))}
                 </div>
                 <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 10.5, color: "var(--muted)", alignItems: "center", flexWrap: "wrap" }}>
-                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(14,147,132,.16)", marginRight: 4, verticalAlign: "-1px" }} />under 85%</span>
-                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(224,161,6,.22)", marginRight: 4, verticalAlign: "-1px" }} />85 to 100%</span>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "color-mix(in srgb, var(--st-done) 16%, transparent)", marginRight: 4, verticalAlign: "-1px" }} />under 85%</span>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "color-mix(in srgb, var(--st-warn) 22%, transparent)", marginRight: 4, verticalAlign: "-1px" }} />85 to 100%</span>
                   <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "rgba(192,57,58,.22)", marginRight: 4, verticalAlign: "-1px" }} />over 100%</span>
                   <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "var(--hover)", marginRight: 4, verticalAlign: "-1px" }} />non-working day</span>
                   <span style={{ marginLeft: "auto" }}>Working week and hours per day are set in Settings, Lookahead and Targets. Completed activities are excluded.</span>
@@ -4397,7 +4398,7 @@ export default function App({ session }) {
                         {st === "behindplan" && (() => {
                           const fmt = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
                           const ps = parseD(a.start);
-                          return <div style={{ marginTop: 6, padding: "6px 9px", borderRadius: 8, background: "rgba(224,161,6,.08)", border: "1px solid rgba(224,161,6,.4)", fontSize: 11.5, color: "#E7C874", lineHeight: 1.45 }}>Plan moved to <b style={{ color: "#f2d98a" }}>{isNaN(ps.getTime()) ? a.start : fmt(ps)}</b>. The invite is still on <b style={{ color: "#f2d98a" }}>{fmt(d)}</b>; Realign to move the witness session and send the update.</div>;
+                          return <div style={{ marginTop: 6, padding: "6px 9px", borderRadius: 8, background: "color-mix(in srgb, var(--st-warn) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-warn) 40%, transparent)", fontSize: 11.5, color: "#E7C874", lineHeight: 1.45 }}>Plan moved to <b style={{ color: "#f2d98a" }}>{isNaN(ps.getTime()) ? a.start : fmt(ps)}</b>. The invite is still on <b style={{ color: "#f2d98a" }}>{fmt(d)}</b>; Realign to move the witness session and send the update.</div>;
                         })()}
                       </div>
                       {isAdmin && !isClientViewer && (() => {
@@ -4770,7 +4771,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
               const pf = fmtISO(addDays(parseD(a.start), Math.max(1, a.duration || 1) - 1));
               if (ws >= a.start && we <= pf) return null;
               const early = ws < a.start;
-              return <span style={{ fontSize: 11, color: "#E0A106", fontWeight: 600 }}>{early ? `The witness date is before the planned start (${a.start}).` : `The witness ${Math.max(1, a.witnessDays || 1) > 1 ? "sessions run" : "date falls"} past the planned finish (${pf}).`} If the event moved, Reschedule the activity on the Schedule tab so the plan matches reality.</span>;
+              return <span style={{ fontSize: 11, color: "var(--st-warn)", fontWeight: 600 }}>{early ? `The witness date is before the planned start (${a.start}).` : `The witness ${Math.max(1, a.witnessDays || 1) > 1 ? "sessions run" : "date falls"} past the planned finish (${pf}).`} If the event moved, Reschedule the activity on the Schedule tab so the plan matches reality.</span>;
             })()}</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness duration <span style={{ color: "#C0392B" }}>*</span></label>
             <select className="lk-select" value={a.witnessDurationMin || 60} disabled={disPlan} onChange={(e) => set("witnessDurationMin", parseInt(e.target.value, 10))}>
@@ -4787,7 +4788,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
               <span style={{ fontSize: 11, color: "var(--muted)" }}>Consecutive daily sessions. 1 = a single-day event, as before.</span>
             </div>
             {(a.witnessDays || 1) > 1 && a.witnessAt && (() => { const n = a.witnessDays || 1; const sd = new Date(a.witnessAt); const ed = new Date(sd); ed.setDate(ed.getDate() + (n - 1)); const f = (d) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); return <div style={{ border: "1px dashed var(--line)", borderRadius: 8, background: "rgba(107,155,242,.06)", padding: "8px 10px", fontSize: 12, color: "var(--accent)", marginTop: 6 }}>{n} daily sessions, {f(sd)} to {f(ed)}. One invite is sent per day so each session blocks the witnesses' calendars.</div>; })()}
-            {(a.witnessDays || 1) > Math.max(1, a.duration || 1) && <span style={{ fontSize: 11, color: "#E0A106", fontWeight: 600 }}>Witness days exceed the activity's own duration ({Math.max(1, a.duration || 1)}d). Check one of them.</span>}
+            {(a.witnessDays || 1) > Math.max(1, a.duration || 1) && <span style={{ fontSize: 11, color: "var(--st-warn)", fontWeight: 600 }}>Witness days exceed the activity's own duration ({Math.max(1, a.duration || 1)}d). Check one of them.</span>}
           </div>}
           {a.witnessInvite && isAdmin && !clientViewer && <div className="lk-f"><label>Test Invite</label>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -4797,7 +4798,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
                 {twBusy ? "Sending..." : "Test Invite To Me"}</button>
               <span style={{ fontSize: 11, color: "var(--muted)" }}>Self only. Tests exactly what this drawer currently shows, including unsaved changes.</span>
             </div>
-            {twNote && <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 8, border: "1px solid " + (twNote.ok ? "rgba(14,147,132,.5)" : "rgba(192,57,58,.5)"), color: twNote.ok ? "#0E9384" : "#C0392B", background: twNote.ok ? "rgba(14,147,132,.07)" : "rgba(192,57,58,.07)" }}>{twNote.text}</div>}
+            {twNote && <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 8, border: "1px solid " + (twNote.ok ? "color-mix(in srgb, var(--st-done) 50%, transparent)" : "rgba(192,57,58,.5)"), color: twNote.ok ? "var(--st-done)" : "#C0392B", background: twNote.ok ? "color-mix(in srgb, var(--st-done) 7%, transparent)" : "rgba(192,57,58,.07)" }}>{twNote.text}</div>}
           </div>}
           {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = inviteRecipients(a); return (
             <div className="lk-f"><label>Invite recipients <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(set by discipline)</span></label>
@@ -4818,7 +4819,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {locked && canEdit && failedOnRecord && a.status !== "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Witness outcome recorded as Failed, so the record is locked. An admin can reopen the outcome by setting it back to Pending.</div>}
           <div className="lk-f"><label>Status</label><div className="lk-status">{(a.isMilestone ? [["planned", "Planned"], ["complete", "Complete"]] : [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]).map(([k, l]) => { const blockLate = k === "complete" && pastCompletionWindow(a) && !isAdmin; return <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit || blockLate} title={blockLate ? "Past its planned finish; overdue completion is admin-only" : undefined} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish && !pastCompletionWindow(p)) n.actualFinish = fmtISO(new Date()); n.percent = 100; } else if (k === "planned") n.percent = 0; return n; })}>{l}</button>; })}</div>
             {a.isMilestone && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Milestones are binary: a point event is either Planned or Complete.</span>}</div>
-          {pastCompletionWindow(a) && !isAdmin && a.status !== "complete" && <div style={{ border: "1px solid rgba(224,161,6,.45)", background: "rgba(224,161,6,.07)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "#E0A106", marginTop: -4 }}><Icon n="alert" s={13} /> <b>Past its planned finish ({fmtISO(plannedFinish(a))}), so Complete is now admin-only.</b> Record the Reason for Non-Completion below, then ask an admin to record the actual completion. This keeps the completion date honest in PPC.</div>}
+          {pastCompletionWindow(a) && !isAdmin && a.status !== "complete" && <div style={{ border: "1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)", background: "color-mix(in srgb, var(--st-warn) 7%, transparent)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "var(--st-warn)", marginTop: -4 }}><Icon n="alert" s={13} /> <b>Past its planned finish ({fmtISO(plannedFinish(a))}), so Complete is now admin-only.</b> Record the Reason for Non-Completion below, then ask an admin to record the actual completion. This keeps the completion date honest in PPC.</div>}
           {pastCompletionWindow(a) && isAdmin && a.status !== "complete" && <div style={{ border: "1px solid rgba(36,86,166,.55)", background: "rgba(36,86,166,.10)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "#7EA6E0", marginTop: -4 }}><Icon n="alert" s={13} /> You are recording an <b>overdue completion</b> (planned finish {fmtISO(plannedFinish(a))}). The audit log will name you and show the overrun. Set the true Actual finish date; it does not default to today on an overdue completion.</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness Outcome</label>
             <div className="lk-status">{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || locked || !can("witnessOutcome")} onClick={() => setOutcome(k)}>{l}</button>)}</div>
@@ -4849,14 +4850,14 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
                 <div className="lk-f"><label>Actual Start</label><input className="lk-in mono" type="date" value={a.actualStart || ""} disabled={dis} onChange={(e) => set("actualStart", e.target.value)} /></div>
                 <div className="lk-f"><label>Actual Finish</label><input className="lk-in mono" type="date" value={a.actualFinish || ""} disabled={dis} onChange={(e) => set("actualFinish", e.target.value)} /></div>
               </div>}
-          {!a.isMilestone && ((a.actualStart && parseD(a.actualStart).getTime() > todayMid()) || (a.actualFinish && parseD(a.actualFinish).getTime() > todayMid())) && <div style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, marginTop: -6 }}><Icon n="alert" s={12} /> Actual dates record what has already happened; a future date here is almost certainly a mistake and is ignored by the progress bar. For planned dates, use Start on this tab.</div>}
+          {!a.isMilestone && ((a.actualStart && parseD(a.actualStart).getTime() > todayMid()) || (a.actualFinish && parseD(a.actualFinish).getTime() > todayMid())) && <div style={{ fontSize: 11.5, color: "var(--st-warn)", fontWeight: 600, marginTop: -6 }}><Icon n="alert" s={12} /> Actual dates record what has already happened; a future date here is almost certainly a mistake and is ignored by the progress bar. For planned dates, use Start on this tab.</div>}
           {a.isMilestone
             ? <div className="lk-f"><label>Percent complete</label>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--muted)" }}><span>{a.status === "complete" ? "100" : "0"}%</span><span style={{ fontSize: 9.5, border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>locked for milestones</span></div>
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>0 while Planned, 100 on Complete. Keeps the Gantt fill and exports clean.</span></div>
             : <div className="lk-f"><label>Percent complete</label><input className="lk-in mono" type="number" min="0" max="100" step="5" value={a.percent == null ? "" : a.percent} disabled={locked || !canPercent} placeholder={a.status === "complete" ? "100" : "0"} onChange={(e) => { const v = e.target.value; setPct(v === "" ? null : Math.max(0, Math.min(100, Math.round(Number(v) || 0)))); }} />
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Manual progress you set. Left blank it reads {a.status === "complete" ? "100" : "0"}% from the status.</span></div>}
-          {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "#0E9384" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
+          {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "#C0392B" : "var(--st-done)" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
           {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
             <select className="lk-select" value={a.slipReason || ""} disabled={!canEdit} onChange={(e) => setReason(e.target.value)}>
               <option value="">-- record why it slipped --</option>{SLIP_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>; })()}
@@ -4879,7 +4880,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             if (!causes.length && a.totalShift > 0) causes.push("Forecast to shift " + a.totalShift + " day" + (a.totalShift === 1 ? "" : "s") + " from a predecessor.");
             const box = { border: "1px solid var(--line)", borderRadius: 11, background: "var(--card)", padding: 13 };
             if (a.excuse) return <div style={box}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontWeight: 750, fontSize: 13.5 }}>Delay</span><span style={{ fontSize: 10, fontWeight: 800, borderRadius: 20, padding: "3px 9px", background: "rgba(14,147,132,.2)", color: "#34D399" }}>Excused</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontWeight: 750, fontSize: 13.5 }}>Delay</span><span style={{ fontSize: 10, fontWeight: 800, borderRadius: 20, padding: "3px 9px", background: "color-mix(in srgb, var(--st-done) 20%, transparent)", color: "var(--st-ok)" }}>Excused</span></div>
               <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>This delay is excused, so it no longer shows as late on the board. Reason: <b style={{ color: "var(--ink)" }}>{a.excuse.reason}</b>.{a.excuse.note ? " " + a.excuse.note : ""}</div>
               <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>By {a.excuse.by || "\u2014"} on <span className="mono">{a.excuse.at}</span></div>
               {canEdit && <button className="lk-btn" style={{ marginTop: 11 }} onClick={() => setA((p) => { const n = { ...p }; delete n.excuse; return n; })}>Remove excuse</button>}
@@ -4921,7 +4922,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {!isNew && !planLocked && (confirmDel
             ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 600 }}>Delete this activity?</span><button className="lk-btn" style={{ background: "#C0392B", color: "#fff", borderColor: "#C0392B" }} onClick={() => onDelete(a)}>Yes, delete</button><button className="lk-btn" onClick={() => setConfirmDel(false)}>No</button></span>
             : <button className="lk-btn" onClick={() => setConfirmDel(true)} style={{ color: "#C0392B" }}><Icon n="trash" s={14} />Delete</button>)}
-          <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "#E0A106", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
+          <div className="lk-spacer" />{incomplete && <span style={{ fontSize: 11.5, color: "var(--st-warn)", fontWeight: 600, alignSelf: "center", marginRight: 8 }} title={"Still needed: " + missing.join(", ")}>Needs {missing.length} field{missing.length > 1 ? "s" : ""}: {missing.join(", ")}</span>}<button className="lk-btn" onClick={onClose}>Cancel</button>
           <button className="lk-btn primary" onClick={() => onSave(a, isNew)} disabled={incomplete}><Icon n="check" s={15} />Save</button>
         </div>}
         {!canEdit && canPercent && !isNew && <div className="lk-df">
@@ -5045,7 +5046,7 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
   };
   const groups = gf ? PRIV_GROUPS.filter(([g]) => g === gf) : PRIV_GROUPS;
   const visRows = filterPrivRows(rows, pq, prf, coName);
-  const badge = (t) => <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: .6, padding: "2px 7px", borderRadius: 999, background: t === "OWNER" ? "#7c3aed" : t === "SUPER" ? "#0E9384" : t === "ADMIN" ? "var(--accent)" : "var(--line)", color: t === "MEMBER" ? "var(--muted)" : "#fff" }}>{t}</span>;
+  const badge = (t) => <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: .6, padding: "2px 7px", borderRadius: 999, background: t === "OWNER" ? "#7c3aed" : t === "SUPER" ? "var(--st-done)" : t === "ADMIN" ? "var(--accent)" : "var(--line)", color: t === "MEMBER" ? "var(--muted)" : "#fff" }}>{t}</span>;
   const tg = (on, locked) => <span style={{ display: "inline-block", width: 32, height: 18, borderRadius: 999, position: "relative", background: locked ? (on ? "#7c3aed" : "var(--line)") : (on ? "var(--accent)" : "var(--line)"), opacity: locked ? .55 : 1, verticalAlign: "middle" }}><span style={{ position: "absolute", top: 2, left: on ? 16 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .12s" }} /></span>;
   return <>
     <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>User Privileges {!isOwner && <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>Read-only. Only the owner can change privileges.</span>}</h2>
@@ -5072,10 +5073,10 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
             <td style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--card)", padding: "8px 12px", borderRight: "1px solid var(--line)", borderTop: "1px solid var(--line)" }}>
               <div style={{ fontSize: 12.5, fontWeight: 650, display: "flex", alignItems: "center", gap: 7 }}>{r.u.name || "(no name)"} {badge(r.tag)}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 3, alignItems: "center" }}><span style={{ fontSize: 10, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 7px" }}>{coName(r.u.companyId) || "No company"}</span>
-                {isOwner && hasOv && r.tag !== "OWNER" && <span style={{ fontSize: 10.5, color: "#E0A106", cursor: "pointer", fontWeight: 600 }} onClick={() => resetRow(r)}>Reset To Role Defaults</span>}</div>
+                {isOwner && hasOv && r.tag !== "OWNER" && <span style={{ fontSize: 10.5, color: "var(--st-warn)", cursor: "pointer", fontWeight: 600 }} onClick={() => resetRow(r)}>Reset To Role Defaults</span>}</div>
             </td>
             {groups.flatMap(([, ps]) => ps.map(([k]) => { const on = eff(r, k); const locked = r.tag === "OWNER" || k === "privs" || !isOwner; return <td key={k} style={{ textAlign: "center", padding: "7px 0", borderLeft: "1px dashed var(--line)", borderTop: "1px solid var(--line)", cursor: locked ? "default" : "pointer" }} onClick={() => toggle(r, k)} title={locked ? (k === "privs" ? "Owner only" : "") : "Click to toggle"}>
-              <span style={{ position: "relative", display: "inline-block" }}>{tg(on, r.tag === "OWNER" || k === "privs")}{isOv(r, k) && <span style={{ position: "absolute", top: -3, right: -6, width: 8, height: 8, borderRadius: "50%", background: "#E0A106" }} />}</span>
+              <span style={{ position: "relative", display: "inline-block" }}>{tg(on, r.tag === "OWNER" || k === "privs")}{isOv(r, k) && <span style={{ position: "absolute", top: -3, right: -6, width: 8, height: 8, borderRadius: "50%", background: "var(--st-warn)" }} />}</span>
             </td>; }))}
           </tr>; };
           if (!visRows.length) return [<tr key="none"><td colSpan={nCols + 1} style={{ padding: 16, fontSize: 12, color: "var(--muted)" }}>{'Nobody matches' + (pq.trim() ? ' "' + pq.trim() + '"' : '') + (prf ? " with role " + prf : "") + "."}</td></tr>];
@@ -5089,9 +5090,9 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
         </tbody>
       </table>
     </div>}
-    {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.startsWith("Save failed") ? "#C0392B" : "#0E9384" }}>{msg}</div>}
+    {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.startsWith("Save failed") ? "#C0392B" : "var(--st-done)" }}>{msg}</div>}
     {isOwner && pendCount > 0 && <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-      <span style={{ fontSize: 12.5, fontWeight: 650 }}><span style={{ color: "#E0A106" }}>{pendCount}</span> change{pendCount === 1 ? "" : "s"} pending</span>
+      <span style={{ fontSize: 12.5, fontWeight: 650 }}><span style={{ color: "var(--st-warn)" }}>{pendCount}</span> change{pendCount === 1 ? "" : "s"} pending</span>
       <button className="lk-btn" onClick={() => setPending({})} disabled={busy}>Discard</button>
       <button className="lk-btn primary" onClick={doSave} disabled={busy}>{busy ? "Saving..." : "Save Changes"}</button>
     </div>}
@@ -5196,7 +5197,7 @@ function DesignTab({ S, update }) {
   const setFx = (patch) => update((p) => { const cur = (p.settings && p.settings.design) || {}; return { ...p, settings: { ...p.settings, design: { ...cur, effects: patch === null ? {} : { ...(cur.effects || {}), ...patch } } } }; }, { action: "Change setting", detail: "Design effects " + (patch === null ? "reset" : Object.keys(patch).join(", ")) });
   const hasOver = (k) => !!(design.pages && design.pages[k] && Object.keys(design.pages[k]).length);
   const themeAccent = (THEMES[S.theme] || THEMES.light).accent;
-  const ACCENTS = ["#1E5FCC", "#2563EB", "#0E9384", "#16A34A", "#C07A00", "#C0392B", "#7C3AED", "#DB2777", "#0891B2", "#475569"];
+  const ACCENTS = ["#1E5FCC", "#2563EB", "var(--st-done)", "#16A34A", "#C07A00", "#C0392B", "#7C3AED", "#DB2777", "#0891B2", "#475569"];
   const FONTS = [["grotesk", "Space Grotesk"], ["inter", "Inter"], ["system", "System"], ["serif", "Serif"], ["mono", "Mono"]];
   const lab = { fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 };
   const effAccent = scopeBlk.accent || (desScope === "global" ? "" : (g.accent || ""));
@@ -6387,7 +6388,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               Upload a programme baseline for this project: Primavera P6 (.xer), Microsoft Project (.xml, via Save As \u2192 XML), or a spreadsheet (.csv / .xlsx). DLP reads the activities, milestones and dates and keeps them read-only for comparison against the live programme on the Schedule. Spreadsheets get a quick column-mapping step. Re-uploading replaces the stored baseline.
             </div>
             {blErr && <div style={{ marginBottom: 10, fontSize: 12.5, color: "var(--red)", background: "rgba(192,57,43,.08)", border: "1px solid rgba(192,57,43,.3)", borderRadius: 8, padding: "8px 11px" }}>{blErr}</div>}
-            {blMsg && <div style={{ marginBottom: 10, fontSize: 12.5, color: "#0E9384", background: "rgba(14,147,132,.08)", border: "1px solid rgba(14,147,132,.3)", borderRadius: 8, padding: "8px 11px" }}>{blMsg}</div>}
+            {blMsg && <div style={{ marginBottom: 10, fontSize: 12.5, color: "var(--st-done)", background: "color-mix(in srgb, var(--st-done) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-done) 30%, transparent)", borderRadius: 8, padding: "8px 11px" }}>{blMsg}</div>}
             {bl && bl.meta && !blPrev && !blTab && (() => { const m = bl.meta || {}; const c = m.counts || {}; return (
               <div style={{ border: "1px solid var(--line)", borderRadius: 10, background: "var(--card)", padding: 14, marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -6437,7 +6438,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   <input className="lk-in" placeholder="Search baseline activities…" value={mapQ} onChange={(e) => setMapQ(e.target.value)} style={{ maxWidth: 260 }} />
                   <button className={"lk-btn" + (mapAll ? " on" : "")} onClick={() => setMapAll((v) => !v)}>{mapAll ? "All activities" : "Milestones only"}</button>
                   <div style={{ flex: 1 }} />
-                  {mapSaved && <span style={{ fontSize: 11.5, color: "#0E9384" }}>Saved</span>}
+                  {mapSaved && <span style={{ fontSize: 11.5, color: "var(--st-done)" }}>Saved</span>}
                   <button className="lk-btn primary" disabled={blBusy} onClick={async () => { setBlBusy(true); setBlErr(""); try { await saveBaselineMappings(S.projectId, mapDraft); setBl({ ...bl, mappings: { ...mapDraft } }); setMapSaved(true); setTimeout(() => setMapSaved(false), 2500); } catch (e) { setBlErr(e && e.message ? e.message : "Mapping save failed."); } setBlBusy(false); }}>Save mapping</button>
                 </div>
                 <div style={{ maxHeight: 360, overflow: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
@@ -6536,7 +6537,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                       </tr>)}</tbody>
                     </table>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{ready ? <>Ready: <b style={{ color: "var(--ink)" }}>{prev.meta.counts.activities}</b> activities, <b style={{ color: "var(--ink)" }}>{prev.meta.counts.milestones}</b> milestones detected.</> : <span style={{ color: "#E0A106" }}>Map Activity name and Start to continue.</span>}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{ready ? <>Ready: <b style={{ color: "var(--ink)" }}>{prev.meta.counts.activities}</b> activities, <b style={{ color: "var(--ink)" }}>{prev.meta.counts.milestones}</b> milestones detected.</> : <span style={{ color: "var(--st-warn)" }}>Map Activity name and Start to continue.</span>}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                   <button className="lk-btn primary" disabled={!ready || blBusy} onClick={saveBlTab}>{blBusy ? "Saving\u2026" : "Save baseline"}</button>
@@ -6588,7 +6589,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>{c.desc}</div>
               </div>
               {c.v == null ? <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{"Checking\u2026"}</span>
-                : c.v ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "rgba(52,211,153,.13)", color: "#0E9384" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />{c.v}</span>
+                : c.v ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "color-mix(in srgb, var(--st-ok) 13%, transparent)", color: "var(--st-done)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />{c.v}</span>
                 : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "var(--hover)", color: "var(--muted)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Not connected</span>}
               <button className={"lk-btn" + (c.v ? "" : " primary")} onClick={() => connGo(c.k)} title="Signs in via a quick full-page Microsoft redirect and returns here">{c.v ? "Reconnect" : (c.k === "ol" ? "Connect Outlook" : "Connect SharePoint")}</button>
             </div>)}
@@ -6604,7 +6605,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 {connAcc == null
                   ? <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{"Checking\u2026"}</span>
                   : (connAcc && connAcc.enabled)
-                    ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "rgba(52,211,153,.13)", color: "#0E9384" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Live</span>
+                    ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "color-mix(in srgb, var(--st-ok) 13%, transparent)", color: "var(--st-done)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Live</span>
                     : connAcc
                       ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "rgba(224,168,58,.14)", color: "#B7791F" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Paused</span>
                       : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 11px", background: "var(--hover)", color: "var(--muted)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />Not Configured</span>}
@@ -6710,8 +6711,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               return { btn: "Force revert", mode: "override", snap, laterN };
             };
             const openEntry = (e, aff) => { if (aff && aff.btn && canv("auditRevert")) { setRvErr(""); setRv({ e, snap: aff.snap, mode: aff.mode, laterN: aff.laterN }); } else setADetail({ e, aff }); };
-            const tagSt = (done) => ({ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", border: "1px solid var(--line)", color: "var(--muted)", flex: "none", ...(done ? { color: "#0E9384", borderColor: "rgba(14,147,132,.5)" } : {}) });
-            const btnSt = (mode) => mode === "override" ? { color: "#E0A106", borderColor: "rgba(224,161,6,.5)" } : mode === "remove" ? { color: "#F87171", borderColor: "rgba(248,113,113,.5)" } : { color: "var(--accent)", borderColor: "rgba(91,155,243,.5)" };
+            const tagSt = (done) => ({ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", border: "1px solid var(--line)", color: "var(--muted)", flex: "none", ...(done ? { color: "var(--st-done)", borderColor: "color-mix(in srgb, var(--st-done) 50%, transparent)" } : {}) });
+            const btnSt = (mode) => mode === "override" ? { color: "var(--st-warn)", borderColor: "color-mix(in srgb, var(--st-warn) 50%, transparent)" } : mode === "remove" ? { color: "#F87171", borderColor: "rgba(248,113,113,.5)" } : { color: "var(--accent)", borderColor: "rgba(91,155,243,.5)" };
             const stepLbl = { fontSize: 9, fontWeight: 800, letterSpacing: ".5px", textTransform: "uppercase" };
             let lastDay = null;
             const pageBtn = (lb, target, dis) => <button key={lb} className="lk-btn" disabled={dis} style={{ padding: "5px 13px", fontSize: 11.5, fontWeight: 700, opacity: dis ? 0.45 : 1, ...(dis ? {} : { borderColor: "rgba(91,155,243,.5)", color: "var(--accent)" }) }} onClick={() => setAPage(target)}>{lb}</button>;
@@ -6789,7 +6790,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             const dl = (rv.mode === "revert" || isOvr) ? rvDiffs(before, rvRowView(live)) : [];
             const noChange = (rv.mode === "revert" || isOvr) && dl.length === 0;
             const title = rv.mode === "restore" ? "Restore Activity" : rv.mode === "remove" ? "Remove Created Activity" : isOvr ? "Force revert" : "Undo change";
-            const keyRow = (k, l, src) => <div key={k} style={{ display: "contents" }}><div>{l}</div><div style={{ color: "#0E9384" }}>{rvFmt(k, src[k])}</div></div>;
+            const keyRow = (k, l, src) => <div key={k} style={{ display: "contents" }}><div>{l}</div><div style={{ color: "var(--st-done)" }}>{rvFmt(k, src[k])}</div></div>;
             return <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => !rvBusy && setRv(null)}>
               <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 540 }} onClick={(ev) => ev.stopPropagation()}>
                 <div className="lk-dh"><h3>{title}</h3><button className="lk-btn icon" onClick={() => setRv(null)}><Icon n="x" /></button></div>
@@ -6804,14 +6805,14 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   {(rv.mode === "revert" || isOvr) && <>
                     <div>Restore <b>{before.descr || "this activity"}</b> to its state before the change by <b>{rv.e.user}</b> at {new Date(rv.e.ts).toLocaleString("en-GB")}.{!live && " The activity no longer exists; reverting recreates it."}</div>
                     {!isOvr && <div style={{ fontSize: 12.5, color: "var(--muted)" }}>This is the latest change to this activity, so undoing it affects nothing else.</div>}
-                    {isOvr && rv.laterN > 0 && <div style={{ border: "1px solid rgba(224,161,6,.45)", background: "rgba(224,161,6,.07)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#E0A106" }}>{rv.laterN} later change{rv.laterN === 1 ? "" : "s"} to this activity will be overwritten. This restores the snapshot wholesale; it does not undo only the one change.</div>}
+                    {isOvr && rv.laterN > 0 && <div style={{ border: "1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)", background: "color-mix(in srgb, var(--st-warn) 7%, transparent)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "var(--st-warn)" }}>{rv.laterN} later change{rv.laterN === 1 ? "" : "s"} to this activity will be overwritten. This restores the snapshot wholesale; it does not undo only the one change.</div>}
                     {noChange
                       ? <div style={{ fontSize: 12.5, color: "var(--muted)" }}>The current state already matches this snapshot. Nothing to revert.</div>
                       : <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 1fr", gap: "6px 12px", fontSize: 12.5, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 9, padding: 12 }}>
                           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", fontWeight: 700 }}>Field</div>
                           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", fontWeight: 700 }}>Restores To</div>
                           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", fontWeight: 700 }}>Currently</div>
-                          {dl.map((d) => <div key={d.k} style={{ display: "contents" }}><div>{d.l}</div><div style={{ color: "#0E9384" }}>{d.restore}</div><div style={{ color: "var(--muted)", textDecoration: "line-through" }}>{d.cur}</div></div>)}
+                          {dl.map((d) => <div key={d.k} style={{ display: "contents" }}><div>{d.l}</div><div style={{ color: "var(--st-done)" }}>{d.restore}</div><div style={{ color: "var(--muted)", textDecoration: "line-through" }}>{d.cur}</div></div>)}
                         </div>}
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>Unchanged fields are not touched. The revert is recorded in the audit log and is itself revertible.</div>
                   </>}
@@ -7000,7 +7001,7 @@ function CompanyModal({ co, logo, S, onClose }) {
   );
 }
 
-const DRILL_ICONS = { "in lookahead": ["cal", "var(--muted)"], "total activities": ["list", "var(--muted)"], "ready to run": ["play", "#0E9384"], "need make-ready": ["wrench", "#D97706"], "committed this week": ["checkcircle", "var(--accent)"], "committed": ["checkcircle", "var(--accent)"], "delayed": ["clock", "#C0392B"], "at risk": ["alert", "#E0A106"], "complete": ["check", "#0E9384"], "in progress": ["loader", "var(--muted)"], "planned": ["cal", "var(--muted)"], "witness required": ["eye", "#7A4FD0"] };
+const DRILL_ICONS = { "in lookahead": ["cal", "var(--muted)"], "total activities": ["list", "var(--muted)"], "ready to run": ["play", "var(--st-done)"], "need make-ready": ["wrench", "#D97706"], "committed this week": ["checkcircle", "var(--accent)"], "committed": ["checkcircle", "var(--accent)"], "delayed": ["clock", "#C0392B"], "at risk": ["alert", "var(--st-warn)"], "complete": ["check", "var(--st-done)"], "in progress": ["loader", "var(--muted)"], "planned": ["cal", "var(--muted)"], "witness required": ["eye", "#7A4FD0"] };
 const drillIcon = (t) => DRILL_ICONS[(t || "").trim().toLowerCase()] || ["chart", null];
 
 // CreatedEntriesModal (REV159, admin): activities listed by the date they were inserted into the
@@ -7238,7 +7239,7 @@ function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P, br
   const todayX = leftW + dayOff(new Date(todayMid())) * ppd;
   const text = (x, y, s, o = {}) => <text x={x} y={y} fontFamily="Segoe UI, Arial, sans-serif" fill={o.fill || P.ink} fontSize={o.size || 11} fontWeight={o.weight || 400} textAnchor={o.anchor || "start"} dominantBaseline={o.baseline || "middle"} style={{ pointerEvents: "none" }}>{s}</text>;
   const BASE = dark ? "#8A97A6" : "#94A3B8";
-  const LATE = dark ? "#F87171" : "#C0392B", EARLY = dark ? "#34D399" : "#0E9384";
+  const LATE = dark ? "#F87171" : "#C0392B", EARLY = dark ? "var(--st-ok)" : "var(--st-done)";
 
   const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
   const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${brandName || "DLP"}-compare-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
@@ -7303,9 +7304,9 @@ function SchedulePage({ S, coName, onOpen }) {
 
   const acts = S.activities.filter((a) => a.start);
   const byId = Object.fromEntries(acts.map((a) => [a.id, a]));
-  const PAL = ["#2563EB", "#0E9384", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
+  const PAL = ["#2563EB", "var(--st-done)", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
   const coColor = (id) => { if (!id) return "#94A3B8"; let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PAL[h % PAL.length]; };
-  const colorOf = (a) => colorBy === "company" ? coColor(a.companyId) : colorBy === "status" ? (a.status === "complete" ? "#0E9384" : a.status === "in_progress" ? "#2563EB" : "#94A3B8") : ((LV[a.level] || {}).color || "#64748B");
+  const colorOf = (a) => colorBy === "company" ? coColor(a.companyId) : colorBy === "status" ? (a.status === "complete" ? "var(--st-done)" : a.status === "in_progress" ? "#2563EB" : "#94A3B8") : ((LV[a.level] || {}).color || "#64748B");
   const pct = (a) => pctOf(a);
   const groupKey = (a) => groupBy === "none" ? "" : groupBy === "company" ? coName(a.companyId) : groupBy === "area" ? (a.area || "Unassigned") : groupBy === "system" ? (a.system || "Unassigned") : (a.level + " " + ((LV[a.level] || {}).name || ""));
 
@@ -7534,7 +7535,7 @@ function CalendarView({ S, coName, onDrill, LV, P }) {
 function WorkloadView({ S, coName, onDrill }) {
   const acts = S.activities.filter((a) => a.start);
   if (!acts.length) return <div className="lk-empty" style={{ flex: 1 }}>No activities with dates yet.</div>;
-  const PAL = ["#2563EB", "#0E9384", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
+  const PAL = ["#2563EB", "var(--st-done)", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
   const coColor = (id) => { if (!id) return "#94A3B8"; let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PAL[h % PAL.length]; };
   const span = (a) => ({ s: parseD(a.start).getTime(), e: addDays(parseD(a.start), Math.max(1, a.duration) - 1).getTime() });
   const weekActs = (wk, c) => { const ws = wk.getTime(), we = addDays(wk, 6).getTime(); return acts.filter((a) => { const { s, e } = span(a); return s <= we && e >= ws && (!c || a.companyId === c); }); };
@@ -7959,7 +7960,7 @@ function PpcInfo({ target, small }) {
             <h3 style={{ margin: 0, fontSize: 15 }}>How These Figures Are Calculated</h3>
             <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>Both share one denominator: committed activities whose promised finish has passed. Commitments not yet due get no verdict.</div>
           </div>
-          <div className="ref"><b style={{ color: "#0E9384" }}>PPC, Percent Plan Complete</b>A promise is kept when the activity is Complete with an actual finish on or before its promised finish. This is plan reliability: did the team do what it said, when it said. A witnessed event held on its promised day counts as kept even if the test failed; the failure is a quality verdict, recorded separately.</div>
+          <div className="ref"><b style={{ color: "var(--st-done)" }}>PPC, Percent Plan Complete</b>A promise is kept when the activity is Complete with an actual finish on or before its promised finish. This is plan reliability: did the team do what it said, when it said. A witnessed event held on its promised day counts as kept even if the test failed; the failure is a quality verdict, recorded separately.</div>
           <div className="ref"><b style={{ color: "#D97706" }}>Quality-Adjusted PPC</b>The same calculation, except an on-time completion whose witness outcome is Failed does not count as kept. Of the work promised, how much was done on time and passed.</div>
           <div className="ref"><b style={{ color: "#C0392B" }}>Target{target != null ? " \u00b7 " + target + "%" : ""}</b>The red marker is this project's PPC target, set by admins in Admin, Lookahead &amp; Targets. It applies to PPC, the core reliability metric, not the quality-adjusted figure.</div>
           <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}><b style={{ color: "var(--ink)" }}>Example:</b> 10 committed activities due. 8 finished on time (PPC 80%). 2 were witnessed tests that failed on the day (Quality-Adjusted 60%). The failures also lower First-Time Pass and each carries a linked retest, which earns its own PPC verdict when its promised date passes.</div>
@@ -7979,7 +7980,7 @@ function Gauge({ value, size = 150, label = "PPC", onClick, target }) {
   // REV121 colour rule unchanged: target-relative when given (green at or above,
   // amber within 15 below, red beyond); hardcoded 80/50 fallback for target-less callers.
   const tg = target == null ? null : Math.max(1, Math.min(100, target));
-  const col = v == null ? "var(--muted)" : (tg != null ? (v >= tg ? "#0E9384" : v >= tg - 15 ? "#D97706" : "#C0392B") : (v >= 80 ? "#0E9384" : v >= 50 ? "#D97706" : "#C0392B"));
+  const col = v == null ? "var(--muted)" : (tg != null ? (v >= tg ? "var(--st-done)" : v >= tg - 15 ? "#D97706" : "#C0392B") : (v >= 80 ? "var(--st-done)" : v >= 50 ? "#D97706" : "#C0392B"));
   // Angle 180deg (left) to 0deg (right); sweep never exceeds 180 so large-arc is always 0.
   const px = (p) => cx + r * Math.cos(Math.PI * (1 - p / 100));
   const py = (p) => cy - r * Math.sin(Math.PI * (1 - p / 100));
@@ -8068,14 +8069,14 @@ const ParetoHead = ({ first = "Reason" }) => <div className="lk-bar-head"><span>
 // MixRow: volume-plus-progress row for By Company and By Cx Stage. Bar length is volume against
 // the biggest row; segments inside are Complete / In progress / Planned in the Status Mix colours,
 // so one legend teaches every panel. pct column carries PPC (company) or Done % (stage).
-const ppcColor = (v) => v == null ? "var(--muted)" : v >= 80 ? "#34D399" : v >= 50 ? "#FBBF24" : "#F87171";
+const ppcColor = (v) => v == null ? "var(--muted)" : v >= 80 ? "var(--st-ok)" : v >= 50 ? "#FBBF24" : "#F87171";
 const MixRow = ({ swatch, label, n, max, done, inprog, pct, tip, open, onClick }) => {
   const wid = Math.max(3, Math.round((n / max) * 100));
   const dp = n ? (done / n) * 100 : 0, ip = n ? (inprog / n) * 100 : 0;
   return <div className="lk-mix-row clickable" onClick={onClick} title={tip}>
     <span className="nm">{swatch && <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", marginRight: 6, verticalAlign: "middle", background: swatch }} />}{label}</span>
     <div style={{ height: 16 }}><div style={{ width: `${wid}%`, height: "100%", borderRadius: 5, overflow: "hidden", display: "flex" }}>
-      <div style={{ width: `${dp}%`, background: "#0E9384" }} />
+      <div style={{ width: `${dp}%`, background: "var(--st-done)" }} />
       <div style={{ width: `${ip}%`, background: "#2563EB" }} />
       <div style={{ flex: 1, background: "#94A3B8" }} />
     </div></div>
@@ -8086,7 +8087,7 @@ const MixRow = ({ swatch, label, n, max, done, inprog, pct, tip, open, onClick }
 };
 const MixHead = ({ first, pct }) => <div className="lk-mix-head"><span>{first}</span><span /><span>N</span><span>{pct}</span><span>Open</span></div>;
 const MixLegend = () => <div style={{ fontSize: 10.5, color: "var(--muted)", display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
-  {[["#0E9384", "Complete"], ["#2563EB", "In progress"], ["#94A3B8", "Planned"]].map(([c, l]) => <span key={l}><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, verticalAlign: "middle", marginRight: 5, background: c }} />{l}</span>)}
+  {[["var(--st-done)", "Complete"], ["#2563EB", "In progress"], ["#94A3B8", "Planned"]].map(([c, l]) => <span key={l}><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, verticalAlign: "middle", marginRight: 5, background: c }} />{l}</span>)}
 </div>;
 
 // ==== Weekly DLP Report generator =========================================
@@ -8223,12 +8224,12 @@ function computeReport({ S, LV, coName, start, end }){
   const stPlanned = stOf("planned"), stProg = stOf("in_progress"), stDone = stOf("complete");
   const statusData = [
     { k:"planned", name:"Planned", color:"#94A3B8", n:stPlanned.length, subs:[
-      { label:"ready to run", color:"#0E9384", n:stPlanned.filter((a)=>openOf(a)===0).length },
+      { label:"ready to run", color:"var(--st-done)", n:stPlanned.filter((a)=>openOf(a)===0).length },
       { label:"need make-ready", color:"#C07A00", n:stPlanned.filter((a)=>openOf(a)>0).length } ] },
     { k:"in_progress", name:"In progress", color:"#2563EB", n:stProg.length, subs:[
       { label:"running late", color:"#C0392B", n:stProg.filter(isDelayed).length },
       { label:"constrained", color:"#C07A00", n:stProg.filter((a)=>openOf(a)>0).length } ] },
-    { k:"complete", name:"Complete", color:"#0E9384", n:stDone.length, subs:[
+    { k:"complete", name:"Complete", color:"var(--st-done)", n:stDone.length, subs:[
       { label:"on time", color:"#14B8A6", n:stDone.filter(onTimeDone).length },
       { label:"finished late", color:"#C0392B", n:stDone.filter((a)=>!onTimeDone(a)).length } ] },
   ];
@@ -8277,8 +8278,8 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   // denominators the on-screen trend already has (paper has no hover).
   const ppcCol = (v) => v==null?"var(--muted)":v>=80?"var(--green)":v>=50?"var(--amber)":"var(--red)";
   const mixHead = (first,pctLabel) => `<div class="mix-head"><span>${first}</span><span></span><span>N</span><span>${pctLabel}</span><span>Open</span></div>`;
-  const mixLegend = `<div class="mix-leg"><span><i style="background:#0E9384"></i>Complete</span><span><i style="background:#2563EB"></i>In progress</span><span><i style="background:#94A3B8"></i>Planned</span></div>`;
-  const mixSeg = (n,done,inprog) => { const dp=n?done/n*100:0, ip=n?inprog/n*100:0; return `<div style="width:${dp.toFixed(1)}%;background:#0E9384"></div><div style="width:${ip.toFixed(1)}%;background:#2563EB"></div><div style="flex:1;background:#94A3B8"></div>`; };
+  const mixLegend = `<div class="mix-leg"><span><i style="background:var(--st-done)"></i>Complete</span><span><i style="background:#2563EB"></i>In progress</span><span><i style="background:#94A3B8"></i>Planned</span></div>`;
+  const mixSeg = (n,done,inprog) => { const dp=n?done/n*100:0, ip=n?inprog/n*100:0; return `<div style="width:${dp.toFixed(1)}%;background:var(--st-done)"></div><div style="width:${ip.toFixed(1)}%;background:#2563EB"></div><div style="flex:1;background:#94A3B8"></div>`; };
   const gaugeSvg = (value,target,size=176) => {
     const H=Math.round(size*0.68), r0=size/2-16, cx=size/2, cy=H-20;
     const v=value==null?null:Math.max(0,Math.min(100,value));
@@ -8464,7 +8465,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0F1E2E;--ink-2:#33485C;--muted:#647689;--paper:#FFFFFF;--backdrop:#E9EDF1;--line:#E0E6EC;--line-2:#EEF2F6;--signal:#1E63D6;--green:#0E9384;--amber:#C07A00;--red:#C0392B;--display:"Space Grotesk","Inter",system-ui,sans-serif;--body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+:root{--ink:#0F1E2E;--ink-2:#33485C;--muted:#647689;--paper:#FFFFFF;--backdrop:#E9EDF1;--line:#E0E6EC;--line-2:#EEF2F6;--signal:#1E63D6;--green:var(--st-done);--amber:#C07A00;--red:#C0392B;--display:"Space Grotesk","Inter",system-ui,sans-serif;--body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 body.dark{--ink:#E8EDF3;--ink-2:#B4C0CD;--muted:#8593A2;--paper:#161D26;--backdrop:#0C1116;--line:#2A3542;--line-2:#1E2732;--signal:#5B9BF5;--green:#2FB6A6;--amber:#E0A33A;--red:#E76A5C}
 body.dark .sheet{box-shadow:0 18px 50px rgba(0,0,0,.55)}
 body.dark .hero{background:linear-gradient(180deg,#1B2430,#161D26)}
@@ -8524,7 +8525,7 @@ body{background:var(--backdrop);font-family:var(--body);color:var(--ink);-webkit
 .empty{font-size:12.5px;color:var(--muted);padding:14px 4px}
 .gantt{border:1px solid var(--line);border-radius:11px;padding:6px 14px 12px}
 .g-head{position:relative;height:18px;margin-bottom:4px}.g-row{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:center;padding:5px 0;border-top:1px solid var(--line-2)}
-.ai-nar{border-left:3px solid rgba(74,125,219,.4);background:rgba(74,125,219,.07);padding:9px 13px;margin:4px 0 14px;font-style:italic;font-size:12px;border-radius:0 8px 8px 0;line-height:1.55}.ai-note{font-size:10.5px;color:#8b93a7;font-style:normal;margin-top:5px}.g-push{font-size:9px;font-weight:700;color:#B8860B;border:1px solid rgba(224,161,6,.45);border-radius:999px;padding:1px 7px;margin-left:8px;white-space:nowrap;align-self:center}@media print{.scr-only{display:none}}.g-lab{display:flex;flex-direction:column;min-width:0}.g-nm{font-size:12px;font-weight:600;white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.25}.g-sub{font-size:10px;color:var(--muted);white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.3}
+.ai-nar{border-left:3px solid rgba(74,125,219,.4);background:rgba(74,125,219,.07);padding:9px 13px;margin:4px 0 14px;font-style:italic;font-size:12px;border-radius:0 8px 8px 0;line-height:1.55}.ai-note{font-size:10.5px;color:#8b93a7;font-style:normal;margin-top:5px}.g-push{font-size:9px;font-weight:700;color:#B8860B;border:1px solid color-mix(in srgb, var(--st-warn) 45%, transparent);border-radius:999px;padding:1px 7px;margin-left:8px;white-space:nowrap;align-self:center}@media print{.scr-only{display:none}}.g-lab{display:flex;flex-direction:column;min-width:0}.g-nm{font-size:12px;font-weight:600;white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.25}.g-sub{font-size:10px;color:var(--muted);white-space:normal;overflow:visible;word-wrap:break-word;line-height:1.3}
 .g-track{position:relative;height:16px}.g-grid{height:18px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
 .g-wk{position:absolute;top:2px;font-size:9.5px;color:var(--muted);transform:translateX(3px);border-left:1px solid var(--line-2);padding-left:3px;height:14px}
 .g-bar{position:absolute;top:3px;height:10px;border-radius:3px;min-width:3px}.g-dia{position:absolute;top:3px;width:10px;height:10px;transform:translateX(-5px) rotate(45deg)}
@@ -8541,7 +8542,7 @@ footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;f
 .cx-irl{display:flex;align-items:center;gap:6px}.cx-step{flex:1;border:1px solid var(--line);border-radius:10px;padding:12px 6px;text-align:center}.cx-step .n{font-family:var(--display);font-size:20px;font-weight:700}.cx-step .k{font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:4px}.cx-arr{color:var(--muted)}
 .cx-rag{width:100%;border-collapse:separate;border-spacing:0 5px;font-size:11.5px}.cx-rag th{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;text-align:center}.cx-rag th.l{text-align:left}.cx-rag td{text-align:center}.cx-rag td.v{text-align:left;font-weight:600}
 .cx-cell{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:6px;font-size:10.5px;font-weight:800;border:1px solid}
-.c-g{background:rgba(14,147,132,.13);color:var(--green);border-color:rgba(14,147,132,.32)}.c-a{background:rgba(192,122,0,.12);color:var(--amber);border-color:rgba(192,122,0,.3)}.c-r{background:rgba(192,57,43,.12);color:var(--red);border-color:rgba(192,57,43,.3)}.c-x{background:var(--line-2);color:var(--muted);border-color:var(--line)}
+.c-g{background:color-mix(in srgb, var(--st-done) 13%, transparent);color:var(--green);border-color:color-mix(in srgb, var(--st-done) 32%, transparent)}.c-a{background:rgba(192,122,0,.12);color:var(--amber);border-color:rgba(192,122,0,.3)}.c-r{background:rgba(192,57,43,.12);color:var(--red);border-color:rgba(192,57,43,.3)}.c-x{background:var(--line-2);color:var(--muted);border-color:var(--line)}
 .cx-risk{width:100%;border-collapse:collapse;font-size:12px}.cx-risk th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:0 8px 7px 0}.cx-risk td{padding:9px 8px 9px 0;border-top:1px solid var(--line);vertical-align:middle}
 .cx-crit{font-size:9.5px;font-weight:700;color:var(--red);background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.28);border-radius:999px;padding:2px 8px;white-space:nowrap}
 .cx-att{display:flex;align-items:flex-end;gap:14px;height:130px;padding-top:8px}.cx-acol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%}.cx-abar{width:100%;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,var(--signal),rgba(30,99,214,.3));min-height:6px}.cx-awl{font-size:10px;color:var(--muted)}
@@ -8584,7 +8585,7 @@ footer{padding:18px 38px 30px;border-top:1px solid var(--line);margin-top:10px;f
 .nw-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .nw-title{font-weight:600;font-size:14px;line-height:1.3}.nw-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
 .nw-state{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap;flex:none}
-.nw-card.ready .nw-state{background:rgba(14,147,132,.13);color:var(--green)}.nw-card.makeready .nw-state{background:rgba(192,122,0,.14);color:var(--amber)}.nw-card.risk .nw-state{background:rgba(192,57,43,.12);color:var(--red)}
+.nw-card.ready .nw-state{background:color-mix(in srgb, var(--st-done) 13%, transparent);color:var(--green)}.nw-card.makeready .nw-state{background:rgba(192,122,0,.14);color:var(--amber)}.nw-card.risk .nw-state{background:rgba(192,57,43,.12);color:var(--red)}
 .nw-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:7px;border:1px solid var(--line);background:var(--line-2);color:var(--ink-2);white-space:nowrap}
 .chip .ico{width:11px;height:11px;flex:none}.chip .mono{font-variant-numeric:tabular-nums}
@@ -8603,7 +8604,7 @@ body.dark .chip.wit{color:#9F7AEA}
 .cx-pri{display:inline-block;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:999px}
 .cx-pri-r{background:rgba(192,57,43,.12);color:var(--red);border:1px solid rgba(192,57,43,.3)}
 .cx-pri-a{background:rgba(192,122,0,.12);color:var(--amber);border:1px solid rgba(192,122,0,.3)}
-.cx-pri-g{background:rgba(14,147,132,.12);color:var(--green);border:1px solid rgba(14,147,132,.3)}
+.cx-pri-g{background:color-mix(in srgb, var(--st-done) 12%, transparent);color:var(--green);border:1px solid color-mix(in srgb, var(--st-done) 30%, transparent)}
 @page{size:A4;margin:0}
 @media print{html,body{background:var(--paper)}.bar{display:none}.sheet{max-width:none;margin:0;box-shadow:none;border-radius:0}section,.ccard,.hero,.kpis,.rows,.barrow,.g-row,.mix-row,.smix-card,.recon,.trendbox,.nw-card{break-inside:avoid}.sec-head{break-after:avoid}}
 </style></head><body class="${theme === 'dark' ? 'dark' : ''}">
@@ -8895,8 +8896,8 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "#C0392B" });
-    if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "#0E9384" });
-    if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "#E0A106" });
+    if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "var(--st-done)" });
+    if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "var(--st-warn)" });
     const base = ((S.brand && S.brand.projectName) || "DLP") + "-weekly-report-" + fmtISO(start);
     return { fullLight: mk("light"), fullDark: mk("dark"), lbl, tiles, organiserLabel, names: { light: base + "-light.html", dark: base + "-dark.html" }, emlName: base + ".eml" };
   };
@@ -9010,7 +9011,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
             <div className="rep-mut" style={{ fontSize:11, marginTop:6 }}>Email Report sends directly from your connected Outlook account: an email-safe summary in the body with the full report attached as an HTML file. Send Test To Me delivers only to you first.</div>
           </div>}
         </div>
-        {repMsg && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: repMsg.ok ? "#0E9384" : "#C0392B" }}>{repMsg.text}</div>}
+        {repMsg && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: repMsg.ok ? "var(--st-done)" : "#C0392B" }}>{repMsg.text}</div>}
         {!repOl && repDiag && (!repDiag.ok || (repDiag.hadHash && !repDiag.account)) && <div style={{ padding: "8px 18px 0", fontSize: 11.5, fontWeight: 600, color: "#C0392B" }}>Sign-in return: {repDiag.ok ? "response processed but no account arrived" : (repDiag.code || "error") + ": " + repDiag.message}</div>}
         <div className="rep-foot" style={{ flexWrap: "wrap", gap: 8 }}><button className="lk-btn" onClick={() => setOpen(false)}>Cancel</button>
           {!repOl && <button className="lk-btn" onClick={connectRep} title="Signs in via a quick full-page Microsoft redirect and returns here">Connect Outlook</button>}
@@ -9194,7 +9195,7 @@ function ReportTile({ glyph, glyphBg, glyphColor, title, state, lines, actions }
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <span style={{ width: 30, height: 30, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flex: "none", background: glyphBg, color: glyphColor }}>{glyph}</span>
         <h3 style={{ fontSize: 13, margin: 0, flex: 1 }}>{title}</h3>
-        {state != null && <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".5px", padding: "3px 9px", borderRadius: 999, ...(state ? { color: "#34D399", background: "rgba(52,211,153,.1)", border: "1px solid rgba(52,211,153,.35)" } : { color: "var(--muted)", background: "rgba(255,255,255,.03)", border: "1px solid var(--line)" }) }}>{state ? "ON" : "OFF"}</span>}
+        {state != null && <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".5px", padding: "3px 9px", borderRadius: 999, ...(state ? { color: "var(--st-ok)", background: "color-mix(in srgb, var(--st-ok) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-ok) 35%, transparent)" } : { color: "var(--muted)", background: "rgba(255,255,255,.03)", border: "1px solid var(--line)" }) }}>{state ? "ON" : "OFF"}</span>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "var(--muted)", flex: 1 }}>{lines}</div>
       <div style={{ display: "flex", gap: 7, borderTop: "1px solid var(--line)", paddingTop: 10, marginTop: 2, alignItems: "center" }}>{actions}</div>
@@ -9306,7 +9307,7 @@ function ScheduledReports({ S, update }) {
   return (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-        <ReportTile glyph={"\u2600"} glyphBg="rgba(224,161,6,.12)" glyphColor="#E0A106" title="Morning Cx Update" state={!!cfg.enabled}
+        <ReportTile glyph={"\u2600"} glyphBg="color-mix(in srgb, var(--st-warn) 12%, transparent)" glyphColor="var(--st-warn)" title="Morning Cx Update" state={!!cfg.enabled}
           lines={<>
             <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{cfg.time}</b> Helsinki {"\u00b7"} {mrRef.current ? mrRef.current.fmtDaysSummary(cfg.days) : ""} {"\u00b7"} {cfg.recipients === "team" ? "entire team" : "admins only"}{cfg.recipients === "team" && exNames.length ? " (" + exNames.length + " excluded)" : ""}</span>
             <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: cfg.time, days: cfg.days }, cfg.enabled)}</span>
@@ -9328,7 +9329,7 @@ function ScheduledReports({ S, update }) {
           </>}
           actions={<><span style={{ flex: 1 }} />{act("Test", () => sendDigest("weekly", true), false, busy === "weeklyTest")}{act(busy === "weekly" ? "Sending..." : "Send now", () => sendDigest("weekly", false), true, !!busy)}</>} />
       </div>
-      {msg && <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 10, color: msg.ok ? "#0E9384" : "#F87171" }}>{msg.text}</div>}
+      {msg && <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 10, color: msg.ok ? "var(--st-done)" : "#F87171" }}>{msg.text}</div>}
       {drOpen && <>
         <div style={{ position: "fixed", inset: 0, background: "rgba(5,9,18,.62)", zIndex: 60 }} onClick={() => setDrOpen(false)} />
         <div style={{ position: "fixed", top: 0, right: 0, width: "min(420px, 94vw)", height: "100vh", background: "var(--card)", borderLeft: "1px solid var(--line)", boxShadow: "-20px 0 50px rgba(0,0,0,.4)", zIndex: 61, display: "flex", flexDirection: "column" }}>
@@ -9398,14 +9399,14 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
     <div className="lk-page" style={{ maxWidth: "var(--content-max, 1160px)", margin: "0 auto", padding: "0 14px 30px" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--paper)", display: "flex", alignItems: "center", gap: 12, padding: "14px 2px 10px", borderBottom: "1px solid var(--line)" }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Reports</h2>
-        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".6px", padding: "3px 9px", borderRadius: 999, border: "1px solid rgba(224,161,6,.5)", color: "#E0A106", textTransform: "uppercase" }}>Admins &amp; owner</span>
+        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".6px", padding: "3px 9px", borderRadius: 999, border: "1px solid color-mix(in srgb, var(--st-warn) 50%, transparent)", color: "var(--st-warn)", textTransform: "uppercase" }}>Admins &amp; owner</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--muted)" }}>{acct ? "Outlook: " + acct : "Outlook not connected"}</span>
       </div>
       <div style={{ ...secLbl }}>Scheduled</div>
       <ScheduledReports S={S} update={update} />
       <div style={secLbl}>On demand</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
-        <ReportTile glyph={"\u270E"} glyphBg="rgba(14,147,132,.12)" glyphColor="#0E9384" title="Weekly Report" state={null}
+        <ReportTile glyph={"\u270E"} glyphBg="color-mix(in srgb, var(--st-done) 12%, transparent)" glyphColor="var(--st-done)" title="Weekly Report" state={null}
           lines={<span>The stakeholder report: narrative blocks with AI drafting, figures, risk register, distribution and Outlook send.</span>}
           actions={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={canWeekly} canDist={canDist} projectId={projectId} label="Open the builder" />} />
         <ReportTile glyph={"\u2913"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Exports" state={null}
@@ -9512,9 +9513,9 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const cardDefs = [
     { l: "Total activities", f: () => true },
     { l: "Committed", f: (a) => a.committed },
-    { l: "Complete", c: "#0E9384", f: (a) => a.status === "complete" },
+    { l: "Complete", c: "var(--st-done)", f: (a) => a.status === "complete" },
     { l: "In progress", f: (a) => a.status === "in_progress" },
-    { l: "Ready to run", c: "#0E9384", f: (a) => openOf(a) === 0 && a.status !== "complete" },
+    { l: "Ready to run", c: "var(--st-done)", f: (a) => openOf(a) === 0 && a.status !== "complete" },
     { l: "Need make-ready", c: "#D97706", f: (a) => openOf(a) > 0 && a.status !== "complete" },
     { l: "Delayed", c: "#C0392B", f: isDelayed },
     { l: "Witness required", c: "#5B33C7", f: (a) => a.witnessInvite },
@@ -9538,14 +9539,14 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const stPlanned = stOf("planned"), stProg = stOf("in_progress"), stDone = stOf("complete");
   const statusData = [
     { k: "planned", name: "Planned", color: "#94A3B8", n: stPlanned.length, subs: [
-      { label: "ready to run", color: "#0E9384", items: stPlanned.filter((a) => openOf(a) === 0) },
+      { label: "ready to run", color: "var(--st-done)", items: stPlanned.filter((a) => openOf(a) === 0) },
       { label: "need make-ready", color: "#D97706", items: stPlanned.filter((a) => openOf(a) > 0) },
     ] },
     { k: "in_progress", name: "In progress", color: "#2563EB", n: stProg.length, subs: [
       { label: "running late", color: "#C0392B", items: stProg.filter(isDelayed) },
       { label: "constrained", color: "#D97706", items: stProg.filter((a) => openOf(a) > 0) },
     ] },
-    { k: "complete", name: "Complete", color: "#0E9384", n: stDone.length, subs: [
+    { k: "complete", name: "Complete", color: "var(--st-done)", n: stDone.length, subs: [
       { label: "on time", color: "#14B8A6", items: stDone.filter(onTimeDone) },
       { label: "finished late", color: "#C0392B", items: stDone.filter((a) => !onTimeDone(a)) },
     ] },
@@ -9653,7 +9654,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
         <div style={{ flex: 1, minWidth: 200 }}>
           <h3 style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>Percent Plan Complete<PpcInfo target={ppcTarget} /></h3>
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>
-            {commDue.length ? <>Of <b style={{ color: "var(--ink)" }}>{commDue.length}</b> committed activities due to date, <b style={{ color: "#0E9384" }}>{commDue.filter(made).length}</b> were completed on or before their promised finish. {committed.length > commDue.length ? <>{committed.length - commDue.length} open commitment{committed.length - commDue.length === 1 ? " is" : "s are"} not yet due and get{committed.length - commDue.length === 1 ? "s" : ""} no verdict until the promised finish passes. </> : ""}PPC is the reliability of promises kept, the core Last Planner metric.</> : committed.length ? <>All <b style={{ color: "var(--ink)" }}>{committed.length}</b> committed activities have promised finishes in the future, so no promise has come due yet. PPC fills in as promised dates pass.</> : <>No activities are committed yet, so PPC cannot be calculated. Toggle "Committed for this week" on the promises your teams make, and this fills in.</>}
+            {commDue.length ? <>Of <b style={{ color: "var(--ink)" }}>{commDue.length}</b> committed activities due to date, <b style={{ color: "var(--st-done)" }}>{commDue.filter(made).length}</b> were completed on or before their promised finish. {committed.length > commDue.length ? <>{committed.length - commDue.length} open commitment{committed.length - commDue.length === 1 ? " is" : "s are"} not yet due and get{committed.length - commDue.length === 1 ? "s" : ""} no verdict until the promised finish passes. </> : ""}PPC is the reliability of promises kept, the core Last Planner metric.</> : committed.length ? <>All <b style={{ color: "var(--ink)" }}>{committed.length}</b> committed activities have promised finishes in the future, so no promise has come due yet. PPC fills in as promised dates pass.</> : <>No activities are committed yet, so PPC cannot be calculated. Toggle "Committed for this week" on the promises your teams make, and this fills in.</>}
           {witFailedAll.length > 0 && <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.7 }}>
             <b style={{ color: "var(--ink)" }}>{witFailedAll.length} witness failure{witFailedAll.length === 1 ? "" : "s"} in scope:</b>{" "}
             {[
@@ -9684,10 +9685,10 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       </div>
       <div className="lk-rep-sec"><h3>Invitation Outcomes</h3>
         {invites.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No witness invitations in scope yet. Mark activities with Witness invite and record Succeeded or Failed on the day, and this fills in.</div>
-          : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "#0E9384" }}>{witAttempted.length}</b> witnessed event{witAttempted.length === 1 ? "" : "s"} reached an outcome. Failure reasons rank as a quality Pareto, separate from planning misses: bar length is each reason's share of all failures; {"\u03A3"} is the running total.</div>
+          : <><div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 10 }}><b style={{ color: "var(--st-done)" }}>{witAttempted.length}</b> witnessed event{witAttempted.length === 1 ? "" : "s"} reached an outcome. Failure reasons rank as a quality Pareto, separate from planning misses: bar length is each reason's share of all failures; {"\u03A3"} is the running total.</div>
             <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
               <OutKpi v={witAttempted.length} l="Attempted" onClick={() => openDrill("Witness outcomes \u00b7 attempted", witAttempted)} />
-              <OutKpi v={witPassed.length} l="Succeeded" c="#0E9384" onClick={() => openDrill("Witness outcomes \u00b7 succeeded", witPassed)} />
+              <OutKpi v={witPassed.length} l="Succeeded" c="var(--st-done)" onClick={() => openDrill("Witness outcomes \u00b7 succeeded", witPassed)} />
               <OutKpi v={witFailed.length} l="Failed" c="#C0392B" onClick={() => openDrill("Witness outcomes \u00b7 failed", witFailed)} />
               <OutKpi v={ftp == null ? "--" : ftp + "%"} l="First-Time Pass" c="#14B8A6" onClick={witRoots.length ? () => openDrill("Witness outcomes \u00b7 first attempts", witRoots) : undefined} />
             </div>
@@ -9697,7 +9698,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
-        <div className="lk-rep-sec"><h3>Status Mix</h3><div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}><Donut data={statusData} size={180} onSlice={(d) => openDrill(d.name, acts.filter((a) => a.status === d.k))} /><div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 240 }}>{statusData.map((s) => { const isProg = s.k === "in_progress"; return (<div key={s.k} style={{ padding: "9px 6px", borderRadius: 8 }}><div onClick={() => openDrill(s.name, acts.filter((a) => a.status === s.k))} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, cursor: "pointer" }}><span style={{ width: 12, height: 12, borderRadius: 3, background: s.color, flexShrink: 0 }} /><span style={{ fontWeight: 600 }}>{s.name}</span><span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 18 }}>{s.n}</span><span style={{ color: "var(--muted)", fontSize: 12, width: 40, textAlign: "right" }}>{acts.length ? Math.round((s.n / acts.length) * 100) : 0}%</span></div><div style={{ height: 15, borderRadius: 5, overflow: "hidden", display: "flex", margin: "9px 0 7px", background: "var(--hover)" }}>{isProg ? <div style={{ width: "100%", background: s.color, opacity: 0.85 }} /> : s.subs.map((u) => <div key={u.label} style={{ width: (s.n ? (u.items.length / s.n) * 100 : 0) + "%", background: u.color }} />)}</div><div style={{ display: "flex", gap: 16, fontSize: 11.5, color: "var(--muted)", flexWrap: "wrap" }}>{s.subs.map((u) => <span key={u.label} onClick={u.items.length ? () => openDrill(s.name + " \u00b7 " + u.label, u.items) : undefined} style={{ cursor: u.items.length ? "pointer" : "default", borderBottom: u.items.length ? "1px dotted var(--line)" : "none", paddingBottom: 1 }} title={u.items.length ? "Drill to " + u.items.length + " activit" + (u.items.length === 1 ? "y" : "ies") : undefined}><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", marginRight: 6, verticalAlign: "middle", background: u.color }} /><b style={{ color: "var(--ink)", fontWeight: 700 }}>{u.items.length}</b> {u.label}</span>)}</div></div>); })}</div></div>{statusData.some((s) => s.k === "in_progress" && s.n > 0) && <div style={{ fontSize: 10.5, color: "var(--muted)", fontStyle: "italic", marginTop: 8 }}>Within In progress, running late and constrained are independent flags that can overlap, so they are shown as counts, not a split bar.</div>}{(() => { const P = statusData.find((s) => s.k === "planned") || { n: 0, subs: [] }; const Cm = statusData.find((s) => s.k === "complete") || { n: 0, subs: [] }; const ready = (P.subs.find((u) => u.label === "ready to run") || { items: [] }).items; const mkr = (P.subs.find((u) => u.label === "need make-ready") || { items: [] }).items; const ontime = (Cm.subs.find((u) => u.label === "on time") || { items: [] }).items; const readyPct = P.n ? Math.round((ready.length / P.n) * 100) : null; const ontimePct = Cm.n ? Math.round((ontime.length / Cm.n) * 100) : null; const tile = (val, sub, label, color, items, title) => <div onClick={items.length ? () => openDrill(title, items) : undefined} style={{ background: "var(--hover)", border: "1px solid var(--line)", borderRadius: 9, padding: "11px 12px", cursor: items.length ? "pointer" : "default" }}><div style={{ fontWeight: 700, fontSize: 22, lineHeight: 1, color }}>{val}</div><div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginTop: 6 }}>{label}</div><div style={{ fontSize: 11, color: "var(--ink)", marginTop: 3 }}>{sub}</div></div>; return <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>{tile(readyPct == null ? "n/a" : readyPct + "%", ready.length + " of " + P.n + " planned", "Ready to start", "#0E9384", ready, "Ready to start")}{tile(ontimePct == null ? "n/a" : ontimePct + "%", ontime.length + " of " + Cm.n + " done", "On-time completion", "#14B8A6", ontime, "Completed on time")}{tile(mkr.length, mkr.length === 1 ? "1 planned item" : mkr.length + " planned items", "Make-ready backlog", "#D97706", mkr, "Needs make-ready")}</div>; })()}</div>
+        <div className="lk-rep-sec"><h3>Status Mix</h3><div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}><Donut data={statusData} size={180} onSlice={(d) => openDrill(d.name, acts.filter((a) => a.status === d.k))} /><div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 240 }}>{statusData.map((s) => { const isProg = s.k === "in_progress"; return (<div key={s.k} style={{ padding: "9px 6px", borderRadius: 8 }}><div onClick={() => openDrill(s.name, acts.filter((a) => a.status === s.k))} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, cursor: "pointer" }}><span style={{ width: 12, height: 12, borderRadius: 3, background: s.color, flexShrink: 0 }} /><span style={{ fontWeight: 600 }}>{s.name}</span><span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 18 }}>{s.n}</span><span style={{ color: "var(--muted)", fontSize: 12, width: 40, textAlign: "right" }}>{acts.length ? Math.round((s.n / acts.length) * 100) : 0}%</span></div><div style={{ height: 15, borderRadius: 5, overflow: "hidden", display: "flex", margin: "9px 0 7px", background: "var(--hover)" }}>{isProg ? <div style={{ width: "100%", background: s.color, opacity: 0.85 }} /> : s.subs.map((u) => <div key={u.label} style={{ width: (s.n ? (u.items.length / s.n) * 100 : 0) + "%", background: u.color }} />)}</div><div style={{ display: "flex", gap: 16, fontSize: 11.5, color: "var(--muted)", flexWrap: "wrap" }}>{s.subs.map((u) => <span key={u.label} onClick={u.items.length ? () => openDrill(s.name + " \u00b7 " + u.label, u.items) : undefined} style={{ cursor: u.items.length ? "pointer" : "default", borderBottom: u.items.length ? "1px dotted var(--line)" : "none", paddingBottom: 1 }} title={u.items.length ? "Drill to " + u.items.length + " activit" + (u.items.length === 1 ? "y" : "ies") : undefined}><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", marginRight: 6, verticalAlign: "middle", background: u.color }} /><b style={{ color: "var(--ink)", fontWeight: 700 }}>{u.items.length}</b> {u.label}</span>)}</div></div>); })}</div></div>{statusData.some((s) => s.k === "in_progress" && s.n > 0) && <div style={{ fontSize: 10.5, color: "var(--muted)", fontStyle: "italic", marginTop: 8 }}>Within In progress, running late and constrained are independent flags that can overlap, so they are shown as counts, not a split bar.</div>}{(() => { const P = statusData.find((s) => s.k === "planned") || { n: 0, subs: [] }; const Cm = statusData.find((s) => s.k === "complete") || { n: 0, subs: [] }; const ready = (P.subs.find((u) => u.label === "ready to run") || { items: [] }).items; const mkr = (P.subs.find((u) => u.label === "need make-ready") || { items: [] }).items; const ontime = (Cm.subs.find((u) => u.label === "on time") || { items: [] }).items; const readyPct = P.n ? Math.round((ready.length / P.n) * 100) : null; const ontimePct = Cm.n ? Math.round((ontime.length / Cm.n) * 100) : null; const tile = (val, sub, label, color, items, title) => <div onClick={items.length ? () => openDrill(title, items) : undefined} style={{ background: "var(--hover)", border: "1px solid var(--line)", borderRadius: 9, padding: "11px 12px", cursor: items.length ? "pointer" : "default" }}><div style={{ fontWeight: 700, fontSize: 22, lineHeight: 1, color }}>{val}</div><div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginTop: 6 }}>{label}</div><div style={{ fontSize: 11, color: "var(--ink)", marginTop: 3 }}>{sub}</div></div>; return <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>{tile(readyPct == null ? "n/a" : readyPct + "%", ready.length + " of " + P.n + " planned", "Ready to start", "var(--st-done)", ready, "Ready to start")}{tile(ontimePct == null ? "n/a" : ontimePct + "%", ontime.length + " of " + Cm.n + " done", "On-time completion", "#14B8A6", ontime, "Completed on time")}{tile(mkr.length, mkr.length === 1 ? "1 planned item" : mkr.length + " planned items", "Make-ready backlog", "#D97706", mkr, "Needs make-ready")}</div>; })()}</div>
         <div className="lk-rep-sec"><h3>Activities By Company</h3>{byCompany.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No activities.</div> : <><MixHead first="Company" pct="PPC" />{byCompany.map((x) => { const p = x.ppcDue ? Math.round((x.ppcKept / x.ppcDue) * 100) : null; return <MixRow key={x.name} label={x.name} n={x.n} max={maxCo} done={x.done} inprog={x.inprog} pct={p} open={x.open} tip={"PPC " + (p == null ? "n/a, nothing due yet" : p + "% (" + x.ppcKept + " of " + x.ppcDue + " kept)") + " \u00b7 " + x.open + " open constraint" + (x.open === 1 ? "" : "s")} onClick={() => openDrill(x.name, acts.filter((a) => a.companyId === x.id))} />; })}<MixLegend /></>}</div>
       </div>
       <div className="lk-rep-sec"><h3>By Cx Stage</h3><MixHead first="Cx stage" pct="Done" />{byLevel.map((x) => { const dp = x.n ? Math.round((x.done / x.n) * 100) : 0; return <MixRow key={x.name} swatch={x.color} label={x.name} n={x.n} max={maxLv} done={x.done} inprog={x.inprog} pct={dp} open={x.open} tip={dp + "% complete (" + x.done + " of " + x.n + ") \u00b7 " + x.inprog + " in progress \u00b7 " + x.open + " open constraint" + (x.open === 1 ? "" : "s")} onClick={() => openDrill(x.name, acts.filter((a) => a.level === x.k))} />; })}<MixLegend /></div>
@@ -9858,7 +9859,7 @@ function UserImport({ S, cu, isAdmin, LV, update, onClose }) {
           </>}
           {review && <ImportReviewPanel rows={review.rows} notices={review.notices} syncOn={umode === "sync"} applying={busy} onApply={applyReview} onCancel={() => setReview(null)} />}
           {result && <div style={{ marginTop: 4 }}>
-            {!!(result.notices || []).length && <div style={{ fontSize: 12, color: "#E0A106", margin: "6px 0", lineHeight: 1.5 }}>{result.notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
+            {!!(result.notices || []).length && <div style={{ fontSize: 12, color: "var(--st-warn)", margin: "6px 0", lineHeight: 1.5 }}>{result.notices.map((nn, i) => <div key={i}>{nn}</div>)}</div>}
             ? <div className="lk-res-err"><b>Nothing was imported.</b> Fix {result.errors.length} row{result.errors.length === 1 ? "" : "s"} and upload again:<ul>{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul></div>
             : <div className="lk-res-ok">Applied {result.imported} added{result.updated ? " and " + result.updated + " updated" : ""}{result.consN ? ", raising " + result.consN + " constraint" + (result.consN === 1 ? "" : "s") : ""}{result.skipped ? "; " + result.skipped + " error row" + (result.skipped === 1 ? "" : "s") + " skipped" : ""}. The board reflects it now.</div>)}
             <div style={{ marginTop: 8 }}><button className="lk-btn" onClick={() => { setResult(null); setReview(null); }}>Import another file</button></div>
