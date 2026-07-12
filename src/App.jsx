@@ -8693,7 +8693,7 @@ body.dark .chip.wit{color:#9F7AEA}
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
 <div class="mast"><div class="mast-top">
-<div class="brand"><img class="logo" src="${(theme === "dark" ? (logoDark || logoUrl) : (logoUrl || logoDark)) || ATNORTH_LOGO}" alt="${esc(projectName || "project")}"${(theme === "dark" && !logoDark) ? ' style="background:#fff;padding:4px 8px;border-radius:6px"' : ""}><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
+<div class="brand"><img class="logo" src="${(logoDark || logoUrl) || ATNORTH_LOGO}" alt="${esc(projectName || "project")}"${!logoDark ? ' style="background:#fff;padding:4px 8px;border-radius:6px"' : ""}><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
 <div class="issued">Issued <b>${fmtFull(r.today)}</b><br>${esc(by||"")}</div></div>
 <h1>Weekly DLP Report</h1><div class="wk num">${periodLabel} &nbsp;|&nbsp; lookahead to ${fmtFull(r.laEnd)}</div></div>
 <div class="body">

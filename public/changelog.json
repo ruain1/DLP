@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV276",
+    "date": "2026-07-12",
+    "items": [
+      "Correction to yesterday's masthead fix: the report's header band is dark in both themes (the light report is a light sheet under the same dark masthead), so keying the logo on the report theme handed the light report the wrong variant. The masthead now always prefers the dark-background logo slot, in both themes, with the white-chip treatment whenever only a light asset is available. Upload the dark logo under Branding and both reports carry it natively."
+    ]
+  },
+  {
     "rev": "REV275",
     "date": "2026-07-12",
     "items": [
