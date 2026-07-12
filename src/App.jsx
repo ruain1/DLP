@@ -869,6 +869,16 @@ function castName(s, mode) {
   }).join("");
 }
 const tipOf = (a) => `${a.desc || (a.isMilestone ? "Milestone" : "Untitled activity")} \u00B7 ${statusWord(a)} \u00B7 ${pctOf(a)}% complete`;
+// REV241: YTT execution status for an activity on a column day (off), relative to today.
+// Precedence: complete, then finish-on-this-day (overdue if the day is past, due otherwise),
+// then starts-this-day, else it simply runs through the day. Single-day rows resolve to
+// due/overdue, the actionable signal. Milestones fall through the same rules (duration 1).
+const yttStatusV2 = (a, off, todayOffset) => {
+  if (a.status === "complete") return "done";
+  if (a.endOff === off) return off < todayOffset ? "overdue" : "due";
+  if (a.startOff === off) return "starts";
+  return "ongoing";
+};
 const mondayOf = (dt) => { const x = new Date(dt); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x; };
 const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const ft = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); const fd = (ft.getUTCDay() + 6) % 7; ft.setUTCDate(ft.getUTCDate() - fd + 3); return 1 + Math.round((t - ft) / 6048e5); };
 // REV232: constraint history. Every raise, clear, and reopen stamps the person and time
@@ -4140,7 +4150,7 @@ export default function App({ session }) {
           <div className="lk-bg" onClick={() => setYtt(false)}>
             <div className="ytt" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
               <div className="ytt-head">
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>YTT Focus</h3><span className="ytt-sub">Yesterday, today and tomorrow, with open constraints. Tick a constraint to clear it.</span></div>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>YTT Focus</h3><span className="ytt-sub">Yesterday, today and tomorrow, with open constraints; card edges and chips: amber finish due, red overdue, blue ongoing, green start. Tick a constraint to clear it.</span></div>
                 <button className="lk-btn icon" onClick={() => setYtt(false)}><Icon n="x" /></button>
               </div>
               <div className="ytt-cols">
@@ -4149,8 +4159,17 @@ export default function App({ session }) {
                     <div className="ytt-colhead"><span className="ytt-lab">{label}</span><span className="ytt-date">{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span></div>
                     <div className="ytt-list">
                       {list.length === 0 ? <div className="ytt-empty">Nothing scheduled.</div> :
-                        list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const missed = label === "Yesterday" && a.committed && a.status !== "complete";
-                          return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
+                        list.map(({ a, open }) => { const missed = label === "Yesterday" && a.committed && a.status !== "complete";
+                          const st = yttStatusV2(a, off, todayOffset);
+                          const stC = { done: "#0E9384", overdue: "#F87171", due: "#E0A106", starts: "#34D399", ongoing: "var(--accent)" }[st];
+                          const dShort = (x) => x.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+                          const colD = dShort(d); const endD = dShort(addDays(anchor, a.endOff));
+                          const stTxt = st === "done" ? (label === "Yesterday" ? "FINISHED" + (a.actualFinish ? " " + a.actualFinish.slice(5) : "") : "")
+                            : st === "overdue" ? "FINISH OVERDUE \u00b7 was " + colD
+                            : st === "due" ? (a.isMilestone ? "DUE " : "FINISH DUE ") + (off === todayOffset ? "today" : colD)
+                            : st === "starts" ? "STARTS " + (off === todayOffset ? "today" : colD) + " \u00b7 to " + endD
+                            : "ONGOING \u00b7 to " + endD;
+                          return <div key={a.id} className="ytt-card" style={{ borderLeftColor: stC }}>
                             <div className="ytt-card-desc" onClick={() => setEditing({ ...a })}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
                             <div className="ytt-card-meta">
                               <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : open.length ? "#E0A106" : "#0E9384" }} />
@@ -4159,6 +4178,7 @@ export default function App({ session }) {
                               {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
                               {a.status === "complete" && <span style={{ color: "#0E9384", fontWeight: 700 }}>done</span>}
                               <span className="ytt-loc">{coName(a.companyId)} {"\u00b7"} {locCode(a)}</span>
+                              {!!stTxt && <span style={{ marginLeft: "auto", fontSize: 8.5, fontWeight: 800, letterSpacing: ".3px", padding: "2px 7px", borderRadius: 5, whiteSpace: "nowrap", color: stC, background: st === "done" ? "transparent" : (st === "ongoing" ? "rgba(91,155,243,.12)" : stC + "22"), opacity: st === "done" ? 0.6 : 1 }}>{stTxt}</span>}
                             </div>
                             {open.length > 0
                               ? <div className="ytt-cons">{open.map((c) => <label key={c.id} className="ytt-con">

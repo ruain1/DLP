@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV241",
+    "date": "2026-07-12",
+    "items": [
+      "YTT Focus cards now separate what is ongoing from what is due, or was due, to finish. Each card's left edge and a right-aligned chip carry its execution status for that column's day: amber FINISH DUE when the planned finish is that day and it is not complete, red FINISH OVERDUE in Yesterday when the finish passed uncompleted, blue ONGOING with the end date when it just runs through the day, green STARTS on its first day, and completed cards keep the done tick with a teal edge and a faded FINISHED stamp in Yesterday. Single-day rows and milestones resolve to the due signal. Note: the card edge previously showed the Cx stage colour; in YTT it now shows execution status, and the stage colour remains on the board itself."
+    ]
+  },
+  {
     "rev": "REV240",
     "date": "2026-07-12",
     "items": [
