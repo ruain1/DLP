@@ -5,7 +5,7 @@
 // by position: between W25 and W26 the register dropped SFAT and W3 and renamed
 // FAT/DOF, QC and CYT, which would have silently corrupted a positional parser.
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from "react";
-import { loadAssetStatus, saveAssetRegister, saveStepReference, saveAssetStatusConfig, loadAssetOverrides, saveAssetOverride, deleteAssetOverride, computeSyncConflicts } from "./data";
+import { loadAssetStatus, saveAssetRegister, saveStepReference, saveAssetStatusConfig, loadAssetOverrides, saveAssetOverride, deleteAssetOverride, computeSyncConflicts, projName } from "./data";
 
 /* ---------- constants ---------- */
 const TAGC = { L1: "#E2564E", L2: "#E0A106", L3: "#18B69B", L4: "#4F8DF9", L5: "#94A3B8" };
@@ -337,7 +337,7 @@ export default function AssetStatusPage({ projectId, isAdmin, theme, cu, canEdit
       });
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-      const a = document.createElement("a"); a.href = url; a.download = "FIN04-asset-status-" + todayISO() + ".xlsx"; a.click();
+      const a = document.createElement("a"); a.href = url; a.download = projName() + "-asset-status-" + todayISO() + ".xlsx"; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { setErr("Export failed: " + (e && e.message ? e.message : e)); }
   };

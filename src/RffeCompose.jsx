@@ -3,7 +3,7 @@
 // the user reviews, downloads the PDF if they want, and sends. Nothing auto-sends.
 import React, { useState, useEffect } from "react";
 import { buildRffePdf, downloadRffePdf } from "./rffePdf";
-import { setAssetEventState } from "./data";
+import { setAssetEventState, projName } from "./data";
 
 const RFFE_TO = [
   "andreas.bjornstad@veloxelectro-nordics.com",
@@ -52,7 +52,7 @@ export default function RffeCompose({ events, projectId, olAcct, organiser, onCl
 
   const assets = list.map((e) => ({ name: e.asset_name || e.asset_tag, tag: e.asset_tag }));
   const multi = assets.length > 1;
-  const subject = multi ? "FIN04 - RFFE - " + assets[0].tag + " + " + (assets.length - 1) + " more" : "FIN04 - RFFE " + assets[0].tag;
+  const subject = multi ? projName() + " - RFFE - " + assets[0].tag + " + " + (assets.length - 1) + " more" : projName() + " - RFFE " + assets[0].tag;
   const origin = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
   const base = origin + "/?p=" + encodeURIComponent(projectId || "");
   const appUrl = multi ? base + "&page=assets" : base + "&page=assets&asset=" + encodeURIComponent(assets[0].tag);
@@ -65,7 +65,7 @@ export default function RffeCompose({ events, projectId, olAcct, organiser, onCl
     return () => { live = false; };
   }, [events, projectId, organiser]);
   const to = includeGroup ? RFFE_TO.concat(RFFE_GROUP) : RFFE_TO.slice();
-  const pdfName = multi ? "FIN04 RFFE - " + assets.length + " assets.pdf" : "RFFE " + assets[0].tag + ".pdf";
+  const pdfName = multi ? projName() + " RFFE - " + assets.length + " assets.pdf" : "RFFE " + assets[0].tag + ".pdf";
 
   const download = async () => {
     try { await downloadRffePdf(assets, pdfName); }

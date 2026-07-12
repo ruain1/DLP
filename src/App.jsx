@@ -8,7 +8,8 @@ import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
 // (REV160 defined it inside App only, so Drawer's recipient preview threw and blanked the page).
 // Merges the activity's assignee (column H) into the discipline required list, deduped. No state used.
 function inviteRecipients(a) {
-  const { to, cc } = witnessRecipients((a && a.discipline) || []);
+  const { to, cc, unconfigured } = witnessRecipients((a && a.discipline) || []);
+  if (unconfigured) return { to: [], cc: [], unconfigured };
   const extra = ((a && a.assigneeEmail) || "").trim();
   if (!extra) return { to, cc };
   const low = extra.toLowerCase();
@@ -4577,8 +4578,11 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   const planLocked = !!act.committed && !(can("editCommitted") || can("commit"));
   const disPlan = dis || planLocked;
   const assetTags = parseAssetField(a.asset);
-  const assetDerived = deriveFromAssets(assetTags);
-  const hasKnownAsset = assetTags.some((t) => ASSET_BY_TAG[t]);
+  // REV264: the bundled register is FIN04's. Other projects keep manual tags; the
+  // browse list and auto-derivation stay off so Koski equipment never leaks into them.
+  const assetRegisterOn = ((S.brand && S.brand.projectName) || "FIN04") === "FIN04";
+  const assetDerived = assetRegisterOn ? deriveFromAssets(assetTags) : { area: null, subArea: null, tier3: null, discipline: null };
+  const hasKnownAsset = assetRegisterOn && assetTags.some((t) => ASSET_BY_TAG[t]);
   const applyAssets = (tags) => {
     if (!canEdit || locked || planLocked) return;
     const known = tags.some((t) => ASSET_BY_TAG[t]);
@@ -4590,7 +4594,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   const lockL = hasKnownAsset && !!assetDerived.subArea;
   const lockZ = hasKnownAsset && !!assetDerived.tier3;
   const lockS = hasKnownAsset && !!assetDerived.system;
-  const assetMatches = (() => { const q = assetQ.trim().toLowerCase(); if (!assetOpen) return []; let list = ASSETS; if (q) list = ASSETS.filter((x) => x.tag.toLowerCase().includes(q) || x.name.toLowerCase().includes(q) || x.type.toLowerCase().includes(q)); return list.slice(0, 50); })();
+  const assetMatches = (() => { const q = assetQ.trim().toLowerCase(); if (!assetOpen || !assetRegisterOn) return []; let list = ASSETS; if (q) list = ASSETS.filter((x) => x.tag.toLowerCase().includes(q) || x.name.toLowerCase().includes(q) || x.type.toLowerCase().includes(q)); return list.slice(0, 50); })();
   const roBox = (v) => (<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--ink)" }}><span>{v || "--"}</span><span style={{ fontSize: 9.5, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>from asset</span></div>);
   const cancelAdd = () => { setAddKind(null); setAddText(""); };
   const confirmAdd = (kind, ctx) => { const v = onAdd && onAdd(kind, addText, ctx); if (!v) { cancelAdd(); return; } if (kind === "company") set("companyId", v); else if (kind === "subArea") { set("subArea", v); set("tier3", ""); } else if (kind === "tier3") set("tier3", v); else if (kind === "system") set("system", v); cancelAdd(); };
@@ -4800,7 +4804,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             </div>
             {twNote && <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 8, border: "1px solid " + (twNote.ok ? "color-mix(in srgb, var(--st-done) 50%, transparent)" : "rgba(192,57,58,.5)"), color: twNote.ok ? "var(--st-done)" : "#C0392B", background: twNote.ok ? "color-mix(in srgb, var(--st-done) 7%, transparent)" : "rgba(192,57,58,.07)" }}>{twNote.text}</div>}
           </div>}
-          {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = inviteRecipients(a); return (
+          {a.witnessInvite && (a.discipline || []).length > 0 && (() => { const rcp = inviteRecipients(a); if (rcp.unconfigured) return <div style={{ fontSize: 11.5, color: "var(--st-warn)", fontWeight: 600, lineHeight: 1.5 }}>No witness contact routing is configured for {rcp.unconfigured}. Invites would go to nobody; set up this project's contact matrix before witnessing goes live.</div>; return (
             <div className="lk-f"><label>Invite recipients <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(set by discipline)</span></label>
               <div style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)", padding: "8px 10px", maxHeight: 170, overflow: "auto" }}>
                 <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 5 }}>Required ({rcp.to.length})</div>
@@ -8264,7 +8268,7 @@ function draftSummary(r){
   return s.trim();
 }
 
-function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml, projectName, projectLocation }){
+function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, sections, cxSectionsHtml, logoUrl, projectName, projectLocation }){
   // REV195: per-section narrative block, defined first because scheduleSection uses it
   // long before the blocks assembly (REV194 declared it mid-body, so building the
   // schedule hit the const in its temporal dead zone and Generate died silently).
@@ -8611,7 +8615,7 @@ body.dark .chip.wit{color:#9F7AEA}
 <div class="bar"><div class="hint">Weekly DLP Report. Click Download PDF, then choose "Save as PDF".</div><button onclick="window.print()">Download PDF</button></div>
 <div class="sheet">
 <div class="mast"><div class="mast-top">
-<div class="brand"><img class="logo" src="${ATNORTH_LOGO}" alt="atnorth"><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
+<div class="brand"><img class="logo" src="${logoUrl || ATNORTH_LOGO}" alt="${esc(projectName || "project")}"><div class="proj"><div class="p1">${esc(projectName || "FIN04")} Data Centre</div><div class="p2">${esc(projectLocation || "Koski, Finland")}</div></div></div>
 <div class="issued">Issued <b>${fmtFull(r.today)}</b><br>${esc(by||"")}</div></div>
 <h1>Weekly DLP Report</h1><div class="wk num">${periodLabel} &nbsp;|&nbsp; lookahead to ${fmtFull(r.laEnd)}</div></div>
 <div class="body">
@@ -8842,7 +8846,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   };
   const generate = () => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
+    const html = buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme, sections: secObj(), cxSectionsHtml: cxHtml });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(start)}${theme==="dark"?"-dark":""}.html`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
@@ -8891,7 +8895,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   // Both themes are always generated; the Appearance toggle governs only the on-screen Generate.
   const composeParts = (ol, organiserLabel) => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
-    const mk = (th) => buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
+    const mk = (th) => buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
     const lbl = mode === "week" ? "week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#111827" });
@@ -9475,7 +9479,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const repData = useMemo(() => repOpen ? computeReport({ S, LV, coName, start: repStart, end: repEnd }) : null, [repOpen, S, LV, repStart.getTime(), repEnd.getTime()]);
   const repSummaryVal = repSummary != null ? repSummary : (repData ? draftSummary(repData) : "");
   const generateReport = () => {
-    const html = buildWeeklyReportHTML({ projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
+    const html = buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: repData, summary: repSummaryVal, includeSchedule: repSchedule, by, mode: repMode, theme: repTheme });
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-weekly-report-${fmtISO(repStart)}${repTheme === "dark" ? "-dark" : ""}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }

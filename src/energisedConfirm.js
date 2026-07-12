@@ -8,7 +8,7 @@
 // initial bundle; the poll only reaches it when there is something to send. The two data
 // helpers are core (data.js is already in the main bundle), so they are imported statically.
 
-import { claimEnergisedConfirmation, releaseEnergisedConfirmation } from "./data";
+import { claimEnergisedConfirmation, releaseEnergisedConfirmation, projName } from "./data";
 
 export const ENERGISED_SENDER = "ruain.b@cs-nordics.com";
 export const ENERGISED_RECIPIENTS = [
@@ -38,8 +38,8 @@ export async function trySendEnergisedConfirmations(projectId, events, organiser
       const appUrl = origin + "/?p=" + encodeURIComponent(projectId) + "&page=assets" + (won.length === 1 ? "&asset=" + encodeURIComponent(first.asset_tag) : "");
       const html = ol.buildEnergisedEmailHtml({ assets: won.map((e) => ({ name: e.asset_name || e.asset_tag, tag: e.asset_tag })), organiser: organiserName, appUrl });
       const subject = won.length === 1
-        ? "FIN04 - Energised " + first.asset_tag
-        : "FIN04 - Energised - " + first.asset_tag + " + " + (won.length - 1) + " more";
+        ? projName() + " - Energised " + first.asset_tag
+        : projName() + " - Energised - " + first.asset_tag + " + " + (won.length - 1) + " more";
       await ol.sendMailMessage({ subject, html, to: ENERGISED_RECIPIENTS });
       return true;
     } catch (err) {

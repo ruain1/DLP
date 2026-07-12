@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV264",
+    "date": "2026-07-12",
+    "items": [
+      "FIN3021 readiness: the FIN04-shaped surfaces are de-hardcoded ahead of the second project going live. The Documentation and Asset Status Excel exports, the Energised notification subject and the RFFE subject and PDF name all take the current project's name (registered once from Branding, no prop-threading). The weekly report masthead uses the project's configured logo with the atnorth image as legacy fallback, and its alt text follows the project. The asset tag browse list and auto-derivation are FIN04-only, since the bundled register is Koski's equipment; other projects keep manual tags cleanly. The witness contact resolver gates itself by project: on any project without a configured matrix it returns nobody and names itself unconfigured, so a Vantaa invite can never silently summon the Koski contact set."
+    ]
+  },
+  {
     "rev": "REV263",
     "date": "2026-07-12",
     "items": [

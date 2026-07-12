@@ -11,7 +11,7 @@
 // parser still captures overall, so no data is lost). The row vendor figure
 // counts VEN and VEN/CON columns.
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadDocsStatus, saveDocsMatrix, saveDocsStatusConfig, saveDocsOverride, deleteDocsOverride, computeDocsConflicts, saveDocsVendorTarget } from "./data";
+import { loadDocsStatus, saveDocsMatrix, saveDocsStatusConfig, saveDocsOverride, deleteDocsOverride, computeDocsConflicts, saveDocsVendorTarget, projName } from "./data";
 
 /* ---------- constants ---------- */
 const TAGC = { L1: "#E2564E", L2: "#E0A106", L3: "#18B69B", L4: "#4F8DF9", L5: "#94A3B8" };
@@ -329,7 +329,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
       filtered.forEach((r) => { const row = { equip: r.equip_type, vendor: vendors[r.equip_type] || "TBC" }; visibleCols.forEach((c) => { const s = r.status[c.doc_key]; row[c.doc_key] = s === "y" ? "TRUE" : s === "n" ? "FALSE" : "n/a"; }); ws.addRow(row); });
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-      const a = document.createElement("a"); a.href = url; a.download = "FIN04-documentation-status-" + todayISO() + ".xlsx"; a.click();
+      const a = document.createElement("a"); a.href = url; a.download = projName() + "-documentation-status-" + todayISO() + ".xlsx"; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { setErr("Export failed: " + (e && e.message ? e.message : e)); }
   };

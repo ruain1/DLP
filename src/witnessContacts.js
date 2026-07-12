@@ -1,4 +1,5 @@
 // witnessContacts.js
+import { projName } from "./data";
 // ---------------------------------------------------------------------------
 // Hardcoded routing for witness calendar invites.
 //
@@ -159,7 +160,12 @@ const norm = (e) => (e || "").trim().toLowerCase();
 
 // Resolve a list of disciplines to { to, cc } deduped address lists.
 // Accepts an array (["ELECTRICAL","BMS/EPMS"]) or a "; "-joined string.
+// REV264: this matrix is FIN04's people. On any other project the resolver returns
+// empty lists and names itself unconfigured, so a Vantaa invite can never silently
+// summon the Koski contact set. New projects get their own matrix here (or a future
+// per-project editor) before witnessing goes live on them.
 export function witnessRecipients(disciplines) {
+  if ((projName() || "FIN04") !== "FIN04") return { to: [], cc: [], unconfigured: projName() };
   const list = Array.isArray(disciplines)
     ? disciplines
     : String(disciplines || "").split(/\s*;\s*/);

@@ -202,9 +202,14 @@ const brandFrom = (d, projectName) => ({
   logoDark: d?.logo_url_dark ?? null,
 });
 
-// Set the browser tab title and favicon from branding.
+// Set the browser tab title and favicon from branding. Also registers the current
+// project name so modules outside App (exports, email subjects, witness routing)
+// can brand themselves without threading a prop through every layer (REV264).
+let CURRENT_PROJECT_NAME = "FIN04";
+export const projName = () => CURRENT_PROJECT_NAME;
 export function applyBrandToTab(brand) {
   if (!brand) return;
+  CURRENT_PROJECT_NAME = brand.projectName || "FIN04";
   document.title = `${brand.projectName || "FIN04"} ${brand.appName || "DLP"}`.trim();
 }
 
@@ -416,7 +421,7 @@ export async function fetchBranding() {
   return brandFrom(data);
 }
 
-const FIN04_PROJECT = "f1040000-0000-4000-a000-000000000001";
+export const FIN04_PROJECT = "f1040000-0000-4000-a000-000000000001";
 
 // Admin: save name / tagline for a project. patch keys are db column names.
 // REV114: previously a plain .update(), which matched zero rows on any project whose
