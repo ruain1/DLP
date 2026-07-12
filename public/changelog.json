@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV274",
+    "date": "2026-07-12",
+    "items": [
+      "Multi-select filters, tranche 4 of 4, the series complete. The platform directory on the hub (Company with No-company, Platform role where Supers still covers the owner, Invite state), Project Team members (Company, Role, Status as any-of active or pending), the Audit user filter (now server-side: the paginated query filters on the whole selected set, and the presence popout's Audit button lands as a one-person selection), and Analytics (Company, Building, Cx Stage, with the report's summary sheet listing every selected value). The hub control carries a light palette so it matches the hub's theme rather than assuming the app's dark variables. Every filter dropdown in the app now takes any combination; value-editing dropdowns remain single-choice by design."
+    ]
+  },
+  {
     "rev": "REV273",
     "date": "2026-07-12",
     "items": [

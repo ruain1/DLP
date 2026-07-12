@@ -1793,9 +1793,9 @@ function HubGlobalSettings({ theme, userName, projects }) {
   const [msg, setMsg] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [q, setQ] = useState("");
-  const [fCo, setFCo] = useState("all");
-  const [fRole, setFRole] = useState("all");
-  const [fInv, setFInv] = useState("all");
+  const [fCo, setFCo] = useState([]);     // REV274: multi-select; empty = all
+  const [fRole, setFRole] = useState([]);
+  const [fInv, setFInv] = useState([]);
   const [open, setOpen] = useState({});
   const [manage, setManage] = useState(null);
   const [manageCo, setManageCo] = useState(null);
@@ -1902,9 +1902,9 @@ function HubGlobalSettings({ theme, userName, projects }) {
   const ql = q.trim().toLowerCase();
   const filtered = users.filter((u) => {
     const pr = u.platformRole || "user";
-    if (fRole !== "all" && !(pr === fRole || (fRole === "super" && pr === "owner"))) return false;
-    if (fCo === "none") { if (u.companyId) return false; } else if (fCo !== "all" && u.companyId !== fCo) return false;
-    if (fInv !== "all") { const acc = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (fInv === "accepted" && !acc) return false; if (fInv === "pending" && acc) return false; }
+    if (fRole.length && !(fRole.includes(pr) || (fRole.includes("super") && pr === "owner"))) return false;
+    if (fCo.length && !((fCo.includes("none") && !u.companyId) || (u.companyId && fCo.includes(u.companyId)))) return false;
+    if (fInv.length) { const acc = !!(ustat[u.id] && ustat[u.id].lastSignIn); if (!((fInv.includes("accepted") && acc) || (fInv.includes("pending") && !acc))) return false; }
     if (ql && !(`${u.name || ""} ${cn(u.companyId)} ${(ustat[u.id] || {}).email || ""}`.toLowerCase().includes(ql))) return false;
     return true;
   });
@@ -1940,9 +1940,9 @@ function HubGlobalSettings({ theme, userName, projects }) {
           <div className="hubstick">
           <div className="lk-ufilter">
             <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company&hellip;" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-            <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={fCo} onChange={(e) => setFCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-            <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><select className="lk-select" value={fRole} onChange={(e) => setFRole(e.target.value)}><option value="all">Everyone</option><option value="super">Supers</option><option value="user">Users</option></select></div>
-            <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><select className="lk-select" value={fInv} onChange={(e) => setFInv(e.target.value)}><option value="all">All</option><option value="pending">Pending</option><option value="accepted">Accepted</option></select></div>
+            <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><MultiSel light={theme !== "dark"} label="All companies" options={[{ v: "none", t: "No company" }, ...companies.map((c) => ({ v: c.id, t: c.name }))]} value={fCo} onChange={setFCo} /></div>
+            <div className="lk-f" style={{ minWidth: 110 }}><label>Platform</label><MultiSel light={theme !== "dark"} label="Everyone" options={[{ v: "super", t: "Supers" }, { v: "user", t: "Users" }]} value={fRole} onChange={setFRole} /></div>
+            <div className="lk-f" style={{ minWidth: 110 }}><label>Invite</label><MultiSel light={theme !== "dark"} label="All" options={[{ v: "pending", t: "Pending" }, { v: "accepted", t: "Accepted" }]} value={fInv} onChange={setFInv} /></div>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 10px" }}><button className="lk-btn" title="Download every platform user with email, company, role, projects, status and last seen" onClick={hExport}><Icon n="download" s={14} />Export Users (CSV)</button></div>
           <div className="lk-uhead"><span /><span>Person</span><span>Email</span><span>Company</span><span>Platform</span><span className="ctr">Proj</span><span>Status</span><span /></div>
@@ -5502,11 +5502,11 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     } catch (e) { setConnMsg("Connect failed: " + (e && e.message ? e.message : e)); }
   };
   const [nv, setNv] = useState("");
-  const [auditUser, setAuditUser] = useState("all");
+  const [auditUser, setAuditUser] = useState([]);   // REV274: multi-select; empty = all users
   // REV265: rail presence popout hands off "show me this person's audit" here. The event
   // covers the already-mounted case; the window flag covers arriving via navigation.
   useEffect(() => {
-    const apply = (u) => { setTab("audit"); setAuditUser(u && u !== "all" ? u : "all"); };
+    const apply = (u) => { setTab("audit"); setAuditUser(u && u !== "all" ? [u] : []); };
     if (window.__DLP_AUDIT_JUMP) { apply(window.__DLP_AUDIT_JUMP.user); window.__DLP_AUDIT_JUMP = null; }
     const h = (e) => { apply(e.detail && e.detail.user); window.__DLP_AUDIT_JUMP = null; };
     window.addEventListener("dlp-audit-jump", h); return () => window.removeEventListener("dlp-audit-jump", h);
@@ -5529,7 +5529,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   useEffect(() => { setAPage(0); }, [auditUser, aQd, aCat]);
   const auditMkQ = () => {
     let qy = supabase.from("audit_log").select("*", { count: "exact" }).or(`project_id.eq.${S.projectId},project_id.is.null`);
-    if (auditUser !== "all") qy = qy.eq("user_name", auditUser);
+    if (auditUser.length) qy = qy.in("user_name", auditUser);
     const needle = aQd.trim().replace(/[,()%\\]/g, "");
     if (needle) qy = qy.or(`action.ilike.%${needle}%,detail.ilike.%${needle}%,user_name.ilike.%${needle}%`);
     if (aCat === "other") { AUDIT_CATS.forEach(([, , pats]) => pats.forEach((pt) => { qy = qy.not("action", "ilike", pt); })); }
@@ -5856,9 +5856,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [memRole, setMemRole] = useState("member");
   const [memMsg, setMemMsg] = useState("");
   const [mfQ, setMfQ] = useState("");
-  const [mfCo, setMfCo] = useState("all");
-  const [mfRole, setMfRole] = useState("all");
-  const [mfStatus, setMfStatus] = useState("all");
+  const [mfCo, setMfCo] = useState([]);     // REV274: multi-select; empty = all
+  const [mfRole, setMfRole] = useState([]);
+  const [mfStatus, setMfStatus] = useState([]);
   const [pmManageId, setPmManageId] = useState(null);
   const [pnu, setPnu] = useState({ email: "", name: "", companyId: scopeCompanies(S.companies, S.projectCompanyIds)[0]?.id || "", projRole: "member" });
   const [pmCred, setPmCred] = useState(null);
@@ -6301,9 +6301,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               };
               const q = mfQ.trim().toLowerCase();
               const rows = all.filter((r) => {
-                if (mfRole !== "all" && r.role !== mfRole) return false;
-                if (mfCo === "none") { if (r.u.companyId) return false; } else if (mfCo !== "all" && r.u.companyId !== mfCo) return false;
-                if (mfStatus !== "all") { const a = seenOf(r.user_id); if (mfStatus === "active" && !a) return false; if (mfStatus === "pending" && a) return false; }
+                if (!inSel(mfRole, r.role)) return false;
+                if (mfCo.length && !((mfCo.includes("none") && !r.u.companyId) || (r.u.companyId && mfCo.includes(r.u.companyId)))) return false;
+                if (mfStatus.length) { const a = seenOf(r.user_id); if (!((mfStatus.includes("active") && a) || (mfStatus.includes("pending") && !a))) return false; }
                 if (q && !(`${r.u.name || ""} ${cn(r.u.companyId)} ${(ustat[r.user_id] || {}).email || ""}`.toLowerCase().includes(q))) return false;
                 return true;
               });
@@ -6318,9 +6318,9 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : <>
                   <div className="lk-ufilter">
                     <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company…" value={mfQ} onChange={(e) => setMfQ(e.target.value)} /></div>
-                    <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><select className="lk-select" value={mfCo} onChange={(e) => setMfCo(e.target.value)}><option value="all">All companies</option><option value="none">No company</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                    <div className="lk-f" style={{ minWidth: 110 }}><label>Role</label><select className="lk-select" value={mfRole} onChange={(e) => setMfRole(e.target.value)}><option value="all">All roles</option><option value="admin">Admins</option><option value="member">Members</option></select></div>
-                    <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><select className="lk-select" value={mfStatus} onChange={(e) => setMfStatus(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="pending">Invite pending</option></select></div>
+                    <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><MultiSel label="All companies" options={[{ v: "none", t: "No company" }, ...scopeCompanies(S.companies, S.projectCompanyIds).map((c) => ({ v: c.id, t: c.name }))]} value={mfCo} onChange={setMfCo} /></div>
+                    <div className="lk-f" style={{ minWidth: 110 }}><label>Role</label><MultiSel label="All roles" options={[{ v: "admin", t: "Admins" }, { v: "member", t: "Members" }]} value={mfRole} onChange={setMfRole} /></div>
+                    <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><MultiSel label="All" options={[{ v: "active", t: "Active" }, { v: "pending", t: "Invite pending" }]} value={mfStatus} onChange={setMfStatus} /></div>
                   </div>
                   {!all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one on the team yet. Add people from Global Contacts below.</div>
                     : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
@@ -6804,10 +6804,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, marginBottom: 10 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "10px 12px 7px" }}>
                 <input className="lk-in" style={{ flex: 1, minWidth: 200 }} placeholder="Search action, detail or user" value={auditQ} onChange={(e) => setAuditQ(e.target.value)} />
-                <select className="lk-select" style={{ maxWidth: 200 }} value={auditUser} onChange={(e) => setAuditUser(e.target.value)}>
-                  <option value="all">All users</option>
-                  {S.users.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                </select>
+                <MultiSel label="All users" options={S.users.map((u) => u.name)} value={auditUser} onChange={setAuditUser} />
                 <button className="lk-btn" onClick={() => setCreatedOpen(true)}><Icon n="cal" s={14} />Entries created</button>
                 <button className="lk-btn" onClick={exportAuditAll}><Icon n="download" s={14} />Export CSV</button>
               </div>
@@ -9538,9 +9535,9 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
   );
 }
 function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update }) {
-  const [co, setCo] = useState("all");
-  const [ar, setAr] = useState("all");
-  const [lv, setLv] = useState("all");
+  const [co, setCo] = useState([]);   // REV274: multi-select; empty = all
+  const [ar, setAr] = useState([]);
+  const [lv, setLv] = useState([]);   // REV274: multi-select; empty = all
   const [drill, setDrill] = useState(null);
   const openDrill = (title, items) => setDrill({ title, items: items || [] });
   const [period, setPeriod] = useState("all");
@@ -9568,7 +9565,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   };
   const finishOf = (a) => addDays(parseD(a.start), (a.duration || 1) - 1);
   const inPeriod = (a) => { if (period === "all") return true; if (!a.start) return false; const s = parseD(a.start).getTime(), e = finishOf(a).getTime(); if (from && e < parseD(from).getTime()) return false; if (to && s > parseD(to).getTime()) return false; return true; };
-  const acts = S.activities.filter((a) => (co === "all" || a.companyId === co) && (ar === "all" || a.area === ar) && (lv === "all" || a.level === lv) && inPeriod(a));
+  const acts = S.activities.filter((a) => inSel(co, a.companyId) && inSel(ar, a.area) && inSel(lv, a.level) && inPeriod(a));
   const made = (a) => a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= finishOf(a));
   const openOf = (a) => (a.constraints || []).filter((c) => !c.done).length;
   const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps, (a.duration || 1) - 1); if (a.status === "complete" && a.actualFinish) return parseD(a.actualFinish) > pf; if (a.actualStart) return parseD(a.actualStart) > ps; return false; };
@@ -9690,9 +9687,9 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
       const wb = new ExcelJS.Workbook(); const head = (ws) => { ws.getRow(1).font = { bold: true }; };
       const s = wb.addWorksheet("Summary"); s.columns = [{ header: "Metric", key: "m", width: 30 }, { header: "Value", key: "v", width: 18 }]; head(s);
       s.addRow({ m: "Generated", v: new Date().toLocaleString("en-GB") });
-      s.addRow({ m: "Company filter", v: co === "all" ? "All companies" : coName(co) });
-      s.addRow({ m: "Building filter", v: ar === "all" ? "All buildings" : ar });
-      s.addRow({ m: "Cx stage filter", v: lv === "all" ? "All Cx stages" : lv });
+      s.addRow({ m: "Company filter", v: co.length === 0 ? "All companies" : co.map((x) => coName(x)).join(", ") });
+      s.addRow({ m: "Building filter", v: ar.length === 0 ? "All buildings" : ar.join(", ") });
+      s.addRow({ m: "Cx stage filter", v: lv.length === 0 ? "All Cx stages" : lv.join(", ") });
       s.addRow({ m: "Period", v: period === "all" ? "All time" : ((from || "start") + " to " + (to || "end")) });
       s.addRow({ m: "PPC (committed due to date, done on time)", v: ppc == null ? "n/a" : ppc + "%" });
       s.addRow({ m: "PPC target (project setting)", v: ppcTarget + "%" });
@@ -9718,9 +9715,9 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   return (
     <div className="lk-rep">
       <div className="lk-rep-filters">
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><select className="lk-select" value={co} onChange={(e) => setCo(e.target.value)}><option value="all">All companies</option>{scopeCompanies(S.companies, S.projectCompanyIds).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><select className="lk-select" value={ar} onChange={(e) => setAr(e.target.value)}><option value="all">All buildings</option>{S.areas.map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
-        <div className="lk-f" style={{ minWidth: 130 }}><label>Cx Stage</label><select className="lk-select" value={lv} onChange={(e) => setLv(e.target.value)}><option value="all">All Cx stages</option>{Object.keys(LV).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Company</label><MultiSel label="All companies" options={scopeCompanies(S.companies, S.projectCompanyIds).map((c) => ({ v: c.id, t: c.name }))} value={co} onChange={setCo} /></div>
+        <div className="lk-f" style={{ minWidth: 150 }}><label>Building</label><MultiSel label="All buildings" options={S.areas} value={ar} onChange={setAr} /></div>
+        <div className="lk-f" style={{ minWidth: 130 }}><label>Cx Stage</label><MultiSel label="All Cx stages" options={Object.keys(LV)} value={lv} onChange={setLv} /></div>
         <div className="lk-f" style={{ minWidth: 120 }}><label>Period</label><select className="lk-select" value={period} onChange={(e) => setPeriod(e.target.value)}><option value="all">All time</option><option value="range">Date range</option></select></div>
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>From</label><input className="lk-in mono" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>}
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>}
