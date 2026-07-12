@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV285",
+    "date": "2026-07-12",
+    "items": [
+      "The Morning Cx Update email gets the matching identity from the mockup: the flat blue bar becomes the atnorth dark band with a small kicker over the project name, a monospace project chip and date on the right, and a thin solid blue rule beneath (a table row, so Outlook keeps it). A signed atnorth line closes the footer. The logo is shown only when the brand has a hosted image; otherwise a clean atnorth wordmark stands in, so the masthead can never render a broken image in Outlook or Gmail. The internal admin digests keep their existing Quantum Mission Critical header, since those are internal QMC tool digests rather than the stakeholder-facing morning email."
+    ]
+  },
+  {
     "rev": "REV284",
     "date": "2026-07-12",
     "items": [

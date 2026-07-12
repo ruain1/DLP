@@ -191,13 +191,27 @@ export function buildMorningEmail(d, cfg, meta) {
       `<tr><td style="padding:5px 0;">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
   }
   const html = `<table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
-    + `<tr><td style="background:#2456A6; padding:18px 24px;"><table width="100%" cellpadding="0" cellspacing="0"><tr>`
-    + `<td style="color:#ffffff; font-size:18px; font-weight:bold;">Morning Cx Update</td>`
-    + `<td align="right" style="color:#cfe0f7; font-size:12px;">${esc(meta.projName || "")}${meta.projLine ? "<br>" + esc(meta.projLine) : ""}<br>${esc(meta.dateLine)}</td>`
-    + `</tr></table></td></tr>`
+    + (() => {
+        // REV285: identity masthead. Logo only if it is a hosted https URL (data-URIs and
+        // relative paths break in Outlook and Gmail); otherwise a clean text wordmark.
+        const logo = meta.logoDark || meta.logoUrl || "";
+        const useLogo = typeof logo === "string" && /^https:\/\//.test(logo);
+        const markCell = useLogo
+          ? `<td style="vertical-align:middle; padding-right:11px;"><img src="${esc(logo)}" alt="atnorth" height="34" style="height:34px; width:auto; display:block;"></td>`
+          : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:Arial,Helvetica,sans-serif; font-size:18px; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
+        return `<tr><td style="background:#001C26; padding:20px 24px 18px;"><table width="100%" cellpadding="0" cellspacing="0"><tr>`
+          + `<td style="vertical-align:middle;"><table cellpadding="0" cellspacing="0"><tr>${markCell}`
+          + `<td style="vertical-align:middle;"><div style="color:#5C7690; font-size:9.5px; letter-spacing:.18em; font-weight:bold; font-family:Arial,Helvetica,sans-serif;">MORNING CX UPDATE</div>`
+          + `<div style="color:#ffffff; font-size:19px; font-weight:bold; font-family:Arial,Helvetica,sans-serif; letter-spacing:-.3px; padding-top:2px;">${esc(meta.projName || "FIN04")}</div></td></tr></table></td>`
+          + `<td align="right" style="vertical-align:middle;"><div style="display:inline-block; font-family:'Courier New',monospace; font-size:10px; letter-spacing:.1em; color:#7BB2E8; border:1px solid #33586e; border-radius:4px; padding:3px 8px;">${esc(meta.projName || "FIN04")}</div>`
+          + `<div style="color:#9DB0C2; font-size:11px; font-family:Arial,Helvetica,sans-serif; padding-top:7px;">${meta.projLine ? esc(meta.projLine) + "<br>" : ""}${esc(meta.dateLine)}</div></td>`
+          + `</tr></table></td></tr>`
+          + `<tr><td style="background:#2456A6; font-size:0; line-height:0; height:4px;">&nbsp;</td></tr>`;
+      })()
     + body
     + `<tr><td style="padding:16px 24px 20px;" align="center"><table cellpadding="0" cellspacing="0" align="center"><tr><td>${emailBtn(esc(meta.appUrl || "https://dlp-pi.vercel.app"), "Open the board")}</td></tr></table>`
-    + `<div style="font-size:10.5px; color:#8a94a1; margin-top:12px;">Sent automatically by DLP${meta.projName ? " for " + esc(meta.projName) : ""}. You receive this as a member of the project team.</div></td></tr></table>`;
+    + `<div style="font-size:10.5px; color:#8a94a1; margin-top:12px;">Sent automatically by DLP${meta.projName ? " for " + esc(meta.projName) : ""}. You receive this as a member of the project team.</div>`
+    + `<div style="font-size:10px; color:#aeb6c2; margin-top:8px; letter-spacing:.04em;">atnorth commissioning</div></td></tr></table>`;
   return html;
 }
 
