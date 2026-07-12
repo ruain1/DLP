@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict c01pvFciDfRpAvavyBlJVuOWiVGzX7jVwvpbpvevAIucbuZKXrHYcEWILO2SNSq
+\restrict dNkuH6ChhVgUcgTyO1oFJP5zvXgdCJa4EITNtWaEDyJ6U8ElmzW3JWdK4jgxZVa
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -172,18 +172,18 @@ CREATE FUNCTION public.audit_activities() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare uname text; act text; eid text; det text;
+declare uname text; act text; eid text; det text; pid uuid;
 begin
   select coalesce(name,'') into uname from profiles where id = auth.uid();
 
   if (tg_op = 'INSERT') then
-    act := 'Added activity'; eid := new.id::text; det := new.descr;
+    act := 'Added activity'; eid := new.id::text; det := new.descr; pid := new.project_id;
 
   elsif (tg_op = 'DELETE') then
-    act := 'Removed activity'; eid := old.id::text; det := old.descr;
+    act := 'Removed activity'; eid := old.id::text; det := old.descr; pid := old.project_id;
 
   else
-    eid := new.id::text; det := new.descr;
+    eid := new.id::text; det := new.descr; pid := new.project_id;
     if (new.status = 'complete' and coalesce(old.status,'') <> 'complete') then
       act := 'Completed activity';
     elsif (coalesce(new.committed,false) and not coalesce(old.committed,false)) then
@@ -205,8 +205,8 @@ begin
     end if;
   end if;
 
-  insert into audit_log(user_id,user_name,action,entity,entity_id,detail)
-  values (auth.uid(), uname, act, 'activity', eid, det);
+  insert into audit_log(user_id,user_name,action,entity,entity_id,detail,project_id)
+  values (auth.uid(), uname, act, 'activity', eid, det, pid);
 
   if (tg_op = 'DELETE') then return old; else return new; end if;
 end; $$;
@@ -220,11 +220,12 @@ CREATE FUNCTION public.audit_setup() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare uname text; act text; det text; rec json;
+declare uname text; act text; det text; rec json; pid uuid;
 begin
   select coalesce(name,'') into uname from profiles where id = auth.uid();
   act := initcap(lower(tg_op)) || ' ' || tg_table_name;
   rec := case when tg_op = 'DELETE' then row_to_json(old) else row_to_json(new) end;
+  pid := nullif(rec->>'project_id','')::uuid;
   det := case tg_table_name
     when 'settings'  then 'Lookahead ' || coalesce(rec->>'weeks','?') || ' wk / make-ready ' || coalesce(rec->>'make_ready_days','?') || ' d'
     when 'profiles'  then coalesce(nullif(rec->>'name',''),'user') || coalesce(' (' || nullif(coalesce(rec->>'role', rec->>'platform_role'),'') || ')', '')
@@ -235,8 +236,8 @@ begin
     else tg_table_name || ' record'
   end;
   det := left(coalesce(det,''), 400);
-  insert into audit_log(user_id,user_name,action,entity,detail)
-  values (auth.uid(), uname, act, tg_table_name, det);
+  insert into audit_log(user_id,user_name,action,entity,detail,project_id)
+  values (auth.uid(), uname, act, tg_table_name, det, pid);
   if (tg_op = 'DELETE') then return old; else return new; end if;
 end; $$;
 
@@ -249,18 +250,20 @@ CREATE FUNCTION public.audit_user_privileges() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare uname text; tname text; pcode text;
+declare uname text; tname text; pcode text; pid uuid;
 begin
   select name into uname from profiles where id = auth.uid();
   select name into tname from profiles where id = coalesce(new.user_id, old.user_id);
-  select code into pcode from projects where id = coalesce(new.project_id, old.project_id);
-  insert into audit_log(user_id, user_name, action, entity, entity_id, detail)
+  pid := coalesce(new.project_id, old.project_id);
+  select code into pcode from projects where id = pid;
+  insert into audit_log(user_id, user_name, action, entity, entity_id, detail, project_id)
   values (auth.uid(), coalesce(uname,'(system)'),
           case tg_op when 'INSERT' then 'Privilege set' when 'UPDATE' then 'Privilege changed' else 'Privilege reset' end,
           'privilege',
           coalesce(new.user_id, old.user_id)::text,
           coalesce(pcode,'') || ': ' || coalesce(tname,'user') || ' ' || coalesce(new.priv_key, old.priv_key)
-            || ' -> ' || case when tg_op = 'DELETE' then 'role default' when new.granted then 'granted' else 'withdrawn' end);
+            || ' -> ' || case when tg_op = 'DELETE' then 'role default' when new.granted then 'granted' else 'withdrawn' end,
+          pid);
   return coalesce(new, old);
 end $$;
 
@@ -541,7 +544,7 @@ CREATE FUNCTION public.is_cx_admin(p_project uuid) RETURNS boolean
     AS $$
   select
     exists (select 1 from public.profiles
-             where id = auth.uid() and platform_role = 'super')
+             where id = auth.uid() and platform_role in ('super', 'owner'))
     or exists (select 1 from public.project_members
                 where project_id = p_project
                   and user_id = auth.uid()
@@ -649,6 +652,26 @@ CREATE FUNCTION public.proj_role(pid uuid) RETURNS text
     else (select role from project_members where project_id = pid and user_id = auth.uid())
   end;
 $$;
+
+
+--
+-- Name: prune_import_fingerprints(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prune_import_fingerprints() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  delete from import_fingerprints
+  where project_id = new.project_id
+    and id not in (
+      select id from import_fingerprints
+      where project_id = new.project_id
+      order by ts desc limit 50
+    );
+  return null;
+end $$;
 
 
 --
@@ -1165,7 +1188,8 @@ CREATE TABLE public.audit_log (
     action text NOT NULL,
     entity text,
     entity_id text,
-    detail text
+    detail text,
+    project_id uuid
 );
 
 
@@ -1388,6 +1412,35 @@ CREATE TABLE public.docs_vendor_target (
 
 
 --
+-- Name: import_fingerprints; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.import_fingerprints (
+    id bigint NOT NULL,
+    project_id uuid NOT NULL,
+    hash text NOT NULL,
+    row_count integer DEFAULT 0 NOT NULL,
+    mode text DEFAULT 'append'::text NOT NULL,
+    by_name text DEFAULT ''::text NOT NULL,
+    ts timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: import_fingerprints_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.import_fingerprints ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.import_fingerprints_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: invite_requests; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1452,6 +1505,25 @@ CREATE TABLE public.profiles (
 
 
 --
+-- Name: project_companies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.project_companies (
+    project_id uuid NOT NULL,
+    company_id uuid NOT NULL,
+    added_at timestamp with time zone DEFAULT now() NOT NULL,
+    added_by uuid
+);
+
+
+--
+-- Name: TABLE project_companies; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.project_companies IS 'Which companies are active on which project. The companies table remains the global registry; deleting a company there cascades its associations away.';
+
+
+--
 -- Name: project_members; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1512,6 +1584,7 @@ CREATE TABLE public.report_runs (
     recipients integer DEFAULT 0 NOT NULL,
     status text DEFAULT 'sent'::text NOT NULL,
     detail text,
+    project_id uuid DEFAULT 'f1040000-0000-4000-a000-000000000001'::uuid NOT NULL,
     CONSTRAINT report_runs_kind_check CHECK ((kind = ANY (ARRAY['daily'::text, 'weekly'::text])))
 );
 
@@ -1582,6 +1655,26 @@ CREATE TABLE public.user_privileges (
     updated_by uuid,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: vendors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vendors (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    category text,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE vendors; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.vendors IS 'Platform-wide vendor / OEM directory. asset_vendor rows remain plain text; this feeds suggestions and central management.';
 
 
 --
@@ -1825,6 +1918,14 @@ ALTER TABLE ONLY public.docs_vendor_target
 
 
 --
+-- Name: import_fingerprints import_fingerprints_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.import_fingerprints
+    ADD CONSTRAINT import_fingerprints_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: invite_requests invite_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1857,6 +1958,14 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: project_companies project_companies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_companies
+    ADD CONSTRAINT project_companies_pkey PRIMARY KEY (project_id, company_id);
+
+
+--
 -- Name: project_members project_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1881,19 +1990,19 @@ ALTER TABLE ONLY public.report_recipients
 
 
 --
--- Name: report_runs report_runs_kind_run_date_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.report_runs
-    ADD CONSTRAINT report_runs_kind_run_date_key UNIQUE (kind, run_date);
-
-
---
 -- Name: report_runs report_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.report_runs
     ADD CONSTRAINT report_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: report_runs report_runs_project_kind_run_date_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.report_runs
+    ADD CONSTRAINT report_runs_project_kind_run_date_key UNIQUE (project_id, kind, run_date);
 
 
 --
@@ -1937,6 +2046,14 @@ ALTER TABLE ONLY public.user_privileges
 
 
 --
+-- Name: vendors vendors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vendors
+    ADD CONSTRAINT vendors_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: acc_benchmark_imports_proj_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1969,6 +2086,13 @@ CREATE UNIQUE INDEX activities_code_key ON public.activities USING btree (code) 
 --
 
 CREATE INDEX asset_vendor_project_idx ON public.asset_vendor USING btree (project_id);
+
+
+--
+-- Name: audit_log_project_ts_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audit_log_project_ts_idx ON public.audit_log USING btree (project_id, ts DESC);
 
 
 --
@@ -2014,6 +2138,13 @@ CREATE INDEX idx_actsnap_activity_ts ON public.activity_snapshots USING btree (a
 
 
 --
+-- Name: idx_impfp; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_impfp ON public.import_fingerprints USING btree (project_id, hash);
+
+
+--
 -- Name: idx_pm_project; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2053,6 +2184,13 @@ CREATE UNIQUE INDEX invite_requests_unique_open ON public.invite_requests USING 
 --
 
 CREATE INDEX profiles_invite_token_idx ON public.profiles USING btree (invite_token);
+
+
+--
+-- Name: vendors_name_lower; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX vendors_name_lower ON public.vendors USING btree (lower(name));
 
 
 --
@@ -2172,6 +2310,13 @@ CREATE TRIGGER trg_guard_invite_request BEFORE INSERT ON public.invite_requests 
 --
 
 CREATE TRIGGER trg_guard_owner BEFORE DELETE OR UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.guard_owner_profile();
+
+
+--
+-- Name: import_fingerprints trg_impfp_prune; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_impfp_prune AFTER INSERT ON public.import_fingerprints FOR EACH ROW EXECUTE FUNCTION public.prune_import_fingerprints();
 
 
 --
@@ -2427,6 +2572,22 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: project_companies project_companies_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_companies
+    ADD CONSTRAINT project_companies_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: project_companies project_companies_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_companies
+    ADD CONSTRAINT project_companies_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+
+--
 -- Name: project_members project_members_added_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2464,6 +2625,14 @@ ALTER TABLE ONLY public.projects
 
 ALTER TABLE ONLY public.report_recipients
     ADD CONSTRAINT report_recipients_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+
+--
+-- Name: report_runs report_runs_project_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.report_runs
+    ADD CONSTRAINT report_runs_project_fk FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
 
 
 --
@@ -2860,6 +3029,13 @@ CREATE POLICY admin_update_projects ON public.projects FOR UPDATE TO authenticat
 
 
 --
+-- Name: vendors admin_vendors; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_vendors ON public.vendors TO authenticated USING (public.is_admin_somewhere()) WITH CHECK (public.is_admin_somewhere());
+
+
+--
 -- Name: areas; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3011,6 +3187,26 @@ CREATE POLICY evt_write ON public.asset_event TO authenticated USING ((public.ca
 
 
 --
+-- Name: import_fingerprints impfp_ins; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY impfp_ins ON public.import_fingerprints FOR INSERT TO authenticated WITH CHECK (true);
+
+
+--
+-- Name: import_fingerprints impfp_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY impfp_read ON public.import_fingerprints FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: import_fingerprints; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.import_fingerprints ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: acc_benchmark_imports insert_acc_benchmark_imports; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3137,6 +3333,12 @@ CREATE POLICY presence_self_upd ON public.presence FOR UPDATE TO authenticated U
 --
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: project_companies; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.project_companies ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: project_members; Type: ROW SECURITY; Schema: public; Owner: -
@@ -3319,6 +3521,13 @@ CREATE POLICY read_profiles ON public.profiles FOR SELECT TO authenticated USING
 
 
 --
+-- Name: project_companies read_project_companies; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY read_project_companies ON public.project_companies FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: projects read_projects; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3358,6 +3567,13 @@ CREATE POLICY read_systems ON public.systems FOR SELECT TO authenticated USING (
 --
 
 CREATE POLICY read_tier3 ON public.tier3_areas FOR SELECT TO authenticated USING (public.is_member(project_id));
+
+
+--
+-- Name: vendors read_vendors; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY read_vendors ON public.vendors FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -3438,8 +3654,21 @@ CREATE POLICY update_invite_requests ON public.invite_requests FOR UPDATE TO aut
 ALTER TABLE public.user_privileges ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: vendors; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.vendors ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: project_companies write_project_companies; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY write_project_companies ON public.project_companies TO authenticated USING ((public.is_admin() OR public.is_cx_admin(project_id))) WITH CHECK ((public.is_admin() OR public.is_cx_admin(project_id)));
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict c01pvFciDfRpAvavyBlJVuOWiVGzX7jVwvpbpvevAIucbuZKXrHYcEWILO2SNSq
+\unrestrict dNkuH6ChhVgUcgTyO1oFJP5zvXgdCJa4EITNtWaEDyJ6U8ElmzW3JWdK4jgxZVa
 
