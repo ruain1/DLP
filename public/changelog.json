@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV281",
+    "date": "2026-07-12",
+    "items": [
+      "Two tidy-ups on the Activity Table and Constraints Log. On the Table, the Start date and Witness time no longer wrap onto two lines in narrow columns; each stays on a single line. The Constraints Log now respects the same 1500px content width as every other page instead of stretching edge to edge on wide monitors, the last page that was missing the cap."
+    ]
+  },
+  {
     "rev": "REV280",
     "date": "2026-07-12",
     "items": [
