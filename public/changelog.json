@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV249",
+    "date": "2026-07-12",
+    "items": [
+      "Hotfix: REV248 blanked the app. The Reports page guard was written as an effect whose dependency list referenced state declared later in the component, which throws before the first render can complete. The guard is now a deferred redirect placed after everything it reads exists; behaviour is identical (non-admins landing on the Reports page are returned to the board) and the crash is gone."
+    ]
+  },
+  {
     "rev": "REV248",
     "date": "2026-07-12",
     "items": [

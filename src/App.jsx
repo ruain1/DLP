@@ -2870,7 +2870,6 @@ export default function App({ session }) {
   const [syncErr, setSyncErr] = useState("");
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
-  useEffect(() => { if (page === "reporthub" && !isAdmin) setPage("board"); }, [page, isAdmin]);
   // REV244: YTT expansion state. yttUps is a lazy per-activity cache of the append-only
   // daily-update log; entries load on first expand, and everything resets when YTT closes.
   const [yttEx, setYttEx] = useState({});
@@ -3173,6 +3172,10 @@ export default function App({ session }) {
   const LV = S.levels || DEFAULT_LEVELS;
 
   const isAdmin = cu.role === "admin";
+  // REV249: reporthub guard. This must not be a hook: `page` and `isAdmin` initialise at
+  // different points around an early return, and a useEffect deps array evaluates during
+  // render, which is exactly the TDZ crash REV248 shipped. A guarded deferred redirect is safe.
+  if (page === "reporthub" && !isAdmin) setTimeout(() => setPage((cur) => (cur === "reporthub" ? "board" : cur)), 0);
   digestRef.current = { S, admin: isAdmin };
   const csnCompanyId = cu.companyId ? cu.companyId : (cu.role === "admin" ? (((S.companies || []).find((c) => (c.name || "").trim().toLowerCase() === "csn") || {}).id || null) : null);
 
