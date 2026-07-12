@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV267",
+    "date": "2026-07-12",
+    "items": [
+      "Hotfix of the hotfix, structural this time. REV266 moved the presence hooks below the app's loading-screen early returns, so the moment loading finished React saw more hooks than the loading frame had and crashed: the one second of Loading, then white. The hooks now live at the top of the component above every early return, per the REV249 doctrine already written in the code for exactly this trap, with the admin gate computed from bindings that provably exist there (the same formula cu.role itself uses). The patch pipeline now proves, positionally, that every binding the inserted code reads is declared above it and that no presence hook sits below the first early return."
+    ]
+  },
+  {
     "rev": "REV266",
     "date": "2026-07-12",
     "items": [

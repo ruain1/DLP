@@ -2916,9 +2916,14 @@ export default function App({ session }) {
   const [presOpen, setPresOpen] = useState(false);
   const [railPres, setRailPres] = useState({});
   const [presAudit, setPresAudit] = useState(null);
-  // The presence effects live further down, after isAdmin is declared: an effect
-  // dependency array is read at render time, so referencing isAdmin here was a
-  // temporal dead zone crash (the REV265 white page, fixed in REV266).
+  // REV267: these hooks MUST sit here, above the booting/Portal/loading early returns
+  // (the REV249 comment below documents why: a hook after those returns changes the hook
+  // count between frames, the crash REV266 shipped). The gate uses only bindings declared
+  // above this point (S line ~2803, isSuper line ~2900) and replicates cu.role's own
+  // admin formula; cu itself is declared after the early returns and must not be read here.
+  const railAdm = !!S && (isSuper || S.projectRole === "admin");
+  useEffect(() => { if (!railAdm) return; let on = true; const go = () => loadPresence().then((pp) => { if (on) setRailPres(pp); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, [railAdm]);
+  useEffect(() => { if (!presOpen) return; setPresAudit(null); loadLatestAuditByUser(projectId).then(setPresAudit).catch(() => setPresAudit({})); }, [presOpen]);
   const prefs = () => { try { return JSON.parse(localStorage.getItem("dlp_prefs") || "{}"); } catch { return {}; } };
 
   const enterProject = async (projectId, projList, focusActId, initialPage) => {
@@ -3117,9 +3122,6 @@ export default function App({ session }) {
   const LV = S.levels || DEFAULT_LEVELS;
 
   const isAdmin = cu.role === "admin";
-  // REV266: the two REV265 presence effects, placed where isAdmin already exists.
-  useEffect(() => { if (!isAdmin) return; let on = true; const go = () => loadPresence().then((pp) => { if (on) setRailPres(pp); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, [isAdmin]);
-  useEffect(() => { if (!presOpen) return; setPresAudit(null); loadLatestAuditByUser(projectId).then(setPresAudit).catch(() => setPresAudit({})); }, [presOpen]);
   // REV249: reporthub guard. This must not be a hook: `page` and `isAdmin` initialise at
   // different points around an early return, and a useEffect deps array evaluates during
   // render, which is exactly the TDZ crash REV248 shipped. A guarded deferred redirect is safe.
