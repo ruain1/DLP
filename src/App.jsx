@@ -4275,10 +4275,15 @@ export default function App({ session }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>YTT Focus</h3><span className="ytt-sub">One card per activity, spanning the days it covers; the badge is its status against today. Tick a constraint to clear it.</span></div>
                 <button className="lk-btn icon" onClick={() => setYtt(false)}><Icon n="x" /></button>
               </div>
-              <div style={{ position: "relative", padding: "0 14px 14px", overflowY: "auto" }}>
+              <div style={{ position: "relative", padding: "0 14px", flex: "none", borderBottom: "1px solid var(--line)" }}>
+                <div style={{ position: "absolute", top: 0, bottom: 0, left: `calc((100% - 28px - ${2 * G}px) / 3 + 14px + ${G}px)`, width: `calc((100% - 28px - ${2 * G}px) / 3)`, background: "rgba(91,155,243,.05)", borderLeft: "1px solid rgba(91,155,243,.14)", borderRight: "1px solid rgba(91,155,243,.14)", pointerEvents: "none", zIndex: 0 }} />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", columnGap: G, position: "relative", zIndex: 1 }}>
+                  {colHd("Yesterday", yOff, false)}{colHd("Today", todayOffset, true)}{colHd("Tomorrow", mOff, false)}
+                </div>
+              </div>
+              <div style={{ position: "relative", padding: "8px 14px 14px", overflowY: "auto", flex: 1, minHeight: 0 }}>
                 <div style={{ position: "absolute", top: 0, bottom: 14, left: `calc((100% - 28px - ${2 * G}px) / 3 + 14px + ${G}px)`, width: `calc((100% - 28px - ${2 * G}px) / 3)`, background: "rgba(91,155,243,.05)", borderLeft: "1px solid rgba(91,155,243,.14)", borderRight: "1px solid rgba(91,155,243,.14)", pointerEvents: "none", zIndex: 0 }} />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", columnGap: G, rowGap: 9, position: "relative", zIndex: 1 }}>
-                  {colHd("Yesterday", yOff, false)}{colHd("Today", todayOffset, true)}{colHd("Tomorrow", mOff, false)}
                   {rows.length === 0 && <div style={{ gridColumn: "1 / 4", fontSize: 12.5, color: "var(--muted)", padding: "14px 4px" }}>Nothing scheduled across these three days.</div>}
                   {rows.map(({ a, open, c1, c2, c3 }, idx) => {
                     const st = yttStatusV3(a, todayOffset);
@@ -4289,7 +4294,7 @@ export default function App({ session }) {
                       : "ONGOING \u00b7 to " + dShort(a.endOff);
                     const cs = c1 ? 1 : c2 ? 2 : 3; const ce = (c3 ? 3 : c2 ? 2 : 1) + 1;
                     const missed = c1 && a.committed && a.status !== "complete";
-                    return <div key={a.id} className="ytt-card" style={{ gridColumn: cs + " / " + ce, gridRow: idx + 2, borderLeftColor: stC[st], position: "relative" }}>
+                    return <div key={a.id} className="ytt-card" style={{ gridColumn: cs + " / " + ce, gridRow: idx + 1, borderLeftColor: stC[st], position: "relative" }}>
                       {a.startOff < yOff && !a.isMilestone && <span style={{ position: "absolute", left: 3, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", fontSize: 12 }}>{"\u2039"}</span>}
                       {a.endOff > mOff && !a.isMilestone && <span style={{ position: "absolute", right: 3, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", fontSize: 12 }}>{"\u203a"}</span>}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>

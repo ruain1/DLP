@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV245",
+    "date": "2026-07-12",
+    "items": [
+      "YTT Focus: the Yesterday, Today and Tomorrow headers are pinned. They sit in their own block above the card grid, so they stay in view while the cards scroll beneath, per the standing pinned-header rule for list panels; the today band runs behind both the headers and the scrolling cards, and column alignment is guaranteed by both blocks sharing the same grid."
+    ]
+  },
+  {
     "rev": "REV244",
     "date": "2026-07-12",
     "items": [
