@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV269",
+    "date": "2026-07-12",
+    "items": [
+      "Presence popout layout rework. The rail's generic button styling (40px squares collapsed, full-width rows expanded) was restyling the popout's Audit buttons, overlapping names in the expanded rail and drifting rows in the collapsed one; those buttons now carry their own fully-reset style at higher specificity, the same defence the Display flyout has always used. Rows are a rigid avatar / text / button grid that cannot wrap-collide: names ellipsise with the full name on hover, timestamps are short and never wrap (full timestamp on hover), and the latest-activity line keeps its single ellipsised line."
+    ]
+  },
+  {
     "rev": "REV268",
     "date": "2026-07-12",
     "items": [

@@ -372,8 +372,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-presfly{position:absolute;left:calc(100% + 16px);bottom:0;width:332px;max-height:440px;overflow:auto;background:#232c38;border:1px solid #384556;border-radius:12px;box-shadow:6px 12px 20px rgba(0,0,0,.45);padding:9px 0;z-index:60;text-align:left}
 .lk-rail.open .lk-presfly{left:calc(100% + 12px)}
 .lk-presfly h5{margin:4px 14px 6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#8b98ab;font-weight:800}
-.lk-pres-row{display:flex;gap:10px;padding:8px 14px;align-items:flex-start;border-bottom:1px solid #2c3644}
-.lk-presfly .lk-pres-row:last-of-type{border-bottom:0}
+.lk-presrow{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #2c3644}
+.lk-presfly .lk-presrow:last-of-type{border-bottom:0}
+.lk-rail .lk-presfly button.lk-paud{width:auto;height:auto;min-height:0;padding:3px 11px;border:1px solid #3b4a5e;border-radius:7px;background:#2c3644;color:#c7d3e2;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:0;line-height:1.3;transition:background .12s}
+.lk-rail .lk-presfly button.lk-paud:hover{background:#38455a;color:#e6edf6}
 /* REV146: rail Display control + palette flyout */
 .lk-disp{position:relative;width:100%;display:flex;justify-content:center;margin-top:auto}
 .lk-dispbtn{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#9aa7b8;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
@@ -3967,13 +3969,16 @@ export default function App({ session }) {
           const fmtSeen = (t) => { const d = new Date(t); const today = new Date().toDateString() === d.toDateString(); return d.toLocaleString("en-GB", today ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); };
           const actLine = (r) => { if (presAudit == null) return "Loading latest activity\u2026"; const e = presAudit[r.id]; if (!e) return "No recorded activity yet"; return (e.detail || (e.action + (e.entity ? " " + e.entity : "") + (e.entity_id ? " " + e.entity_id : ""))).slice(0, 90); };
           const jump = (name) => { setPresOpen(false); window.__DLP_AUDIT_JUMP = { user: name }; window.dispatchEvent(new CustomEvent("dlp-audit-jump", { detail: { user: name } })); setPage("admin"); };
-          const prow = (r) => <div key={r.id} className="lk-pres-row">
-            <span className="lk-presav" style={{ background: avBg(r.id), width: 30, height: 30, fontSize: 11, marginLeft: 0 }}>{avInit(r.name)}{r.online && <span className="pdot" />}</span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "flex", alignItems: "baseline", gap: 7 }}><b style={{ fontSize: 12.5, color: "#e6edf6" }}>{r.name}</b><span style={{ fontSize: 10.5, fontWeight: 650, color: r.online ? "var(--st-ok)" : "#8b98ab" }}>{r.online ? "Online now" : "Last seen " + fmtSeen(r.last)}</span></span>
+          const prow = (r) => <div key={r.id} className="lk-presrow">
+            <span className="lk-presav" style={{ background: avBg(r.id), width: 32, height: 32, fontSize: 11, marginLeft: 0 }}>{avInit(r.name)}{r.online && <span className="pdot" />}</span>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <b style={{ fontSize: 12.5, color: "#e6edf6", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, flex: "1 1 auto" }} title={r.name}>{r.name}</b>
+                <span style={{ fontSize: 10.5, fontWeight: 650, whiteSpace: "nowrap", flex: "0 0 auto", color: r.online ? "var(--st-ok)" : "#8b98ab" }} title={r.online ? "Online now" : "Last seen " + new Date(r.last).toLocaleString("en-GB")}>{r.online ? "Online now" : fmtSeen(r.last)}</span>
+              </span>
               <span style={{ display: "block", fontSize: 11, color: "#9aa7b8", marginTop: 2, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{actLine(r)}</span>
             </span>
-            <button className="lk-btn" style={{ padding: "2px 9px", fontSize: 10.5, fontWeight: 700, flex: "0 0 auto" }} onClick={() => jump(r.name)}>Audit</button>
+            <button className="lk-paud" onClick={() => jump(r.name)}>Audit</button>
           </div>;
           return <div className="lk-pres">
             {presOpen && <div className="lk-dispback" onClick={() => setPresOpen(false)} />}
@@ -3987,7 +3992,7 @@ export default function App({ session }) {
               {prows.length === 0 && <div style={{ padding: "6px 14px 10px", fontSize: 11.5, color: "#9aa7b8" }}>No presence recorded yet.</div>}
               {on.length > 0 && <><h5>Online now</h5>{on.map(prow)}</>}
               {off.length > 0 && <><h5 style={{ marginTop: 8 }}>Earlier</h5>{off.map(prow)}</>}
-              <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 14px 3px" }}><button className="lk-btn" style={{ padding: "3px 11px", fontSize: 11, fontWeight: 700 }} onClick={() => jump("all")}>Open full audit</button></div>
+              <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 14px 3px" }}><button className="lk-paud" onClick={() => jump("all")}>Open full audit</button></div>
             </div>}
           </div>;
         })()}
