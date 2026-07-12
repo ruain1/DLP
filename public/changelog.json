@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV290",
+    "date": "2026-07-12",
+    "items": [
+      "The weekly admin digest now shows the week number in its header chip (WK 27 rather than a generic WEEKLY tag); the daily digest keeps its DAILY chip. The number is the ISO week of the period end, matching the weekly report email."
+    ]
+  },
+  {
     "rev": "REV289",
     "date": "2026-07-12",
     "items": [

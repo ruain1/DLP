@@ -14,6 +14,15 @@ export function helParts(d: Date) {
   for (const x of f.formatToParts(d)) p[x.type] = x.value;
   return { y: +p.year, m: +p.month, d: +p.day, hh: +p.hour, mm: +p.minute, wd: p.weekday };
 }
+export function isoWeekOf(d: Date): number {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = (t.getUTCDay() + 6) % 7;
+  t.setUTCDate(t.getUTCDate() - day + 3);
+  const first = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  const fday = (first.getUTCDay() + 6) % 7;
+  first.setUTCDate(first.getUTCDate() - fday + 3);
+  return 1 + Math.round((t.getTime() - first.getTime()) / (7 * 24 * 3600 * 1000));
+}
 export const helDateStr = (d: Date) => { const p = helParts(d); return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`; };
 // UTC instant for a Helsinki wall-clock time. Guess UTC, measure what wall time that guess
 // produces in Helsinki, correct by the difference; converges in one step for real offsets.
@@ -313,6 +322,7 @@ export function buildDigestHtml(p: {
   stageColors?: string[];
   projectName?: string | null;
   projectLine?: string | null;
+  weekNo?: number | null;
 }) {
   const nm = p.projectName ? p.projectName + " DLP" : APP_NAME;
   const title = p.kind === "daily" ? `${nm} Daily Update` : `${nm} Weekly Update`;
@@ -327,7 +337,7 @@ export function buildDigestHtml(p: {
     + `<td style="vertical-align:middle;"><div style="color:#8a93a3;font-size:9.5px;letter-spacing:.16em;font-weight:bold;${F}">${kicker}</div>`
     + `<div style="color:#ffffff;font-size:19px;font-weight:bold;letter-spacing:-.3px;padding-top:2px;${F}">${headline}</div></td>`
     + `</tr></table></td>`
-    + `<td align="right" style="vertical-align:middle;"><div style="display:inline-block;font-family:'Courier New',monospace;font-size:10px;letter-spacing:.1em;color:#8fb4e0;border:1px solid #37485f;border-radius:4px;padding:3px 8px;">${p.kind === "daily" ? "DAILY" : "WEEKLY"}</div>`
+    + `<td align="right" style="vertical-align:middle;"><div style="display:inline-block;font-family:'Courier New',monospace;font-size:10px;letter-spacing:.1em;color:#8fb4e0;border:1px solid #37485f;border-radius:4px;padding:3px 8px;">${p.kind === "daily" ? "DAILY" : (p.weekNo != null ? "WK " + p.weekNo : "WEEKLY")}</div>`
     + `<div style="color:#9aa6b5;font-size:11px;padding-top:7px;${F}">${esc(p.dateLine)}</div></td>`
     + `</tr></table></td></tr>`
     + `<tr><td style="padding:0;">${barCells(4)}</td></tr>`

@@ -9218,7 +9218,7 @@ async function assembleDigest(core, St, kind, due) {
   }
   const pnm = (St.brand && St.brand.projectName) || (St.projectMeta && St.projectMeta.name) || "";
   const pline = St.projectMeta ? [St.projectMeta.client, St.projectMeta.location].filter(Boolean).join(" ") : "";
-  const html = core.buildDigestHtml({ kind, dateLine: core.dateLineFor(kind, win), changelog: clRows, vendors, kpi, projectName: pnm || null, projectLine: pline || null, appUrl: window.location.origin + "/?p=" + encodeURIComponent(St.projectId), qmc, stageColors: core.stageColorsFor(St.levels) });
+  const html = core.buildDigestHtml({ kind, dateLine: core.dateLineFor(kind, win), changelog: clRows, vendors, kpi, projectName: pnm || null, projectLine: pline || null, appUrl: window.location.origin + "/?p=" + encodeURIComponent(St.projectId), qmc, stageColors: core.stageColorsFor(St.levels), weekNo: kind === "weekly" ? core.isoWeekOf(win.end) : null });
   const subject = core.subjectFor(kind, core.subjectLabelFor(kind, win), pnm || null);
   return { win, html, subject, attachments };
 }
