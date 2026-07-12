@@ -195,7 +195,7 @@ export function buildMorningEmail(d, cfg, meta) {
         // REV285: identity masthead. Logo only if it is a hosted https URL (data-URIs and
         // relative paths break in Outlook and Gmail); otherwise a clean text wordmark.
         const logo = meta.logoDark || meta.logoUrl || "";
-        const useLogo = typeof logo === "string" && /^https:\/\//.test(logo);
+        const useLogo = typeof logo === "string" && /^(https:\/\/|data:image\/|cid:)/.test(logo);
         const markCell = useLogo
           ? `<td style="vertical-align:middle; padding-right:11px;"><img src="${esc(logo)}" alt="atnorth" height="34" style="height:34px; width:auto; display:block;"></td>`
           : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:Arial,Helvetica,sans-serif; font-size:18px; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
@@ -210,8 +210,7 @@ export function buildMorningEmail(d, cfg, meta) {
       })()
     + body
     + `<tr><td style="padding:16px 24px 20px;" align="center"><table cellpadding="0" cellspacing="0" align="center"><tr><td>${emailBtn(esc(meta.appUrl || "https://dlp-pi.vercel.app"), "Open the board")}</td></tr></table>`
-    + `<div style="font-size:10.5px; color:#8a94a1; margin-top:12px;">Sent automatically by DLP${meta.projName ? " for " + esc(meta.projName) : ""}. You receive this as a member of the project team.</div>`
-    + `<div style="font-size:10px; color:#aeb6c2; margin-top:8px; letter-spacing:.04em;">atnorth commissioning</div></td></tr></table>`;
+    + `<div style="font-size:10.5px; color:#8a94a1; margin-top:12px;">Sent automatically by DLP${meta.projName ? " for " + esc(meta.projName) : ""}. You receive this as a member of the project team.</div></td></tr></table>`;
   return html;
 }
 

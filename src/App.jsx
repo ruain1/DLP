@@ -9026,7 +9026,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     try {
       const ol = await import("./outlook");
       const p = composeParts(ol, by);
-      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", periodLabel: p.lbl, by, summary: summaryVal, tiles: p.tiles, attached: { mode: "both", light: p.names.light, dark: p.names.dark } });
+      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", periodLabel: p.lbl, by, summary: summaryVal, tiles: p.tiles, attached: { mode: "both", light: p.names.light, dark: p.names.dark } });
       const eml = ol.buildReportEml({ subject: ((S.brand && S.brand.projectName) || "DLP") + " Weekly DLP Report, " + p.lbl, to: recips.filter((r) => r.email), bodyHtml, attachments: [{ name: p.names.light, html: p.fullLight }, { name: p.names.dark, html: p.fullDark }] });
       const url = URL.createObjectURL(new Blob([eml], { type: "message/rfc822" }));
       const a2 = document.createElement("a"); a2.href = url; a2.download = p.emlName; a2.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -9050,7 +9050,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
       const LIMIT = 3400000;   // sendMail is one JSON request with a 4 MB ceiling; guard the pair
       const attMode = bL.length + bD.length <= LIMIT ? "both" : (bL.length <= LIMIT ? "light" : "none");
       const lbl = p.lbl;
-      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles: p.tiles, attached: { mode: attMode, light: p.names.light, dark: p.names.dark } });
+      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles: p.tiles, attached: { mode: attMode, light: p.names.light, dark: p.names.dark } });
       const attachments = attMode === "both"
         ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }, { name: p.names.dark, contentType: "text/html", contentBytes: bD }]
         : attMode === "light" ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }] : [];
@@ -9283,7 +9283,7 @@ async function assembleMorning(St, due) {
   const pnm = (St.brand && St.brand.projectName) || (St.projectMeta && St.projectMeta.name) || "";
   const pline = St.projectMeta ? [St.projectMeta.client, St.projectMeta.location].filter(Boolean).join(" ") : "";
   const { subject, dateLine } = m.morningSubject(pnm || null, due);
-  const html = m.buildMorningEmail(data, cfg, { projName: pnm, projLine: pline, dateLine, appUrl: window.location.origin + "/?p=" + encodeURIComponent(St.projectId) });
+  const html = m.buildMorningEmail(data, cfg, { projName: pnm, projLine: pline, dateLine, logoDark: (St.brand && St.brand.logoDark) || "", logoUrl: (St.brand && St.brand.logoUrl) || "", appUrl: window.location.origin + "/?p=" + encodeURIComponent(St.projectId) });
   return { subject, html, attachments: undefined };
 }
 async function resolveMorningRecipients(St) {

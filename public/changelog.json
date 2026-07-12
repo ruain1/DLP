@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV286",
+    "date": "2026-07-12",
+    "items": [
+      "Three follow-ups from the mockup review. The weekly report EMAIL (the one with the two HTML attachments) now wears the same atnorth identity masthead as the Morning Cx Update, with the week and generated-by in the header and the blue accent rule beneath; its coloured KPI toppers are unchanged. The Morning Cx Update now carries the actual atnorth logo when the brand has one set (the logo guard was loosened to accept the hosted, data and content-id forms that the invite pipeline already uses), and the atnorth commissioning line is gone from its footer."
+    ]
+  },
+  {
     "rev": "REV285",
     "date": "2026-07-12",
     "items": [
