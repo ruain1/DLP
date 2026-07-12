@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict eEQ7gZx3q8edMa48aTXjAIZXIj7UITZcgc1fZnQ09meQV2zWY5tgfwgtYTZK6eJ
+\restrict nWdaFyYlIJH9vG00vG0Rv9oqAdIREqDhN7wxkljQq22BeW1ro0YADRfTf7rFUoB
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -2856,21 +2856,21 @@ ALTER TABLE public.activity_updates ENABLE ROW LEVEL SECURITY;
 -- Name: acc_benchmarks admin_acc_benchmarks; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_acc_benchmarks ON public.acc_benchmarks TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_acc_benchmarks ON public.acc_benchmarks TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
 -- Name: acc_sync admin_acc_sync; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_acc_sync ON public.acc_sync TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_acc_sync ON public.acc_sync TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
 -- Name: acc_sync_events admin_acc_sync_events; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_acc_sync_events ON public.acc_sync_events TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_acc_sync_events ON public.acc_sync_events TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
@@ -2884,21 +2884,21 @@ CREATE POLICY admin_areas ON public.areas TO authenticated USING (public.is_proj
 -- Name: asset_register admin_asset_register; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_asset_register ON public.asset_register TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_asset_register ON public.asset_register TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
 -- Name: asset_status_config admin_asset_status_config; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_asset_status_config ON public.asset_status_config TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_asset_status_config ON public.asset_status_config TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
 -- Name: asset_vendor admin_asset_vendor; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_asset_vendor ON public.asset_vendor TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_asset_vendor ON public.asset_vendor TO authenticated USING (public.is_cx_admin((project_id)::uuid)) WITH CHECK (public.is_cx_admin((project_id)::uuid));
 
 
 --
@@ -2926,14 +2926,14 @@ CREATE POLICY admin_companies ON public.companies TO authenticated USING (public
 -- Name: crews admin_crews; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_crews ON public.crews TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_crews ON public.crews TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
 -- Name: cx_step_reference admin_cx_step_reference; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_cx_step_reference ON public.cx_step_reference TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_cx_step_reference ON public.cx_step_reference TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
@@ -2954,35 +2954,35 @@ CREATE POLICY admin_delete_access_requests ON public.access_requests FOR DELETE 
 -- Name: docs_column_ref admin_docs_column_ref; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_docs_column_ref ON public.docs_column_ref TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_docs_column_ref ON public.docs_column_ref TO authenticated USING (public.is_cx_admin((project_id)::uuid)) WITH CHECK (public.is_cx_admin((project_id)::uuid));
 
 
 --
 -- Name: docs_matrix admin_docs_matrix; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_docs_matrix ON public.docs_matrix TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_docs_matrix ON public.docs_matrix TO authenticated USING (public.is_cx_admin((project_id)::uuid)) WITH CHECK (public.is_cx_admin((project_id)::uuid));
 
 
 --
 -- Name: docs_override admin_docs_override; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_docs_override ON public.docs_override TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_docs_override ON public.docs_override TO authenticated USING (public.is_cx_admin((project_id)::uuid)) WITH CHECK (public.is_cx_admin((project_id)::uuid));
 
 
 --
 -- Name: docs_status_config admin_docs_status_config; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_docs_status_config ON public.docs_status_config TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_docs_status_config ON public.docs_status_config TO authenticated USING (public.is_cx_admin((project_id)::uuid)) WITH CHECK (public.is_cx_admin((project_id)::uuid));
 
 
 --
 -- Name: docs_vendor_target admin_docs_vendor_target; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_docs_vendor_target ON public.docs_vendor_target TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_docs_vendor_target ON public.docs_vendor_target TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
@@ -3031,14 +3031,14 @@ CREATE POLICY admin_read_actsnap ON public.activity_snapshots FOR SELECT TO auth
 -- Name: audit_log admin_read_audit; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_read_audit ON public.audit_log FOR SELECT TO authenticated USING (public.is_admin());
+CREATE POLICY admin_read_audit ON public.audit_log FOR SELECT TO authenticated USING (public.is_cx_admin(project_id));
 
 
 --
 -- Name: report_recipients admin_report_recipients; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY admin_report_recipients ON public.report_recipients TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_report_recipients ON public.report_recipients TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
@@ -3206,7 +3206,7 @@ CREATE POLICY cx_week_admin ON public.cx_week USING (public.is_cx_admin(project_
 -- Name: invite_requests delete_invite_requests; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY delete_invite_requests ON public.invite_requests FOR DELETE TO authenticated USING (public.is_admin());
+CREATE POLICY delete_invite_requests ON public.invite_requests FOR DELETE TO authenticated USING (public.is_cx_admin(project_id));
 
 
 --
@@ -3279,7 +3279,7 @@ ALTER TABLE public.import_fingerprints ENABLE ROW LEVEL SECURITY;
 -- Name: acc_benchmark_imports insert_acc_benchmark_imports; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY insert_acc_benchmark_imports ON public.acc_benchmark_imports FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY insert_acc_benchmark_imports ON public.acc_benchmark_imports FOR INSERT TO authenticated WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
@@ -3581,7 +3581,7 @@ CREATE POLICY read_docs_vendor_target ON public.docs_vendor_target FOR SELECT TO
 -- Name: invite_requests read_invite_requests; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY read_invite_requests ON public.invite_requests FOR SELECT TO authenticated USING (((requester_id = auth.uid()) OR public.is_admin()));
+CREATE POLICY read_invite_requests ON public.invite_requests FOR SELECT TO authenticated USING (((requester_id = auth.uid()) OR public.is_cx_admin(project_id)));
 
 
 --
@@ -3729,7 +3729,7 @@ CREATE POLICY up_read ON public.user_privileges FOR SELECT TO authenticated USIN
 -- Name: invite_requests update_invite_requests; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY update_invite_requests ON public.invite_requests FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY update_invite_requests ON public.invite_requests FOR UPDATE TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
@@ -3748,12 +3748,12 @@ ALTER TABLE public.vendors ENABLE ROW LEVEL SECURITY;
 -- Name: project_companies write_project_companies; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY write_project_companies ON public.project_companies TO authenticated USING ((public.is_admin() OR public.is_cx_admin(project_id))) WITH CHECK ((public.is_admin() OR public.is_cx_admin(project_id)));
+CREATE POLICY write_project_companies ON public.project_companies TO authenticated USING (public.is_cx_admin(project_id)) WITH CHECK (public.is_cx_admin(project_id));
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eEQ7gZx3q8edMa48aTXjAIZXIj7UITZcgc1fZnQ09meQV2zWY5tgfwgtYTZK6eJ
+\unrestrict nWdaFyYlIJH9vG00vG0Rv9oqAdIREqDhN7wxkljQq22BeW1ro0YADRfTf7rFUoB
 
