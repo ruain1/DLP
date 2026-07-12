@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV271",
+    "date": "2026-07-12",
+    "items": [
+      "The boot smoke test lands, the structural answer to tonight's white screens. A script boots the real app bundle in a headless browser DOM against a generated stub of the data layer, with a fake session and an auto-entered project, and asserts three frames: module evaluation (where the first crash lived), the loading frame, and the full board past every loading-screen early return (where the second crash lived). It was proven the honest way: re-introducing tonight's bug made it fail with the exact error users saw, and the current code passes. It now runs in the delivery gate suite for every revision that touches the app shell."
+    ]
+  },
+  {
     "rev": "REV270",
     "date": "2026-07-12",
     "items": [
