@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV248",
+    "date": "2026-07-12",
+    "items": [
+      "New Reports page, admins and the owner only, taking every report function off the other pages: the Morning Cx Update card with its configuration, the daily and weekly digest card, the Weekly Report builder and the activities export. The Analytics page keeps only its charts, gauge and drill-downs (its metrics workbook and PDF stay beside them). The nav shows Reports to admins only and the page guards direct navigation.",
+      "Reports archive: every sent report is stored and viewable. The page's Reports section lists all runs newest first with kind chips (MORNING, DAILY, WEEKLY, REPORT), status, recipients and subject, loading 30 at a time; View opens the sent email in a sandboxed viewer exactly as it went out. The full weekly report archives its light version when under 2MB, otherwise the email body. Runs sent before the archive existed show their details with a note that the content was not captured.",
+      "Fix: the report_runs kind check in the database still only allowed daily and weekly, which would have blocked every Morning Cx Update claim; the 2026-07-12_report-archive migration widens it to include morning and report and adds the archive columns. The migration must be applied for morning sends to work; archiving itself is fire-and-forget, so an unapplied migration can never break a send."
+    ]
+  },
+  {
     "rev": "REV247",
     "date": "2026-07-12",
     "items": [

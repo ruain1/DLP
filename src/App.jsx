@@ -2870,6 +2870,7 @@ export default function App({ session }) {
   const [syncErr, setSyncErr] = useState("");
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
+  useEffect(() => { if (page === "reporthub" && !isAdmin) setPage("board"); }, [page, isAdmin]);
   // REV244: YTT expansion state. yttUps is a lazy per-activity cache of the append-only
   // daily-update log; entries load on first expand, and everything resets when YTT closes.
   const [yttEx, setYttEx] = useState({});
@@ -3004,7 +3005,7 @@ export default function App({ session }) {
       const fa = DEEPLINK_ACT; DEEPLINK_ACT = "";
       const fasset = DEEPLINK_ASSET; DEEPLINK_ASSET = "";
       let fpage = DEEPLINK_PAGE; DEEPLINK_PAGE = "";
-      const PAGES = ["board", "table", "schedule", "constraints", "reports", "help", "admin", "cx", "assets", "docs", "benchmarks"];
+      const PAGES = ["board", "table", "schedule", "constraints", "reports", "reporthub", "help", "admin", "cx", "assets", "docs", "benchmarks"];
       if (!PAGES.includes(fpage)) fpage = "";
       if (target) {
         const ip = fpage || (fasset ? "assets" : undefined);
@@ -3434,6 +3435,7 @@ export default function App({ session }) {
           if (!recipients.length) throw new Error(b.kind === "morning" ? "no recipient email addresses resolved" : "no admin email addresses resolved");
           await ol.sendMailMessage({ subject, html, to: recipients, attachments: asm.attachments });
           if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: recipients.length, detail: subject + (missing.length ? " \u00b7 no email for: " + missing.join(", ") : "") }).eq("id", claimId);
+          archiveReportHtml(claimId, subject, html);
           setDigestNote({ ok: true, text: (b.kind === "daily" ? "Daily" : b.kind === "weekly" ? "Weekly" : "Morning Cx") + " digest sent to " + recipients.length + " recipient" + (recipients.length === 1 ? "" : "s") + (test ? " (test, to you only)" : "") + "." });
         } catch (err) {
           if (claimId) { try { await supabase.from("report_runs").delete().eq("id", claimId); } catch (e2) { } }
@@ -3997,6 +3999,7 @@ export default function App({ session }) {
         <button title={pageLabel("constraints", "Constraints Log")} className={page === "constraints" ? "on" : ""} onClick={() => setPage("constraints")}><Icon n={pageIcon("constraints", "alert")} s={20} /><span className="lbl">{pageLabel("constraints", "Constraints Log")}</span></button>
         <button title={pageLabel("schedule", "Schedule")} className={page === "schedule" ? "on" : ""} onClick={() => setPage("schedule")}><Icon n={pageIcon("schedule", "gantt")} s={20} /><span className="lbl">{pageLabel("schedule", "Schedule")}</span></button>
         <button title={pageLabel("reports", "Analytics")} className={page === "reports" ? "on" : ""} onClick={() => setPage("reports")}><Icon n={pageIcon("reports", "chart")} s={20} /><span className="lbl">{pageLabel("reports", "Analytics")}</span></button>
+        {isAdmin && <button title={pageLabel("reporthub", "Reports")} className={page === "reporthub" ? "on" : ""} onClick={() => setPage("reporthub")}><Icon n={pageIcon("reporthub", "mail")} s={20} /></button>}
         <button title={pageLabel("cx", "Weekly Cx Progress")} className={page === "cx" ? "on" : ""} onClick={() => setPage("cx")}><Icon n={pageIcon("cx", "checkcircle")} s={20} /><span className="lbl">{pageLabel("cx", "Weekly Cx Progress")}</span></button>
         <button title={pageLabel("assets", "Asset Status")} className={page === "assets" ? "on" : ""} onClick={() => setPage("assets")}><Icon n={pageIcon("assets", "package")} s={20} /><span className="lbl">{pageLabel("assets", "Asset Status")}</span></button>
         {(isAdmin || (S.settings && S.settings.benchmarksVisible)) && <button title={pageLabel("benchmarks", "Benchmarks")} className={page === "benchmarks" ? "on" : ""} onClick={() => setPage("benchmarks")}><Icon n={pageIcon("benchmarks", "shield")} s={20} /><span className="lbl">{pageLabel("benchmarks", "Benchmarks")}</span></button>}
@@ -4209,6 +4212,7 @@ export default function App({ session }) {
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <div className="lk-scroll"><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
       {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} update={update} /></div>}
+      {page === "reporthub" && isAdmin && <div className="lk-scroll"><ReportsHub S={S} update={update} coName={coName} LV={LV} by={cu.name} canWeekly={can("weekly")} canDist={can("distList")} projectId={selProj} exportActivities={exportActivities} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} projCode={(((projects || []).find((p) => p.id === selProj) || {}).code || "").trim()} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
@@ -9007,6 +9011,14 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
         to,
         attachments,
       });
+      if (!testOnly) {
+        try {
+          const core = await import("./digestCore");
+          const subjectLine = (((S.brand && S.brand.projectName) || "DLP") + " Weekly DLP Report, ") + lbl;
+          const bigHtml = (p.fullLight && p.fullLight.length <= 2000000) ? p.fullLight : bodyHtml;
+          supabase.from("report_runs").insert({ project_id: S.projectId, kind: "report", run_date: core.helDateStr(new Date()), status: "sent", sent_at: new Date().toISOString(), recipients: to.length, detail: subjectLine, subject: subjectLine, html: bigHtml }).then(() => {}, () => {});
+        } catch (e) { }
+      }
       const attNote = attMode === "both" ? " Light and dark reports attached." : attMode === "light" ? " Light report attached; the dark version exceeded the size limit." : " Summary only; the report was too large to attach.";
       setRepMsg({ ok: true, text: (testOnly ? "Test sent to " + acct.username + "." : "Report emailed to " + to.length + " recipient" + (to.length === 1 ? "" : "s") + " from " + acct.username + ".") + attNote + " A copy is in your Sent Items." });
     } catch (err) {
@@ -9189,6 +9201,13 @@ const digestErrText = (msg) => {
   if (/row-level security/i.test(m)) return m + " - the database is still using the pre-owner/super admin rule. Run supabase/is-admin-REV110.sql in the Supabase SQL editor, then retry; no app deploy is needed for the fix to take effect.";
   return m;
 };
+// REV248: persist the sent report so the archive can display it later. Fire-and-forget
+// on purpose: the send already succeeded, and a pre-migration database (no subject/html
+// columns yet) must never break the status flow.
+function archiveReportHtml(claimId, subject, html) {
+  if (!claimId) return;
+  try { supabase.from("report_runs").update({ subject: subject || "", html: html || "" }).eq("id", claimId).then(() => {}, () => {}); } catch (e) { }
+}
 async function assembleMorning(St, due) {
   const m = await import("./morningReport");
   const core = await import("./digestCore");
@@ -9230,6 +9249,88 @@ async function resolveDigestRecipients(St) {
   const missing = [];
   const recipients = admins.map((p) => { const em = us[p.id] && us[p.id].email; if (!em) missing.push(p.name); return em; }).filter(Boolean);
   return { recipients: [...new Set(recipients)], missing };
+}
+// REV248: the Reports page. Admin/owner only: scheduled report cards, the Weekly Report
+// builder, the activities export, and the archive of every sent report (viewable when the
+// html was captured; runs from before the archive existed show a plain note instead).
+function ReportKindChip({ kind }) {
+  const map = { morning: ["MORNING", "#E0A106"], daily: ["DAILY", "#5B9BF3"], weekly: ["WEEKLY", "#b79bf0"], report: ["REPORT", "#0E9384"] };
+  const [t, c] = map[kind] || [String(kind || "?").toUpperCase(), "#8593a2"];
+  return <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 8px", borderRadius: 5, color: c, background: c + "1f", whiteSpace: "nowrap" }}>{t}</span>;
+}
+function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, exportActivities }) {
+  const [rows, setRows] = useState(null);
+  const [lim, setLim] = useState(30);
+  const [view, setView] = useState(null);      // { row, html: undefined loading | null missing | string }
+  const [acct, setAcct] = useState(null);
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const r = await supabase.from("report_runs").select("id, kind, run_date, sent_at, status, recipients, detail, subject").eq("project_id", S.projectId).order("sent_at", { ascending: false }).limit(lim);
+        if (on) setRows(r.error ? { err: r.error.message } : (r.data || []));
+      } catch (e) { if (on) setRows({ err: String((e && e.message) || e) }); }
+    })();
+    return () => { on = false; };
+  }, [S.projectId, lim]);
+  useEffect(() => { import("./outlook").then((ol) => ol.outlookAccount()).then((a) => setAcct(a ? a.username : null)).catch(() => setAcct(null)); }, []);
+  const openRow = async (r) => {
+    setView({ row: r, html: undefined });
+    try {
+      const q = await supabase.from("report_runs").select("html").eq("id", r.id).maybeSingle();
+      setView({ row: r, html: (q.data && q.data.html) || null });
+    } catch (e) { setView({ row: r, html: null }); }
+  };
+  const secLbl = { fontSize: 9.5, fontWeight: 800, letterSpacing: ".8px", textTransform: "uppercase", color: "var(--muted)", margin: "18px 0 8px" };
+  const list = Array.isArray(rows) ? rows : [];
+  return (
+    <div className="lk-page" style={{ maxWidth: 1160, margin: "0 auto", padding: "0 14px 30px" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--bg, #0d1422)", display: "flex", alignItems: "center", gap: 12, padding: "14px 2px 10px", borderBottom: "1px solid var(--line)" }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Reports</h2>
+        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".6px", padding: "3px 9px", borderRadius: 999, border: "1px solid rgba(224,161,6,.5)", color: "#E0A106", textTransform: "uppercase" }}>Admins &amp; owner</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--muted)" }}>{acct ? "Outlook: " + acct : "Outlook not connected"}</span>
+      </div>
+      <div style={{ ...secLbl }}>Scheduled {"\u00b7"} sent automatically via Outlook</div>
+      <AdminMorningCard S={S} update={update} />
+      <AdminDigestCard S={S} />
+      <div style={secLbl}>On demand</div>
+      <div className="lk-card" style={{ padding: 16, marginBottom: 14, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={canWeekly} canDist={canDist} projectId={projectId} label="Weekly Report" />
+        <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
+        <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The metrics workbook and board PDF stay on the Analytics page beside their charts.</span>
+      </div>
+      <div style={secLbl}>Reports</div>
+      {rows && rows.err && <div style={{ fontSize: 12, color: "#F87171", fontWeight: 600 }}>Could not load the archive: {rows.err}</div>}
+      {rows == null && <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading...</div>}
+      {Array.isArray(rows) && !list.length && <div style={{ fontSize: 12, color: "var(--muted)" }}>No reports have been sent on this project yet.</div>}
+      {list.length > 0 && <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden" }}>
+        {list.map((r) => (
+          <div key={r.id} className="lk-audit" style={{ flexDirection: "row", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 13px" }} onClick={() => openRow(r)}>
+            <ReportKindChip kind={r.kind} />
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+              <span className="a">{r.subject || r.detail || "(no subject recorded)"}</span>
+              <span className="m">{r.run_date} {"\u00b7"} {r.status === "sent" ? "sent " + new Date(r.sent_at).toLocaleString("en-GB") + " \u00b7 " + r.recipients + " recipient" + (r.recipients === 1 ? "" : "s") : r.status}</span>
+            </div>
+            <button className="lk-btn" style={{ flex: "none" }} onClick={(ev) => { ev.stopPropagation(); openRow(r); }}>View</button>
+          </div>
+        ))}
+      </div>}
+      {Array.isArray(rows) && list.length >= lim && <div style={{ textAlign: "center", marginTop: 10 }}><button className="lk-btn" onClick={() => setLim(lim + 30)}>Load 30 more</button></div>}
+      {view && (
+        <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => setView(null)}>
+          <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 760, width: "min(760px, 94vw)" }} onClick={(ev) => ev.stopPropagation()}>
+            <div className="lk-dh"><h3 style={{ display: "flex", alignItems: "center", gap: 9 }}><ReportKindChip kind={view.row.kind} />{view.row.subject || view.row.run_date}</h3><button className="lk-btn icon" onClick={() => setView(null)}><Icon n="x" /></button></div>
+            <div className="bd" style={{ padding: 12 }}>
+              {view.html === undefined && <div style={{ fontSize: 12, color: "var(--muted)", padding: 14 }}>Loading the report...</div>}
+              {view.html === null && <div style={{ fontSize: 12.5, color: "var(--muted)", padding: 14, lineHeight: 1.6 }}>The content of this report was not captured; it was sent before the archive existed (REV248). The run details above are all that was recorded.</div>}
+              {typeof view.html === "string" && view.html && <iframe title="report" sandbox="" srcDoc={view.html} style={{ width: "100%", height: "68vh", border: "1px solid var(--line)", borderRadius: 8, background: "#ffffff" }} />}
+            </div>
+            <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" onClick={() => setView(null)}>Close</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 function AdminMorningCard({ S, update }) {
   const mrRef = React.useRef(null);
@@ -9286,6 +9387,7 @@ function AdminMorningCard({ S, update }) {
         if (!rr.recipients.length) throw new Error("no recipient email addresses resolved");
         await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
         if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " (no email for: " + rr.missing.join(", ") + ")" : "") }).eq("id", claimId);
+        archiveReportHtml(claimId, asm.subject, asm.html);
         setMsg({ ok: true, text: "Morning Cx Update sent to " + rr.recipients.length + " recipient" + (rr.recipients.length === 1 ? "" : "s") + "." + (rr.missing.length ? " No email for: " + rr.missing.join(", ") + "." : "") });
         load();
       }
@@ -9380,6 +9482,7 @@ function AdminDigestCard({ S }) {
       if (!rr.recipients.length) throw new Error("no admin email addresses resolved");
       await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients, attachments: asm.attachments });
       await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " \u00b7 no email for: " + rr.missing.join(", ") : "") + (resend ? " \u00b7 resent manually" : " \u00b7 sent manually") }).eq("id", claimId);
+      archiveReportHtml(claimId, asm.subject, asm.html);
       setMsg({ ok: true, text: (kind === "daily" ? "Daily" : "Weekly") + " update sent to " + rr.recipients.length + " admin" + (rr.recipients.length === 1 ? "" : "s") + " from " + a.username + "." + (rr.missing.length ? " No email on file for: " + rr.missing.join(", ") + "." : "") });
       load();
     } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
@@ -9589,13 +9692,9 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
         <div className="lk-f" style={{ minWidth: 120 }}><label>Period</label><select className="lk-select" value={period} onChange={(e) => setPeriod(e.target.value)}><option value="all">All time</option><option value="range">Date range</option></select></div>
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>From</label><input className="lk-in mono" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>}
         {period === "range" && <div className="lk-f" style={{ minWidth: 132 }}><label>To</label><input className="lk-in mono" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>}
-        <button className="lk-btn" onClick={exportActivities}><Icon n="download" s={14} />Export all activities</button>
-        <WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={canWeekly} canDist={canDist} projectId={projectId} label="Weekly Report" />
         <button className="lk-btn" onClick={exportMetrics}><Icon n="download" s={14} />Metrics (Excel)</button>
         <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>
       </div>
-      {isAdmin && <AdminDigestCard S={S} />}
-      {isAdmin && update && <AdminMorningCard S={S} update={update} />}
       {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
