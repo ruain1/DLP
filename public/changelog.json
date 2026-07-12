@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV261",
+    "date": "2026-07-12",
+    "items": [
+      "Help overhaul, tranche 3: drift corrections. The audit documentation now matches the current page: Undo and Force revert (the buttons were renamed some time ago but help still taught the old names), plus the day grouping, category chips, server-side full-history search and Export all. Marking work complete now documents the percent rule (admins any activity, members their own company's, client viewers none). Constraints & make-ready mentions the YTT quick-add path for raising a blocker at the stand-up."
+    ]
+  },
+  {
     "rev": "REV260",
     "date": "2026-07-12",
     "items": [
