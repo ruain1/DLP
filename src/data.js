@@ -1472,3 +1472,12 @@ export async function addActivityUpdate(projectId, activityId, note, pct, byName
   if (error) throw error;
   return data;
 }
+
+// REV247: daily updates in a UTC window (for the Morning Cx Update's yesterday section).
+export async function fetchUpdatesBetween(projectId, fromIso, toIso) {
+  const { data, error } = await supabase.from("activity_updates").select("*")
+    .eq("project_id", projectId).gte("at", fromIso).lt("at", toIso)
+    .order("at", { ascending: true }).limit(1000);
+  if (error) throw error;
+  return data || [];
+}

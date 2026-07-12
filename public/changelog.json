@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV247",
+    "date": "2026-07-12",
+    "items": [
+      "Morning Cx Update: a start-of-day email for the project team, sent via Outlook. Counts strip, finishing today with constraint status, overdue finishes (last week listed, older counted), starting today, open constraints sorted by need-by with overdue in red, yesterday's daily updates from the append-only log with author and time, and witness events for the day. House template, 560px, Outlook-Word-safe; empty sections are omitted and an empty day says so.",
+      "Fully configurable in Reports (admins): enabled toggle, send time defaulting to 08:00 Europe/Helsinki, days of the week, recipients as entire project team or admins only, per-company exclusions from the team send (for example the client), and per-section toggles. Settings live in project settings and audit as setting changes.",
+      "Scheduling rides the digest machinery: boundaries computed from the configured time and days, claimed in report_runs under kind morning so concurrent sessions cannot double-send, dispatched from the designated Outlook sender's first active session at or after the send time with the same catch-up window. Send now (with resend confirmation) and Send me a test buttons on the card; recipients resolve live at send time with anyone lacking an email named in the run detail."
+    ]
+  },
+  {
     "rev": "REV246",
     "date": "2026-07-12",
     "items": [

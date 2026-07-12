@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
@@ -3394,9 +3394,11 @@ export default function App({ session }) {
     try {
       const core = await import("./digestCore");
       let test = null; try { test = localStorage.getItem("dlp_digest_test"); } catch (e) { }
-      const bounds = (test === "daily" || test === "weekly")
+      const mrMod = await import("./morningReport");
+      const mrCfg = mrMod.morningCfg((snap.S && snap.S.settings) || {});
+      const bounds = (test === "daily" || test === "weekly" || test === "morning")
         ? [{ kind: test, due: new Date() }]
-        : core.dueBoundaries(new Date(), 72);
+        : [...core.dueBoundaries(new Date(), 72), ...mrMod.morningBoundaries(new Date(), 72, mrCfg)].sort((x, y) => x.due.getTime() - y.due.getTime());
       if (!bounds.length) return;
       const ol = await import("./outlook");
       const acct = await ol.outlookAccount();
@@ -3423,16 +3425,16 @@ export default function App({ session }) {
           } else claimId = claim.id;
         }
         try {
-          const asm = await assembleDigest(core, St, b.kind, b.due);
+          const asm = b.kind === "morning" ? await assembleMorning(St, b.due) : await assembleDigest(core, St, b.kind, b.due);
           const subject = asm.subject, html = asm.html;
-          const rr = await resolveDigestRecipients(St);
+          const rr = b.kind === "morning" ? await resolveMorningRecipients(St) : await resolveDigestRecipients(St);
           const missing = rr.missing;
           let recipients = rr.recipients;
           if (test) recipients = [acct.username];
-          if (!recipients.length) throw new Error("no admin email addresses resolved");
+          if (!recipients.length) throw new Error(b.kind === "morning" ? "no recipient email addresses resolved" : "no admin email addresses resolved");
           await ol.sendMailMessage({ subject, html, to: recipients, attachments: asm.attachments });
           if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: recipients.length, detail: subject + (missing.length ? " \u00b7 no email for: " + missing.join(", ") : "") }).eq("id", claimId);
-          setDigestNote({ ok: true, text: (b.kind === "daily" ? "Daily" : "Weekly") + " digest sent to " + recipients.length + " recipient" + (recipients.length === 1 ? "" : "s") + (test ? " (test, to you only)" : "") + "." });
+          setDigestNote({ ok: true, text: (b.kind === "daily" ? "Daily" : b.kind === "weekly" ? "Weekly" : "Morning Cx") + " digest sent to " + recipients.length + " recipient" + (recipients.length === 1 ? "" : "s") + (test ? " (test, to you only)" : "") + "." });
         } catch (err) {
           if (claimId) { try { await supabase.from("report_runs").delete().eq("id", claimId); } catch (e2) { } }
           {
@@ -4206,7 +4208,7 @@ export default function App({ session }) {
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} can={can} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <div className="lk-scroll"><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
-      {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div>}
+      {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} update={update} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} projCode={(((projects || []).find((p) => p.id === selProj) || {}).code || "").trim()} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} reportButton={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={cu.name} isAdmin={can("weekly")} canDist={can("distList")} projectId={selProj} label="Weekly Report" variant="cx" />} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
@@ -9187,6 +9189,33 @@ const digestErrText = (msg) => {
   if (/row-level security/i.test(m)) return m + " - the database is still using the pre-owner/super admin rule. Run supabase/is-admin-REV110.sql in the Supabase SQL editor, then retry; no app deploy is needed for the fix to take effect.";
   return m;
 };
+async function assembleMorning(St, due) {
+  const m = await import("./morningReport");
+  const core = await import("./digestCore");
+  const cfg = m.morningCfg(St.settings || {});
+  const yp = core.helParts(new Date(due.getTime() - 86400000));
+  const tp = core.helParts(due);
+  const from = core.utcForHelsinki(yp.y, yp.m, yp.d, 0, 0), to = core.utcForHelsinki(tp.y, tp.m, tp.d, 0, 0);
+  let ups = [];
+  try { ups = await fetchUpdatesBetween(St.projectId, from.toISOString(), to.toISOString()); } catch (e) { ups = []; }
+  const data = m.morningData(St, due, ups);
+  const pnm = (St.brand && St.brand.projectName) || (St.projectMeta && St.projectMeta.name) || "";
+  const pline = St.projectMeta ? [St.projectMeta.client, St.projectMeta.location].filter(Boolean).join(" ") : "";
+  const { subject, dateLine } = m.morningSubject(pnm || null, due);
+  const html = m.buildMorningEmail(data, cfg, { projName: pnm, projLine: pline, dateLine, appUrl: window.location.origin + "/?p=" + encodeURIComponent(St.projectId) });
+  return { subject, html, attachments: undefined };
+}
+async function resolveMorningRecipients(St) {
+  const m = await import("./morningReport");
+  const cfg = m.morningCfg(St.settings || {});
+  if (cfg.recipients === "admins") return resolveDigestRecipients(St);
+  const us = await fetchUserStatus();
+  const excl = new Set(cfg.excludeCoIds || []);
+  const team = (St.users || []).filter((p) => !(p.companyId && excl.has(p.companyId)));
+  const missing = [];
+  const recipients = team.map((p) => { const em = us[p.id] && us[p.id].email; if (!em) missing.push(p.name); return em; }).filter(Boolean);
+  return { recipients: [...new Set(recipients)], missing };
+}
 async function resolveDigestRecipients(St) {
   const us = await fetchUserStatus();
   // Admin means any of: legacy profile role, platform super, the owner, or a per-project
@@ -9201,6 +9230,102 @@ async function resolveDigestRecipients(St) {
   const missing = [];
   const recipients = admins.map((p) => { const em = us[p.id] && us[p.id].email; if (!em) missing.push(p.name); return em; }).filter(Boolean);
   return { recipients: [...new Set(recipients)], missing };
+}
+function AdminMorningCard({ S, update }) {
+  const mrRef = React.useRef(null);
+  const [last, setLast] = useState(null);
+  const [acct, setAcct] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [cfg, setCfg] = useState(null);
+  useEffect(() => { import("./morningReport").then((m) => { mrRef.current = m; setCfg(m.morningCfg(S.settings || {})); }); }, [S.settings]);
+  const load = async () => {
+    try { const r = await supabase.from("report_runs").select("*").eq("project_id", S.projectId).eq("kind", "morning").order("run_date", { ascending: false }).limit(1); setLast((r.data || [])[0] || null); } catch (e) { setLast(null); }
+    try { const ol = await import("./outlook"); const a = await ol.outlookAccount(); setAcct(a ? a.username : null); } catch (e) { setAcct(null); }
+  };
+  useEffect(() => { load(); }, []);
+  if (!cfg) return null;
+  const save = (patch) => {
+    const next = { ...cfg, ...patch, sections: { ...cfg.sections, ...(patch.sections || {}) } };
+    setCfg(next);
+    update((p) => ({ ...p, settings: { ...p.settings, morningReport: next } }));
+  };
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const SECS = [["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
+  const send = async (testOnly) => {
+    setBusy(testOnly ? "test" : "now"); setMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const a = await ol.outlookAccount();
+      if (!a) throw new Error("Connect Outlook first: open the Weekly Report window or the Witness Schedule and press Connect Outlook, then retry.");
+      const m = mrRef.current || await import("./morningReport");
+      const core = await import("./digestCore");
+      const bnds = m.morningBoundaries(new Date(), 9 * 24, { ...cfg, enabled: true });
+      const due = bnds.length ? bnds[bnds.length - 1].due : new Date();
+      const asm = await assembleMorning(S, due);
+      if (testOnly) {
+        await ol.sendMailMessage({ subject: "[Test] " + asm.subject, html: asm.html, to: [a.username] });
+        setMsg({ ok: true, text: "Test sent to " + a.username + "." });
+      } else {
+        const runDate = core.helDateStr(due);
+        let claimId = null;
+        const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("project_id", S.projectId).eq("kind", "morning").eq("run_date", runDate).maybeSingle();
+        if (ex.data) {
+          if (ex.data.status === "sent") {
+            const t = new Date(ex.data.sent_at);
+            if (!window.confirm("The morning update for " + runDate + " was already sent at " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + ". Send it again to everyone?")) { setBusy(null); return; }
+          }
+          claimId = ex.data.id;
+        } else {
+          const claim = await claimReportRun(supabase, "morning", runDate, { projectId: S.projectId });
+          if (claim.duplicate) { const ex2 = await supabase.from("report_runs").select("id").eq("project_id", S.projectId).eq("kind", "morning").eq("run_date", runDate).maybeSingle(); claimId = ex2.data && ex2.data.id; }
+          else if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim: " + claim.error.message);
+          else claimId = claim.id;
+        }
+        const rr = await resolveMorningRecipients(S);
+        if (!rr.recipients.length) throw new Error("no recipient email addresses resolved");
+        await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
+        if (claimId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: asm.subject + (rr.missing.length ? " (no email for: " + rr.missing.join(", ") + ")" : "") }).eq("id", claimId);
+        setMsg({ ok: true, text: "Morning Cx Update sent to " + rr.recipients.length + " recipient" + (rr.recipients.length === 1 ? "" : "s") + "." + (rr.missing.length ? " No email for: " + rr.missing.join(", ") + "." : "") });
+        load();
+      }
+    } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
+    setBusy(null);
+  };
+  const rowSt = { display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid var(--line)", fontSize: 12, flexWrap: "wrap" };
+  const pill = (on, lb, onClick, key) => <button key={key || lb} className="lk-btn" style={{ padding: "3px 10px", fontSize: 10.5, fontWeight: 700, borderColor: on ? "var(--accent)" : undefined, color: on ? "var(--accent)" : undefined }} onClick={onClick}>{lb}</button>;
+  const fmtLast = () => {
+    if (!last) return "never sent";
+    const t = new Date(last.sent_at);
+    return (last.status === "sent" ? "sent " : last.status + " since ") + t.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + (last.status === "sent" ? " to " + last.recipients + " recipient" + (last.recipients === 1 ? "" : "s") : "");
+  };
+  return (
+    <div className="lk-card" style={{ padding: 16, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0, fontSize: 13.5 }}>Morning Cx Update</h3>
+        <span style={{ fontSize: 11, color: "var(--muted)" }}>{fmtLast()}</span>
+      </div>
+      <p style={{ fontSize: 11, color: "var(--muted)", margin: "4px 0 10px", lineHeight: 1.55 }}>A start-of-day summary for the project team: finishing today, overdue, starting, open constraints, and yesterday's daily updates. It sends from the first active session of the designated Outlook sender at or after the send time.</p>
+      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Enabled</b>{pill(cfg.enabled, cfg.enabled ? "ON" : "OFF", () => save({ enabled: !cfg.enabled }))}</div>
+      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Send at</b><input className="lk-in" type="time" value={cfg.time} style={{ width: 110 }} onChange={(e) => save({ time: e.target.value || "08:00" })} /><span style={{ fontSize: 11, color: "var(--muted)" }}>Europe/Helsinki</span></div>
+      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Days</b>{DAYS.map((dday) => pill(cfg.days.includes(dday), dday, () => save({ days: cfg.days.includes(dday) ? cfg.days.filter((x) => x !== dday) : [...cfg.days, dday] }), dday))}</div>
+      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Recipients</b>
+        {pill(cfg.recipients === "team", "Entire project team", () => save({ recipients: "team" }))}
+        {pill(cfg.recipients === "admins", "Admins only", () => save({ recipients: "admins" }))}
+      </div>
+      {cfg.recipients === "team" && <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Exclude</b>
+        {(S.companies || []).map((cco) => pill(cfg.excludeCoIds.includes(cco.id), cco.name, () => save({ excludeCoIds: cfg.excludeCoIds.includes(cco.id) ? cfg.excludeCoIds.filter((x) => x !== cco.id) : [...cfg.excludeCoIds, cco.id] }), cco.id))}
+        <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Members of highlighted companies are left off the team send.</span>
+      </div>}
+      <div style={rowSt}><b style={{ flex: "none", width: 92, fontWeight: 600 }}>Sections</b>{SECS.map(([k, lb]) => pill(cfg.sections[k] !== false, lb, () => save({ sections: { [k]: !(cfg.sections[k] !== false) } }), k))}</div>
+      <div style={{ ...rowSt, justifyContent: "flex-end", gap: 8 }}>
+        {acct && <span style={{ fontSize: 10.5, color: "var(--muted)", marginRight: "auto" }}>Outlook: {acct}</span>}
+        <button className="lk-btn" disabled={!!busy} onClick={() => send(true)}>{busy === "test" ? "Sending..." : "Send me a test"}</button>
+        <button className="lk-btn primary" disabled={!!busy} onClick={() => send(false)}>{busy === "now" ? "Sending..." : "Send now"}</button>
+      </div>
+      {msg && <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 8, color: msg.ok ? "#0E9384" : "#F87171" }}>{msg.text}</div>}
+    </div>
+  );
 }
 function AdminDigestCard({ S }) {
   const [runs, setRuns] = useState(null);
@@ -9277,7 +9402,7 @@ function AdminDigestCard({ S }) {
     {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.ok ? "#0E9384" : "#C0392B" }}>{msg.text}</div>}
   </div>;
 }
-function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId }) {
+function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update }) {
   const [co, setCo] = useState("all");
   const [ar, setAr] = useState("all");
   const [lv, setLv] = useState("all");
@@ -9470,6 +9595,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
         <button className="lk-btn" onClick={printPdf}><Icon n="download" s={14} />PDF</button>
       </div>
       {isAdmin && <AdminDigestCard S={S} />}
+      {isAdmin && update && <AdminMorningCard S={S} update={update} />}
       {period === "range" && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-4px 0 12px" }}>Every metric below counts only activities whose planned dates fall within {from ? new Date(from).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the start"} and {to ? new Date(to).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "the end"}. An activity counts if its planned window overlaps that range. <b>{acts.length}</b> match.</div>}
       <div className="lk-rep-2col">
       <div className="lk-rep-sec" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
