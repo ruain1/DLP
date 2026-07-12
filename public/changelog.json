@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV240",
+    "date": "2026-07-12",
+    "items": [
+      "User Privileges: a people search and role filter now sit pinned above the matrix, in the zone that never scrolls, next to a live N of M count. Search matches names and companies case-insensitively, role pills narrow to Owner, Super, Admin or Member, section headers keep their filtered counts, empty sections disappear, and a no-match state names what you searched. Typing a company name collapses the matrix straight to that company's people."
+    ]
+  },
+  {
     "rev": "REV239",
     "date": "2026-07-11",
     "items": [

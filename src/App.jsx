@@ -4886,12 +4886,27 @@ function groupPrivRows(rows, coName) {
   }));
 }
 
+// REV240: pure row filter for the privileges matrix. q matches name or company,
+// case-insensitive; roleF matches the row tag (owner/super/admin/member).
+function filterPrivRows(rows, q, roleF, coName) {
+  const needle = (q || "").trim().toLowerCase();
+  return (rows || []).filter((r) => {
+    if (roleF && String(r.tag || "").toLowerCase() !== roleF) return false;
+    if (!needle) return true;
+    const nm = String(r.u.name || "").toLowerCase();
+    const co = String(coName(r.u.companyId) || "").toLowerCase();
+    return nm.includes(needle) || co.includes(needle);
+  });
+}
+
 function PrivilegesTab({ S, cu, isOwner, projClient }) {
   const [members, setMembers] = useState(null);
   const [pending, setPending] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [gf, setGf] = useState("");
+  const [pq, setPq] = useState(""); // REV240: sticky people search
+  const [prf, setPrf] = useState("");
   useEffect(() => { let live = true; if (S.projectId) loadProjectMembers(S.projectId).then((r) => { if (live) setMembers(r || []); }).catch(() => { if (live) setMembers([]); }); return () => { live = false; }; }, [S.projectId]);
   const uById = {}; (S.users || []).forEach((u) => { uById[u.id] = u; });
   const coName = (id) => ((S.companies || []).find((c) => c.id === id) || {}).name || "";
@@ -4925,6 +4940,7 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
     setPending({}); setMsg("Saved. Changes are live for affected users and recorded in the audit log.");
   };
   const groups = gf ? PRIV_GROUPS.filter(([g]) => g === gf) : PRIV_GROUPS;
+  const visRows = filterPrivRows(rows, pq, prf, coName);
   const badge = (t) => <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: .6, padding: "2px 7px", borderRadius: 999, background: t === "OWNER" ? "#7c3aed" : t === "SUPER" ? "#0E9384" : t === "ADMIN" ? "var(--accent)" : "var(--line)", color: t === "MEMBER" ? "var(--muted)" : "#fff" }}>{t}</span>;
   const tg = (on, locked) => <span style={{ display: "inline-block", width: 32, height: 18, borderRadius: 999, position: "relative", background: locked ? (on ? "#7c3aed" : "var(--line)") : (on ? "var(--accent)" : "var(--line)"), opacity: locked ? .55 : 1, verticalAlign: "middle" }}><span style={{ position: "absolute", top: 2, left: on ? 16 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .12s" }} /></span>;
   return <>
@@ -4932,6 +4948,13 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
     <div className="lk-hint" style={{ maxWidth: 780 }}>Each person starts from their role baseline; a switch that differs from that baseline carries an amber dot. Request Invites defaults on only for members of the project client company{projClient ? " (" + projClient + ")" : ""}. Manage Privileges is locked to the owner. Changes apply on Save, take effect live, and are written to the audit log.</div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0" }}>
       {["", ...PRIV_GROUPS.map(([g]) => g)].map((g) => <button key={g || "all"} className={"lk-btn" + (gf === g ? " primary" : "")} style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setGf(g)}>{g || "All Groups"}</button>)}
+    </div>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "0 0 10px" }}>
+      <input className="lk-in" style={{ flex: 1, minWidth: 220, maxWidth: 360 }} placeholder="Search people or companies" value={pq} onChange={(e) => setPq(e.target.value)} />
+      {[["", "All roles"], ["owner", "Owner"], ["super", "Super"], ["admin", "Admin"], ["member", "Member"]].map(([k, lb]) => (
+        <button key={k || "all"} className="lk-btn" style={{ padding: "4px 11px", fontSize: 11, fontWeight: 700, borderColor: prf === k ? "var(--accent)" : undefined, color: prf === k ? "var(--accent)" : undefined }} onClick={() => setPrf(k)}>{lb}</button>
+      ))}
+      <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto", whiteSpace: "nowrap" }}>{visRows.length} of {rows.length} people</span>
     </div>
     {members == null ? <div className="lk-hint">Loading project team...</div> : <div style={{ overflow: "auto", border: "1px solid var(--line)", borderRadius: 12, flex: 1, minHeight: 0 }}>
       <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "max-content", minWidth: "100%" }}>
@@ -4951,7 +4974,8 @@ function PrivilegesTab({ S, cu, isOwner, projClient }) {
               <span style={{ position: "relative", display: "inline-block" }}>{tg(on, r.tag === "OWNER" || k === "privs")}{isOv(r, k) && <span style={{ position: "absolute", top: -3, right: -6, width: 8, height: 8, borderRadius: "50%", background: "#E0A106" }} />}</span>
             </td>; }))}
           </tr>; };
-          return groupPrivRows(rows, coName).flatMap((sec) => [
+          if (!visRows.length) return [<tr key="none"><td colSpan={nCols + 1} style={{ padding: 16, fontSize: 12, color: "var(--muted)" }}>{'Nobody matches' + (pq.trim() ? ' "' + pq.trim() + '"' : '') + (prf ? " with role " + prf : "") + "."}</td></tr>];
+          return groupPrivRows(visRows, coName).flatMap((sec) => [
             <tr key={"hd:" + sec.label}>
               <td style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--hover)", padding: "6px 12px", borderRight: "1px solid var(--line)", borderTop: "1px solid var(--line)", fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", whiteSpace: "nowrap" }}>{sec.label} <span style={{ fontWeight: 600 }}>{"\u00b7"} {sec.rows.length} {sec.rows.length === 1 ? "person" : "people"}</span></td>
               <td colSpan={nCols} style={{ background: "var(--hover)", borderTop: "1px solid var(--line)" }} />
