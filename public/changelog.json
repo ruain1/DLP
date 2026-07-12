@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV258",
+    "date": "2026-07-12",
+    "items": [
+      "Theme foundations: four variables that were used in places but never defined (bg, text, faint, card2) now have real per-theme values, plus a new linkc link colour, so the class of bug where an undefined variable silently rendered transparent or inherited is gone at the root rather than fixed per incident.",
+      "Benchmarks now follows the theme and the Display colour palette. Every status chip, the Board link chip, the Completed flag, the changed markers and the Send to Board comparison highlights colour through the shared palette variables, so High Contrast and Colour Blind palettes finally reach this page, and light mode is readable (the old chips were dark-tuned hex, near-invisible on light paper). The Send to Board dialog's bars and inputs also sat on an undefined background variable and now use the real one."
+    ]
+  },
+  {
     "rev": "REV257",
     "date": "2026-07-12",
     "items": [

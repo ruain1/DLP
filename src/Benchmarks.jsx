@@ -10,14 +10,27 @@ import { benchmarksWithStatus } from "./accReconcile";
 import { importFokWorkbook } from "./benchmarkImport";
 import { witnessRecipients } from "./witnessContacts";
 
+// REV258: chips colour through the theme and palette variables (with color-mix for
+// the tints), so the Display palette toggle and light mode finally reach this page.
 const STATUS_META = {
-  on_board:  { label: "On Board",       fg: "#8fb6dc", bg: "rgba(79,155,217,.14)" },
-  ready:     { label: "Ready To Send",  fg: "#e6cf87", bg: "rgba(224,168,58,.16)" },
-  changed:   { label: "Changed In ACC", fg: "#e69a90", bg: "rgba(224,109,95,.16)" },
-  no_date:   { label: "No Date",        fg: "var(--muted)", bg: "var(--hover)" },
-  removed:   { label: "Removed In ACC", fg: "#c7b3ea", bg: "rgba(124,58,237,.16)" },
-  completed: { label: "Completed",      fg: "#7fe3b8", bg: "rgba(52,209,163,.16)" },
+  on_board:  { label: "On Board",       cls: "bmk-onboard" },
+  ready:     { label: "Ready To Send",  cls: "bmk-ready" },
+  changed:   { label: "Changed In ACC", cls: "bmk-changed" },
+  no_date:   { label: "No Date",        cls: "bmk-nodate" },
+  removed:   { label: "Removed In ACC", cls: "bmk-removed" },
+  completed: { label: "Completed",      cls: "bmk-done" },
 };
+const BMK_CSS = `
+.bmk-chip{display:inline-block;font-size:10.5px;font-weight:700;border-radius:20px;padding:3px 10px;white-space:nowrap}
+.bmk-ready{color:var(--amber,#b45309);background:color-mix(in srgb, var(--amber,#b45309) 15%, transparent)}
+.bmk-changed{color:var(--red,#d62828);background:color-mix(in srgb, var(--red,#d62828) 12%, transparent)}
+.bmk-done{color:var(--green,#0e9e6e);background:color-mix(in srgb, var(--green,#0e9e6e) 14%, transparent)}
+.bmk-onboard{color:var(--linkc,#4f9bd9);background:color-mix(in srgb, var(--linkc,#4f9bd9) 13%, transparent)}
+.bmk-nodate{color:var(--muted);background:var(--hover)}
+.bmk-removed{color:#8b5cf6;background:color-mix(in srgb, #8b5cf6 13%, transparent)}
+.bmk-flag{display:inline-block;font-size:10px;font-weight:800;border-radius:999px;padding:3px 8px;margin-left:6px;white-space:nowrap}
+.bmk-link{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;background:color-mix(in srgb, var(--linkc,#4f9bd9) 13%, transparent);color:var(--linkc,#4f9bd9);text-decoration:none;font-family:ui-monospace,monospace;white-space:nowrap}
+`;
 const STATUS_ORDER = ["ready", "changed", "on_board", "no_date", "completed", "removed"];
 const norm = (x) => String(x || "").trim().toLowerCase();
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -207,7 +220,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
     sub: { fontSize: 11.5, color: "var(--muted)" },
     ownerPill: { fontSize: 10, fontWeight: 700, color: "#fff", background: "#7c3aed", borderRadius: 20, padding: "3px 9px" },
     filters: { display: "flex", alignItems: "center", gap: 10, padding: "11px 20px", borderBottom: "1px solid var(--line)", flexWrap: "wrap", fontSize: 12 },
-    sel: { background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)", borderRadius: 8, padding: "6px 10px", fontSize: 12 },
+    sel: { background: "var(--card)", border: "1px solid var(--line)", color: "var(--ink)", borderRadius: 8, padding: "6px 10px", fontSize: 12 },
     count: { marginLeft: "auto", color: "var(--muted)", fontSize: 12 },
     scroll: { flex: 1, overflow: "auto", minHeight: 0 },
     th: { textAlign: "left", fontSize: 10, textTransform: "uppercase", letterSpacing: ".5px", color: "var(--muted)", fontWeight: 700, padding: "10px 14px", borderBottom: "1px solid var(--line)", position: "sticky", top: 0, zIndex: 3, background: "var(--card)" },
@@ -215,7 +228,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
     switch: () => ({ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--muted)", cursor: "pointer", userSelect: "none" }),
     track: (on) => ({ width: 34, height: 18, borderRadius: 20, background: on ? "#34d1a3" : "var(--hover)", position: "relative", flex: "0 0 auto" }),
     knob: (on) => ({ position: "absolute", top: 2, left: on ? 18 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff" }),
-    inp: { background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)", borderRadius: 6, padding: "4px 6px", fontSize: 12 },
+    inp: { background: "var(--paper)", border: "1px solid var(--line)", color: "var(--ink)", borderRadius: 6, padding: "4px 6px", fontSize: 12 },
   };
 
   const pill = (r) => {
@@ -224,11 +237,12 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
     // REV256: the Board column now carries the activity code for every state, so the
     // chip is purely about state again; the tooltip keeps the linkage readable here.
     const code = "";
-    return <span title={r.activityId ? "On the planning board" + (r.activityCode != null ? " as activity #" + r.activityCode : "") : ""} style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 10px", color: m.fg, background: m.bg }}>{m.label}</span>;
+    return <span className={"bmk-chip " + m.cls} title={r.activityId ? "On the planning board" + (r.activityCode != null ? " as activity #" + r.activityCode : "") : ""}>{m.label}</span>;
   };
 
   return (
     <div style={S.wrap}>
+      <style>{BMK_CSS}</style>
       <div style={S.head}>
         <div>
           <h1 style={S.h1}>Benchmarks</h1>
@@ -285,11 +299,11 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                   <td style={S.td}>{r.planned_date || "Not set"}</td>
                   <td style={S.td} title={r.resolved_email || r.assignee_email || ""}>{(() => { const a = String(r.resolved_email || r.assignee_email || ""); if (!a) return ""; const u = a.indexOf("@") !== -1 ? users.find((x) => norm(x.name) === localName(a)) : users.find((x) => norm(x.name) === norm(a)); return u ? u.name : a; })()}</td>
                   <td style={S.td}>{companyName(r.company_id) || <span style={{ color: "var(--faint)" }}>-</span>}</td>
-                  <td style={S.td}>{r.acc_url ? <a href={r.acc_url} target="_blank" rel="noreferrer" style={{ color: "#4f9bd9", textDecoration: "none" }}>Open</a> : ""}</td>
+                  <td style={S.td}>{r.acc_url ? <a href={r.acc_url} target="_blank" rel="noreferrer" style={{ color: "var(--linkc, #4f9bd9)", textDecoration: "none" }}>Open</a> : ""}</td>
                   <td style={S.td}>{r.activityId
-                    ? <a href="#" onClick={(e) => { e.preventDefault(); if (onOpenActivity) onOpenActivity(r.activityId); }} title={"Open this activity on the planning board"} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "rgba(79,155,217,.14)", color: "#8fb6dc", textDecoration: "none", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>{r.activityCode != null ? "#" + r.activityCode : "On board"}</a>
+                    ? <a href="#" className="bmk-link" onClick={(e) => { e.preventDefault(); if (onOpenActivity) onOpenActivity(r.activityId); }} title={"Open this activity on the planning board"}>{r.activityCode != null ? "#" + r.activityCode : "On board"}</a>
                     : <span style={{ color: "var(--faint)" }}>-</span>}</td>
-                  <td style={S.td}>{pill(r)}{r.status === "removed" && r.boardDone ? <span title="Witness passed on the board; the row has since left the register (expected for finished FOKs)" style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "rgba(52,209,163,.16)", color: "#7fe3b8", marginLeft: 6, whiteSpace: "nowrap" }}>Completed</span> : null}</td>
+                  <td style={S.td}>{pill(r)}{r.status === "removed" && r.boardDone ? <span className="bmk-flag bmk-done" title="Witness passed on the board; the row has since left the register (expected for finished FOKs)">Completed</span> : null}</td>
                   {admin && <td style={S.td}><button className="lk-btn" style={{ padding: "3px 9px", fontSize: 11 }} onClick={() => toggleComplete(r)}>{r.completed_at ? "Restore" : "Complete"}</button></td>}
                 </tr>
               ))}
@@ -367,7 +381,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
               <div style={{ fontSize: 15, fontWeight: 700 }}>Send to Board</div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>Confirm and fix each benchmark before it goes to the board. Correct the assignee or date, set the time and duration, and toggle whether an invite is created. Nothing is committed or sent here.</div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px", borderBottom: "1px solid var(--line)", background: "var(--bg)", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px", borderBottom: "1px solid var(--line)", background: "var(--paper)", flexWrap: "wrap" }}>
               <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>Default Time</span>
               <input value={defTime} onChange={(e) => setDefTime(e.target.value)} style={{ ...S.inp, width: 72, textAlign: "center" }} />
               <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>Duration (h)</span>
@@ -384,12 +398,12 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                     <React.Fragment key={r.fok_ref}>
                     <tr>
                       <td style={S.td}><input type="checkbox" checked={!!sel[r.fok_ref]} onChange={(e) => setSel((m) => ({ ...m, [r.fok_ref]: e.target.checked }))} style={{ accentColor: "#34d1a3" }} /></td>
-                      <td style={{ ...S.td, fontFamily: "ui-monospace, monospace", color: "var(--muted)", whiteSpace: "nowrap" }}>{r.fok_ref}{r.status === "changed" ? <><span style={{ color: "#e0a83a", fontSize: 10, marginLeft: 6 }}>changed</span>{r.activityId ? <button title="Show exactly what Send will change vs the board" onClick={() => setDiffOpen((v) => (v === r.fok_ref ? null : r.fok_ref))} style={{ marginLeft: 6, width: 17, height: 17, borderRadius: "50%", border: 0, background: diffOpen === r.fok_ref ? "rgba(79,155,217,.34)" : "rgba(79,155,217,.16)", color: "#8fb6dc", fontSize: 10.5, fontWeight: 800, cursor: "pointer", verticalAlign: "-3px", padding: 0 }}>i</button> : null}</> : null}</td>
+                      <td style={{ ...S.td, fontFamily: "ui-monospace, monospace", color: "var(--muted)", whiteSpace: "nowrap" }}>{r.fok_ref}{r.status === "changed" ? <><span style={{ color: "var(--amber, #e0a83a)", fontSize: 10, marginLeft: 6 }}>changed</span>{r.activityId ? <button title="Show exactly what Send will change vs the board" onClick={() => setDiffOpen((v) => (v === r.fok_ref ? null : r.fok_ref))} style={{ marginLeft: 6, width: 17, height: 17, borderRadius: "50%", border: 0, background: diffOpen === r.fok_ref ? "color-mix(in srgb, var(--linkc, #4f9bd9) 32%, transparent)" : "color-mix(in srgb, var(--linkc, #4f9bd9) 15%, transparent)", color: "var(--linkc, #4f9bd9)", fontSize: 10.5, fontWeight: 800, cursor: "pointer", verticalAlign: "-3px", padding: 0 }}>i</button> : null}</> : null}</td>
                       <td style={S.td}><input value={rowTitle[r.fok_ref] != null ? rowTitle[r.fok_ref] : (r.title || "")} onChange={(e) => setRowTitle((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 210 }} /></td>
                       <td style={{ ...S.td, whiteSpace: "nowrap" }}>{r.discipline}</td>
                       <td style={S.td}>{r.status === "changed"
                         ? <select value={rowAction[r.fok_ref] || "update"} onChange={(e) => setRowAction((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 120 }}><option value="update">Update{r.activityCode != null ? " #" + r.activityCode : ""}</option><option value="keep">Keep current</option></select>
-                        : <span style={{ fontSize: 11, color: "#7fe3b8" }}>New</span>}</td>
+                        : <span style={{ fontSize: 11, color: "var(--green, #7fe3b8)" }}>New</span>}</td>
                       <td style={S.td}><label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }} title={att.join(", ")}><input type="checkbox" checked={inv} onChange={(e) => setRowInvite((m) => ({ ...m, [r.fok_ref]: e.target.checked }))} style={{ accentColor: "#34d1a3" }} /><span style={{ fontSize: 11, color: "var(--muted)" }}>{inv ? att.length + " to" : "no invite"}</span></label></td>
                       <td style={S.td}><input value={rowAssignee[r.fok_ref] != null ? rowAssignee[r.fok_ref] : (r.resolved_email || r.assignee_email || "")} onChange={(e) => setRowAssignee((m) => ({ ...m, [r.fok_ref]: e.target.value }))} placeholder="assignee" style={{ ...S.inp, width: 175 }} /></td>
                       <td style={S.td}><input type="date" value={rowDate[r.fok_ref] != null ? rowDate[r.fok_ref] : (r.planned_date || "")} onChange={(e) => setRowDate((m) => ({ ...m, [r.fok_ref]: e.target.value }))} style={{ ...S.inp, width: 132 }} /></td>
@@ -397,15 +411,15 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                       <td style={S.td}><input type="number" min="0.5" step="0.5" value={rowHours[r.fok_ref] != null ? rowHours[r.fok_ref] : defHours} onChange={(e) => setRowHours((m) => ({ ...m, [r.fok_ref]: Number(e.target.value) }))} style={{ ...S.inp, width: 48, textAlign: "center" }} /></td>
                     </tr>
                     {diffOpen === r.fok_ref && (() => { const d = boardDiff(r); if (!d) return null; return (
-                      <tr><td colSpan={10} style={{ padding: "0 12px 14px", background: "rgba(79,155,217,.05)", borderBottom: "1px solid var(--line)" }}>
+                      <tr><td colSpan={10} style={{ padding: "0 12px 14px", background: "color-mix(in srgb, var(--linkc, #4f9bd9) 6%, transparent)", borderBottom: "1px solid var(--line)" }}>
                         <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden", marginTop: 2 }}>
-                          <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 800, color: "#8fb6dc", background: "rgba(79,155,217,.10)", letterSpacing: ".04em" }}>{"WHAT SEND WILL CHANGE" + (r.activityCode != null ? " ON ACTIVITY #" + r.activityCode : "") + " \u00b7 PROPOSED REFLECTS YOUR EDITS IN THIS DIALOG"}</div>
+                          <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 800, color: "var(--linkc, #4f9bd9)", background: "color-mix(in srgb, var(--linkc, #4f9bd9) 10%, transparent)", letterSpacing: ".04em" }}>{"WHAT SEND WILL CHANGE" + (r.activityCode != null ? " ON ACTIVITY #" + r.activityCode : "") + " \u00b7 PROPOSED REFLECTS YOUR EDITS IN THIS DIALOG"}</div>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}><tbody>
                             <tr><td style={{ padding: "7px 10px" }}></td><td style={{ padding: "7px 10px", fontSize: 10, fontWeight: 800, letterSpacing: ".07em", color: "var(--muted)" }}>ON THE BOARD</td><td style={{ padding: "7px 10px", fontSize: 10, fontWeight: 800, letterSpacing: ".07em", color: "var(--muted)" }}>PROPOSED</td></tr>
                             {d.map((x) => (
                               <tr key={x.field}>
-                                <td style={{ padding: "6px 10px", fontSize: 10.5, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--faint)", whiteSpace: "nowrap" }}>{x.field}{x.moved ? <span style={{ fontSize: 9.5, fontWeight: 800, color: "#e0a83a", marginLeft: 7, letterSpacing: ".05em" }}>CHANGED</span> : null}</td>
-                                <td style={{ padding: "6px 10px", fontSize: 12, color: x.moved ? "#e0a83a" : "var(--muted)", fontWeight: x.moved ? 700 : 400 }}>{x.board}</td>
+                                <td style={{ padding: "6px 10px", fontSize: 10.5, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--faint)", whiteSpace: "nowrap" }}>{x.field}{x.moved ? <span style={{ fontSize: 9.5, fontWeight: 800, color: "var(--amber, #e0a83a)", marginLeft: 7, letterSpacing: ".05em" }}>CHANGED</span> : null}</td>
+                                <td style={{ padding: "6px 10px", fontSize: 12, color: x.moved ? "var(--amber, #e0a83a)" : "var(--muted)", fontWeight: x.moved ? 700 : 400 }}>{x.board}</td>
                                 <td style={{ padding: "6px 10px", fontSize: 12, color: x.moved ? "var(--ink)" : "var(--muted)", fontWeight: x.moved ? 600 : 400 }}>{x.proposed}</td>
                               </tr>
                             ))}
@@ -417,7 +431,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
                 </tbody>
               </table>
             </div>
-            <div style={{ fontSize: 11, color: "var(--muted)", padding: "10px 18px", borderTop: "1px solid var(--line)", background: "var(--bg)", lineHeight: 1.5 }}>Creates activities on the board, not committed and with no invitations sent. Commit them in the lookahead, then release invites from the Witness Schedule with Send All Pending.</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", padding: "10px 18px", borderTop: "1px solid var(--line)", background: "var(--paper)", lineHeight: 1.5 }}>Creates activities on the board, not committed and with no invitations sent. Commit them in the lookahead, then release invites from the Witness Schedule with Send All Pending.</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderTop: "1px solid var(--line)" }}>
               <span style={{ fontSize: 12, color: "var(--muted)" }}>{selCount} of {modalRows.length} selected</span>
               <div style={{ flex: 1 }} />

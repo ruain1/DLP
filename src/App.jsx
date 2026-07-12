@@ -4460,7 +4460,17 @@ function applyDesignBlock(v, blk) { if (!blk) return; if (blk.accent) v["--accen
 // per-page override for that page, so a page can differ from the project default. The own-root
 // pages (Table, Schedule, Admin) pass their key; the shared content wrapper applies page vars
 // via pageVars for the inline and external pages.
-function cssVars(theme, settings, page) { const t = THEMES[theme] || THEMES.light; const v = { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--head": t.head, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--todedge": t.todedge, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" }; const d = settings && settings.design; if (d) { applyDesignBlock(v, d.global); if (page && d.pages) applyDesignBlock(v, d.pages[page]);
+function cssVars(theme, settings, page) { const t = THEMES[theme] || THEMES.light; const v = { "--ink": t.ink, "--paper": t.paper, "--card": t.card, "--line": t.line, "--muted": t.muted, "--accent": t.accent, "--head": t.head, "--weekend": t.weekend, "--todcell": t.todcell, "--todhead": t.todhead, "--todedge": t.todedge, "--hover": t.hover, "--chipbg": t.chipbg, "--cal-invert": theme === "dark" ? "1" : "0" };
+  // REV258: alias and utility variables so the phantom-variable class of bug (a var
+  // used somewhere that was never defined, silently falling back to transparent or
+  // inherited) dies for good. bg and text mirror paper and ink; faint, card2 and
+  // linkc get real per-theme values. NOTE: --green/--red/--amber must NEVER be set
+  // here: this object lands as an inline style on the same element that carries the
+  // pal-hc/pal-cb classes, and inline variables would override the class palettes.
+  v["--bg"] = t.paper; v["--text"] = t.ink;
+  v["--faint"] = theme === "dark" ? "#5f6c7c" : "#9aa5b1";
+  v["--card2"] = theme === "dark" ? "#202a36" : "#f4f7fa";
+  v["--linkc"] = theme === "dark" ? "#8fb6dc" : "#2e6db4"; const d = settings && settings.design; if (d) { applyDesignBlock(v, d.global); if (page && d.pages) applyDesignBlock(v, d.pages[page]);
     // REV229 Effects tranche: project-wide depth and motion. Fallbacks in the CSS mean an
     // absent block renders byte-identical to today.
     if (d.effects) {
