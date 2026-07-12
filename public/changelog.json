@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV242",
+    "date": "2026-07-12",
+    "items": [
+      "Audit overhaul. The log is always visible (the Show log toggle is gone), grouped under day headers with relative times, and every entry carries a coloured category chip: added, edited, removed, done, import, export, witness, revert. One pinned block above the rows holds the search, the user filter, category pills (Activities, Imports and exports, Witnessing, Team and access, Other), the entries-created date-range view, CSV export and a live count; it stays put while the log scrolls.",
+      "The whole history is now browsable: the audit log pages from the database 100 entries at a time with First, Prev, Next and Last navigation, instead of stopping at the most recent 500. Filters and search run server-side, so page counts are true, and Export CSV exports everything matching the current filters (up to 10,000 rows), not just what is on screen. Snapshots load per page, so Undo and revert states stay correct however deep you go.",
+      "Clicking any audit row opens its detail. Activity entries with a snapshot open the diff popup directly (restores-to versus currently) with the action inside it; everything else opens a detail card with the full action, user, exact timestamp, entity and snapshot state.",
+      "Revert renamed so the risk is legible: Undo is the clean case, and its popup says this is the latest change to the activity so nothing else is affected; Force revert is the risky case, amber, with overwrites parts of N later edits under the button and the same warning inside the popup. Restore and Remove keep their names; Superseded and Reverted-by tags survive."
+    ]
+  },
+  {
     "rev": "REV241",
     "date": "2026-07-12",
     "items": [

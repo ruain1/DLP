@@ -1175,6 +1175,51 @@ function buildImportRulesV2(mode, myCoName) {
       : "Every upload opens a review screen first: adds, updates with per-field diffs, and errors named by row and column; error rows are skipped on Apply and exportable as a report. Append adds rows, Sync updates by #code, Override replaces after a typed confirmation.",
   ];
 }
+// REV242: audit categorisation. AUDIT_CATS drives both the server-side category filter
+// (ilike patterns: leading % means contains, otherwise starts-with) and the client-side
+// classifier, so the pills and the chips can never disagree.
+const AUDIT_CATS = [
+  ["imp", "Imports & exports", ["import%", "export%", "send benchmarks%"]],
+  ["wit", "Witnessing", ["%witness%", "%retest%"]],
+  ["team", "Team & access", ["%member%", "%privilege%", "%request%", "%role%", "%invite resent%"]],
+  ["act", "Activities", ["%activity%", "%activities%", "%constraint%", "%milestone%"]],
+];
+function auditCatOf(action) {
+  const a = String(action || "").toLowerCase();
+  const hit = (pats) => pats.some((pt) => { const core = pt.replace(/%/g, ""); return pt.charAt(0) === "%" ? a.includes(core) : a.startsWith(core); });
+  for (const [k, , pats] of AUDIT_CATS) if (hit(pats)) return k;
+  return "other";
+}
+function auditChipOf(action) {
+  const a = String(action || "").toLowerCase();
+  if (a.startsWith("revert") || a.startsWith("restore")) return { t: "REVERT", c: "#E0A106" };
+  if (a.includes("witness") || a.includes("retest")) return { t: "WITNESS", c: "#b79bf0" };
+  if (a.startsWith("import")) return { t: "IMPORT", c: "#a78bfa" };
+  if (a.startsWith("export") || a.startsWith("send benchmarks")) return { t: "EXPORT", c: "#a78bfa" };
+  if (a.startsWith("completed")) return { t: "DONE", c: "#2dd4bf" };
+  if (a.startsWith("remove") || a.startsWith("delete")) return { t: "REMOVED", c: "#F87171" };
+  if (a.startsWith("add") || a.startsWith("create") || a.startsWith("copy") || a.startsWith("acknowledge") || a.startsWith("clear")) return { t: "ADDED", c: "#34D399" };
+  if (/^(edit|update|change|rename|move|resize|find|bulk|commit|start)/.test(a)) return { t: "EDITED", c: "#5B9BF3" };
+  return { t: "OTHER", c: "#8593a2" };
+}
+function auditDayLabel(ts, now) {
+  const d = new Date(ts); const n = now || new Date();
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(n) - day(d)) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + (d.getFullYear() !== n.getFullYear() ? " " + d.getFullYear() : "");
+}
+function auditRelTime(ts, now) {
+  const ms = (now ? now.getTime() : Date.now()) - new Date(ts).getTime();
+  if (ms < 0 || ms > 6 * 86400000) return "";
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + " min ago";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + " h ago";
+  return Math.floor(h / 24) + " d ago";
+}
 function ImportStepsV2({ step }) {
   const steps = ["Template", "Mode", "Upload", "Review", "Apply"];
   return (
@@ -5350,7 +5395,61 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const [rv, setRv] = useState(null);                // { e, snap, mode, laterN } for the revert modal
   const [rvBusy, setRvBusy] = useState(false);
   const [rvErr, setRvErr] = useState("");
-  useEffect(() => { if (tab === "audit" && snaps == null) loadActivitySnapshots().then(setSnaps); }, [tab, snaps]);
+  const [aPage, setAPage] = useState(0);            // REV242: server-paginated audit
+  const [aCat, setACat] = useState("");
+  const [aQd, setAQd] = useState("");
+  const [aData, setAData] = useState(null);
+  const [aLoading, setALoading] = useState(false);
+  const [aDetail, setADetail] = useState(null);
+  const [aTick, setATick] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setAQd(auditQ), 300); return () => clearTimeout(t); }, [auditQ]);
+  useEffect(() => { setAPage(0); }, [auditUser, aQd, aCat]);
+  const auditMkQ = () => {
+    let qy = supabase.from("audit_log").select("*", { count: "exact" }).or(`project_id.eq.${S.projectId},project_id.is.null`);
+    if (auditUser !== "all") qy = qy.eq("user_name", auditUser);
+    const needle = aQd.trim().replace(/[,()%\\]/g, "");
+    if (needle) qy = qy.or(`action.ilike.%${needle}%,detail.ilike.%${needle}%,user_name.ilike.%${needle}%`);
+    if (aCat === "other") { AUDIT_CATS.forEach(([, , pats]) => pats.forEach((pt) => { qy = qy.not("action", "ilike", pt); })); }
+    else if (aCat) {
+      const cat = AUDIT_CATS.find(([k]) => k === aCat); if (cat) qy = qy.or(cat[2].map((pt) => "action.ilike." + pt).join(","));
+      // Activities excludes the starts-with categories that also mention activities (imports/exports).
+      if (aCat === "act") ["import%", "export%", "send benchmarks%"].forEach((pt) => { qy = qy.not("action", "ilike", pt); });
+    }
+    return qy;
+  };
+  useEffect(() => {
+    if (tab !== "audit" || !S.projectId) return;
+    let on = true; setALoading(true);
+    (async () => {
+      try {
+        const per = 100;
+        const { data, count, error } = await auditMkQ().order("ts", { ascending: false }).range(aPage * per, aPage * per + per - 1);
+        if (!on) return;
+        if (error) { setAData({ rows: [], total: 0, err: error.message }); setALoading(false); return; }
+        const rows = (data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail, entity: e.entity, entityId: e.entity_id }));
+        const actIds = [...new Set(rows.filter((r) => r.entity === "activity" && r.entityId).map((r) => r.entityId))];
+        let sn = [];
+        if (actIds.length) { const r2 = await supabase.from("activity_snapshots").select("*").in("activity_id", actIds).order("ts", { ascending: false }).limit(1000); sn = r2.data || []; }
+        if (!on) return;
+        setSnaps(sn);
+        setAData({ rows, total: count || 0 });
+        setALoading(false);
+      } catch (e2) { if (on) { setAData({ rows: [], total: 0, err: String((e2 && e2.message) || e2) }); setALoading(false); } }
+    })();
+    return () => { on = false; };
+  }, [tab, S.projectId, auditUser, aQd, aCat, aPage, aTick]);
+  const exportAuditAll = async () => {
+    const all = []; const chunk = 1000;
+    for (let i = 0; i < 10; i++) {
+      const { data, error } = await auditMkQ().order("ts", { ascending: false }).range(i * chunk, i * chunk + chunk - 1);
+      if (error || !data || !data.length) break;
+      all.push(...data);
+      if (data.length < chunk) break;
+    }
+    const rows = all.map((e) => [e.ts, e.user_name, e.action, e.detail]);
+    downloadFile(`${(projCode || "DLP")}-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows));
+  };
+  // REV242: snaps are page-scoped, fed by the audit page fetch below.
   // Revert modal helpers. RVF maps snapshot (snake) columns to human labels; rowView renders the
   // live activity in the same shape so the modal can show restores-to vs currently.
   const RVF = [["descr", "Description"], ["company_id", "Company"], ["area", "Building"], ["sub_area", "Level"], ["tier3", "Zone / Room"], ["asset", "Asset"], ["system", "System"], ["level", "Cx Stage"], ["is_milestone", "Milestone"], ["start_date", "Planned Start"], ["duration", "Days (Calendar)"], ["committed", "Committed"], ["status", "Status"], ["percent", "Percent"], ["actual_start", "Actual Start"], ["actual_finish", "Actual Finish"], ["witness_invite", "Witness Invite"], ["witness_at", "Witness Date"], ["witness_duration_min", "Witness Duration"], ["witness_days", "Witness Days"], ["slip_reason", "Slip Reason"], ["outcome", "Witness Outcome"], ["outcome_reason", "Failure Reason"], ["outcome_at", "Outcome Date"], ["notes", "Notes"]];
@@ -5364,7 +5463,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     const err = await applyAuditRevert(rv.snap, cu.name);
     setRvBusy(false);
     if (err) { setRvErr(err); return; }
-    setSnaps(null);   // refetch with the reverted stamp; activities refresh via realtime
+    setATick((t) => t + 1);   // refetch the page with the reverted stamp; activities refresh via realtime
     setRv(null);
   };
   const [lvKey, setLvKey] = useState("");
@@ -6549,54 +6648,100 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>JSON sets up the whole project: companies, buildings, levels, zones/rooms, systems, Cx stages, settings and activities. CSV imports activities and auto-creates any new company, building, level, zone/room or system it names, so a CSV alone can stand a project up. Columns are Building, Level, Zone / Room and Cx Stage. Override replaces the project wholesale; Append in JSON opens a review screen where you overwrite, ignore or clone each clashing item.</div></div>
             {impMsg && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />{impMsg}</div>}
           </>}
-          {tab === "audit" && <>
-            <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Complete history of every action by every user, admin only. In production the database writes this on every change and it cannot be edited here.</div>
-            <button className="lk-btn" style={{ marginBottom: 6 }} onClick={() => setCreatedOpen(true)}><Icon n="cal" s={14} />View Entries Created (by date range)</button>
+          {tab === "audit" && (() => {
+            const per = 100;
+            const rows = (aData && aData.rows) || [];
+            const total = (aData && aData.total) || 0;
+            const pages = Math.max(1, Math.ceil(total / per));
+            const now = new Date();
+            const snapByKey = {}; const latestByAct = {};
+            (snaps || []).forEach((sn) => { snapByKey[sn.activity_id + "|" + sn.ts] = sn; const c = latestByAct[sn.activity_id]; if (!c || sn.ts > c.ts) latestByAct[sn.activity_id] = sn; });
+            const liveById = Object.fromEntries((S.activities || []).map((x) => [x.id, x]));
+            const affFor = (e) => {
+              if (e.entity !== "activity" || !e.entityId || snaps == null) return null;
+              const snap = snapByKey[e.entityId + "|" + e.ts];
+              if (!snap) return { tag: "No snapshot" };
+              if (snap.reverted_at) return { tag: `Reverted by ${snap.reverted_by || "admin"} ${new Date(snap.reverted_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`, done: true };
+              const isLatest = latestByAct[snap.activity_id] && latestByAct[snap.activity_id].id === snap.id;
+              const laterN = (snaps || []).filter((x) => x.activity_id === snap.activity_id && x.ts > snap.ts).length;
+              const fresh = Date.now() - new Date(snap.ts).getTime() <= 24 * 3600 * 1000;
+              if (snap.op === "DELETE") { if (liveById[snap.activity_id]) return { tag: "Superseded (recreated)" }; return isLatest ? { btn: "Restore", mode: "restore", snap, laterN } : { tag: "Superseded" }; }
+              if (snap.op === "INSERT") { if (!liveById[snap.activity_id]) return { tag: "Already removed" }; return isLatest ? { btn: "Remove", mode: "remove", snap, laterN } : { tag: "Superseded" }; }
+              if (isLatest && fresh) return { btn: "Undo", mode: "revert", snap, laterN };
+              return { btn: "Force revert", mode: "override", snap, laterN };
+            };
+            const openEntry = (e, aff) => { if (aff && aff.btn && canv("auditRevert")) { setRvErr(""); setRv({ e, snap: aff.snap, mode: aff.mode, laterN: aff.laterN }); } else setADetail({ e, aff }); };
+            const tagSt = (done) => ({ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", border: "1px solid var(--line)", color: "var(--muted)", flex: "none", ...(done ? { color: "#0E9384", borderColor: "rgba(14,147,132,.5)" } : {}) });
+            const btnSt = (mode) => mode === "override" ? { color: "#E0A106", borderColor: "rgba(224,161,6,.5)" } : mode === "remove" ? { color: "#F87171", borderColor: "rgba(248,113,113,.5)" } : { color: "var(--accent)", borderColor: "rgba(91,155,243,.5)" };
+            const stepLbl = { fontSize: 9, fontWeight: 800, letterSpacing: ".5px", textTransform: "uppercase" };
+            let lastDay = null;
+            const pageBtn = (lb, target, dis) => <button key={lb} className="lk-btn" disabled={dis} style={{ padding: "5px 13px", fontSize: 11.5, fontWeight: 700, opacity: dis ? 0.45 : 1, ...(dis ? {} : { borderColor: "rgba(91,155,243,.5)", color: "var(--accent)" }) }} onClick={() => setAPage(target)}>{lb}</button>;
+            return <>
+            <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)", marginBottom: 8 }}><Icon n="alert" s={13} />Complete history of every action by every user, admin only. The database writes this on every change and it cannot be edited here.</div>
+            <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "10px 12px 7px" }}>
+                <input className="lk-in" style={{ flex: 1, minWidth: 200 }} placeholder="Search action, detail or user" value={auditQ} onChange={(e) => setAuditQ(e.target.value)} />
+                <select className="lk-select" style={{ maxWidth: 200 }} value={auditUser} onChange={(e) => setAuditUser(e.target.value)}>
+                  <option value="all">All users</option>
+                  {S.users.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                </select>
+                <button className="lk-btn" onClick={() => setCreatedOpen(true)}><Icon n="cal" s={14} />Entries created</button>
+                <button className="lk-btn" onClick={exportAuditAll}><Icon n="download" s={14} />Export CSV</button>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", padding: "0 12px 10px" }}>
+                {[["", "All"], ...AUDIT_CATS.map(([k, lb]) => [k, lb]), ["other", "Other"]].map(([k, lb]) => (
+                  <button key={k || "all"} className="lk-btn" style={{ padding: "3px 10px", fontSize: 10.5, fontWeight: 700, borderColor: aCat === k ? "var(--accent)" : undefined, color: aCat === k ? "var(--accent)" : undefined }} onClick={() => setACat(k)}>{lb}</button>
+                ))}
+                <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto", whiteSpace: "nowrap" }}>{aLoading ? "Loading..." : `${total} entr${total === 1 ? "y" : "ies"} \u00b7 page ${Math.min(aPage + 1, pages)} of ${pages}`}</span>
+              </div>
+            </div>
             {createdOpen && <CreatedEntriesModal S={S} LV={S.levels || {}} coName={(id) => (S.companies.find((c) => c.id === id) || {}).name || "Unassigned"} onClose={() => setCreatedOpen(false)} />}
-            <div className="lk-f"><label>Filter By User</label>
-              <select className="lk-select" value={auditUser} onChange={(e) => setAuditUser(e.target.value)}>
-                <option value="all">All users ({S.audit.length})</option>
-                {S.users.map((u) => <option key={u.id} value={u.name}>{u.name} ({S.audit.filter((e) => e.user === u.name).length})</option>)}
-              </select></div>
-            <div className="lk-f"><label>Search</label><input className="lk-in" placeholder="Search action, detail or user…" value={auditQ} onChange={(e) => setAuditQ(e.target.value)} /></div>
-            {(() => { const qq = auditQ.trim().toLowerCase();
-              const flt = (e) => (auditUser === "all" || e.user === auditUser) && (!qq || `${e.action || ""} ${e.detail || ""} ${e.user || ""}`.toLowerCase().includes(qq));
-              const list = S.audit.filter(flt);
-              // Snapshot join: (activity_id, ts) matches exactly because both DB triggers fire in
-              // the same transaction and now() is transaction-stable.
-              const snapByKey = {}; const latestByAct = {};
-              (snaps || []).forEach((sn) => { snapByKey[sn.activity_id + "|" + sn.ts] = sn; const c = latestByAct[sn.activity_id]; if (!c || sn.ts > c.ts) latestByAct[sn.activity_id] = sn; });
-              const liveById = Object.fromEntries((S.activities || []).map((x) => [x.id, x]));
-              const affFor = (e) => {
-                if (e.entity !== "activity" || !e.entityId || snaps == null) return null;
-                const snap = snapByKey[e.entityId + "|" + e.ts];
-                if (!snap) return { tag: "No snapshot (pre-migration)" };
-                if (snap.reverted_at) return { tag: `Reverted by ${snap.reverted_by || "admin"} ${new Date(snap.reverted_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`, done: true };
-                const isLatest = latestByAct[snap.activity_id] && latestByAct[snap.activity_id].id === snap.id;
-                const laterN = (snaps || []).filter((x) => x.activity_id === snap.activity_id && x.ts > snap.ts).length;
-                const fresh = Date.now() - new Date(snap.ts).getTime() <= 24 * 3600 * 1000;
-                if (snap.op === "DELETE") { if (liveById[snap.activity_id]) return { tag: "Superseded (recreated)" }; return isLatest ? { btn: "Restore", mode: "restore", snap, laterN } : { tag: "Superseded" }; }
-                if (snap.op === "INSERT") { if (!liveById[snap.activity_id]) return { tag: "Already removed" }; return isLatest ? { btn: "Remove", mode: "remove", snap, laterN } : { tag: "Superseded" }; }
-                if (isLatest && fresh) return { btn: "Revert", mode: "revert", snap, laterN };
-                return { btn: "Revert Anyway", mode: "override", snap, laterN };
-              };
-              const tagSt = (done) => ({ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", border: "1px solid var(--line)", color: "var(--muted)", flex: "none", ...(done ? { color: "#0E9384", borderColor: "rgba(14,147,132,.5)", background: "rgba(14,147,132,.08)" } : {}) });
-              const btnSt = (mode) => mode === "override" ? { color: "#E0A106", borderColor: "rgba(224,161,6,.5)" } : mode === "remove" ? { color: "#C0392B", borderColor: "rgba(192,57,58,.5)" } : { color: "var(--accent)", borderColor: "var(--accent)" };
-              return <>
-                <button className="lk-btn" onClick={() => { const rows = list.map((e) => [e.ts, e.user, e.action, e.detail]); downloadFile(`${(projCode || "DLP")}-audit-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(["Timestamp", "User", "Action", "Detail"], rows)); }}><Icon n="download" s={14} />Export audit (CSV)</button>
-                <button className="lk-btn" style={{ marginTop: 4 }} onClick={() => setAuditOpen((o) => !o)}><span style={{ display: "inline-flex", transform: auditOpen ? "rotate(90deg)" : "none", transition: "transform .12s" }}><Icon n="cr" s={13} /></span>{auditOpen ? "Hide" : "Show"} log ({list.length} {list.length === 1 ? "entry" : "entries"})</button>
-                {auditOpen && (list.length === 0
-                  ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No actions match this selection.</div>
-                  : <div style={{ marginTop: 8 }}>{list.map((e) => { const aff = affFor(e); return <div key={e.id} className="lk-audit" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-                        <span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span>
-                        <span className="m">{e.user} {"\u00b7"} {new Date(e.ts).toLocaleString("en-GB")}</span>
-                      </div>
-                      {aff && aff.tag && <span style={tagSt(aff.done)}>{aff.tag}</span>}
-                      {aff && aff.btn && canv("auditRevert") && <button className="lk-btn" style={{ ...btnSt(aff.mode), flex: "none" }} onClick={() => { setRvErr(""); setRv({ e, snap: aff.snap, mode: aff.mode, laterN: aff.laterN }); }}>{aff.btn}</button>}
-                    </div>; })}</div>)}
-              </>; })()}
-          </>}
+            {aData && aData.err && <div style={{ fontSize: 12, color: "#F87171", fontWeight: 600, margin: "6px 0" }}>Could not load the audit log: {aData.err}</div>}
+            {!aLoading && rows.length === 0 && !(aData && aData.err) && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No actions match this selection.</div>}
+            <div style={{ border: rows.length ? "1px solid var(--line)" : "none", borderRadius: 10, overflow: "hidden", opacity: aLoading ? 0.55 : 1 }}>
+              {rows.map((e) => {
+                const aff = affFor(e);
+                const chip = auditChipOf(e.action);
+                const dayL = auditDayLabel(e.ts, now);
+                const showDay = dayL !== lastDay; lastDay = dayL;
+                const rel = auditRelTime(e.ts, now);
+                return <React.Fragment key={e.id}>
+                  {showDay && <div style={{ ...stepLbl, padding: "6px 13px", color: "var(--muted)", background: "var(--hover)", borderBottom: "1px solid var(--line)", letterSpacing: ".7px" }}>{dayL} {"\u00b7"} {new Date(e.ts).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</div>}
+                  <div className="lk-audit" style={{ flexDirection: "row", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 13px" }} onClick={() => openEntry(e, aff)}>
+                    <span style={{ fontSize: 8.5, fontWeight: 800, padding: "3px 0", borderRadius: 5, whiteSpace: "nowrap", flex: "none", width: 68, textAlign: "center", color: chip.c, background: chip.c + "1f" }}>{chip.t}</span>
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                      <span className="a">{e.action}: <span style={{ fontWeight: 400 }}>{e.detail}</span></span>
+                      <span className="m">{e.user} {"\u00b7"} {new Date(e.ts).toLocaleString("en-GB")}{rel ? " \u00b7 " + rel : ""}</span>
+                    </div>
+                    {aff && aff.tag && <span style={tagSt(aff.done)}>{aff.tag}</span>}
+                    {aff && aff.btn && canv("auditRevert") && <button className="lk-btn" style={{ ...btnSt(aff.mode), flex: "none", lineHeight: 1.25 }} onClick={(ev) => { ev.stopPropagation(); openEntry(e, aff); }}>{aff.btn}{aff.mode === "override" && aff.laterN > 0 && <span style={{ display: "block", fontSize: 8.5, fontWeight: 600, opacity: 0.75 }}>overwrites parts of {aff.laterN} later edit{aff.laterN === 1 ? "" : "s"}</span>}</button>}
+                  </div>
+                </React.Fragment>; })}
+            </div>
+            {pages > 1 && <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", marginTop: 12 }}>
+              {pageBtn("\u00ab First", 0, aPage === 0)}
+              {pageBtn("\u2039 Prev", Math.max(0, aPage - 1), aPage === 0)}
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "0 8px", color: "var(--muted)" }}>Page <span style={{ color: "var(--accent)" }}>{Math.min(aPage + 1, pages)}</span> of {pages}</span>
+              {pageBtn("Next \u203a", Math.min(pages - 1, aPage + 1), aPage >= pages - 1)}
+              {pageBtn("Last \u00bb", pages - 1, aPage >= pages - 1)}
+            </div>}
+            {aDetail && (() => { const e = aDetail.e; const aff = aDetail.aff; return <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => setADetail(null)}>
+              <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 560 }} onClick={(ev) => ev.stopPropagation()}>
+                <div className="lk-dh"><h3>Audit entry</h3><button className="lk-btn icon" onClick={() => setADetail(null)}><Icon n="x" /></button></div>
+                <div className="bd" style={{ padding: 16, fontSize: 12.5 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "6px 14px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 9, padding: 12 }}>
+                    <div style={{ color: "var(--muted)", fontWeight: 600 }}>Action</div><div>{e.action}</div>
+                    <div style={{ color: "var(--muted)", fontWeight: 600 }}>Detail</div><div>{e.detail || "\u00b7"}</div>
+                    <div style={{ color: "var(--muted)", fontWeight: 600 }}>User</div><div>{e.user}</div>
+                    <div style={{ color: "var(--muted)", fontWeight: 600 }}>When</div><div>{new Date(e.ts).toLocaleString("en-GB")}{auditRelTime(e.ts, new Date()) ? " (" + auditRelTime(e.ts, new Date()) + ")" : ""}</div>
+                    <div style={{ color: "var(--muted)", fontWeight: 600 }}>Entity</div><div>{e.entity || "\u00b7"}</div>
+                    <div style={{ color: "var(--muted)", fontWeight: 600 }}>Snapshot</div><div>{aff && aff.tag ? aff.tag : e.entity === "activity" ? "No snapshot for this entry." : "Not an activity change, so no snapshot; nothing to revert here."}</div>
+                  </div>
+                </div>
+                <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" onClick={() => setADetail(null)}>Close</button></div>
+              </div>
+            </div>; })()}
+          </>; })()}
           {rv && (() => {
             const live = (S.activities || []).find((x) => x.id === rv.snap.activity_id) || null;
             const isOvr = rv.mode === "override";
@@ -6604,7 +6749,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             const after = rv.snap.after_row || {};
             const dl = (rv.mode === "revert" || isOvr) ? rvDiffs(before, rvRowView(live)) : [];
             const noChange = (rv.mode === "revert" || isOvr) && dl.length === 0;
-            const title = rv.mode === "restore" ? "Restore Activity" : rv.mode === "remove" ? "Remove Created Activity" : isOvr ? "Revert Change (Override)" : "Revert Change";
+            const title = rv.mode === "restore" ? "Restore Activity" : rv.mode === "remove" ? "Remove Created Activity" : isOvr ? "Force revert" : "Undo change";
             const keyRow = (k, l, src) => <div key={k} style={{ display: "contents" }}><div>{l}</div><div style={{ color: "#0E9384" }}>{rvFmt(k, src[k])}</div></div>;
             return <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => !rvBusy && setRv(null)}>
               <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 540 }} onClick={(ev) => ev.stopPropagation()}>
@@ -6619,6 +6764,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   {rv.mode === "remove" && <div>Remove <b>{after.descr || "this activity"}</b>, created by <b>{rv.e.user}</b> at {new Date(rv.e.ts).toLocaleString("en-GB")}. The removal is recorded in the audit log and is itself revertible.</div>}
                   {(rv.mode === "revert" || isOvr) && <>
                     <div>Restore <b>{before.descr || "this activity"}</b> to its state before the change by <b>{rv.e.user}</b> at {new Date(rv.e.ts).toLocaleString("en-GB")}.{!live && " The activity no longer exists; reverting recreates it."}</div>
+                    {!isOvr && <div style={{ fontSize: 12.5, color: "var(--muted)" }}>This is the latest change to this activity, so undoing it affects nothing else.</div>}
                     {isOvr && rv.laterN > 0 && <div style={{ border: "1px solid rgba(224,161,6,.45)", background: "rgba(224,161,6,.07)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#E0A106" }}>{rv.laterN} later change{rv.laterN === 1 ? "" : "s"} to this activity will be overwritten. This restores the snapshot wholesale; it does not undo only the one change.</div>}
                     {noChange
                       ? <div style={{ fontSize: 12.5, color: "var(--muted)" }}>The current state already matches this snapshot. Nothing to revert.</div>
@@ -6634,7 +6780,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 </div>
                 <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" disabled={rvBusy} onClick={() => setRv(null)}>Cancel</button>
                   <button className="lk-btn primary" disabled={rvBusy || noChange} style={isOvr || rv.mode === "remove" ? { background: "#C0392B", borderColor: "#C0392B" } : undefined} onClick={doRevert}>
-                    <Icon n="check" s={14} />{rvBusy ? "Working..." : rv.mode === "restore" ? "Restore" : rv.mode === "remove" ? "Remove" : isOvr ? "Revert And Overwrite" : "Revert"}</button>
+                    <Icon n="check" s={14} />{rvBusy ? "Working..." : rv.mode === "restore" ? "Restore" : rv.mode === "remove" ? "Remove" : isOvr ? "Force revert" : "Undo change"}</button>
                 </div>
               </div>
             </div>; })()}
