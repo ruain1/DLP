@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV266",
+    "date": "2026-07-12",
+    "items": [
+      "Hotfix: REV265 crashed the app on load (white page) because the presence polling effect referenced isAdmin in its dependency list before that variable was declared; dependency lists are evaluated during render, so every load hit a reference error. The two presence effects now live after the declaration and the feature works as designed. Nothing else changed."
+    ]
+  },
+  {
     "rev": "REV265",
     "date": "2026-07-12",
     "items": [
