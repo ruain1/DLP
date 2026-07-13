@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV300",
+    "date": "2026-07-12",
+    "items": [
+      "The Morning Cx Update summary now lets the AI drive the formatting, and defaults to scannable bullets. The summary had been borrowing the weekly client report's prompt, which is written for flowing prose and actively discouraged lists, so a request for bullets produced a wall of text. It now has its own dedicated prompt built for a fast field brief: bullets by default, the author's instruction leading, blockers first. The email is also wider (700px). The AI formatting change lives in the super-action function, so it must be redeployed to take effect."
+    ]
+  },
+  {
     "rev": "REV299",
     "date": "2026-07-12",
     "items": [

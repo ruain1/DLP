@@ -204,7 +204,7 @@ export function buildMorningEmail(d, cfg, meta) {
     body += secHead("Witness events today", "#2456A6") + rowsWrap(d.witness.map((r) =>
       `<tr><td style="padding:5px 0;">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
   }
-  const html = `<table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
+  const html = `<table width="700" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
     + (() => {
         // REV285: identity masthead. Logo only if it is a hosted https URL (data-URIs and
         // relative paths break in Outlook and Gmail); otherwise a clean text wordmark.

@@ -59,6 +59,23 @@ const SECTION_SYSTEM = [
   "Return only the summary. No preamble, no quotation marks. Do not use markdown headings or emphasis; simple dash bullet lines are allowed when asked for.",
 ].join(" ");
 
+// REV300: the Morning Cx Update is a fast, scannable field brief, not a client narrative.
+// It gets its own system prompt: the author's instruction leads and the model is free to
+// choose structure (bullets by default), within the same hard factual limits.
+const MORNING_SYSTEM = [
+  "You write the executive summary at the top of a data centre commissioning team's Morning Cx Update email.",
+  "This is read fast on a phone on site at the start of the day. Clarity and scannability beat prose.",
+  "You are given a block of drafted facts. Those facts are the entire universe of what you may say.",
+  "Formatting: default to short bullet lines, one point per line, each line starting with a dash and a space. Lead with the single most important or most blocking item. Group naturally (blockers first, then today, then risks) but keep it brief; six to nine bullets is plenty. Only write flowing paragraphs instead if the author's instruction explicitly asks for prose.",
+  "The author's instruction below is the primary guide to tone, emphasis, and format. Follow it. If it asks for bullets, use bullets; if it asks for something specific, do that.",
+  "Absolute limits, no exceptions:",
+  "- Do not add, remove, or change any number, percentage, date, or proper noun.",
+  "- Do not introduce any figure, activity, company, or fact that is not in the supplied facts.",
+  "- Do not use markdown (no #, no **bold**, no backticks). Plain text with simple dash bullets only.",
+  "- Do not use em dashes or en dashes. Use commas, full stops, semicolons, colons, parentheses, or hyphens.",
+  "Return only the summary itself. No preamble, no sign-off, no quotation marks.",
+].join(" ");
+
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
   if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: cors });
@@ -84,6 +101,28 @@ Deno.serve(async (req: Request) => {
 
     // REV194: section narrative mode. Additive; requests without mode fall
     // through to the original polish path untouched.
+    if (body && body.mode === "morning") {
+      const facts = typeof body.facts === "string" ? body.facts.trim() : "";
+      if (!facts) return json({ error: "no_facts" });
+      const steerClean = (typeof body.steer === "string" ? body.steer.trim() : "").slice(0, 400);
+      let system = MORNING_SYSTEM;
+      if (steerClean) system += ' Author instruction, primary guide (never invents or changes a figure, date, or name): "' + steerClean + '".';
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 600,
+          system,
+          messages: [{ role: "user", content: "Write the morning summary from these facts:\n\n" + facts }],
+        }),
+      });
+      if (!r.ok) { const detail = (await r.text()).slice(0, 400); return json({ error: "api_error", detail }); }
+      const data = await r.json();
+      const text = (data.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("").trim();
+      return json({ text });
+    }
+
     if (body && body.mode === "section") {
       const facts = typeof body.facts === "string" ? body.facts.trim() : "";
       const section = typeof body.section === "string" ? body.section.trim().slice(0, 80) : "this section";
