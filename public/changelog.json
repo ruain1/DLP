@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV294",
+    "date": "2026-07-12",
+    "items": [
+      "The report preview in Reports no longer shows a broken QMC logo. Sent emails carry their logos as attachments, which the in-app preview could not resolve, so it drew a broken-image box; the preview now points the QMC mark at its hosted image and quietly hides any other attachment-only images, so it looks like the delivered email."
+    ]
+  },
+  {
     "rev": "REV293",
     "date": "2026-07-12",
     "items": [

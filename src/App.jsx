@@ -9577,7 +9577,7 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
             <div className="bd" style={{ padding: 12 }}>
               {view.html === undefined && <div style={{ fontSize: 12, color: "var(--muted)", padding: 14 }}>Loading the report...</div>}
               {view.html === null && <div style={{ fontSize: 12.5, color: "var(--muted)", padding: 14, lineHeight: 1.6 }}>The content of this report was not captured; it was sent before the archive existed (REV248). The run details above are all that was recorded.</div>}
-              {typeof view.html === "string" && view.html && <iframe title="report" sandbox="" srcDoc={view.html} style={{ width: "100%", height: "68vh", border: "1px solid var(--line)", borderRadius: 8, background: "#ffffff" }} />}
+              {typeof view.html === "string" && view.html && <iframe title="report" sandbox="" srcDoc={previewHtml(view.html)} style={{ width: "100%", height: "68vh", border: "1px solid var(--line)", borderRadius: 8, background: "#ffffff" }} />}
             </div>
             <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" onClick={() => setView(null)}>Close</button></div>
           </div>
@@ -9585,6 +9585,17 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
       )}
     </div>
   );
+}
+// REV294: cid: image sources resolve in an email client via attachments, but in this
+// browser preview iframe they render as broken images. Rewrite the QMC logo to its hosted
+// asset and drop any other unresolved cid image so the preview looks like the real email.
+function previewHtml(html) {
+  if (typeof html !== "string" || !html) return html;
+  const origin = (typeof window !== "undefined" && window.location && window.location.origin) || "";
+  let out = html.replace(/src="cid:qmc-logo"/g, 'src="' + origin + '/qmc-logo-dark.png"');
+  // hide any remaining cid: images (e.g. vendor logos with no hosted URL in this scope)
+  out = out.replace(/<img([^>]*?)src="cid:[^"]*"([^>]*)>/g, '<img$1src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="$2 style="display:none">');
+  return out;
 }
 function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update }) {
   const [co, setCo] = useState([]);   // REV274: multi-select; empty = all
