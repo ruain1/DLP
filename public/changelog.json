@@ -1,5 +1,19 @@
 [
  {
+  "rev": "REV309",
+  "date": "2026-07-13",
+  "items": [
+   "A witnessed activity can no longer be marked Complete while its witness outcome is still Pending. In the activity editor, setting Status to Complete on an activity with a witness invite now blocks Save until the Witness Outcome is Succeeded or Failed, with the reason shown in the Still needed line. A visual aid makes it clear: the Witness Outcome control is outlined in red and a red callout appears explaining what to do. The outcome control stays usable after Complete is selected so the required outcome can be recorded, which also fixes a latent trap where marking Complete locked the row and would have stopped a non-admin from ever recording the outcome."
+  ]
+ },
+ {
+  "rev": "REV308",
+  "date": "2026-07-13",
+  "items": [
+   "Invite Type is now a managed per-project list, matching the Systems pattern. Owners and admins can add a new invite type inline from the dropdown in the activity editor (a plus Add new type option) and it persists into the dropdown for the whole project; there is also an Invite Types tab under Project Setup to add, rename and delete types, with a guard that blocks deleting a type still in use by an activity. Backed by a new invite_types table with a composite (project_id, name) primary key, so the shared vocabulary (W2, L2 FOK and the rest) can exist in every project, unlike systems which has a name only key. Seeded with the previous eight defaults for every existing project. The accompanying SQL migration must be applied in Supabase before this code goes live."
+  ]
+ },
+ {
   "rev": "REV307",
   "date": "2026-07-13",
   "items": [

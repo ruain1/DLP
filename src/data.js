@@ -38,7 +38,7 @@ const fromInviteRequest = (r) => ({
 
 // ---- load everything into the client state shape ----
 export async function loadAll(session, projectId, projectName) {
-  const [companies, areas, systems, crews, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs, privRows, projMeta] = await Promise.all([
+  const [companies, areas, systems, crews, levels, settings, profiles, activities, audit, branding, subAreas, tier3s, inviteReqs, privRows, projMeta, inviteTypes] = await Promise.all([
     supabase.from("companies").select("*").order("name"),
     supabase.from("areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("systems").select("*").eq("project_id", projectId).order("name"),
@@ -54,13 +54,14 @@ export async function loadAll(session, projectId, projectName) {
     supabase.from("invite_requests").select("*").eq("project_id", projectId),
     supabase.from("user_privileges").select("*").eq("project_id", projectId),
     supabase.from("projects").select("id, code, name, client, location").eq("id", projectId).maybeSingle(),
+    supabase.from("invite_types").select("*").eq("project_id", projectId).order("name"),
   ]);
   // REV216 (3d): the project's associated companies drive pickers; null = association data
   // unavailable (pickers fall back to the full registry rather than going blank).
   let projectCompanyIds = null;
   try { const pc = await supabase.from("project_companies").select("company_id").eq("project_id", projectId); if (!pc.error) projectCompanyIds = (pc.data || []).map((r) => r.company_id); } catch (e) {}
 
-  const loadErrors = [["companies", companies], ["areas", areas], ["systems", systems], ["crews", crews], ["levels", levels], ["settings", settings], ["profiles", profiles], ["activities", activities], ["audit_log", audit], ["branding", branding], ["sub_areas", subAreas], ["tier3_areas", tier3s], ["invite_requests", inviteReqs], ["user_privileges", privRows]].filter(([, r]) => r && r.error).map(([t, r]) => t + ": " + (r.error.message || String(r.error)));
+  const loadErrors = [["companies", companies], ["areas", areas], ["systems", systems], ["crews", crews], ["levels", levels], ["settings", settings], ["profiles", profiles], ["activities", activities], ["audit_log", audit], ["branding", branding], ["sub_areas", subAreas], ["tier3_areas", tier3s], ["invite_requests", inviteReqs], ["user_privileges", privRows], ["invite_types", inviteTypes]].filter(([, r]) => r && r.error).map(([t, r]) => t + ": " + (r.error.message || String(r.error)));
   if (loadErrors.length) console.error("DLP load errors:", loadErrors);
   const levelsObj = {};
   (levels.data || []).forEach((l) => { levelsObj[l.key] = { name: l.name, color: l.color, sort: l.sort }; });
@@ -69,6 +70,7 @@ export async function loadAll(session, projectId, projectName) {
     companies: (companies.data || []).map((c) => ({ id: c.id, name: c.name, logoUrl: c.logo_url || "", logoDark: c.logo_url_dark || "", description: c.description || "", domain: c.domain || "" })),
     areas: (areas.data || []).map((a) => a.name),
     systems: (systems.data || []).map((s) => s.name),
+    inviteTypes: (inviteTypes.data || []).map((s) => s.name),
     crews: (crews.data || []).map((c) => c.name),
     levels: levelsObj,
     settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, workingDays: settings.data?.working_days ?? [1, 2, 3, 4, 5], hoursPerDay: settings.data?.hours_per_day ?? 8, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, crewsEnabled: settings.data?.crews_enabled ?? false, pageIcons: settings.data?.page_icons ?? {}, design: settings.data?.design ?? {} },
@@ -176,12 +178,13 @@ export async function createProject(fields, session) {
   if (mErr) throw mErr;
   if (fields.copyFrom) {
     const src = fields.copyFrom;
-    const [lv, sy, ar, sa, t3] = await Promise.all([
+    const [lv, sy, ar, sa, t3, it] = await Promise.all([
       supabase.from("levels").select("key,name,color,sort").eq("project_id", src),
       supabase.from("systems").select("name").eq("project_id", src),
       supabase.from("areas").select("name").eq("project_id", src),
       supabase.from("sub_areas").select("area,name").eq("project_id", src),
       supabase.from("tier3_areas").select("area,sub_area,name").eq("project_id", src),
+      supabase.from("invite_types").select("name").eq("project_id", src),
     ]);
     const ops = [];
     if (lv.data?.length) ops.push(supabase.from("levels").insert(lv.data.map((r) => ({ ...r, project_id: id }))));
@@ -189,6 +192,7 @@ export async function createProject(fields, session) {
     if (ar.data?.length) ops.push(supabase.from("areas").insert(ar.data.map((r) => ({ ...r, project_id: id }))));
     if (sa.data?.length) ops.push(supabase.from("sub_areas").insert(sa.data.map((r) => ({ ...r, project_id: id }))));
     if (t3.data?.length) ops.push(supabase.from("tier3_areas").insert(t3.data.map((r) => ({ ...r, project_id: id }))));
+    if (it.data?.length) ops.push(supabase.from("invite_types").insert(it.data.map((r) => ({ ...r, project_id: id }))));
     await Promise.all(ops);
   }
   return id;
@@ -241,12 +245,12 @@ export async function syncCollections(prev, next, session, projectId) {
     else if (del.length > 1) console.warn(`[DLP] bulk company delete suppressed (${del.length} ids):`, del);
   }
   // areas / systems (string arrays keyed by name, per project)
-  for (const key of ["areas", "systems", "crews"]) {
-    if (next[key] !== prev[key]) {
+  for (const [key, table] of [["areas", "areas"], ["systems", "systems"], ["crews", "crews"], ["inviteTypes", "invite_types"]]) {
+    if (next[key] !== prev[key] && Array.isArray(next[key]) && Array.isArray(prev[key])) {
       const add = next[key].filter((x) => !prev[key].includes(x)).map((name) => ({ name, project_id: projectId }));
       const rem = prev[key].filter((x) => !next[key].includes(x));
-      if (add.length) ops.push(supabase.from(key).upsert(add));
-      if (rem.length) ops.push(supabase.from(key).delete().eq("project_id", projectId).in("name", rem));
+      if (add.length) ops.push(supabase.from(table).upsert(add));
+      if (rem.length) ops.push(supabase.from(table).delete().eq("project_id", projectId).in("name", rem));
     }
   }
   // levels (object keyed by L1.., per project)

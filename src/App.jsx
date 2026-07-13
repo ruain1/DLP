@@ -1465,6 +1465,7 @@ function defaults() {
     ],
     areas: ["Data Hall 1", "Data Hall 2", "MV Room", "Electrical Room", "Generator Yard", "Cooling Plant", "Pump Room"],
     systems: ["MV Switchgear", "LV Distribution", "Generators", "UPS", "Chilled Water", "CRAH/CRAC", "BMS", "EPMS"],
+    inviteTypes: ["L2 FOK", "W2", "IVC", "L3 FOK", "L3 SU", "L3 SAT", "L4 FPT", "L5 IST"],
     settings: { weeks: 4, makeReadyDays: 7, ppcTarget: 80, workingDays: [1, 2, 3, 4, 5], hoursPerDay: 8 },
     levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)),
     audit: [],
@@ -3539,6 +3540,7 @@ export default function App({ session }) {
     if (!isAdmin) return ""; name = (name || "").trim(); if (!name) return ""; const lc = name.toLowerCase(); ctx = ctx || {};
     if (kind === "company") { const ex = S.companies.find((c) => c.name.toLowerCase() === lc); if (ex) { ensureProjectCompanies(S.projectId, [ex.id]).catch(() => {}); return ex.id; } const id = uid("co"); update((p) => ({ ...p, companies: [...p.companies, { id, name }] }), { action: "Add company", detail: name }); setTimeout(() => ensureProjectCompanies(S.projectId, [id]).catch(() => {}), 1500); return id; }
     if (kind === "system") { const ex = S.systems.find((s) => s.toLowerCase() === lc); if (ex) return ex; update((p) => ({ ...p, systems: [...p.systems, name] }), { action: "Add system", detail: name }); return name; }
+    if (kind === "inviteType") { const ex = (S.inviteTypes || []).find((s) => s.toLowerCase() === lc); if (ex) return ex; update((p) => ({ ...p, inviteTypes: [...(p.inviteTypes || []), name] }), { action: "Add invite type", detail: name }); return name; }
     if (kind === "subArea") { if (!ctx.area) return ""; const ex = (S.subAreas || []).find((s) => s.area === ctx.area && s.name.toLowerCase() === lc); if (ex) return ex.name; update((p) => ({ ...p, subAreas: [...(p.subAreas || []), { area: ctx.area, name }] }), { action: "Add level", detail: ctx.area + " / " + name }); return name; }
     if (kind === "tier3") { if (!ctx.area || !ctx.subArea) return ""; const ex = (S.tier3s || []).find((t) => t.area === ctx.area && t.subArea === ctx.subArea && t.name.toLowerCase() === lc); if (ex) return ex.name; update((p) => ({ ...p, tier3s: [...(p.tier3s || []), { area: ctx.area, subArea: ctx.subArea, name }] }), { action: "Add zone", detail: ctx.area + " / " + ctx.subArea + " / " + name }); return name; }
     return "";
@@ -4655,9 +4657,10 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   // recording a failure can still fill the reason before saving. Admins are never locked.
   const failedOnRecord = !!(act.witnessInvite && (act.outcome || "pending") === "failed");
   const locked = (a.status === "complete" || failedOnRecord) && !can("editCommitted");
+  const needsOutcome = a.witnessInvite && a.status === "complete" && (a.outcome || "pending") === "pending";
   const set = (k, v) => { if (!canEdit || locked) return; setA((p) => ({ ...p, [k]: v })); };
   const setOutcome = (k) => {
-    if (!canEdit || locked) return;
+    if (!canEdit || (locked && !needsOutcome)) return;
     if (k !== "pending" && a.start && parseD(a.start).getTime() > todayMid() && !window.confirm("The planned start is in the future. Record the outcome anyway?")) return;
     setA((p) => { const n = { ...p, outcome: k }; if (k === "pending") { n.outcomeReason = ""; n.outcomeAt = ""; } else { if (!n.outcomeAt) n.outcomeAt = fmtISO(new Date()); if (k === "succeeded") n.outcomeReason = ""; } return n; });
   };
@@ -4707,7 +4710,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   const assetMatches = (() => { const q = assetQ.trim().toLowerCase(); if (!assetOpen || !assetRegisterOn) return []; let list = ASSETS; if (q) list = ASSETS.filter((x) => x.tag.toLowerCase().includes(q) || x.name.toLowerCase().includes(q) || x.type.toLowerCase().includes(q)); return list.slice(0, 50); })();
   const roBox = (v) => (<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--ink)" }}><span>{v || "--"}</span><span style={{ fontSize: 9.5, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>from asset</span></div>);
   const cancelAdd = () => { setAddKind(null); setAddText(""); };
-  const confirmAdd = (kind, ctx) => { const v = onAdd && onAdd(kind, addText, ctx); if (!v) { cancelAdd(); return; } if (kind === "company") set("companyId", v); else if (kind === "subArea") { set("subArea", v); set("tier3", ""); } else if (kind === "tier3") set("tier3", v); else if (kind === "system") set("system", v); cancelAdd(); };
+  const confirmAdd = (kind, ctx) => { const v = onAdd && onAdd(kind, addText, ctx); if (!v) { cancelAdd(); return; } if (kind === "company") set("companyId", v); else if (kind === "subArea") { set("subArea", v); set("tier3", ""); } else if (kind === "tier3") set("tier3", v); else if (kind === "system") set("system", v); else if (kind === "inviteType") set("witnessType", v); cancelAdd(); };
   const renderAdd = (kind, placeholder, ctx) => addKind !== kind ? null : (
     <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
       <input className="lk-in" autoFocus value={addText} placeholder={placeholder} style={{ fontSize: 12, padding: "5px 8px" }} onChange={(e) => setAddText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmAdd(kind, ctx); } if (e.key === "Escape") cancelAdd(); }} />
@@ -4729,6 +4732,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   if (a.witnessInvite && !(a.discipline || []).length) missing.push("discipline");
   if (a.witnessInvite && !a.witnessDurationMin) missing.push("witness duration");
   if (a.witnessInvite && (a.outcome || "pending") === "failed" && !a.outcomeReason) missing.push("failure reason");
+  if (needsOutcome) missing.push("witness outcome (pass or fail)");
   const incomplete = missing.length > 0;
   // predecessor options: exclude self and anything downstream of this activity (prevents cycles)
   const descend = new Set();
@@ -4867,10 +4871,11 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           <div className={"lk-tog" + (a.committed ? " on" : "")} onClick={() => { if (planLocked) return; set("committed", !a.committed); }}><span>Committed for this week <span style={{ fontWeight: 400, color: "var(--muted)" }}>(a reliable promise)</span></span><span className="lk-sw2" /></div>
           <div className={"lk-tog" + (a.witnessInvite ? " on" : "")} onClick={() => { if (planLocked || !can("witnessReq")) return; set("witnessInvite", !a.witnessInvite); }}><span>Witness invite <span style={{ fontWeight: 400, color: "var(--muted)" }}>(client or third-party witness required)</span></span><span className="lk-sw2" /></div>
           {a.witnessInvite && <div className="lk-f"><label>Invite Type <span style={{ color: "var(--red, #C0392B)" }}>*</span></label>
-            <select className="lk-select" value={a.witnessType || ""} disabled={disPlan} onChange={(e) => set("witnessType", e.target.value)}>
+            <select className="lk-select" value={a.witnessType || ""} disabled={disPlan} onChange={(e) => { if (e.target.value === "__add__") { setAddText(""); setAddKind("inviteType"); } else set("witnessType", e.target.value); }}>
               <option value="">Select type...</option>
-              {["L2 FOK", "W2", "IVC", "L3 FOK", "L3 SU", "L3 SAT", "L4 FPT", "L5 IST"].map((t) => <option key={t} value={t}>{t}</option>)}
+              {(S.inviteTypes || []).map((t) => <option key={t} value={t}>{t}</option>)}{isAdmin && !disPlan && ADD_OPT}
             </select>
+            {renderAdd("inviteType", "New invite type", {})}
             {!a.witnessType && <span style={{ fontSize: 11, color: "var(--red, #C0392B)" }}>An invite type is required before this activity can be saved.</span>}
             {a.witnessType && <span style={{ fontSize: 11, color: "var(--muted)" }}>Appears in the invite subject and body.</span>}</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "var(--red, #C0392B)" }}>*</span></label>
@@ -4936,8 +4941,8 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {pastCompletionWindow(a) && !isAdmin && a.status !== "complete" && <div style={{ border: "1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)", background: "color-mix(in srgb, var(--st-warn) 7%, transparent)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "var(--st-warn)", marginTop: -4 }}><Icon n="alert" s={13} /> <b>Past its planned finish ({fmtISO(plannedFinish(a))}), so Complete is now admin-only.</b> Record the Reason for Non-Completion below, then ask an admin to record the actual completion. This keeps the completion date honest in PPC.</div>}
           {pastCompletionWindow(a) && isAdmin && a.status !== "complete" && <div style={{ border: "1px solid rgba(36,86,166,.55)", background: "rgba(36,86,166,.10)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "#7EA6E0", marginTop: -4 }}><Icon n="alert" s={13} /> You are recording an <b>overdue completion</b> (planned finish {fmtISO(plannedFinish(a))}). The audit log will name you and show the overrun. Set the true Actual finish date; it does not default to today on an overdue completion.</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness Outcome</label>
-            <div className="lk-status">{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || locked || !can("witnessOutcome")} onClick={() => setOutcome(k)}>{l}</button>)}</div>
-            <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The result of the witnessed event, separate from the schedule status above.</span></div>}
+            <div className="lk-status" style={needsOutcome ? { border: "1.5px solid var(--red, #C0392B)", boxShadow: "0 0 0 3px color-mix(in srgb, var(--red, #C0392B) 18%, transparent)", borderRadius: 8 } : undefined}>{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || (locked && !needsOutcome) || !can("witnessOutcome")} onClick={() => setOutcome(k)}>{l}</button>)}</div>
+            <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The result of the witnessed event, separate from the schedule status above.</span>{needsOutcome && <div style={{ display: "flex", gap: 8, alignItems: "flex-start", border: "1px solid var(--red, #C0392B)", background: "color-mix(in srgb, var(--red, #C0392B) 9%, transparent)", borderRadius: 9, padding: "9px 11px", marginTop: 8 }}><span style={{ color: "var(--red, #C0392B)", fontSize: 14, lineHeight: "1.2" }}>&#9888;</span><span style={{ fontSize: 12, color: "color-mix(in srgb, var(--red, #C0392B) 62%, #ffffff)", lineHeight: 1.5 }}>This activity is set to <b>Complete</b> but the witness outcome is still <b>Pending</b>. Select <b>Succeeded</b> or <b>Failed</b> before it can be saved.</span></div>}</div>}
           {a.witnessInvite && (a.outcome || "pending") === "succeeded" && <div className="lk-f"><label>Outcome Date</label><input className="lk-in mono" type="date" value={a.outcomeAt || ""} disabled={dis} onChange={(e) => set("outcomeAt", e.target.value)} /></div>}
           {a.witnessInvite && (a.outcome || "pending") === "failed" && <div style={{ border: "1px solid rgba(192,57,58,.4)", background: "rgba(192,57,58,.06)", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             <div className="lk-row">
@@ -5721,6 +5726,8 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     return n;
   }, { action: "Remove " + label, detail: typeof val === "string" ? val : (S.companies.find((c) => c.id === val) || {}).name });
   const renameSystem = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if (S.systems.some((s) => s !== oldName && s.toLowerCase() === name.toLowerCase())) { alert(`System "${name}" already exists.`); return; } update((p) => ({ ...p, systems: p.systems.map((s) => s === oldName ? name : s), activities: p.activities.map((a) => a.system === oldName ? { ...a, system: name } : a) }), { action: "Rename system", detail: `${oldName} -> ${name}` }); };
+  const renameInviteType = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if ((S.inviteTypes || []).some((s) => s !== oldName && s.toLowerCase() === name.toLowerCase())) { alert('Invite type "' + name + '" already exists.'); return; } update((p) => ({ ...p, inviteTypes: (p.inviteTypes || []).map((s) => s === oldName ? name : s), activities: p.activities.map((a) => a.witnessType === oldName ? { ...a, witnessType: name } : a) }), { action: "Rename invite type", detail: oldName + " -> " + name }); };
+  const delInviteType = (name) => { const used = S.activities.filter((a) => a.witnessType === name).length; if (used) { alert(used + " activit" + (used === 1 ? "y" : "ies") + " still use \"" + name + "\". Reassign them before deleting."); return; } askDel('Delete invite type "' + name + '"?', () => delList("inviteTypes", name, "invite type")); };
   const renameCrew = (oldName, raw) => { const name = (raw || "").trim(); if (!name || name === oldName) return; if ((S.crews || []).some((c) => c !== oldName && c.toLowerCase() === name.toLowerCase())) { alert(`Crew "${name}" already exists.`); return; } update((p) => ({ ...p, crews: (p.crews || []).map((c) => c === oldName ? name : c), activities: p.activities.map((a) => (a.crew || []).includes(oldName) ? { ...a, crew: a.crew.map((c) => c === oldName ? name : c) } : a) }), { action: "Rename crew", detail: `${oldName} -> ${name}` }); };
   const delCrew = (name) => update((p) => ({ ...p, crews: (p.crews || []).filter((c) => c !== name), activities: p.activities.map((a) => (a.crew || []).includes(name) ? { ...a, crew: a.crew.filter((c) => c !== name) } : a) }), { action: "Remove crew", detail: name });
   const renameCompany = (id, raw) => { const name = (raw || "").trim(); const cur = S.companies.find((c) => c.id === id); if (!cur || !name || name === cur.name) return; if (S.companies.some((c) => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) { alert(`Company "${name}" already exists.`); return; } update((p) => ({ ...p, companies: p.companies.map((c) => c.id === id ? { ...c, name } : c) }), { action: "Rename company", detail: `${cur.name} -> ${name}` }); };
@@ -6124,7 +6131,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   };
   const canv = can || (() => true);
   const navGroups = [
-    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ...(S.settings.crewsEnabled ? [["crews", "Crews"]] : []), ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
+    ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["inviteTypes", "Invite Types"], ...(S.settings.crewsEnabled ? [["crews", "Crews"]] : []), ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
     ["Appearance", [["design", "Design"]]],
     ["User management", (canv("users") ? [["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
@@ -6170,6 +6177,14 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
               <button onClick={() => askDel('Delete "' + name + '"?', () => delList("systems", name, "system"))}><Icon n="trash" s={14} /></button>
             </div>)}</div>
             <div className="lk-add"><input className="lk-in" placeholder="Add system…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("systems", "system")} /><button className="lk-btn primary" onClick={() => addList("systems", "system")}><Icon n="plus" s={15} /></button></div>
+          </>}
+          {tab === "inviteTypes" && <>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Invite types appear in the witness invite subject and body, and in the Invite Type dropdown in the activity editor. Add each once here; renaming updates every activity using it. Owners and admins can also add a new type inline from the editor dropdown.</div>
+            <div className="lk-list">{(S.inviteTypes || []).map((name) => <div key={name} className="lk-li">
+              <input className="lk-in" key={"it:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename invite type (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameInviteType(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameInviteType(name, e.target.value)} />
+              <button onClick={() => delInviteType(name)}><Icon n="trash" s={14} /></button>
+            </div>)}</div>
+            <div className="lk-add"><input className="lk-in" placeholder="Add invite type…" value={nv} onChange={(e) => setNv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addList("inviteTypes", "invite type")} /><button className="lk-btn primary" onClick={() => addList("inviteTypes", "invite type")}><Icon n="plus" s={15} /></button></div>
           </>}
           {tab === "crews" && <>
             <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>Crews are the resources the Capacity view loads against. Add each crew once here, then assign activities to one or more crews in the activity editor. Renaming updates every activity using the crew.</div>
