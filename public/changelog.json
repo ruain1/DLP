@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV306",
+  "date": "2026-07-13",
+  "items": [
+   "Right hand date and status labels in the Morning Cx Update no longer wrap. The constraint due dates (for example was needed 22 Jun) and the Today, Tomorrow and Overdue status labels are now rendered with non-breaking spaces and white-space nowrap, so each stays on a single line regardless of email width. This was a wrap problem in the date cell, not an overall width problem: long constraint descriptions on the left always compete for space, so widening alone would not have fixed it. Descriptions still wrap normally; only the short right hand labels are protected."
+  ]
+ },
+ {
   "rev": "REV305",
   "date": "2026-07-13",
   "items": [

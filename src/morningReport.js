@@ -118,7 +118,7 @@ const cap = (arr, n) => [arr.slice(0, n), Math.max(0, arr.length - n)];
 function actLine(r, extraRight) {
   const pct = r.a.percent != null ? MID + r.a.percent + "%" : "";
   const mile = r.a.isMilestone ? "\u25C6 " : "";
-  const right = extraRight ? `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; ${extraRight.style}">${esc(extraRight.text)}</td>` : "";
+  const right = extraRight ? `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; ${extraRight.style}">${esc(extraRight.text).replace(/ /g, "&#160;")}</td>` : "";
   return `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${esc(pct)}</span></td>${right}</tr>`;
 }
 
@@ -193,7 +193,7 @@ export function buildMorningEmail(d, cfg, meta) {
   if (sec.constraints !== false && d.consRows.length) {
     const [rowsC, more] = cap(d.consRows, 12);
     body += secHead("Open constraints needing action") + rowsWrap(rowsC.map((k) =>
-      `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${esc(k.text)} <span style="color:#68727f;">${MID}${esc(k.act)}${MID}</span>${k.owner ? esc(k.owner) : `<b style="color:#C0392B;">unowned</b>`}${k.actStart === d.tmrw ? ` <span style="color:#C0392B; font-size:10pt;">${MID}blocks tomorrow&#8217;s start</span>` : (k.actWit ? ` <span style="color:#2456A6; font-size:10pt;">${MID}witnessed activity</span>` : "")}</td><td align="right" style="font-size:11pt; font-weight:bold; color:${k.od ? "#C0392B" : "#b07f00"};">${k.due ? esc((k.od ? "was needed " : "need ") + dd(k.due)) : "no date"}</td></tr>`).join("") + moreLine(more, "constraints"));
+      `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${esc(k.text)} <span style="color:#68727f;">${MID}${esc(k.act)}${MID}</span>${k.owner ? esc(k.owner) : `<b style="color:#C0392B;">unowned</b>`}${k.actStart === d.tmrw ? ` <span style="color:#C0392B; font-size:10pt;">${MID}blocks tomorrow&#8217;s start</span>` : (k.actWit ? ` <span style="color:#2456A6; font-size:10pt;">${MID}witnessed activity</span>` : "")}</td><td align="right" style="font-size:11pt; font-weight:bold; white-space:nowrap; color:${k.od ? "#C0392B" : "#b07f00"};">${k.due ? esc((k.od ? "was needed " : "need ") + dd(k.due)).replace(/ /g, "&#160;") : "no date"}</td></tr>`).join("") + moreLine(more, "constraints"));
   }
   if (sec.ytt === false && sec.updates !== false && d.upRows.length) {
     const [rowsU, more] = cap(d.upRows, 12);
