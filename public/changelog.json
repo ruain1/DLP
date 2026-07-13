@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV291",
+    "date": "2026-07-12",
+    "items": [
+      "Removed two vestigial sub-labels from the planning board metric strip: the 'N within Nd' line under Need make-ready and the 'predecessor knock-on' line under At risk. The metrics themselves, their counts and their click-through drills are unchanged; only the small grey captions that were peeking above the week header are gone."
+    ]
+  },
+  {
     "rev": "REV290",
     "date": "2026-07-12",
     "items": [

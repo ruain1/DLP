@@ -4128,10 +4128,10 @@ export default function App({ session }) {
       <div className="lk-metrics">
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "In Lookahead", items: inWindow })}><span className="v">{inWindow.length}</span><span className="l">In lookahead</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Ready To Run", items: ready })}><span className="v" style={{ color: "var(--st-done)" }}>{ready.length}</span><span className="l">Ready to run</span></div>
-        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Need Make-Ready", items: needMR })}><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span><span className="sub">{urgentMR.length} within {mk}d</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Need Make-Ready", items: needMR })}><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Committed This Week", items: committedWk })}><span className="v" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Delayed", items: delayedList })}><span className="v" style={{ color: "var(--red, #C0392B)" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
-        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "At Risk", items: atRiskList })}><span className="v" style={{ color: "var(--st-warn)" }}>{atRiskList.length}</span><span className="l">At risk</span><span className="sub">predecessor knock-on</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "At Risk", items: atRiskList })}><span className="v" style={{ color: "var(--st-warn)" }}>{atRiskList.length}</span><span className="l">At risk</span></div>
       </div>
 
       <div className="lk-board">
