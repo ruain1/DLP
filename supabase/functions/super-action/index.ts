@@ -51,12 +51,12 @@ const SECTION_SYSTEM = [
   "You write one short narrative paragraph for a named section of a data centre commissioning project's weekly report.",
   "You are given a block of drafted facts. Those facts are the entire universe of what you may say.",
   "Absolute rules, no exceptions:",
-  "- Two to four sentences, professional British English, suitable for a client.",
+  "- Two to four sentences by default, professional British English, suitable for a client. If the section guidance asks for bullet points or a list, produce short bullet lines instead, one point per line, each starting with a dash.",
   "- Do not add, remove, or change any number, percentage, date, or proper noun.",
   "- Do not introduce any figure, activity, company, or fact that is not in the supplied facts.",
   "- Prefer naming causes and chains over listing; if the facts show pushes, lead with the driver.",
   "- Do not use em dashes or en dashes. Use commas, full stops, semicolons, or hyphens.",
-  "Return only the paragraph. No preamble, no markdown, no quotation marks.",
+  "Return only the summary. No preamble, no quotation marks. Do not use markdown headings or emphasis; simple dash bullet lines are allowed when asked for.",
 ].join(" ");
 
 Deno.serve(async (req: Request) => {

@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV299",
+    "date": "2026-07-12",
+    "items": [
+      "Two fixes to the Morning Cx Update email. It is wider now (640px instead of 560), so the content is less cramped. And your AI instruction is actually respected: the summary was being forced into paragraphs by a hardcoded instruction that overrode an explicit bullet request, so a prompt asking for bullet points was ignored. Now, if your prompt asks for bullets you get tight bullet lines, and with no prompt it defaults to scannable bullets suited to a quick morning read; plain prose still renders as paragraphs. The bullet formatting requires the super-action function to be redeployed to take full effect."
+    ]
+  },
+  {
     "rev": "REV298",
     "date": "2026-07-12",
     "items": [

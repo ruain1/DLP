@@ -9277,7 +9277,15 @@ async function assembleMorning(St, due) {
   if (cfg.sections && cfg.sections.ai !== false) {
     try {
       const facts = m.buildMorningAiFacts(data);
-      const steer = (((cfg.aiSteer || "") + " Write two or three short paragraphs separated by blank lines.").trim()).slice(0, 400);
+      // REV299: respect the author's prompt. Default to a tight, bullet-friendly brief for these
+      // quickfire morning updates, but if the author's steer asks for bullets or a format, that
+      // wins. Do not force paragraphs (which used to override an explicit bullet request).
+      const userSteer = (cfg.aiSteer || "").trim();
+      const wantsBullets = /bullet|bulleted|bullet-point|bullet point|dot point|concise list|short list/i.test(userSteer);
+      const fmt = userSteer
+        ? (wantsBullets ? " Use short bullet lines, one point each, starting each line with a dash; keep it scannable." : "")
+        : " Keep it tight and scannable: short bullet lines, one point each, starting each line with a dash.";
+      const steer = ((userSteer + fmt).trim()).slice(0, 400);
       const call = supabase.functions.invoke("super-action", { body: { mode: "section", section: "Morning executive summary", facts, steer } });
       const res = await Promise.race([call, new Promise((r) => setTimeout(() => r({ __timeout: true }), 20000))]);
       if (res && !res.__timeout && !res.error && res.data && res.data.text) data.ai = String(res.data.text);

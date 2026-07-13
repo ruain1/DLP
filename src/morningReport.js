@@ -127,10 +127,21 @@ export function buildMorningEmail(d, cfg, meta) {
   const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px;"><span style="font-size:19px; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10px; color:#68727f;">${lb}</span></td>`;
   let body = "";
   if (sec.ai !== false && d.ai) {
-    const paras = String(d.ai).split(/\n{2,}/).map((t) => t.trim()).filter(Boolean);
+    const blocks = String(d.ai).split(/\n{2,}/).map((t) => t.trim()).filter(Boolean);
+    const renderBlock = (t) => {
+      const lines = t.split(/\n/).map((x) => x.trim()).filter(Boolean);
+      const bullety = lines.length > 1 && lines.filter((x) => /^([-*\u2022\u00b7]|\d+[.)])\s+/.test(x)).length >= Math.max(2, Math.ceil(lines.length * 0.6));
+      if (bullety) {
+        const items = lines.map((x) => x.replace(/^([-*\u2022\u00b7]|\d+[.)])\s+/, "")).filter(Boolean);
+        return `<tr><td style="padding:2px 16px 10px; font-size:12px; line-height:1.6; color:#1c2733;"><table width="100%" cellpadding="0" cellspacing="0">`
+          + items.map((it) => `<tr><td width="14" style="vertical-align:top; padding:1px 0 3px; color:#2456A6; font-weight:bold;">&#8226;</td><td style="vertical-align:top; padding:1px 0 3px;">${esc(it)}</td></tr>`).join("")
+          + `</table></td></tr>`;
+      }
+      return `<tr><td style="padding:2px 16px 10px; font-size:12px; line-height:1.65; color:#1c2733;">${esc(t)}</td></tr>`;
+    };
     body += `<tr><td style="padding:16px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fc; border-left:3px solid #2456A6;">`
       + `<tr><td style="padding:12px 16px 4px; font-size:10.5px; letter-spacing:.08em; font-weight:bold; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
-      + paras.map((t) => `<tr><td style="padding:2px 16px 10px; font-size:12px; line-height:1.65; color:#1c2733;">${esc(t)}</td></tr>`).join("")
+      + blocks.map(renderBlock).join("")
       + `</table></td></tr>`;
   }
   body += `<tr><td style="padding:18px 24px 6px;"><table width="100%" cellpadding="0" cellspacing="0"><tr>`
@@ -193,7 +204,7 @@ export function buildMorningEmail(d, cfg, meta) {
     body += secHead("Witness events today", "#2456A6") + rowsWrap(d.witness.map((r) =>
       `<tr><td style="padding:5px 0;">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
   }
-  const html = `<table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
+  const html = `<table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
     + (() => {
         // REV285: identity masthead. Logo only if it is a hosted https URL (data-URIs and
         // relative paths break in Outlook and Gmail); otherwise a clean text wordmark.
