@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV312",
+    "date": "2026-07-13",
+    "items": [
+      "Invite and sign-in-link emails are now centred on a light page, widened to 600, and carry the atnorth identity: a navy masthead with the project logo (pulled from project branding, the same source as the weekly report) and a navy footer band.",
+      "The old in-card 'Sent by ... CSN Commissioning' sign-off line is folded into the footer band, which reads 'Delivered by DLP, Digital Last Planner' and an invite-specific validity note.",
+      "The logo appears on project-scoped sends (project invites and member re-sends) and falls back to an 'atnorth' wordmark, then to no logo, when no project branding is in scope (for example a bare Global Contacts invite)."
+    ]
+  },
+  {
     "rev": "REV311",
     "date": "2026-07-13",
     "items": [

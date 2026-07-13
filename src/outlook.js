@@ -444,11 +444,23 @@ export function buildUserInviteEmailHtml(p) {
     ? `${eH(p.sentByName)} (CSN Commissioning) has issued a fresh sign-in link for ${who}. Getting in takes a minute:`
     : `${eH(p.sentByName)} (CSN Commissioning) has invited ${who} to ${eH(p.projectName || "DLP")}${extras}. Getting in takes a minute:`;
   const btnLabel = p.mode === "link" ? "Set Your Password" : "Set Up Your Account";
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
-    + `<tr><td style="padding:0;background-color:${TPL.blue};"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">`
-    + `<tr><td style="padding:14px 20px 2px 20px;font-size:17px;font-weight:bold;color:#ffffff;${FSTACK}">${p.projectName ? eH(p.projectName) + " DLP" : "DLP"}</td></tr>`
-    + `<tr><td style="padding:0 20px 12px 20px;font-size:11.5px;color:#cfe0f7;${FSTACK}">Commissioning planning workspace</td></tr>`
-    + `</table></td></tr>`
+  // REV312: centred atnorth identity. Logo pulls from project branding (same source
+  // as the weekly report); text wordmark fallback when no image is in scope.
+  const logo = p.logoDark || p.logoUrl || "";
+  const useLogo = typeof logo === "string" && /^(https:\/\/|data:image\/|cid:)/.test(logo);
+  const logoCell = useLogo
+    ? `<td style="vertical-align:middle;padding:15px 0 15px 20px;width:1%;white-space:nowrap;"><img src="${eH(logo)}" alt="atnorth" height="30" style="height:30px;width:auto;display:block;" /></td>`
+    : `<td style="vertical-align:middle;padding:15px 0 15px 20px;width:1%;white-space:nowrap;color:#7BB2E8;font-size:18px;font-weight:bold;letter-spacing:-.3px;${FSTACK}">atnorth</td>`;
+  const inviteFooter = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="border-collapse:collapse;">`
+    + `<tr><td style="background-color:#001C26;padding:16px 24px;text-align:center;${FSTACK}">`
+    + `<div style="color:#9DB0C2;font-size:9pt;">Delivered by DLP &#183; Digital Last Planner</div>`
+    + `<div style="color:#5C7690;font-size:8.5pt;padding-top:6px;">This invitation is personal to you and valid for ${days} days. &#169; 2026</div>`
+    + `</td></tr></table>`;
+  const card = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
+    + `<tr><td style="padding:0;background-color:#001C26;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
+    + logoCell
+    + `<td style="vertical-align:middle;padding:13px 20px 13px 13px;${FSTACK}"><div style="font-size:16px;font-weight:bold;color:#ffffff;">${p.projectName ? eH(p.projectName) + " DLP" : "DLP"}</div><div style="font-size:11.5px;color:#cfe0f7;padding-top:1px;">Commissioning planning workspace</div></td>`
+    + `</tr></table></td></tr>`
     + `<tr><td style="padding:16px 20px 2px 20px;"><span style="font-size:15px;font-weight:bold;color:#111827;${FSTACK}">${p.mode === "link" ? "Your sign-in link" : "You have been invited"}</span>`
     + `<p style="margin:8px 0 6px;line-height:1.6;font-size:13.5px;color:${TPL.ink};${FSTACK}">${intro}</p></td></tr>`
     + `<tr><td style="padding:4px 20px 6px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">`
@@ -458,9 +470,9 @@ export function buildUserInviteEmailHtml(p) {
     + `</table></td></tr>`
     + `<tr><td style="padding:10px 20px 4px 20px;">${emailBtn(eH(p.link), `${btnLabel}`, TPL.blue)}</td></tr>`
     + `<tr><td style="padding:8px 20px 12px 20px;font-size:11.5px;color:${TPL.mut};line-height:1.6;${FSTACK}">If the button does not work, open this link:<br><span style="font-family:Consolas,ui-monospace,monospace;font-size:11px;color:${TPL.blueInk};">${eH(p.link)}</span></td></tr>`
-    + `<tr><td style="padding:0 20px 14px 20px;font-size:11.5px;color:${TPL.faint};line-height:1.6;${FSTACK}">This link is valid for ${days} days and is personal to you. If it has expired, reply to this email and a fresh one will be issued. If you were not expecting this invitation, you can ignore this email.</td></tr>`
-    + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">Sent by ${eH(p.sentByName)}${p.projectName ? " &#183; " + eH(p.projectName) : ""} &#183; CSN Commissioning</td></tr>`
+    + `<tr><td style="padding:0 20px 16px 20px;font-size:11.5px;color:${TPL.faint};line-height:1.6;${FSTACK}">This link is valid for ${days} days and is personal to you. If it has expired, reply to this email and a fresh one will be issued. If you were not expecting this invitation, you can ignore this email.</td></tr>`
     + `</table>`;
+  return emailShell(card, inviteFooter);
 }
 
 // REV132: RFFE cover-note email in the house style (matches buildInviteBodyHtml).

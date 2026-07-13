@@ -5869,7 +5869,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
           if (!acct) {
             msgs.push("Not emailed yet: Outlook is not connected in this session. Press Email Invite on the card (connect via the Witness Schedule or the Weekly Report window).");
           } else {
-            const html = ol.buildUserInviteEmailHtml({ mode: "invite", projectName: (S.brand && S.brand.projectName) || "", email, roleLabel: a.projRole === "admin" ? "Admin" : "Member", companyName: companyName || "", link: res.link, sentByName: cu.name || acct.username, validityDays: 30 });
+            const html = ol.buildUserInviteEmailHtml({ mode: "invite", projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", email, roleLabel: a.projRole === "admin" ? "Admin" : "Member", companyName: companyName || "", link: res.link, sentByName: cu.name || acct.username, validityDays: 30 });
             await ol.sendMailMessage({ subject: "You're invited to " + (S.brand && S.brand.projectName ? S.brand.projectName + " DLP" : "DLP"), html, to: [email] });
             msgs.push("Invitation emailed to " + email + " from " + acct.username + ".");
           }
@@ -5895,7 +5895,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     const ol = await import("./outlook");
     const acct = await ol.outlookAccount();
     if (!acct) { setUserMsg("Connect Outlook first: open the Witness Schedule or the Weekly Report window, press Connect Outlook, then retry."); return null; }
-    const html = ol.buildUserInviteEmailHtml({ mode: mode || "invite", projectName: (S.brand && S.brand.projectName) || "", email, roleLabel, companyName, link, sentByName: cu.name || acct.username, validityDays: 30 });
+    const html = ol.buildUserInviteEmailHtml({ mode: mode || "invite", projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", email, roleLabel, companyName, link, sentByName: cu.name || acct.username, validityDays: 30 });
     await ol.sendMailMessage({ subject: mode === "link" ? "Your " + (S.brand && S.brand.projectName ? S.brand.projectName + " " : "") + "DLP sign-in link" : "You're invited to " + (S.brand && S.brand.projectName ? S.brand.projectName + " DLP" : "DLP"), html, to: [email] });
     return acct.username;
   };
@@ -6344,7 +6344,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   const results = await runPool(rsPend, 3, async (r) => {
                     const res = await userOp({ op: "link", id: r.user_id, redirect: window.location.origin });
                     const email = (ustat[r.user_id] || {}).email;
-                    const html = ol.buildUserInviteEmailHtml({ mode: "link", email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: cn(r.u.companyId) || "", link: res.link, sentByName: acct.username, validityDays: 30 });
+                    const html = ol.buildUserInviteEmailHtml({ mode: "link", projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: cn(r.u.companyId) || "", link: res.link, sentByName: acct.username, validityDays: 30 });
                     await ol.sendMailMessage({ subject: "Your DLP sign-in link", html, to: [email] });
                     return email;
                   });
@@ -6469,7 +6469,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                     for (let i = 0; i < rows2.length; i++) {
                       const r = rows2[i]; if (!r.link) continue;
                       try {
-                        const html = ol.buildUserInviteEmailHtml({ mode: "invite", projectName: (S.brand && S.brand.projectName) || "", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: cu.name || acct.username, validityDays: 30 });
+                        const html = ol.buildUserInviteEmailHtml({ mode: "invite", projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", email: r.email, roleLabel: r.role === "admin" ? "Admin" : "Member", companyName: r.company || "", link: r.link, sentByName: cu.name || acct.username, validityDays: 30 });
                         await ol.sendMailMessage({ subject: "You're invited to " + (S.brand && S.brand.projectName ? S.brand.projectName + " DLP" : "DLP"), html, to: [r.email] });
                         rows2[i] = { ...r, mail: "Emailed" };
                       } catch (err) { rows2[i] = { ...r, mail: "Email failed", mailErr: (err && err.message) || String(err) }; }
