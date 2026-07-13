@@ -9343,6 +9343,8 @@ function ScheduledReports({ S, update }) {
   const [cfg, setCfg] = useState(null);
   const [drOpen, setDrOpen] = useState(false);
   const [exAll, setExAll] = useState(false);
+  const [saved, setSaved] = useState(false);   // REV298: brief confirmation after a save
+  const savedTimer = React.useRef(null);
   const mrRef = React.useRef(null);
   useEffect(() => { import("./morningReport").then((m) => { mrRef.current = m; setCfg(m.morningCfg(S.settings || {})); }); }, [S.settings]);
   const load = async () => {
@@ -9361,6 +9363,9 @@ function ScheduledReports({ S, update }) {
     // syncCollections actually writes to the DB; the old top-level key never persisted, so the
     // toggle reverted on the next settings reload.
     update((pp) => ({ ...pp, settings: { ...pp.settings, design: { ...(pp.settings && pp.settings.design), morningReport: next } } }));
+    setSaved(true);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), 1800);
   };
   const lastLine = (k) => { const r = runs[k]; if (!r) return "last: never sent"; const t = new Date(r.sent_at); return (r.status === "sent" ? "last: " : "last: " + r.status + " ") + t.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + (r.status === "sent" ? " \u00b7 " + r.recipients + " recipient" + (r.recipients === 1 ? "" : "s") : ""); };
   const nextLine = (sched, enabled) => { const m = mrRef.current; if (!m) return ""; const d = enabled ? m.nextSendAfter(new Date(), sched) : null; return "next: " + m.fmtNextSend(d, new Date()); };
@@ -9487,10 +9492,10 @@ function ScheduledReports({ S, update }) {
               </div>
             </div>}
             <div><label style={fld}>Sections</label><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{SECS.map(([k, lb]) => segBtn(cfg.sections[k] !== false, lb, () => save({ sections: { [k]: !(cfg.sections[k] !== false) } })))}</div></div>
-            <div><label style={fld}>AI instructions</label><textarea className="lk-in" rows={3} maxLength={320} defaultValue={cfg.aiSteer || ""} onBlur={(e) => save({ aiSteer: e.target.value.slice(0, 320) })} placeholder="Steer the summary, e.g. Name the most urgent action first and address the site team directly." style={{ width: "100%", resize: "vertical", fontSize: 12, lineHeight: 1.5 }} /><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4, lineHeight: 1.5 }}>Tailor any time (up to 320 characters). Guides tone and emphasis only; every figure, date and name comes from that morning's data. If the AI is unreachable the email still sends, without the summary block.</div></div>
+            <div><label style={fld}>AI instructions</label><textarea key={"ai-" + (cfg.aiSteer || "")} className="lk-in" rows={3} maxLength={320} defaultValue={cfg.aiSteer || ""} onBlur={(e) => save({ aiSteer: e.target.value.slice(0, 320) })} placeholder="Steer the summary, e.g. Name the most urgent action first and address the site team directly." style={{ width: "100%", resize: "vertical", fontSize: 12, lineHeight: 1.5 }} id="mr-aisteer" /><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}><button className="lk-btn primary" style={{ fontSize: 11.5, padding: "5px 12px" }} onClick={() => { const el = document.getElementById("mr-aisteer"); if (el) save({ aiSteer: String(el.value || "").slice(0, 320) }); }}>Save prompt</button>{saved && <span style={{ fontSize: 11, color: "var(--st-done)", fontWeight: 600 }}>Saved</span>}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Saved and reused every morning until you change it. Up to 320 characters; guides tone and emphasis only, every figure, date and name comes from that morning's data. If the AI is unreachable the email still sends, without the summary block.</div></div>
           </div>
           <div style={{ padding: "14px 18px", borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 10.5, color: "var(--muted)", flex: 1 }}>Changes save automatically.</span>
+            <span style={{ fontSize: 10.5, color: saved ? "var(--st-done)" : "var(--muted)", flex: 1, fontWeight: saved ? 600 : 400 }}>{saved ? "Saved." : "Changes save automatically."}</span>
             <button className="lk-btn" onClick={() => setDrOpen(false)}>Close</button>
           </div>
         </div>

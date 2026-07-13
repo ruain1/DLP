@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV298",
+    "date": "2026-07-12",
+    "items": [
+      "The Morning Cx AI instruction box is now clearly persistent. It already saved when you clicked away, and now there is an explicit Save prompt button and a brief Saved confirmation, so there is no doubt the wording is stored. The saved prompt is reused every morning until you edit it and save again. The box also re-seeds from the stored value, so it always shows what is actually saved."
+    ]
+  },
+  {
     "rev": "REV297",
     "date": "2026-07-12",
     "items": [
