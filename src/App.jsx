@@ -930,6 +930,11 @@ const isoWeek = (dt) => { const t = new Date(Date.UTC(dt.getFullYear(), dt.getMo
 // imports. Constraints from before this revision have no stamps; the viewer falls back to
 // a best-effort audit-trail search and says so.
 const cHist = (c, t, by) => ({ ...c, hist: [...(c.hist || []), { t, by: by || "", at: new Date().toISOString() }] });
+const confirmClearConstraint = (isCurrentlyDone) => {
+  if (isCurrentlyDone) return true;
+  if (typeof window === "undefined" || !window.confirm) return true;
+  return window.confirm("Mark this constraint as cleared? Only proceed if you are sure that this constraint has been cleared.");
+};
 // ===================== REV236: Import / Export v2 foundations =====================
 // One engine behind both import surfaces. The workbook template carries every field the
 // platform now runs on; the parser is pure so it can be tested outside the app; export
@@ -3521,12 +3526,13 @@ export default function App({ session }) {
     try { await decideInviteRequest(id, { status: "forwarded", decided_by: cu.id, decided_by_name: cu.name, decided_at: now }); }
     catch (e) { console.error("Mark forwarded failed:", e); }
   };
-  const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? cHist({ ...c, done: !c.done }, c.done ? "reopened" : "cleared", cu.name) : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
+  const toggleConstraint = (actId, cId) => { const a = S.activities.find((x) => x.id === actId); if (!a || !isAdmin) return; const _c = (a.constraints || []).find((y) => y.id === cId); if (!confirmClearConstraint(_c && _c.done)) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((c) => c.id === cId ? cHist({ ...c, done: !c.done }, c.done ? "reopened" : "cleared", cu.name) : c) } : x) }), { action: "Clear constraint", detail: a.desc }); };
   const acknowledgeConstraint = (actId, cId) => {
     const a = S.activities.find((x) => x.id === actId); if (!a) return;
     const c = (a.constraints || []).find((y) => y.id === cId); if (!c) return;
     const mine = isAdmin || (c.ownerType === "user" && c.ownerId === cu.id) || (c.ownerType === "company" && csnCompanyId && c.ownerId === csnCompanyId);
     if (!mine) return;
+    if (!confirmClearConstraint(c.done)) return;
     update((p) => ({ ...p, activities: p.activities.map((x) => x.id === actId ? { ...x, constraints: (x.constraints || []).map((y) => y.id === cId ? cHist({ ...y, done: true }, "cleared", cu.name) : y) } : x) }), { action: "Acknowledge constraint", detail: `${c.text} (${a.desc})` });
   };
   const addOption = (kind, name, ctx) => {
@@ -4838,7 +4844,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {tab === "ready" && <>
           <div className="lk-f"><label>Constraints To Clear (Make-Ready)</label>
             {a.constraints.map((c) => <div key={c.id} className="lk-cstr2">
-              <input type="checkbox" checked={c.done} disabled={dis} onChange={() => set("constraints", a.constraints.map((x) => x.id === c.id ? cHist({ ...x, done: !x.done }, x.done ? "reopened" : "cleared", by) : x))} />
+              <input type="checkbox" checked={c.done} disabled={dis} onChange={() => { if (!confirmClearConstraint(c.done)) return; set("constraints", a.constraints.map((x) => x.id === c.id ? cHist({ ...x, done: !x.done }, x.done ? "reopened" : "cleared", by) : x)); }} />
               <div className="cmain">
                 <span className={"t" + (c.done ? " done" : "")}>{c.text}</span>
                 {!dis && <div className="crow">
@@ -7882,7 +7888,7 @@ function ConstraintsPage({ S, update, canEdit, coName, onOpen }) {
     window.addEventListener("resize", close);
     return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
   }, [histC]);
-  const toggle = (actId, cId) => update((p) => ({ ...p, activities: p.activities.map((a) => a.id === actId ? { ...a, constraints: a.constraints.map((c) => c.id === cId ? cHist({ ...c, done: !c.done }, c.done ? "reopened" : "cleared", byName) : c) } : a) }), { action: "Update constraint" });
+  const toggle = (actId, cId) => { const _a = (S.activities || []).find((x) => x.id === actId); const _c = _a && (_a.constraints || []).find((c) => c.id === cId); if (!confirmClearConstraint(_c && _c.done)) return; update((p) => ({ ...p, activities: p.activities.map((a) => a.id === actId ? { ...a, constraints: a.constraints.map((c) => c.id === cId ? cHist({ ...c, done: !c.done }, c.done ? "reopened" : "cleared", byName) : c) } : a) }), { action: "Update constraint" }); };
   const beginC = (a, c) => { setEditKey(a.id + c.id); setCd({ ...c }); };
   const cancelC = () => { setEditKey(null); setCd(null); };
   const saveC = (a) => { const d = cd; if (!d.text.trim()) return; update((p) => ({ ...p, activities: p.activities.map((x) => x.id === a.id ? { ...x, constraints: x.constraints.map((y) => y.id === d.id ? d : y) } : x) }), { action: "Edit constraint", detail: a.desc }); cancelC(); };

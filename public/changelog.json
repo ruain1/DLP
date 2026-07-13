@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV302",
+    "date": "2026-07-12",
+    "items": [
+      "Clearing a constraint now asks for confirmation. From every place a constraint can be cleared (the activity card, the notification box, the constraints table and the activity editor) a prompt appears: only proceed if you are sure the constraint has been cleared. Reopening a constraint is not gated. A single shared guard sits in front of all four paths so the confirmation cannot be missed on one of them."
+    ]
+  },
+  {
     "rev": "REV301",
     "date": "2026-07-12",
     "items": [
