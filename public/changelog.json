@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV301",
+    "date": "2026-07-12",
+    "items": [
+      "The Morning Cx Update email is wider (720px) and its type is now on a consistent scale. Font sizes had drifted across eight near-duplicate values; they are consolidated into a clear hierarchy: larger section headers, more readable body and activity rows, a single small-label size, and aligned masthead and KPI sizes. The result is less cramped and easier to scan."
+    ]
+  },
+  {
     "rev": "REV300",
     "date": "2026-07-12",
     "items": [

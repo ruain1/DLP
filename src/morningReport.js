@@ -109,22 +109,22 @@ export function buildMorningAiFacts(d) {
   return L.join("\n").slice(0, 3800);
 }
 
-const secHead = (label, color) => `<tr><td style="padding:14px 24px 4px; font-size:13px; font-weight:bold; color:${color || "#1c2733"}; border-bottom:1px solid #e3e8ef;">${esc(label)}</td></tr>`;
-const rowsWrap = (inner) => `<tr><td style="padding:8px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px; color:#1c2733;">${inner}</table></td></tr>`;
-const moreLine = (n, noun) => n > 0 ? `<tr><td style="padding:5px 0; color:#68727f; font-size:11px;">and ${n} more ${esc(noun)}</td></tr>` : "";
+const secHead = (label, color) => `<tr><td style="padding:16px 24px 5px; font-size:14px; font-weight:bold; color:${color || "#1c2733"}; border-bottom:1px solid #e3e8ef;">${esc(label)}</td></tr>`;
+const rowsWrap = (inner) => `<tr><td style="padding:8px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px; color:#1c2733;">${inner}</table></td></tr>`;
+const moreLine = (n, noun) => n > 0 ? `<tr><td style="padding:5px 0; color:#68727f; font-size:12px;">and ${n} more ${esc(noun)}</td></tr>` : "";
 const cap = (arr, n) => [arr.slice(0, n), Math.max(0, arr.length - n)];
 
 function actLine(r, extraRight) {
   const pct = r.a.percent != null ? MID + r.a.percent + "%" : "";
   const mile = r.a.isMilestone ? "\u25C6 " : "";
-  const right = extraRight ? `<td align="right" style="font-size:11px; font-weight:bold; ${extraRight.style}">${esc(extraRight.text)}</td>` : "";
+  const right = extraRight ? `<td align="right" style="font-size:12px; font-weight:bold; ${extraRight.style}">${esc(extraRight.text)}</td>` : "";
   return `<tr><td style="padding:5px 0;">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${esc(pct)}</span></td>${right}</tr>`;
 }
 
 export function buildMorningEmail(d, cfg, meta) {
   const sec = cfg.sections || {};
   const c = d.counts;
-  const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px;"><span style="font-size:19px; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10px; color:#68727f;">${lb}</span></td>`;
+  const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px;"><span style="font-size:20px; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10.5px; color:#68727f; letter-spacing:.03em;">${lb}</span></td>`;
   let body = "";
   if (sec.ai !== false && d.ai) {
     const blocks = String(d.ai).split(/\n{2,}/).map((t) => t.trim()).filter(Boolean);
@@ -133,11 +133,11 @@ export function buildMorningEmail(d, cfg, meta) {
       const bullety = lines.length > 1 && lines.filter((x) => /^([-*\u2022\u00b7]|\d+[.)])\s+/.test(x)).length >= Math.max(2, Math.ceil(lines.length * 0.6));
       if (bullety) {
         const items = lines.map((x) => x.replace(/^([-*\u2022\u00b7]|\d+[.)])\s+/, "")).filter(Boolean);
-        return `<tr><td style="padding:2px 16px 10px; font-size:12px; line-height:1.6; color:#1c2733;"><table width="100%" cellpadding="0" cellspacing="0">`
+        return `<tr><td style="padding:2px 18px 10px; font-size:13px; line-height:1.6; color:#1c2733;"><table width="100%" cellpadding="0" cellspacing="0">`
           + items.map((it) => `<tr><td width="14" style="vertical-align:top; padding:1px 0 3px; color:#2456A6; font-weight:bold;">&#8226;</td><td style="vertical-align:top; padding:1px 0 3px;">${esc(it)}</td></tr>`).join("")
           + `</table></td></tr>`;
       }
-      return `<tr><td style="padding:2px 16px 10px; font-size:12px; line-height:1.65; color:#1c2733;">${esc(t)}</td></tr>`;
+      return `<tr><td style="padding:2px 18px 10px; font-size:13px; line-height:1.65; color:#1c2733;">${esc(t)}</td></tr>`;
     };
     body += `<tr><td style="padding:16px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fc; border-left:3px solid #2456A6;">`
       + `<tr><td style="padding:12px 16px 4px; font-size:10.5px; letter-spacing:.08em; font-weight:bold; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
@@ -162,7 +162,7 @@ export function buildMorningEmail(d, cfg, meta) {
         + d.yMissed.slice(0, 8).map((r) => actLine(r, tag("missed", "#C0392B"))).join("")
         + (sec.updates !== false ? uRows.map((u) =>
           `<tr><td style="padding:5px 0; line-height:1.5;"><b>Daily update</b>${MID}${esc(u.desc)}${u.pct != null ? ` <span style="color:#2456A6; font-weight:bold;">${u.pct}%</span>` : ""}<br>` +
-          u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:11px;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(uMore, "updated activities") : ""));
+          u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:12px;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(uMore, "updated activities") : ""));
     }
     const todayRows = d.finishing.map((r) => actLine(r, r.open.length ? tag(r.open.length + " open constraint" + (r.open.length === 1 ? "" : "s"), "#C0392B") : tag("finish due" + MID + "clear", "#1e8e63")))
       .concat(d.witness.map((r) => actLine(r, tag("witness " + new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }), "#2456A6"))))
@@ -198,13 +198,13 @@ export function buildMorningEmail(d, cfg, meta) {
     const [rowsU, more] = cap(d.upRows, 12);
     body += secHead("Yesterday's daily updates") + rowsWrap(rowsU.map((u) =>
       `<tr><td style="padding:5px 0; line-height:1.5;"><b>${esc(u.desc)}</b>${u.pct != null ? ` <span style="color:#2456A6; font-weight:bold;">${u.pct}%</span>` : ""}<br>` +
-      u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:11px;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(more, "activities with updates"));
+      u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:12px;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(more, "activities with updates"));
   }
   if (sec.ytt === false && sec.witness !== false && d.witness.length) {
     body += secHead("Witness events today", "#2456A6") + rowsWrap(d.witness.map((r) =>
       `<tr><td style="padding:5px 0;">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
   }
-  const html = `<table width="700" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
+  const html = `<table width="720" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
     + (() => {
         // REV285: identity masthead. Logo only if it is a hosted https URL (data-URIs and
         // relative paths break in Outlook and Gmail); otherwise a clean text wordmark.
@@ -212,7 +212,7 @@ export function buildMorningEmail(d, cfg, meta) {
         const useLogo = typeof logo === "string" && /^(https:\/\/|data:image\/|cid:)/.test(logo);
         const markCell = useLogo
           ? `<td style="vertical-align:middle; padding-right:11px;"><img src="${esc(logo)}" alt="atnorth" height="34" style="height:34px; width:auto; display:block;"></td>`
-          : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:Arial,Helvetica,sans-serif; font-size:18px; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
+          : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:Arial,Helvetica,sans-serif; font-size:19px; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
         return `<tr><td style="background:#001C26; padding:20px 24px 18px;"><table width="100%" cellpadding="0" cellspacing="0"><tr>`
           + `<td style="vertical-align:middle;"><table cellpadding="0" cellspacing="0"><tr>${markCell}`
           + `<td style="vertical-align:middle;"><div style="color:#5C7690; font-size:9.5px; letter-spacing:.18em; font-weight:bold; font-family:Arial,Helvetica,sans-serif;">MORNING CX UPDATE</div>`
