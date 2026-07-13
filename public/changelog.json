@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV296",
+    "date": "2026-07-12",
+    "items": [
+      "Vendor logos now show in the report preview too. The sent email carries each vendor logo as an attachment; the preview now maps each one back to the company's hosted image (using the same key the mailer uses), so contractor logos render in the preview instead of being hidden. Any logo that genuinely has no hosted image is still hidden rather than shown broken."
+    ]
+  },
+  {
     "rev": "REV295",
     "date": "2026-07-12",
     "items": [

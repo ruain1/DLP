@@ -9577,7 +9577,7 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
             <div className="bd" style={{ padding: 12 }}>
               {view.html === undefined && <div style={{ fontSize: 12, color: "var(--muted)", padding: 14 }}>Loading the report...</div>}
               {view.html === null && <div style={{ fontSize: 12.5, color: "var(--muted)", padding: 14, lineHeight: 1.6 }}>The content of this report was not captured; it was sent before the archive existed (REV248). The run details above are all that was recorded.</div>}
-              {typeof view.html === "string" && view.html && <iframe title="report" sandbox="" srcDoc={previewHtml(view.html)} style={{ width: "100%", height: "68vh", border: "1px solid var(--line)", borderRadius: 8, background: "#ffffff" }} />}
+              {typeof view.html === "string" && view.html && <iframe title="report" sandbox="" srcDoc={previewHtml(view.html, vendorLogoMap(S.companies))} style={{ width: "100%", height: "68vh", border: "1px solid var(--line)", borderRadius: 8, background: "#ffffff" }} />}
             </div>
             <div className="lk-df"><div className="lk-spacer" /><button className="lk-btn" onClick={() => setView(null)}>Close</button></div>
           </div>
@@ -9589,7 +9589,7 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
 // REV294: cid: image sources resolve in an email client via attachments, but in this
 // browser preview iframe they render as broken images. Rewrite the QMC logo to its hosted
 // asset and drop any other unresolved cid image so the preview looks like the real email.
-function previewHtml(html) {
+function previewHtml(html, vendorLogos) {
   if (typeof html !== "string" || !html) return html;
   const origin = (typeof window !== "undefined" && window.location && window.location.origin) || "";
   // Older archived digests have a white header; the current design puts the logo on a dark band.
@@ -9597,9 +9597,25 @@ function previewHtml(html) {
   const onDarkBand = /background-color:#16202e/i.test(html);
   const logoSrc = origin + (onDarkBand ? "/qmc-logo-dark.png" : "/qmc-logo.png");
   let out = html.replace(/src="cid:qmc-logo"/g, 'src="' + logoSrc + '"');
-  // hide any remaining cid: images (e.g. vendor logos with no hosted URL in this scope)
+  // Vendor logos are cid: attachments in the sent mail; in this browser preview, swap each for
+  // the company's hosted logo URL when we can map it back, so the preview matches the email.
+  const map = vendorLogos || {};
+  out = out.replace(/src="cid:(v-[^"]*)"/g, (m, cid) => (map[cid] ? 'src="' + map[cid] + '"' : m));
+  // Anything still on a cid: (no hosted URL to hand) is hidden rather than shown broken.
   out = out.replace(/<img([^>]*?)src="cid:[^"]*"([^>]*)>/g, '<img$1src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="$2 style="display:none">');
   return out;
+}
+// Map each company to the cid the digest builder would have used, so the preview can resolve
+// vendor logos back to their hosted image. Mirrors the cid rule in the digest assembler.
+function vendorLogoMap(companies) {
+  const map = {};
+  (companies || []).forEach((c) => {
+    if (!c || !c.logoUrl) return;
+    const cid = "v-" + String(c.id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 40);
+    map[cid] = c.logoUrl;
+    if ((c.name || "").trim().toLowerCase() === "csn") map["v-csn"] = c.logoUrl;
+  });
+  return map;
 }
 function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update }) {
   const [co, setCo] = useState([]);   // REV274: multi-select; empty = all
