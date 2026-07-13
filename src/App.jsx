@@ -9357,7 +9357,10 @@ function ScheduledReports({ S, update }) {
   const save = (patch) => {
     const next = { ...cfg, ...patch, sections: { ...cfg.sections, ...(patch.sections || {}) } };
     setCfg(next);
-    update((pp) => ({ ...pp, settings: { ...pp.settings, morningReport: next } }));
+    // REV297: persist under settings.design.morningReport so it rides the design jsonb that
+    // syncCollections actually writes to the DB; the old top-level key never persisted, so the
+    // toggle reverted on the next settings reload.
+    update((pp) => ({ ...pp, settings: { ...pp.settings, design: { ...(pp.settings && pp.settings.design), morningReport: next } } }));
   };
   const lastLine = (k) => { const r = runs[k]; if (!r) return "last: never sent"; const t = new Date(r.sent_at); return (r.status === "sent" ? "last: " : "last: " + r.status + " ") + t.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") + (r.status === "sent" ? " \u00b7 " + r.recipients + " recipient" + (r.recipients === 1 ? "" : "s") : ""); };
   const nextLine = (sched, enabled) => { const m = mrRef.current; if (!m) return ""; const d = enabled ? m.nextSendAfter(new Date(), sched) : null; return "next: " + m.fmtNextSend(d, new Date()); };

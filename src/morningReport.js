@@ -15,7 +15,10 @@ export const MORNING_DEFAULTS = {
 };
 
 export function morningCfg(settings) {
-  const raw = (settings || {}).morningReport || {};
+  const st = settings || {};
+  // REV297: the morning config persists inside settings.design.morningReport (the design jsonb
+  // round-trips through the DB); fall back to the legacy top-level key for any older state.
+  const raw = (st.design && st.design.morningReport) || st.morningReport || {};
   return { ...MORNING_DEFAULTS, ...raw, sections: { ...MORNING_DEFAULTS.sections, ...(raw.sections || {}) } };
 }
 

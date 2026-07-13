@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV297",
+    "date": "2026-07-12",
+    "items": [
+      "Fixed the Morning Cx Update configuration not saving: toggles like Admins only reverted moments after clicking. The config was being written to a place that was never persisted to the database, so the next background refresh restored the defaults. It now saves alongside the design settings, which do persist, so recipients, days, sections, send time and AI instructions all stick. Any config set before this fix will need setting once more, since the earlier values were never stored."
+    ]
+  },
+  {
     "rev": "REV296",
     "date": "2026-07-12",
     "items": [
