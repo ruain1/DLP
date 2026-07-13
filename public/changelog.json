@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV305",
+  "date": "2026-07-13",
+  "items": [
+   "Executive summary panel restyled (Option A). The pale blue fill is removed for a clean white background with a single 4px navy left rule (matching the masthead) and a navy EXECUTIVE SUMMARY kicker and bullets. The summary now reads through its heading and edge rule rather than a coloured wash, so it no longer competes with the dark masthead directly above it."
+  ]
+ },
+ {
   "rev": "REV304",
   "date": "2026-07-13",
   "items": [

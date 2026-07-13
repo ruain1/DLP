@@ -135,13 +135,13 @@ export function buildMorningEmail(d, cfg, meta) {
       if (bullety) {
         const items = lines.map((x) => x.replace(/^([-*\u2022\u00b7]|\d+[.)])\s+/, "")).filter(Boolean);
         return `<tr><td style="padding:2px 18px 10px; font-size:12pt; line-height:1.55; font-family:${MR_FF}; color:#1c2733;"><table width="100%" cellpadding="0" cellspacing="0">`
-          + items.map((it) => `<tr><td width="14" style="vertical-align:top; padding:1px 0 3px; font-size:12pt; color:#2456A6; font-weight:bold;">&#8226;</td><td style="vertical-align:top; padding:1px 0 3px; font-size:12pt; font-family:${MR_FF};">${esc(it)}</td></tr>`).join("")
+          + items.map((it) => `<tr><td width="14" style="vertical-align:top; padding:1px 0 3px; font-size:12pt; color:#001C26; font-weight:bold;">&#8226;</td><td style="vertical-align:top; padding:1px 0 3px; font-size:12pt; font-family:${MR_FF};">${esc(it)}</td></tr>`).join("")
           + `</table></td></tr>`;
       }
       return `<tr><td style="padding:2px 18px 10px; font-size:12pt; line-height:1.55; font-family:${MR_FF}; color:#1c2733;">${esc(t)}</td></tr>`;
     };
-    body += `<tr><td style="padding:16px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fc; border-left:3px solid #2456A6;">`
-      + `<tr><td style="padding:12px 16px 4px; font-size:10pt; letter-spacing:.08em; font-weight:bold; font-family:${MR_FF}; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
+    body += `<tr><td style="padding:16px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff; border-left:4px solid #001C26;">`
+      + `<tr><td style="padding:12px 16px 4px; font-size:10pt; letter-spacing:.08em; font-weight:bold; font-family:${MR_FF}; color:#001C26;">EXECUTIVE SUMMARY</td></tr>`
       + blocks.map(renderBlock).join("")
       + `</table></td></tr>`;
   }
