@@ -5,7 +5,7 @@
 // PATCHing it sends meeting updates, and the cancel action sends cancellations.
 // Events are sent as wall-clock time in the site timezone (Europe/Helsinki), so the
 // server owns the DST maths across the October and March clock changes.
-import { emailBtn } from "./digestCore";
+import { emailBtn, emailShell, projectFooter } from "./digestCore";
 import { PublicClientApplication } from "@azure/msal-browser";
 
 const CLIENT_ID = "fa956186-27d4-4fae-b276-6c9fb2454457";
@@ -364,7 +364,7 @@ export function buildReportEmailHtml(p) {
   } else {
     attachedBlock = `<tr><td style="padding:6px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr><td style="border-left:3px solid ${TPL.blue};background-color:${TPL.blueSoft};padding:9px 14px;font-size:12px;color:${TPL.blueInk};${FSTACK}">The full report exceeded the email attachment limit; open DLP for the complete sections and charts.</td></tr></table></td></tr>`;
   }
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
+  const card = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="780" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${FSTACK}">`
     + (() => {
         // REV286: identity masthead matching the Morning Cx Update, with the period in the header.
         const logo = p.logoDark || p.logoUrl || "";
@@ -386,8 +386,8 @@ export function buildReportEmailHtml(p) {
     + `<tr><td style="padding:16px 20px 4px 20px;"><span style="font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Executive Summary</span>${paras}</td></tr>`
     + attachedBlock
     + `<tr><td style="padding:14px 20px 16px 20px;">${emailBtn(APP_ORIGIN, `Open DLP`, TPL.blue)}</td></tr>`
-    + `<tr><td style="padding:10px 20px;border-top:1px solid ${TPL.line};font-size:10.5px;color:${TPL.faint};${FSTACK}">${p.projectName ? eH(p.projectName) + " &#183; CSN Commissioning" : "FIN04 &#183; atnorth Koski &#183; CSN Commissioning"}</td></tr>`
     + `</table>`;
+  return emailShell(card, projectFooter(p.projectName, FSTACK));
 }
 
 // ---- REV89: classic Outlook draft (.eml with X-Unsent: 1) ----

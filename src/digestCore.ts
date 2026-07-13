@@ -378,12 +378,12 @@ export function buildDigestHtml(p: {
   const vendorBody = v.totalActions === 0
     ? `<tr><td style="padding:0 20px 10px 20px;font-size:12.5px;color:#6b7280;${F}">No activity recorded ${p.kind === "daily" ? "today" : "this week"}.</td></tr>`
     : `<tr><td style="padding:0 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">` + v.blocks.map(card).join("") + `</table></td></tr>`;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="620" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${F}">`
+  const digestCard = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="780" style="border-collapse:collapse;background-color:#ffffff;border:1px solid #d8dee9;${F}">`
     + header + kpiStrip + clRows + vendorHead + vendorBody
     + `<tr><td style="padding:4px 20px 16px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:${B};padding:9px 22px;font-size:12.5px;font-weight:bold;${F}"><a href="${esc(p.appUrl)}" style="color:#ffffff;text-decoration:none;">Open DLP</a></td></tr></table></td></tr>`
     + bar(3)
-    + `<tr><td style="padding:10px 20px;font-size:10.5px;color:#9ca3af;${F}">Automated update &#183; ${esc(p.projectName || "FIN04")} &#183; ${esc(p.projectLine || "atnorth Koski")} &#183; Quantum Mission Critical</td></tr>`
     + `</table>`;
+  return emailShell(digestCard, qmcFooter(p.projectName, p.projectLine, F));
 }
 function tile(v: string, l: string, vColor: string, accent: string) {
   return `<td width="25%" align="center" style="padding:10px 6px 8px 6px;border-top:3px solid ${accent};background-color:#F8FAFD;"><span style="font-size:22px;font-weight:bold;color:${vColor};${F}">${esc(v)}</span><br><span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;${F}">${esc(l)}</span></td>`;
@@ -424,6 +424,33 @@ export function actRowsFromClient(acts: any[]): ActRow[] {
     constraints: Array.isArray(a.constraints) ? a.constraints : [],
     witness_invite: !!a.witnessInvite, outcome: a.outcome || null, outcome_at: a.outcomeAt || null,
   }));
+}
+
+// REV310: shared centred email shell + footer bands. All three app emails (Morning Cx
+// Update, Weekly Report, admin digests) sit centred on a light page at 780 wide. The grey
+// surround renders in web clients (OWA, Gmail, Apple Mail) and degrades to a centred card
+// on white in classic Outlook, which ignores wrapper background colours. The old in-card
+// sign-off lines fold into the footer band so the sign-off lives in one place.
+export function emailShell(cardHtml: string, footerHtml: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background-color:#eef1f5;">`
+    + `<tr><td align="center" style="padding:24px 16px;">${cardHtml}${footerHtml}</td></tr></table>`;
+}
+// Project team footer: no logo, no commissioning-team wording, 780 to match the card.
+export function projectFooter(projName: string, ff: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="780" style="border-collapse:collapse;">`
+    + `<tr><td style="background-color:#001C26;padding:16px 24px;text-align:center;${ff}">`
+    + `<div style="color:#9DB0C2;font-size:9pt;">Delivered by DLP &#183; Digital Last Planner</div>`
+    + `<div style="color:#5C7690;font-size:8.5pt;padding-top:6px;">You receive this as a member of the ${esc(projName || "FIN04")} project team. &#169; 2026</div>`
+    + `</td></tr></table>`;
+}
+// QMC footer: internal admin digests carry QMC branding.
+export function qmcFooter(projName: string, projLine: string, ff: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="780" style="border-collapse:collapse;">`
+    + `<tr><td style="background-color:#16202e;padding:16px 24px;text-align:center;${ff}">`
+    + `<div style="color:#ffffff;font-size:11pt;font-weight:bold;letter-spacing:.02em;">Quantum Mission Critical</div>`
+    + `<div style="color:#9DB0C2;font-size:9pt;padding-top:4px;">Delivered by DLP &#183; Digital Last Planner</div>`
+    + `<div style="color:#5C7690;font-size:8.5pt;padding-top:6px;">Automated update &#183; ${esc(projName || "FIN04")} &#183; ${esc(projLine || "atnorth Koski")} &#183; internal admin digest. &#169; 2026</div>`
+    + `</td></tr></table>`;
 }
 
 // REV277: the bulletproof email button, shared by every mail DLP sends. Outlook's

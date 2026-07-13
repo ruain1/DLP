@@ -2,7 +2,7 @@
 // Outlook-Word-safe email builder, kept free of app state so every piece can be
 // tested headless. The scheduler and Graph send live in App.jsx and ride the same
 // report_runs claim machinery as the daily and weekly digests, under kind "morning".
-import { helParts, utcForHelsinki, helDateStr, emailBtn } from "./digestCore";
+import { helParts, utcForHelsinki, helDateStr, emailBtn, emailShell, projectFooter } from "./digestCore";
 
 export const MORNING_DEFAULTS = {
   enabled: false,
@@ -225,8 +225,8 @@ export function buildMorningEmail(d, cfg, meta) {
       })()
     + body
     + `<tr><td style="padding:16px 24px 20px;" align="center"><table cellpadding="0" cellspacing="0" align="center"><tr><td>${emailBtn(esc(meta.appUrl || "https://dlp-pi.vercel.app"), "Open the board")}</td></tr></table>`
-    + `<div style="font-size:10pt; color:#8a94a1; margin-top:12px;">Sent automatically by DLP${meta.projName ? " for " + esc(meta.projName) : ""}. You receive this as a member of the project team.</div></td></tr></table>`;
-  return html;
+    + `</td></tr></table>`;
+  return emailShell(html, projectFooter(meta.projName, `font-family:${MR_FF};`));
 }
 
 export function morningSubject(projName, due) {
