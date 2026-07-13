@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV292",
+    "date": "2026-07-12",
+    "items": [
+      "The Send to Board dialog is wider so its table fits without a horizontal scrollbar. It was capped at 920px, which truncated the assignee column and forced a scroll for the sake of a few columns; it now opens at 1280px (still capped to the screen on narrow displays), so every column, including the full assignee email, is visible at once."
+    ]
+  },
+  {
     "rev": "REV291",
     "date": "2026-07-12",
     "items": [

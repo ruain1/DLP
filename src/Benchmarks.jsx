@@ -370,7 +370,7 @@ export default function BenchmarksPage({ projectId, isAdmin = false, isOwner = f
         };
         return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(4,8,12,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", zIndex: 60 }} onClick={() => setStbOpen(false)}>
-          <div style={{ width: 920, maxWidth: "100%", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ width: 1280, maxWidth: "calc(100vw - 32px)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>
               <div style={{ fontSize: 15, fontWeight: 700 }}>Send to Board</div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>Confirm and fix each benchmark before it goes to the board. Correct the assignee or date, set the time and duration, and toggle whether an invite is created. Nothing is committed or sent here.</div>
