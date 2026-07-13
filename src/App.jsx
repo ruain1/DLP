@@ -9592,7 +9592,11 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
 function previewHtml(html) {
   if (typeof html !== "string" || !html) return html;
   const origin = (typeof window !== "undefined" && window.location && window.location.origin) || "";
-  let out = html.replace(/src="cid:qmc-logo"/g, 'src="' + origin + '/qmc-logo-dark.png"');
+  // Older archived digests have a white header; the current design puts the logo on a dark band.
+  // Pick the logo that is legible against whichever header this stored report actually has.
+  const onDarkBand = /background-color:#16202e/i.test(html);
+  const logoSrc = origin + (onDarkBand ? "/qmc-logo-dark.png" : "/qmc-logo.png");
+  let out = html.replace(/src="cid:qmc-logo"/g, 'src="' + logoSrc + '"');
   // hide any remaining cid: images (e.g. vendor logos with no hosted URL in this scope)
   out = out.replace(/<img([^>]*?)src="cid:[^"]*"([^>]*)>/g, '<img$1src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="$2 style="display:none">');
   return out;

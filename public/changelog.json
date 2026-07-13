@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV295",
+    "date": "2026-07-12",
+    "items": [
+      "The QMC logo in the report preview now matches the background it sits on. Older archived digests have a white header and newer ones a dark band; the preview picks the dark-ink logo for white headers and the light logo for the dark band, so the mark is always visible rather than washing out."
+    ]
+  },
+  {
     "rev": "REV294",
     "date": "2026-07-12",
     "items": [
