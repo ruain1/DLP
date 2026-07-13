@@ -110,7 +110,7 @@ export function buildMorningAiFacts(d) {
 }
 
 const MR_FF = "Aptos,'Aptos Display','Segoe UI',Calibri,Arial,sans-serif";
-const secHead = (label, color) => `<tr><td style="padding:16px 24px 5px; font-size:13pt; font-weight:bold; font-family:${MR_FF}; color:${color || "#1c2733"}; border-bottom:1px solid #e3e8ef;">${esc(label)}</td></tr>`;
+const secHead = (label, color) => `<tr><td style="padding:16px 24px 5px; font-size:14pt; font-weight:bold; font-family:${MR_FF}; color:${color || "#1c2733"}; border-bottom:1px solid #e3e8ef;">${esc(label)}</td></tr>`;
 const rowsWrap = (inner) => `<tr><td style="padding:8px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="font-size:12pt; font-family:${MR_FF}; color:#1c2733;">${inner}</table></td></tr>`;
 const moreLine = (n, noun) => n > 0 ? `<tr><td style="padding:5px 0; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">and ${n} more ${esc(noun)}</td></tr>` : "";
 const cap = (arr, n) => [arr.slice(0, n), Math.max(0, arr.length - n)];
@@ -125,7 +125,7 @@ function actLine(r, extraRight) {
 export function buildMorningEmail(d, cfg, meta) {
   const sec = cfg.sections || {};
   const c = d.counts;
-  const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px; font-family:${MR_FF};"><span style="font-size:20px; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10.5px; color:#68727f; letter-spacing:.03em;">${lb}</span></td>`;
+  const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px; font-family:${MR_FF};"><span style="font-size:15pt; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10pt; color:#68727f; letter-spacing:.03em;">${lb}</span></td>`;
   let body = "";
   if (sec.ai !== false && d.ai) {
     const blocks = String(d.ai).split(/\n{2,}/).map((t) => t.trim()).filter(Boolean);
@@ -135,13 +135,13 @@ export function buildMorningEmail(d, cfg, meta) {
       if (bullety) {
         const items = lines.map((x) => x.replace(/^([-*\u2022\u00b7]|\d+[.)])\s+/, "")).filter(Boolean);
         return `<tr><td style="padding:2px 18px 10px; font-size:12pt; line-height:1.55; font-family:${MR_FF}; color:#1c2733;"><table width="100%" cellpadding="0" cellspacing="0">`
-          + items.map((it) => `<tr><td width="14" style="vertical-align:top; padding:1px 0 3px; color:#2456A6; font-weight:bold;">&#8226;</td><td style="vertical-align:top; padding:1px 0 3px;">${esc(it)}</td></tr>`).join("")
+          + items.map((it) => `<tr><td width="14" style="vertical-align:top; padding:1px 0 3px; font-size:12pt; color:#2456A6; font-weight:bold;">&#8226;</td><td style="vertical-align:top; padding:1px 0 3px; font-size:12pt; font-family:${MR_FF};">${esc(it)}</td></tr>`).join("")
           + `</table></td></tr>`;
       }
       return `<tr><td style="padding:2px 18px 10px; font-size:12pt; line-height:1.55; font-family:${MR_FF}; color:#1c2733;">${esc(t)}</td></tr>`;
     };
     body += `<tr><td style="padding:16px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fc; border-left:3px solid #2456A6;">`
-      + `<tr><td style="padding:12px 16px 4px; font-size:10.5px; letter-spacing:.08em; font-weight:bold; font-family:${MR_FF}; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
+      + `<tr><td style="padding:12px 16px 4px; font-size:10pt; letter-spacing:.08em; font-weight:bold; font-family:${MR_FF}; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
       + blocks.map(renderBlock).join("")
       + `</table></td></tr>`;
   }
@@ -162,8 +162,8 @@ export function buildMorningEmail(d, cfg, meta) {
         d.yDone.slice(0, 8).map((r) => actLine(r, tag("done", "#1e8e63"))).join("")
         + d.yMissed.slice(0, 8).map((r) => actLine(r, tag("missed", "#C0392B"))).join("")
         + (sec.updates !== false ? uRows.map((u) =>
-          `<tr><td style="padding:5px 0; line-height:1.5;"><b>Daily update</b>${MID}${esc(u.desc)}${u.pct != null ? ` <span style="color:#2456A6; font-weight:bold;">${u.pct}%</span>` : ""}<br>` +
-          u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:12px;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(uMore, "updated activities") : ""));
+          `<tr><td style="padding:5px 0; line-height:1.5; font-size:12pt; font-family:${MR_FF};"><b>Daily update</b>${MID}${esc(u.desc)}${u.pct != null ? ` <span style="color:#2456A6; font-weight:bold;">${u.pct}%</span>` : ""}<br>` +
+          u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:10pt;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(uMore, "updated activities") : ""));
     }
     const todayRows = d.finishing.map((r) => actLine(r, r.open.length ? tag(r.open.length + " open constraint" + (r.open.length === 1 ? "" : "s"), "#C0392B") : tag("finish due" + MID + "clear", "#1e8e63")))
       .concat(d.witness.map((r) => actLine(r, tag("witness " + new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }), "#2456A6"))))
@@ -193,17 +193,17 @@ export function buildMorningEmail(d, cfg, meta) {
   if (sec.constraints !== false && d.consRows.length) {
     const [rowsC, more] = cap(d.consRows, 12);
     body += secHead("Open constraints needing action") + rowsWrap(rowsC.map((k) =>
-      `<tr><td style="padding:5px 0;">${esc(k.text)} <span style="color:#68727f;">${MID}${esc(k.act)}${MID}</span>${k.owner ? esc(k.owner) : `<b style="color:#C0392B;">unowned</b>`}${k.actStart === d.tmrw ? ` <span style="color:#C0392B; font-size:11px;">${MID}blocks tomorrow&#8217;s start</span>` : (k.actWit ? ` <span style="color:#2456A6; font-size:11px;">${MID}witnessed activity</span>` : "")}</td><td align="right" style="font-size:11px; font-weight:bold; color:${k.od ? "#C0392B" : "#b07f00"};">${k.due ? esc((k.od ? "was needed " : "need ") + dd(k.due)) : "no date"}</td></tr>`).join("") + moreLine(more, "constraints"));
+      `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${esc(k.text)} <span style="color:#68727f;">${MID}${esc(k.act)}${MID}</span>${k.owner ? esc(k.owner) : `<b style="color:#C0392B;">unowned</b>`}${k.actStart === d.tmrw ? ` <span style="color:#C0392B; font-size:10pt;">${MID}blocks tomorrow&#8217;s start</span>` : (k.actWit ? ` <span style="color:#2456A6; font-size:10pt;">${MID}witnessed activity</span>` : "")}</td><td align="right" style="font-size:11pt; font-weight:bold; color:${k.od ? "#C0392B" : "#b07f00"};">${k.due ? esc((k.od ? "was needed " : "need ") + dd(k.due)) : "no date"}</td></tr>`).join("") + moreLine(more, "constraints"));
   }
   if (sec.ytt === false && sec.updates !== false && d.upRows.length) {
     const [rowsU, more] = cap(d.upRows, 12);
     body += secHead("Yesterday's daily updates") + rowsWrap(rowsU.map((u) =>
-      `<tr><td style="padding:5px 0; line-height:1.5;"><b>${esc(u.desc)}</b>${u.pct != null ? ` <span style="color:#2456A6; font-weight:bold;">${u.pct}%</span>` : ""}<br>` +
-      u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:12px;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(more, "activities with updates"));
+      `<tr><td style="padding:5px 0; line-height:1.5; font-size:12pt; font-family:${MR_FF};"><b>${esc(u.desc)}</b>${u.pct != null ? ` <span style="color:#2456A6; font-weight:bold;">${u.pct}%</span>` : ""}<br>` +
+      u.items.map((it) => `<span style="color:#48525e;">${esc(it.note)}</span> <span style="color:#68727f; font-size:10pt;">${esc(MID + (it.by_name || "admin") + ", " + new Date(it.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span>`).join("<br>") + `</td></tr>`).join("") + moreLine(more, "activities with updates"));
   }
   if (sec.ytt === false && sec.witness !== false && d.witness.length) {
     body += secHead("Witness events today", "#2456A6") + rowsWrap(d.witness.map((r) =>
-      `<tr><td style="padding:5px 0;">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
+      `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
   }
   const html = `<table width="780" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:${MR_FF}; border:1px solid #d9dee5;">`
     + (() => {
@@ -213,19 +213,19 @@ export function buildMorningEmail(d, cfg, meta) {
         const useLogo = typeof logo === "string" && /^(https:\/\/|data:image\/|cid:)/.test(logo);
         const markCell = useLogo
           ? `<td style="vertical-align:middle; padding-right:11px;"><img src="${esc(logo)}" alt="atnorth" height="34" style="height:34px; width:auto; display:block;"></td>`
-          : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:${MR_FF}; font-size:19px; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
+          : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:${MR_FF}; font-size:14pt; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
         return `<tr><td style="background:#001C26; padding:20px 24px 18px;"><table width="100%" cellpadding="0" cellspacing="0"><tr>`
           + `<td style="vertical-align:middle;"><table cellpadding="0" cellspacing="0"><tr>${markCell}`
-          + `<td style="vertical-align:middle;"><div style="color:#5C7690; font-size:9.5px; letter-spacing:.18em; font-weight:bold; font-family:${MR_FF};">MORNING CX UPDATE</div>`
-          + `<div style="color:#ffffff; font-size:19px; font-weight:bold; font-family:${MR_FF}; letter-spacing:-.3px; padding-top:2px;">${esc(meta.projName || "FIN04")}</div></td></tr></table></td>`
-          + `<td align="right" style="vertical-align:middle;"><div style="display:inline-block; font-family:'Courier New',monospace; font-size:10px; letter-spacing:.1em; color:#7BB2E8; border:1px solid #33586e; border-radius:4px; padding:3px 8px;">${esc(meta.projName || "FIN04")}</div>`
-          + `<div style="color:#9DB0C2; font-size:11px; font-family:${MR_FF}; padding-top:7px;">${meta.projLine ? esc(meta.projLine) + "<br>" : ""}${esc(meta.dateLine)}</div></td>`
+          + `<td style="vertical-align:middle;"><div style="color:#5C7690; font-size:9pt; letter-spacing:.18em; font-weight:bold; font-family:${MR_FF};">MORNING CX UPDATE</div>`
+          + `<div style="color:#ffffff; font-size:14pt; font-weight:bold; font-family:${MR_FF}; letter-spacing:-.3px; padding-top:2px;">${esc(meta.projName || "FIN04")}</div></td></tr></table></td>`
+          + `<td align="right" style="vertical-align:middle;"><div style="display:inline-block; font-family:'Courier New',monospace; font-size:9pt; letter-spacing:.1em; color:#7BB2E8; border:1px solid #33586e; border-radius:4px; padding:3px 8px;">${esc(meta.projName || "FIN04")}</div>`
+          + `<div style="color:#9DB0C2; font-size:10pt; font-family:${MR_FF}; padding-top:7px;">${meta.projLine ? esc(meta.projLine) + "<br>" : ""}${esc(meta.dateLine)}</div></td>`
           + `</tr></table></td></tr>`
           + `<tr><td style="background:#2456A6; font-size:0; line-height:0; height:4px;">&nbsp;</td></tr>`;
       })()
     + body
     + `<tr><td style="padding:16px 24px 20px;" align="center"><table cellpadding="0" cellspacing="0" align="center"><tr><td>${emailBtn(esc(meta.appUrl || "https://dlp-pi.vercel.app"), "Open the board")}</td></tr></table>`
-    + `<div style="font-size:10.5px; color:#8a94a1; margin-top:12px;">Sent automatically by DLP${meta.projName ? " for " + esc(meta.projName) : ""}. You receive this as a member of the project team.</div></td></tr></table>`;
+    + `<div style="font-size:10pt; color:#8a94a1; margin-top:12px;">Sent automatically by DLP${meta.projName ? " for " + esc(meta.projName) : ""}. You receive this as a member of the project team.</div></td></tr></table>`;
   return html;
 }
 

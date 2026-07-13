@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV304",
+  "date": "2026-07-13",
+  "items": [
+   "Follow up to REV303. Classic Outlook converts CSS pixel font sizes to points at a 0.75 ratio (96px equals 72pt), so the pixel values left in the email were rendering at roughly 8 to 10pt and looked shrunken, and nested table cells lost the size they were meant to inherit. Every text cell now carries an explicit point size and the whole email is in points: body reading text (activity rows, executive summary, constraints, daily updates and witness rows) at 12pt, section headers at 14pt, right side status labels at 11pt, meta and small labels at 10pt, masthead micro type at 9pt and KPI numbers at 15pt. Nothing renders below 9pt, so what you set in code is what the Outlook ribbon shows."
+  ]
+ },
+ {
   "rev": "REV303",
   "date": "2026-07-13",
   "items": [
