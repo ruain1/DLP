@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV311",
+    "date": "2026-07-13",
+    "items": [
+      "Project team panel: the header block (Resend and Export buttons, search and filters, and the column headers) now stays pinned while the member rows scroll beneath, matching the pinned pattern used on the other list panels.",
+      "Previously only the filters pinned while the column headers scrolled out of view; the whole header block is now wrapped in a single sticky container defined in the always-present main stylesheet."
+    ]
+  },
+  {
     "rev": "REV310",
     "date": "2026-07-13",
     "items": [

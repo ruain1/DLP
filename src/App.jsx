@@ -438,6 +438,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-stick{position:sticky;top:0;z-index:7;background:var(--paper);display:flex;gap:12px;align-items:center;height:54px;box-sizing:border-box;border-bottom:1px solid var(--line);margin-bottom:8px}
 .lk-subbody.wide{max-width:1320px}.lk-subbody.full{max-width:none}
 .lk-userwrap .lk-ufilter{position:sticky;top:0;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.lk-teamstick{position:sticky;top:0;z-index:20;background:var(--card);margin:0 0 6px}
+.lk-teamstick .lk-ufilter{position:static;top:auto;z-index:auto;margin:0 0 6px;padding:0;border-bottom:0}
+.lk-teamstick .lk-uhead{border-bottom:1px solid var(--line);padding-bottom:8px;background:var(--card)}
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
 .cal-head h3{font-size:15px;color:var(--ink)}
@@ -6362,6 +6365,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 return true;
               });
               return <>
+                <div className="lk-teamstick">
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>Project team</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{members ? all.length + " member" + (all.length === 1 ? "" : "s") + " \u00b7 " + adminCount + " admin" + (adminCount === 1 ? "" : "s") : ""}</div>
@@ -6369,17 +6373,22 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, margin: "0 0 8px" }}><button className="lk-btn" disabled={rsBusy || !rsPend.length} title={rsPend.length ? "Email a fresh set-password link to every member who has not signed in yet" : "No pending members"} onClick={hResendAll}><Icon n="mail" s={14} />{rsBusy ? "Re-sending\u2026" : "Resend invites to pending (" + rsPend.length + ")"}</button><button className="lk-btn" disabled={!all.length} title="Download everyone on this project with email, company, project role, projects, status and last seen" onClick={() => downloadFile(`${(projCode || "DLP")}-team-${fmtISO(new Date())}.csv`, toCSV(["Name", "Email", "Company", "Project role", "Projects", "Status", "Last seen"], buildTeamExportRows(all, cn, ustat, mcount)))}><Icon n="download" s={14} />Export Users (CSV)</button></div>
                 {rsMsg && <div style={{ fontSize: 12, color: rsMsg.ok ? "var(--green)" : "var(--red)", margin: "0 0 8px" }}>{rsMsg.text}</div>}
                 <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Adding someone here grants access to this project immediately, with no invite to accept. Removing them revokes only this project; they keep their account and any other projects.</div>
-                {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div> : <>
+                {members !== null && (
                   <div className="lk-ufilter">
                     <div className="lk-f" style={{ minWidth: 150, flex: 1 }}><label>Search</label><input className="lk-in" placeholder="Name, email or company…" value={mfQ} onChange={(e) => setMfQ(e.target.value)} /></div>
                     <div className="lk-f" style={{ minWidth: 140 }}><label>Company</label><MultiSel label="All companies" options={[{ v: "none", t: "No company" }, ...scopeCompanies(S.companies, S.projectCompanyIds).map((c) => ({ v: c.id, t: c.name }))]} value={mfCo} onChange={setMfCo} /></div>
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Role</label><MultiSel label="All roles" options={[{ v: "admin", t: "Admins" }, { v: "member", t: "Members" }]} value={mfRole} onChange={setMfRole} /></div>
                     <div className="lk-f" style={{ minWidth: 110 }}><label>Status</label><MultiSel label="All" options={[{ v: "active", t: "Active" }, { v: "pending", t: "Invite pending" }]} value={mfStatus} onChange={setMfStatus} /></div>
                   </div>
-                  {!all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one on the team yet. Add people from Global Contacts below.</div>
-                    : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
-                    : <>
+                )}
+                {members !== null && !!all.length && !!rows.length && (
                       <div className="lk-uhead"><span /><span>Member</span><span>Email</span><span>Company</span><span>Role</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+                )}
+                </div>
+                {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div>
+                  : !all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one on the team yet. Add people from Global Contacts below.</div>
+                  : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
+                  : <>
                       {(() => { const renderTeamRow = (r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-urow">
                         <span className="lk-uava" style={{ background: avBg(r.user_id) }}>{avInit(r.u.name)}</span>
                         <div className="lk-uname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
@@ -6399,7 +6408,6 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                       </div>; }); })()}
                       {orphan > 0 ? <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{orphan} {orphan === 1 ? "person" : "people"} not shown (no profile in Global Contacts yet).</div> : null}
                     </>}
-                </>}
               </>;
             })()}
             {memMsg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>{memMsg}</div>}
