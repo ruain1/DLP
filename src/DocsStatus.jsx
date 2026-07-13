@@ -392,7 +392,7 @@ export default function DocsStatusPage({ projectId, isAdmin, theme, cu, canEditD
 
           <div className="dts-pipe">
             {STAGE_ORDER.map((lv) => { const s = levelStat(lv); const on = tagFilter === lv; return (
-              <div key={lv} className={"dts-stage" + (on ? " active" : "")} onClick={() => { setTagFilter(on ? null : lv); setFLevel(on ? "" : lv); }}>
+              <div key={lv} className={"dts-stage" + (on ? " active" : "")} onClick={() => { setTagFilter(on ? null : lv); setFLevel(on ? [] : [lv]); }}>
                 <div className="sn"><span className="dot" style={{ background: TAGC[lv] }} />{lv} {STAGE_NAME[lv]}</div>
                 <div className="cnt">{s.pct}% <small>received</small></div>
                 <div className="bar"><i style={{ width: s.pct + "%", background: TAGC[lv] }} /></div>

@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV293",
+    "date": "2026-07-12",
+    "items": [
+      "Fixed a crash on the Documentation Tracker: clicking any of the L1 to L5 tag cards threw an error and dropped you to the recovery panel. The card was setting the level filter to a single text value, but that filter became a multi-select (which expects a list) in an earlier revision, so the control broke as soon as a card set it. The cards now set the filter correctly and select or clear the matching level as intended."
+    ]
+  },
+  {
     "rev": "REV292",
     "date": "2026-07-12",
     "items": [
