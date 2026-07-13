@@ -109,22 +109,23 @@ export function buildMorningAiFacts(d) {
   return L.join("\n").slice(0, 3800);
 }
 
-const secHead = (label, color) => `<tr><td style="padding:16px 24px 5px; font-size:14px; font-weight:bold; color:${color || "#1c2733"}; border-bottom:1px solid #e3e8ef;">${esc(label)}</td></tr>`;
-const rowsWrap = (inner) => `<tr><td style="padding:8px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px; color:#1c2733;">${inner}</table></td></tr>`;
-const moreLine = (n, noun) => n > 0 ? `<tr><td style="padding:5px 0; color:#68727f; font-size:12px;">and ${n} more ${esc(noun)}</td></tr>` : "";
+const MR_FF = "Aptos,'Aptos Display','Segoe UI',Calibri,Arial,sans-serif";
+const secHead = (label, color) => `<tr><td style="padding:16px 24px 5px; font-size:13pt; font-weight:bold; font-family:${MR_FF}; color:${color || "#1c2733"}; border-bottom:1px solid #e3e8ef;">${esc(label)}</td></tr>`;
+const rowsWrap = (inner) => `<tr><td style="padding:8px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="font-size:12pt; font-family:${MR_FF}; color:#1c2733;">${inner}</table></td></tr>`;
+const moreLine = (n, noun) => n > 0 ? `<tr><td style="padding:5px 0; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">and ${n} more ${esc(noun)}</td></tr>` : "";
 const cap = (arr, n) => [arr.slice(0, n), Math.max(0, arr.length - n)];
 
 function actLine(r, extraRight) {
   const pct = r.a.percent != null ? MID + r.a.percent + "%" : "";
   const mile = r.a.isMilestone ? "\u25C6 " : "";
-  const right = extraRight ? `<td align="right" style="font-size:12px; font-weight:bold; ${extraRight.style}">${esc(extraRight.text)}</td>` : "";
-  return `<tr><td style="padding:5px 0;">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${esc(pct)}</span></td>${right}</tr>`;
+  const right = extraRight ? `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; ${extraRight.style}">${esc(extraRight.text)}</td>` : "";
+  return `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${esc(pct)}</span></td>${right}</tr>`;
 }
 
 export function buildMorningEmail(d, cfg, meta) {
   const sec = cfg.sections || {};
   const c = d.counts;
-  const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px;"><span style="font-size:20px; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10.5px; color:#68727f; letter-spacing:.03em;">${lb}</span></td>`;
+  const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px; font-family:${MR_FF};"><span style="font-size:20px; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10.5px; color:#68727f; letter-spacing:.03em;">${lb}</span></td>`;
   let body = "";
   if (sec.ai !== false && d.ai) {
     const blocks = String(d.ai).split(/\n{2,}/).map((t) => t.trim()).filter(Boolean);
@@ -133,14 +134,14 @@ export function buildMorningEmail(d, cfg, meta) {
       const bullety = lines.length > 1 && lines.filter((x) => /^([-*\u2022\u00b7]|\d+[.)])\s+/.test(x)).length >= Math.max(2, Math.ceil(lines.length * 0.6));
       if (bullety) {
         const items = lines.map((x) => x.replace(/^([-*\u2022\u00b7]|\d+[.)])\s+/, "")).filter(Boolean);
-        return `<tr><td style="padding:2px 18px 10px; font-size:13px; line-height:1.6; color:#1c2733;"><table width="100%" cellpadding="0" cellspacing="0">`
+        return `<tr><td style="padding:2px 18px 10px; font-size:12pt; line-height:1.55; font-family:${MR_FF}; color:#1c2733;"><table width="100%" cellpadding="0" cellspacing="0">`
           + items.map((it) => `<tr><td width="14" style="vertical-align:top; padding:1px 0 3px; color:#2456A6; font-weight:bold;">&#8226;</td><td style="vertical-align:top; padding:1px 0 3px;">${esc(it)}</td></tr>`).join("")
           + `</table></td></tr>`;
       }
-      return `<tr><td style="padding:2px 18px 10px; font-size:13px; line-height:1.65; color:#1c2733;">${esc(t)}</td></tr>`;
+      return `<tr><td style="padding:2px 18px 10px; font-size:12pt; line-height:1.55; font-family:${MR_FF}; color:#1c2733;">${esc(t)}</td></tr>`;
     };
     body += `<tr><td style="padding:16px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fc; border-left:3px solid #2456A6;">`
-      + `<tr><td style="padding:12px 16px 4px; font-size:10.5px; letter-spacing:.08em; font-weight:bold; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
+      + `<tr><td style="padding:12px 16px 4px; font-size:10.5px; letter-spacing:.08em; font-weight:bold; font-family:${MR_FF}; color:#2456A6;">EXECUTIVE SUMMARY</td></tr>`
       + blocks.map(renderBlock).join("")
       + `</table></td></tr>`;
   }
@@ -204,7 +205,7 @@ export function buildMorningEmail(d, cfg, meta) {
     body += secHead("Witness events today", "#2456A6") + rowsWrap(d.witness.map((r) =>
       `<tr><td style="padding:5px 0;">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
   }
-  const html = `<table width="720" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:Arial,Helvetica,sans-serif; border:1px solid #d9dee5;">`
+  const html = `<table width="780" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:${MR_FF}; border:1px solid #d9dee5;">`
     + (() => {
         // REV285: identity masthead. Logo only if it is a hosted https URL (data-URIs and
         // relative paths break in Outlook and Gmail); otherwise a clean text wordmark.
@@ -212,13 +213,13 @@ export function buildMorningEmail(d, cfg, meta) {
         const useLogo = typeof logo === "string" && /^(https:\/\/|data:image\/|cid:)/.test(logo);
         const markCell = useLogo
           ? `<td style="vertical-align:middle; padding-right:11px;"><img src="${esc(logo)}" alt="atnorth" height="34" style="height:34px; width:auto; display:block;"></td>`
-          : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:Arial,Helvetica,sans-serif; font-size:19px; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
+          : `<td style="vertical-align:middle; padding-right:12px; color:#7BB2E8; font-family:${MR_FF}; font-size:19px; font-weight:bold; letter-spacing:-.3px;">atnorth</td>`;
         return `<tr><td style="background:#001C26; padding:20px 24px 18px;"><table width="100%" cellpadding="0" cellspacing="0"><tr>`
           + `<td style="vertical-align:middle;"><table cellpadding="0" cellspacing="0"><tr>${markCell}`
-          + `<td style="vertical-align:middle;"><div style="color:#5C7690; font-size:9.5px; letter-spacing:.18em; font-weight:bold; font-family:Arial,Helvetica,sans-serif;">MORNING CX UPDATE</div>`
-          + `<div style="color:#ffffff; font-size:19px; font-weight:bold; font-family:Arial,Helvetica,sans-serif; letter-spacing:-.3px; padding-top:2px;">${esc(meta.projName || "FIN04")}</div></td></tr></table></td>`
+          + `<td style="vertical-align:middle;"><div style="color:#5C7690; font-size:9.5px; letter-spacing:.18em; font-weight:bold; font-family:${MR_FF};">MORNING CX UPDATE</div>`
+          + `<div style="color:#ffffff; font-size:19px; font-weight:bold; font-family:${MR_FF}; letter-spacing:-.3px; padding-top:2px;">${esc(meta.projName || "FIN04")}</div></td></tr></table></td>`
           + `<td align="right" style="vertical-align:middle;"><div style="display:inline-block; font-family:'Courier New',monospace; font-size:10px; letter-spacing:.1em; color:#7BB2E8; border:1px solid #33586e; border-radius:4px; padding:3px 8px;">${esc(meta.projName || "FIN04")}</div>`
-          + `<div style="color:#9DB0C2; font-size:11px; font-family:Arial,Helvetica,sans-serif; padding-top:7px;">${meta.projLine ? esc(meta.projLine) + "<br>" : ""}${esc(meta.dateLine)}</div></td>`
+          + `<div style="color:#9DB0C2; font-size:11px; font-family:${MR_FF}; padding-top:7px;">${meta.projLine ? esc(meta.projLine) + "<br>" : ""}${esc(meta.dateLine)}</div></td>`
           + `</tr></table></td></tr>`
           + `<tr><td style="background:#2456A6; font-size:0; line-height:0; height:4px;">&nbsp;</td></tr>`;
       })()
