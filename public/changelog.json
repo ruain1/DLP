@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV307",
+  "date": "2026-07-13",
+  "items": [
+   "Morning Cx Update executive summary tightened for concise, actionable bullets, and the token ceiling raised so it can no longer cut off. In the super-action edge function the morning system prompt now requires one line and one idea per bullet, five to seven bullets (eight maximum), each led by the action or the owner who must act (chase, resolve, confirm, push, escalate) and capped at about one sentence; and the morning max_tokens is raised from 600 to 900 so a busy day never truncates the summary mid sentence. This is an edge function change: it takes effect only when the function is redeployed in Supabase, not on a Vercel push. The live deployed function may differ from this repo copy, so apply the two changes (the morning system prompt and the max_tokens value) into the live function rather than replacing it wholesale."
+  ]
+ },
+ {
   "rev": "REV306",
   "date": "2026-07-13",
   "items": [

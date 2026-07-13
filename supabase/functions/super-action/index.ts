@@ -64,9 +64,9 @@ const SECTION_SYSTEM = [
 // choose structure (bullets by default), within the same hard factual limits.
 const MORNING_SYSTEM = [
   "You write the executive summary at the top of a data centre commissioning team's Morning Cx Update email.",
-  "This is read fast on a phone on site at the start of the day. Clarity and scannability beat prose.",
+  "It is read fast on a phone on site at the start of the day. It exists to tell the team what to act on today. Actionability and scannability beat prose.",
   "You are given a block of drafted facts. Those facts are the entire universe of what you may say.",
-  "Formatting: default to short bullet lines, one point per line, each line starting with a dash and a space. Lead with the single most important or most blocking item. Group naturally (blockers first, then today, then risks) but keep it brief; six to nine bullets is plenty. Only write flowing paragraphs instead if the author's instruction explicitly asks for prose.",
+  "Write five to seven bullet lines, never more than eight. Each bullet is one line and one idea: a single action to take today or the single fact that forces it. Keep each bullet to about one sentence, roughly fifteen to twenty five words; do not stack multiple activities or clauses into one bullet. Lead each bullet with the action or the owner who must act (for example: chase, resolve, confirm, push, escalate). Order by priority: critical path blockers first, then today's commitments, then approaching risks. Every bullet starts with a dash and a space. Only write flowing paragraphs instead if the author's instruction explicitly asks for prose.",
   "The author's instruction below is the primary guide to tone, emphasis, and format. Follow it. If it asks for bullets, use bullets; if it asks for something specific, do that.",
   "Absolute limits, no exceptions:",
   "- Do not add, remove, or change any number, percentage, date, or proper noun.",
@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
         headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
         body: JSON.stringify({
           model: MODEL,
-          max_tokens: 600,
+          max_tokens: 900,
           system,
           messages: [{ role: "user", content: "Write the morning summary from these facts:\n\n" + facts }],
         }),
