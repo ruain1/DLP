@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV316",
+    "date": "2026-07-14",
+    "items": [
+      "Replaced the native scroll time picker on the Morning, Daily, and Weekly report drawers with a click-based control: an hour dropdown (00 to 23) and a minute dropdown in 15-minute steps. No scroll wheel and nothing to overshoot. It is theme-aware, so it matches dark and light, and it returns a plain HH:MM value."
+    ]
+  },
+  {
     "rev": "REV315",
     "date": "2026-07-14",
     "items": [

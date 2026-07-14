@@ -9467,6 +9467,28 @@ function ReportTile({ glyph, glyphBg, glyphColor, title, state, lines, actions }
     </div>
   );
 }
+// REV316: click-based 24-hour time picker (hour dropdown + 15-minute dropdown), replacing the
+// native scroll picker that felt too sensitive. Theme-aware via lk-select; onChange returns "HH:MM".
+function TimePick({ value, onChange }) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value || "");
+  const hh = m ? Math.min(23, Math.max(0, +m[1])) : 0;
+  const rawM = m ? Math.min(59, Math.max(0, +m[2])) : 0;
+  const mm = (Math.round(rawM / 15) * 15) % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  const emit = (h, mi) => onChange(pad(h) + ":" + pad(mi));
+  const selStyle = { width: 66, fontWeight: 700, textAlign: "center", cursor: "pointer" };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+      <select className="lk-select" style={selStyle} value={hh} onChange={(e) => emit(+e.target.value, mm)} aria-label="Hour">
+        {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{pad(i)}</option>)}
+      </select>
+      <span style={{ color: "var(--muted)", fontWeight: 700, fontSize: 15 }}>:</span>
+      <select className="lk-select" style={selStyle} value={mm} onChange={(e) => emit(hh, +e.target.value)} aria-label="Minutes">
+        {[0, 15, 30, 45].map((mi) => <option key={mi} value={mi}>{pad(mi)}</option>)}
+      </select>
+    </span>
+  );
+}
 function ScheduledReports({ S, update }) {
   const [runs, setRuns] = useState({});
   const [acct, setAcct] = useState(null);
@@ -9625,7 +9647,7 @@ function ScheduledReports({ S, update }) {
           </div>
           <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
             <div><label style={fld}>Enabled</label>{segBtn(cfg.enabled, "ON", () => save({ enabled: true }))} {segBtn(!cfg.enabled, "OFF", () => save({ enabled: false }))}</div>
-            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><input className="lk-in" type="time" value={cfg.time} style={{ width: 120, fontWeight: 700 }} onChange={(e) => save({ time: e.target.value || "08:00" })} /></div>
+            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><TimePick value={cfg.time} onChange={(v) => save({ time: v })} /></div>
             <div><label style={fld}>Days</label><div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{DAYS.map((dday) => segBtn(cfg.days.includes(dday), dday, () => save({ days: cfg.days.includes(dday) ? cfg.days.filter((x) => x !== dday) : [...cfg.days, dday] })))}</div></div>
             <div><label style={fld}>Recipients</label>{segBtn(cfg.recipients === "team", "Entire project team", () => save({ recipients: "team" }))} {segBtn(cfg.recipients === "admins", "Admins only", () => save({ recipients: "admins" }))}</div>
             {cfg.recipients === "team" && <div>
@@ -9654,7 +9676,7 @@ function ScheduledReports({ S, update }) {
           </div>
           <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
             <div><label style={fld}>Enabled</label>{segBtn(dcfg.daily.enabled, "ON", () => saveDigest("daily", { enabled: true }))} {segBtn(!dcfg.daily.enabled, "OFF", () => saveDigest("daily", { enabled: false }))}</div>
-            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><input className="lk-in" type="time" value={dcfg.daily.time} style={{ width: 120 }} onChange={(e) => saveDigest("daily", { time: e.target.value || "17:00" })} /></div>
+            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><TimePick value={dcfg.daily.time} onChange={(v) => saveDigest("daily", { time: v })} /></div>
             <div><label style={fld}>Recipients</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Admins and owner <span style={{ color: "var(--muted)" }}>(fixed; the digest is an internal admin summary)</span></div></div>
             <div><label style={fld}>Cadence</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Every day except Friday <span style={{ color: "var(--muted)" }}>(Friday is the weekly digest)</span></div></div>
           </div>
@@ -9673,7 +9695,7 @@ function ScheduledReports({ S, update }) {
           </div>
           <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
             <div><label style={fld}>Enabled</label>{segBtn(dcfg.weekly.enabled, "ON", () => saveDigest("weekly", { enabled: true }))} {segBtn(!dcfg.weekly.enabled, "OFF", () => saveDigest("weekly", { enabled: false }))}</div>
-            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><input className="lk-in" type="time" value={dcfg.weekly.time} style={{ width: 120 }} onChange={(e) => saveDigest("weekly", { time: e.target.value || "16:00" })} /></div>
+            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><TimePick value={dcfg.weekly.time} onChange={(v) => saveDigest("weekly", { time: v })} /></div>
             <div><label style={fld}>Recipients</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Admins and owner <span style={{ color: "var(--muted)" }}>(fixed; the digest is an internal admin summary)</span></div></div>
             <div><label style={fld}>Cadence</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Fridays <span style={{ color: "var(--muted)" }}>(the weekly summary)</span></div></div>
           </div>
