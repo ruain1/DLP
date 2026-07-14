@@ -393,13 +393,29 @@ function tile(v: string, l: string, vColor: string, accent: string) {
 // Every due boundary within the lookback window, oldest first: daily at 17:00 except Friday,
 // weekly at Friday 16:00. The catch-up sweep sends any unclaimed boundary late rather than
 // losing it; beyond the lookback a missed digest is gone, by accepted design.
-export function dueBoundaries(now: Date, lookbackH = 72): { kind: "daily" | "weekly"; due: Date }[] {
+export type DigestCfg = { daily: { enabled: boolean; time: string }; weekly: { enabled: boolean; time: string } };
+// REV315: the daily and weekly send time and on/off are configurable. The Friday/other-day cadence
+// and the admin recipients are unchanged, and buildDigestHtml is untouched (the email is identical).
+// Persisted under settings.design.digestDaily / settings.design.digestWeekly.
+export function digestCfg(settings: any): DigestCfg {
+  const st = settings || {};
+  const d = (st.design && st.design.digestDaily) || st.digestDaily || {};
+  const w = (st.design && st.design.digestWeekly) || st.digestWeekly || {};
+  const T = (v: any, dflt: string) => (typeof v === "string" && /^[0-9]{1,2}:[0-9]{2}$/.test(v) ? v : dflt);
+  return { daily: { enabled: d.enabled !== false, time: T(d.time, "17:00") }, weekly: { enabled: w.enabled !== false, time: T(w.time, "16:00") } };
+}
+export function dueBoundaries(now: Date, lookbackH = 72, cfg?: DigestCfg): { kind: "daily" | "weekly"; due: Date }[] {
+  const c = cfg || { daily: { enabled: true, time: "17:00" }, weekly: { enabled: true, time: "16:00" } };
+  const hm = (t: string, dh: number): [number, number] => { const m = /^([0-9]{1,2}):([0-9]{2})$/.exec(t || ""); return m ? [Math.min(23, +m[1]), Math.min(59, +m[2])] : [dh, 0]; };
+  const [dH, dM] = hm(c.daily.time, 17), [wH, wM] = hm(c.weekly.time, 16);
   const out: { kind: "daily" | "weekly"; due: Date }[] = [];
   const floor = now.getTime() - lookbackH * 3600000;
   for (let off = Math.ceil(lookbackH / 24) + 1; off >= 0; off--) {
     const probe = helParts(new Date(now.getTime() - off * 86400000));
     const isFri = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", weekday: "short" }).format(utcForHelsinki(probe.y, probe.m, probe.d, 12)) === "Fri";
-    const due = utcForHelsinki(probe.y, probe.m, probe.d, isFri ? 16 : 17, 0);
+    if (isFri && !c.weekly.enabled) continue;
+    if (!isFri && !c.daily.enabled) continue;
+    const due = isFri ? utcForHelsinki(probe.y, probe.m, probe.d, wH, wM) : utcForHelsinki(probe.y, probe.m, probe.d, dH, dM);
     if (due.getTime() >= floor && due.getTime() <= now.getTime()) out.push({ kind: isFri ? "weekly" : "daily", due });
   }
   out.sort((a, b) => a.due.getTime() - b.due.getTime());

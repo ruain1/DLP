@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV315",
+    "date": "2026-07-14",
+    "items": [
+      "Daily Digest and Weekly Digest each get a Configure button, opening a drawer that mirrors the Morning one with two controls: on/off and send time (Europe/Helsinki). No AI, no sections, no recipient control; recipients stay admins and the cadence (daily every day except Friday, weekly on Friday) is unchanged.",
+      "The scheduler reads these through a new digestCfg persisted in settings.design.digestDaily and digestWeekly; a disabled digest stops sending and a changed time takes effect on the next tick. The digest email builder is untouched, so the emails are byte-identical."
+    ]
+  },
+  {
     "rev": "REV314",
     "date": "2026-07-14",
     "items": [

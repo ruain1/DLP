@@ -3407,7 +3407,7 @@ export default function App({ session }) {
       const mrCfg = mrMod.morningCfg((snap.S && snap.S.settings) || {});
       const bounds = (test === "daily" || test === "weekly" || test === "morning")
         ? [{ kind: test, due: new Date() }]
-        : [...core.dueBoundaries(new Date(), 72), ...mrMod.morningBoundaries(new Date(), 72, mrCfg)].sort((x, y) => x.due.getTime() - y.due.getTime());
+        : [...core.dueBoundaries(new Date(), 72, core.digestCfg((snap.S && snap.S.settings) || {})), ...mrMod.morningBoundaries(new Date(), 72, mrCfg)].sort((x, y) => x.due.getTime() - y.due.getTime());
       if (!bounds.length) return;
       const ol = await import("./outlook");
       const acct = await ol.outlookAccount();
@@ -9476,9 +9476,13 @@ function ScheduledReports({ S, update }) {
   const [drOpen, setDrOpen] = useState(false);
   const [exAll, setExAll] = useState(false);
   const [saved, setSaved] = useState(false);   // REV298: brief confirmation after a save
+  const [dcfg, setDcfg] = useState(null);      // REV315: daily/weekly digest config (on/off + time)
+  const [drDaily, setDrDaily] = useState(false);
+  const [drWeekly, setDrWeekly] = useState(false);
   const savedTimer = React.useRef(null);
   const mrRef = React.useRef(null);
   useEffect(() => { import("./morningReport").then((m) => { mrRef.current = m; setCfg(m.morningCfg(S.settings || {})); }); }, [S.settings]);
+  useEffect(() => { import("./digestCore").then((c) => setDcfg(c.digestCfg(S.settings || {}))); }, [S.settings]);
   const load = async () => {
     try {
       const r = await supabase.from("report_runs").select("kind, sent_at, status, recipients").eq("project_id", S.projectId).in("kind", ["daily", "weekly", "morning"]).order("sent_at", { ascending: false }).limit(30);
@@ -9495,6 +9499,15 @@ function ScheduledReports({ S, update }) {
     // syncCollections actually writes to the DB; the old top-level key never persisted, so the
     // toggle reverted on the next settings reload.
     update((pp) => ({ ...pp, settings: { ...pp.settings, design: { ...(pp.settings && pp.settings.design), morningReport: next } } }));
+    setSaved(true);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), 1800);
+  };
+  const saveDigest = (kind, patch) => {
+    const key = kind === "weekly" ? "digestWeekly" : "digestDaily";
+    const next = { ...dcfg, [kind]: { ...dcfg[kind], ...patch } };
+    setDcfg(next);
+    update((pp) => ({ ...pp, settings: { ...pp.settings, design: { ...(pp.settings && pp.settings.design), [key]: next[kind] } } }));
     setSaved(true);
     if (savedTimer.current) clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setSaved(false), 1800);
@@ -9569,7 +9582,7 @@ function ScheduledReports({ S, update }) {
     } catch (err) { setMsg({ ok: false, text: (err && err.message) || String(err) }); }
     setBusy(null);
   };
-  if (!cfg) return null;
+  if (!cfg || !dcfg) return null;
   const act = (lb, on, primary, dis) => <button key={lb} className={"lk-btn" + (primary ? " primary" : "")} style={{ fontSize: 10.5, padding: "6px 11px" }} disabled={dis} onClick={on}>{lb}</button>;
   const segBtn = (on, lb, click) => <button key={lb} className="lk-btn" style={{ fontSize: 10.5, fontWeight: 700, padding: "5px 12px", borderColor: on ? "var(--accent)" : undefined, color: on ? "var(--accent)" : undefined, background: on ? "rgba(91,155,243,.08)" : "none" }} onClick={click}>{lb}</button>;
   const fld = { display: "block", fontSize: 9, fontWeight: 800, letterSpacing: ".7px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 7 };
@@ -9587,20 +9600,20 @@ function ScheduledReports({ S, update }) {
             <span>{lastLine("morning")}</span>
           </>}
           actions={<>{act("Configure", () => setDrOpen(true))}<span style={{ flex: 1 }} />{act("Test", () => sendMorning(true), false, busy === "morningTest")}{act(busy === "morning" ? "Sending..." : "Send now", () => sendMorning(false), true, !!busy)}</>} />
-        <ReportTile glyph={"\u263D"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Daily Digest" state={true}
+        <ReportTile glyph={"\u263D"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Daily Digest" state={!!dcfg.daily.enabled}
           lines={<>
-            <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>17:00</b> Helsinki {"\u00b7"} every day {"\u00b7"} admins</span>
-            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: "17:00", days: DAYS }, true)}</span>
+            <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{dcfg.daily.time}</b> Helsinki {"\u00b7"} every day {"\u00b7"} admins</span>
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: dcfg.daily.time, days: DAYS.filter((d) => d !== "Fri") }, dcfg.daily.enabled)}</span>
             <span>{lastLine("daily")}</span>
           </>}
-          actions={<><span style={{ flex: 1 }} />{act("Test", () => sendDigest("daily", true), false, busy === "dailyTest")}{act(busy === "daily" ? "Sending..." : "Send now", () => sendDigest("daily", false), true, !!busy)}</>} />
-        <ReportTile glyph={"\u26ED"} glyphBg="rgba(183,155,240,.12)" glyphColor="#b79bf0" title="Weekly Digest" state={true}
+          actions={<>{act("Configure", () => setDrDaily(true))}<span style={{ flex: 1 }} />{act("Test", () => sendDigest("daily", true), false, busy === "dailyTest")}{act(busy === "daily" ? "Sending..." : "Send now", () => sendDigest("daily", false), true, !!busy)}</>} />
+        <ReportTile glyph={"\u26ED"} glyphBg="rgba(183,155,240,.12)" glyphColor="#b79bf0" title="Weekly Digest" state={!!dcfg.weekly.enabled}
           lines={<>
-            <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>Fri 16:00</b> Helsinki {"\u00b7"} admins</span>
-            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: "16:00", days: ["Fri"] }, true)}</span>
+            <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>Fri {dcfg.weekly.time}</b> Helsinki {"\u00b7"} admins</span>
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: dcfg.weekly.time, days: ["Fri"] }, dcfg.weekly.enabled)}</span>
             <span>{lastLine("weekly")}</span>
           </>}
-          actions={<><span style={{ flex: 1 }} />{act("Test", () => sendDigest("weekly", true), false, busy === "weeklyTest")}{act(busy === "weekly" ? "Sending..." : "Send now", () => sendDigest("weekly", false), true, !!busy)}</>} />
+          actions={<>{act("Configure", () => setDrWeekly(true))}<span style={{ flex: 1 }} />{act("Test", () => sendDigest("weekly", true), false, busy === "weeklyTest")}{act(busy === "weekly" ? "Sending..." : "Send now", () => sendDigest("weekly", false), true, !!busy)}</>} />
       </div>
       {msg && <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 10, color: msg.ok ? "var(--st-done)" : "#F87171" }}>{msg.text}</div>}
       {drOpen && <>
@@ -9629,6 +9642,44 @@ function ScheduledReports({ S, update }) {
           <div style={{ padding: "14px 18px", borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ fontSize: 10.5, color: saved ? "var(--st-done)" : "var(--muted)", flex: 1, fontWeight: saved ? 600 : 400 }}>{saved ? "Saved." : "Changes save automatically."}</span>
             <button className="lk-btn" onClick={() => setDrOpen(false)}>Close</button>
+          </div>
+        </div>
+      </>}
+      {drDaily && dcfg && <>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(5,9,18,.62)", zIndex: 60 }} onClick={() => setDrDaily(false)} />
+        <div style={{ position: "fixed", top: 0, right: 0, width: "min(420px, 94vw)", height: "100vh", background: "var(--card)", borderLeft: "1px solid var(--line)", boxShadow: "-20px 0 50px rgba(0,0,0,.4)", zIndex: 61, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>
+            <h3 style={{ fontSize: 14, margin: 0, flex: 1 }}>Daily Digest {"\u00b7"} configuration</h3>
+            <button className="lk-btn icon" onClick={() => setDrDaily(false)}><Icon n="x" /></button>
+          </div>
+          <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div><label style={fld}>Enabled</label>{segBtn(dcfg.daily.enabled, "ON", () => saveDigest("daily", { enabled: true }))} {segBtn(!dcfg.daily.enabled, "OFF", () => saveDigest("daily", { enabled: false }))}</div>
+            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><input className="lk-in" type="time" value={dcfg.daily.time} style={{ width: 120 }} onChange={(e) => saveDigest("daily", { time: e.target.value || "17:00" })} /></div>
+            <div><label style={fld}>Recipients</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Admins and owner <span style={{ color: "var(--muted)" }}>(fixed; the digest is an internal admin summary)</span></div></div>
+            <div><label style={fld}>Cadence</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Every day except Friday <span style={{ color: "var(--muted)" }}>(Friday is the weekly digest)</span></div></div>
+          </div>
+          <div style={{ padding: "14px 18px", borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 10.5, color: saved ? "var(--st-done)" : "var(--muted)", flex: 1, fontWeight: saved ? 600 : 400 }}>{saved ? "Saved" : "Saved and reused until you change it."}</span>
+            <button className="lk-btn" onClick={() => setDrDaily(false)}>Close</button>
+          </div>
+        </div>
+      </>}
+      {drWeekly && dcfg && <>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(5,9,18,.62)", zIndex: 60 }} onClick={() => setDrWeekly(false)} />
+        <div style={{ position: "fixed", top: 0, right: 0, width: "min(420px, 94vw)", height: "100vh", background: "var(--card)", borderLeft: "1px solid var(--line)", boxShadow: "-20px 0 50px rgba(0,0,0,.4)", zIndex: 61, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>
+            <h3 style={{ fontSize: 14, margin: 0, flex: 1 }}>Weekly Digest {"\u00b7"} configuration</h3>
+            <button className="lk-btn icon" onClick={() => setDrWeekly(false)}><Icon n="x" /></button>
+          </div>
+          <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div><label style={fld}>Enabled</label>{segBtn(dcfg.weekly.enabled, "ON", () => saveDigest("weekly", { enabled: true }))} {segBtn(!dcfg.weekly.enabled, "OFF", () => saveDigest("weekly", { enabled: false }))}</div>
+            <div><label style={fld}>Send at {"\u00b7"} Europe/Helsinki</label><input className="lk-in" type="time" value={dcfg.weekly.time} style={{ width: 120 }} onChange={(e) => saveDigest("weekly", { time: e.target.value || "16:00" })} /></div>
+            <div><label style={fld}>Recipients</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Admins and owner <span style={{ color: "var(--muted)" }}>(fixed; the digest is an internal admin summary)</span></div></div>
+            <div><label style={fld}>Cadence</label><div style={{ fontSize: 12, color: "var(--ink)" }}>Fridays <span style={{ color: "var(--muted)" }}>(the weekly summary)</span></div></div>
+          </div>
+          <div style={{ padding: "14px 18px", borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 10.5, color: saved ? "var(--st-done)" : "var(--muted)", flex: 1, fontWeight: saved ? 600 : 400 }}>{saved ? "Saved" : "Saved and reused until you change it."}</span>
+            <button className="lk-btn" onClick={() => setDrWeekly(false)}>Close</button>
           </div>
         </div>
       </>}
