@@ -7464,6 +7464,7 @@ function SchedulePage({ S, coName, onOpen }) {
   const [view, setView] = useState("gantt");
   const [drill, setDrill] = useState(null);
   const openDrill = (title, items) => setDrill({ title, items: items || [] });
+  const [narr, setNarr] = useState(null);   // REV314: activity whose scheduling narrative drawer is open
   const svgRef = useRef(null);
   const [bl, setBl] = useState(null);
   const [source, setSource] = useState("live");
@@ -7496,6 +7497,36 @@ function SchedulePage({ S, coName, onOpen }) {
   const proj = {}; { const memo = {}, stk = {}; const pe = (id) => { const a = byId[id]; if (!a) return null; if (memo[id] !== undefined) return memo[id]; const planEnd = dayOff(addDays(parseD(a.start), a.duration - 1)); if (stk[id]) return planEnd; stk[id] = true; let so = dayOff(parseD(a.start)); (a.predecessors || []).forEach((pid) => { const e = pe(pid); if (e != null) so = Math.max(so, e + 1); }); const eo = (a.status === "complete" && a.actualFinish) ? dayOff(parseD(a.actualFinish)) : so + (a.duration - 1); stk[id] = false; proj[id] = { so, eo }; memo[id] = eo; return eo; }; acts.forEach((a) => pe(a.id)); acts.forEach((a) => { if (!proj[a.id]) proj[a.id] = { so: dayOff(parseD(a.start)), eo: dayOff(addDays(parseD(a.start), a.duration - 1)) }; t1 = new Date(Math.max(t1.getTime(), addDays(t0, proj[a.id].eo).getTime())); }); }
   t1 = addDays(mondayOf(addDays(t1, 7)), 6); // pad to end of week
   const N = Math.max(7, dayOff(t1) + 1);
+  // REV314: scheduling narrative, computed from stored fields only (reschedule log,
+  // predecessors via the forward pass, baseline, constraints). No AI, nothing inferred.
+  const offToDate = (off) => addDays(t0, off);
+  const shortDate = (d) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const narrativeFor = (a) => {
+    const startD = parseD(a.start);
+    const finD = plannedFinish(a);
+    const ownSo = dayOff(startD);
+    const pr = proj[a.id] || { so: ownSo, eo: dayOff(finD) };
+    const pushed = pr.so > ownSo;
+    const projStartD = offToDate(pr.so);
+    const preds = (a.predecessors || []).map((pid) => {
+      const p = byId[pid]; if (!p) return null;
+      const eo = proj[pid] ? proj[pid].eo : dayOff(addDays(parseD(p.start), Math.max(0, (p.duration || 1) - 1)));
+      return { id: pid, label: "#" + (p.code != null ? p.code : "?") + " " + (p.desc || "Untitled"), finish: offToDate(eo), eo: eo, done: p.status === "complete" };
+    }).filter(Boolean).sort((x, y) => y.eo - x.eo);
+    const binding = preds.length ? preds[0] : null;
+    const succs = acts.filter((x) => (x.predecessors || []).includes(a.id)).map((x) => ({ id: x.id, label: "#" + (x.code != null ? x.code : "?") + " " + (x.desc || "Untitled"), milestone: !!x.isMilestone }));
+    const rs = a.reschedules || [];
+    const origStart = rs.length ? parseD(rs[0].from) : startD;
+    const slipDays = Math.round((startD.getTime() - origStart.getTime()) / DAYMS);
+    let blVar = null;
+    if (hasBaseline) {
+      const ba = (bl.activities || []).find((x) => x.id === a.id || (a.code != null && x.code === a.code));
+      if (ba && ba.start) { const baFin = addDays(parseD(ba.start), Math.max(0, (ba.duration || 1) - 1)); blVar = { days: Math.round((finD.getTime() - baFin.getTime()) / DAYMS), baseFinish: baFin }; }
+    }
+    const openC = (a.constraints || []).filter((c) => !c.done);
+    return { startD: startD, finD: finD, pushed: pushed, projStartD: projStartD, preds: preds, binding: binding, succs: succs, rs: rs, slipDays: slipDays, blVar: blVar, openC: openC };
+  };
+
 
   const ppd = zoom === "day" ? 30 : zoom === "week" ? 9.6 : 4.4;
   const rowH = compact ? 22 : 30, headH = 46, leftW = 300;
@@ -7637,7 +7668,7 @@ function SchedulePage({ S, coName, onOpen }) {
             const dx1 = xOf(g.pE + 1), dx2 = xOf(projE + 1);
             const respBase = delay ? dx2 : g.x + g.w;
             const respX = respBase + ((showDeps && hasOut.has(a.id) && !delay) ? 16 : 6);
-            return <g key={"tf" + a.id} style={{ cursor: "pointer" }} onClick={() => openDrill(a.desc || "Activity", [a])}>
+            return <g key={"tf" + a.id} style={{ cursor: "pointer" }} onClick={() => setNarr(a)}>
               {a.isMilestone
                 ? (delay
                     ? (() => {
@@ -7668,6 +7699,42 @@ function SchedulePage({ S, coName, onOpen }) {
       {view === "calendar" && <CalendarView S={S} coName={coName} onDrill={openDrill} LV={LV} P={P} dark={dark} />}
       {view === "workload" && <WorkloadView S={S} coName={coName} onDrill={openDrill} P={P} dark={dark} />}
       {drill && <DrillModal title={drill.title} items={drill.items} S={S} LV={LV} coName={coName} onOpen={onOpen} onClose={() => setDrill(null)} />}
+      {narr && (() => {
+        const a = narr, nv = narrativeFor(a);
+        const dur = a.isMilestone ? 1 : Math.max(1, a.duration || 1);
+        const summary = [];
+        if (nv.slipDays > 0) summary.push("Slipped " + nv.slipDays + " day" + (nv.slipDays === 1 ? "" : "s") + (nv.rs.length ? " across " + nv.rs.length + " reschedule" + (nv.rs.length === 1 ? "" : "s") : "") + ".");
+        if (nv.binding && (nv.pushed || !nv.binding.done)) summary.push("Waiting on " + nv.binding.label + " (finishes " + shortDate(nv.binding.finish) + ").");
+        if (nv.succs.length) summary.push("Moving it further pushes " + nv.succs.length + " downstream " + (nv.succs.length === 1 ? "activity" : "activities") + (nv.succs.some((x) => x.milestone) ? ", including a milestone" : "") + ".");
+        if (!summary.length) summary.push("On plan. No slip, no upstream wait, and nothing downstream depends on it.");
+        const lbl = (t) => <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--muted)", margin: "14px 0 6px" }}>{t}</div>;
+        const accent = (nv.slipDays > 0 || nv.pushed) ? "#D97706" : "var(--st-done)";
+        return <>
+          <div onClick={() => setNarr(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", zIndex: 60 }} />
+          <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: 424, maxWidth: "92vw", background: "var(--card)", borderLeft: "3px solid #3b82f6", boxShadow: "-8px 0 24px rgba(0,0,0,.3)", zIndex: 61, overflowY: "auto", padding: "18px 20px", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{(a.code != null ? "#" + a.code + "  " : "") + (a.desc || "Untitled")}</div>
+              <button onClick={() => setNarr(null)} style={{ background: "none", border: 0, color: "var(--muted)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>{"\u00d7"}</button>
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", paddingTop: 3 }}>{[coName(a.companyId), a.area, a.isMilestone ? "Milestone" : null].filter(Boolean).join(" \u00b7 ")}</div>
+            <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--paper)", borderRadius: 8, borderLeft: "3px solid " + accent, fontSize: 12.5, color: "var(--ink)", lineHeight: 1.55 }}>{summary.join(" ")}</div>
+            {lbl("Dates")}
+            <div style={{ fontSize: 11.5, color: "var(--ink)", lineHeight: 1.7 }}>Planned <b>{shortDate(nv.startD)}</b> to <b>{shortDate(nv.finD)}</b> ({dur} day{dur === 1 ? "" : "s"})
+              {nv.blVar ? <span><br /><span style={{ color: nv.blVar.days > 0 ? "var(--red, #C0392B)" : "var(--st-done)" }}>{nv.blVar.days === 0 ? "On baseline finish" : (Math.abs(nv.blVar.days) + " day" + (Math.abs(nv.blVar.days) === 1 ? "" : "s") + (nv.blVar.days > 0 ? " later" : " earlier") + " than baseline finish (" + shortDate(nv.blVar.baseFinish) + ")")}</span></span> : null}</div>
+            {lbl("Why it moved")}
+            {nv.rs.length ? nv.rs.map((r, i) => <div key={i} style={{ padding: "6px 0", borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--ink)" }}><span style={{ color: "var(--muted)" }}>{r.from}</span> <span style={{ color: "#D97706" }}>{"\u2192"}</span> <b>{r.to}</b><span style={{ color: "var(--muted)" }}>{(r.at ? " \u00b7 " + r.at : "") + (r.by ? " \u00b7 " + r.by : "")}</span>{r.reason ? <div style={{ fontSize: 11, color: "var(--muted)", paddingTop: 2 }}>{r.reason}</div> : null}</div>) : <div style={{ fontSize: 11.5, color: "var(--muted)", padding: "4px 0" }}>No reschedules recorded in DLP.</div>}
+            {lbl("Waiting on (predecessors)")}
+            {nv.preds.length ? nv.preds.map((p) => <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, padding: "5px 0", borderTop: "1px solid var(--line)", fontSize: 11.5 }}><span style={{ color: "var(--ink)" }}>{p.label}</span><span style={{ color: p.done ? "var(--st-done)" : (p === nv.binding ? "var(--red, #C0392B)" : "var(--muted)"), whiteSpace: "nowrap" }}>{(p.done ? "done " : "finishes ") + shortDate(p.finish) + (p === nv.binding && !p.done ? " \u00b7 binding" : "")}</span></div>) : <div style={{ fontSize: 11.5, color: "var(--muted)", padding: "4px 0" }}>Not waiting on any predecessor.</div>}
+            {nv.pushed ? <div style={{ fontSize: 11, color: "var(--muted)", paddingTop: 5 }}>Cannot start before <b>{shortDate(nv.projStartD)}</b>{nv.binding ? ("; the binding predecessor is " + nv.binding.label + ".") : "."}</div> : null}
+            {lbl("Knock-on if it slips further")}
+            {nv.succs.length ? nv.succs.map((x) => <div key={x.id} style={{ padding: "5px 0", borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--ink)" }}>{x.label}{x.milestone ? <span style={{ color: "var(--muted)" }}> {"\u00b7"} milestone</span> : null}</div>) : <div style={{ fontSize: 11.5, color: "var(--muted)", padding: "4px 0" }}>Nothing downstream depends on this.</div>}
+            {lbl("Open constraints")}
+            {nv.openC.length ? nv.openC.map((c) => <div key={c.id} style={{ padding: "5px 0", borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--ink)" }}>{c.text}<span style={{ color: "var(--muted)" }}>{(c.owner ? " \u00b7 " + c.owner : "") + (c.due ? " \u00b7 due " + c.due : "")}</span></div>) : <div style={{ fontSize: 11.5, color: "var(--muted)", padding: "4px 0" }}>No open constraints.</div>}
+            <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 12, textAlign: "right" }}><button className="lk-btn" onClick={() => { setNarr(null); onOpen(a); }}>Open on board to edit</button></div>
+          </div>
+        </>;
+      })()}
+
     </div>);
 }
 

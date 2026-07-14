@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV314",
+    "date": "2026-07-14",
+    "items": [
+      "Clicking any activity bar on the Schedule Gantt now opens a scheduling narrative drawer: a plain-language summary, the planned dates with baseline variance, the reschedule history from the activity reschedule log, the predecessors it is waiting on with the binding one flagged, the downstream activities it would push if it slips further, and any open constraints.",
+      "Every line is computed from stored data (reschedule log, predecessors via the forward pass, saved baseline, constraint register); nothing is inferred or AI generated. Activities with no reschedules recorded in DLP say so rather than invent a history, and baseline variance shows only when a baseline is saved.",
+      "The previous jump to the board to edit is preserved as a button inside the drawer. Calendar and Workload drill panels are unchanged."
+    ]
+  },
+  {
     "rev": "REV313",
     "date": "2026-07-14",
     "items": [
