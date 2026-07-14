@@ -4913,7 +4913,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             {!a.witnessType && <span style={{ fontSize: 11, color: "var(--red, #C0392B)" }}>An invite type is required before this activity can be saved.</span>}
             {a.witnessType && <span style={{ fontSize: 11, color: "var(--muted)" }}>Appears in the invite subject and body.</span>}</div>}
           {a.witnessInvite && <div className="lk-f"><label>Witness date &amp; time <span style={{ color: "var(--red, #C0392B)" }}>*</span></label>
-            <input className="lk-in mono" type="datetime-local" value={a.witnessAt || ""} disabled={disPlan} onChange={(e) => set("witnessAt", e.target.value)} />
+            <DateTimePick value={a.witnessAt || ""} disabled={disPlan} onChange={(v) => set("witnessAt", v)} />
             {!a.witnessAt && <span style={{ fontSize: 11, color: "var(--red, #C0392B)" }}>A witness time is required before this activity can be saved.</span>}
             {a.witnessAt && a.start && (() => {
               // The witness date and the planned span are deliberately separate fields, but a witness
@@ -7983,7 +7983,7 @@ function TablePage({ S, cu, isAdmin, can, canEdit, update, coName }) {
                 {C("committed") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.committed} disabled={plk} onChange={(e) => set("committed", e.target.checked)} /> : (a.committed ? "Yes" : "")}</td>}
                 {C("status") && <td>{ed ? <select className="lk-select" style={cell} value={d.status} onChange={(e) => setStatus(e.target.value)}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="complete" disabled={pastCompletionWindow(a) && !isAdmin}>Complete</option></select> : a.status.replace("_", " ")}</td>}
                 {C("witness") && <td style={{ textAlign: "center" }}>{ed ? <input type="checkbox" checked={!!d.witnessInvite} disabled={plk || !can("witnessReq")} onChange={(e) => set("witnessInvite", e.target.checked)} /> : (a.witnessInvite ? "Yes" : "")}</td>}
-                {C("witnessat") && <td style={{ whiteSpace: "nowrap" }}>{ed ? <input className="lk-in mono" style={cell} type="datetime-local" value={d.witnessAt || ""} disabled={plk || !d.witnessInvite} onChange={(e) => set("witnessAt", e.target.value)} /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
+                {C("witnessat") && <td style={{ whiteSpace: "nowrap" }}>{ed ? <DateTimePick value={d.witnessAt || ""} disabled={plk || !d.witnessInvite} onChange={(v) => set("witnessAt", v)} compact /> : (a.witnessAt ? a.witnessAt.replace("T", " ") : "")}</td>}
                 {C("notes") && <td style={{ width: 320, maxWidth: 320 }}>{ed ? <input className="lk-in" style={cell} value={d.notes || ""} disabled={lk} onChange={(e) => set("notes", e.target.value)} /> : <div style={{ maxWidth: 320, whiteSpace: "normal", overflowWrap: "break-word", color: "var(--muted)" }}>{a.notes || ""}</div>}</td>}
               </tr>;
             })}
@@ -9469,23 +9469,38 @@ function ReportTile({ glyph, glyphBg, glyphColor, title, state, lines, actions }
 }
 // REV316: click-based 24-hour time picker (hour dropdown + 15-minute dropdown), replacing the
 // native scroll picker that felt too sensitive. Theme-aware via lk-select; onChange returns "HH:MM".
-function TimePick({ value, onChange }) {
+function TimePick({ value, onChange, disabled, step = 15, compact }) {
+  const st = [5, 10, 15, 20, 30].includes(step) ? step : 15;
   const m = /^(\d{1,2}):(\d{2})$/.exec(value || "");
   const hh = m ? Math.min(23, Math.max(0, +m[1])) : 0;
   const rawM = m ? Math.min(59, Math.max(0, +m[2])) : 0;
-  const mm = (Math.round(rawM / 15) * 15) % 60;
+  const mm = (Math.round(rawM / st) * st) % 60;
   const pad = (n) => String(n).padStart(2, "0");
   const emit = (h, mi) => onChange(pad(h) + ":" + pad(mi));
-  const selStyle = { width: 66, fontWeight: 700, textAlign: "center", cursor: "pointer" };
+  const selStyle = { width: compact ? 56 : 66, fontWeight: 700, textAlign: "center", cursor: disabled ? "default" : "pointer" };
+  const mins = []; for (let mi = 0; mi < 60; mi += st) mins.push(mi);
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-      <select className="lk-select" style={selStyle} value={hh} onChange={(e) => emit(+e.target.value, mm)} aria-label="Hour">
+    <span style={{ display: "inline-flex", alignItems: "center", gap: compact ? 4 : 7 }}>
+      <select className="lk-select" style={selStyle} value={hh} disabled={disabled} onChange={(e) => emit(+e.target.value, mm)} aria-label="Hour">
         {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{pad(i)}</option>)}
       </select>
       <span style={{ color: "var(--muted)", fontWeight: 700, fontSize: 15 }}>:</span>
-      <select className="lk-select" style={selStyle} value={mm} onChange={(e) => emit(hh, +e.target.value)} aria-label="Minutes">
-        {[0, 15, 30, 45].map((mi) => <option key={mi} value={mi}>{pad(mi)}</option>)}
+      <select className="lk-select" style={selStyle} value={mm} disabled={disabled} onChange={(e) => emit(hh, +e.target.value)} aria-label="Minutes">
+        {mins.map((mi) => <option key={mi} value={mi}>{pad(mi)}</option>)}
       </select>
+    </span>
+  );
+}
+// REV317: date (native calendar, not scroll-sensitive) paired with the TimePick, for witnessAt-style
+// datetime fields. onChange returns "YYYY-MM-DDTHH:MM" or "" when no date is set.
+function DateTimePick({ value, onChange, disabled, step = 15, compact }) {
+  const d = (value || "").slice(0, 10);
+  const t = (value || "").slice(11, 16);
+  const combine = (nd, nt) => (nd ? nd + "T" + (nt || "00:00") : "");
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: compact ? 5 : 8, flexWrap: "nowrap" }}>
+      <input className="lk-in mono" type="date" value={d} disabled={disabled} style={{ width: compact ? 134 : 150 }} onChange={(e) => onChange(combine(e.target.value, t))} />
+      <TimePick value={t || "00:00"} onChange={(nt) => onChange(combine(d, nt))} disabled={disabled} step={step} compact={compact} />
     </span>
   );
 }

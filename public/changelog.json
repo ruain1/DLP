@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV317",
+    "date": "2026-07-14",
+    "items": [
+      "The click-based time picker now covers every time selector in the app. The witness invite datetime fields on the activity card and the activity table drop the native datetime-local scroll picker for a native date calendar paired with the hour and 15-minute dropdowns.",
+      "TimePick gained disabled, compact, and step props, and a shared DateTimePick pairs a date with it, so report send times and witness times use the same control."
+    ]
+  },
+  {
     "rev": "REV316",
     "date": "2026-07-14",
     "items": [
