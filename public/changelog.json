@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV313",
+    "date": "2026-07-14",
+    "items": [
+      "Digest scheduler skew guard. The daily and weekly admin digests and the Morning Cx Update send from a browser tab, so a tab left open across a deploy could send with stale bundled code (a daily digest landed uncentred this way). Before sending a due boundary the scheduler now confirms the tab is on the current deploy, and if a newer one has shipped it reloads once and lets the 72 hour catch-up resend on the fresh build.",
+      "The deployed changelog head is the build stamp; the check is cache-busted and fails open, so a read miss never blocks a send. No change to any email content, layout, logo, font, or size."
+    ]
+  },
+  {
     "rev": "REV312",
     "date": "2026-07-13",
     "items": [

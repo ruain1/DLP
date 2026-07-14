@@ -1436,6 +1436,16 @@ const attemptNo = (a, acts) => { let n = 1; const seen = new Set([a.id]); let cu
 // consumer is the weekly report's changelog rows. Reports are user-triggered long after
 // the same-origin fetch resolves, so an empty start is safe; if the fetch ever fails the
 // report simply shows no changelog rows rather than months-stale ones.
+// REV313: the deployed changelog head doubles as a build stamp for the digest skew guard.
+// Cache-busted read; returns the latest rev string, or null on any failure (fail-open).
+async function fetchDeployedRev() {
+  try {
+    const r = await fetch("/changelog.json?ts=" + Date.now(), { cache: "no-store" });
+    if (!r || !r.ok) return null;
+    const j = await r.json();
+    return Array.isArray(j) && j.length ? ((j[0] && j[0].rev) || null) : null;
+  } catch (e) { return null; }
+}
 let CHANGELOG_LIVE = [];
 try { fetch("/changelog.json").then((r) => (r && r.ok ? r.json() : null)).then((j) => { if (Array.isArray(j) && j.length) CHANGELOG_LIVE = j; }).catch(() => {}); } catch (e) {}
 
@@ -2889,6 +2899,7 @@ export default function App({ session }) {
   const digestBusy = useRef(false);                // re-entrancy guard for the digest scheduler
   const digestRef = useRef({ S: null, admin: false });   // latest state snapshot for the interval tick
   const digestTickRef = useRef(null);              // REV136: latest digestTick, bridged across the early return
+  const digestSkewBase = useRef(null);             // REV313: deployed rev seen at first tick; skew-guard baseline
   const [digestNote, setDigestNote] = useState(null);    // { ok, text } toast for digest sends and failures
   useEffect(() => {
     if (!witSched) return;
@@ -3389,6 +3400,7 @@ export default function App({ session }) {
     if (!snap.S || !snap.admin) return;
     digestBusy.current = true;
     try {
+      if (digestSkewBase.current == null) { const rv0 = await fetchDeployedRev(); if (rv0) digestSkewBase.current = rv0; }
       const core = await import("./digestCore");
       let test = null; try { test = localStorage.getItem("dlp_digest_test"); } catch (e) { }
       const mrMod = await import("./morningReport");
@@ -3400,6 +3412,25 @@ export default function App({ session }) {
       const ol = await import("./outlook");
       const acct = await ol.outlookAccount();
       if (!acct || String(acct.username).toLowerCase() !== DIGEST_SENDER) return;   // not the designated sender's session
+      // REV313: deployment skew guard. The digest builder ships in the eager bundle, so a tab
+      // opened before a deploy would send a due boundary with stale code (a digest once landed
+      // uncentred this way). With a boundary due and this the sender's session, confirm the tab
+      // is on the current deploy; if a newer one shipped, reload once and let the 72h catch-up
+      // resend the still-due boundary on the fresh build. Fail-open on a read miss.
+      if (!test) {
+        const depRev = await fetchDeployedRev();
+        const baseRev = digestSkewBase.current;
+        if (depRev && baseRev && depRev !== baseRev) {
+          let already = false; try { already = sessionStorage.getItem("dlp_digest_skew_reloaded") === depRev; } catch (e) { }
+          if (!already) {
+            try { sessionStorage.setItem("dlp_digest_skew_reloaded", depRev); } catch (e) { }
+            setDigestNote({ ok: false, text: "A newer version deployed; reloading to send the " + bounds[0].kind + " digest on the current build." });
+            window.location.reload();
+            return;
+          }
+          // already reloaded for this rev and still skewed (CDN lag): send rather than loop.
+        } else { try { sessionStorage.removeItem("dlp_digest_skew_reloaded"); } catch (e) { } }
+      }
       for (const b of bounds) {
         const St = digestRef.current.S; if (!St) break;
         const runDate = core.helDateStr(b.due);
