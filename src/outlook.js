@@ -215,6 +215,19 @@ export async function cancelWitnessEvent(eventId, comment) {
   await graph("/me/events/" + encodeURIComponent(eventId) + "/cancel", "POST", { comment: comment || "Cancelled via DLP." });
 }
 
+// REV318: forward the meeting request to a new recipient, the same action Outlook's own
+// Forward button performs. Exchange mails only the new recipient and leaves the attendee
+// list untouched, so nobody already invited is notified. The event lives in the organiser's
+// mailbox, so /me/events resolves for the organiser only; a non-organiser gets a not-found
+// from Graph, which the caller checks for beforehand. Forwarding as the organiser does not
+// add the recipient to the event, which is why DLP also records the address and copies it
+// on any later update.
+export async function forwardWitnessEvent(eventId, to, comment) {
+  const ToRecipients = mailRecipients(to);
+  if (!ToRecipients.length) throw new Error("No valid recipient address to forward to.");
+  await graph("/me/events/" + encodeURIComponent(eventId) + "/forward", "POST", { ToRecipients, Comment: comment || "Forwarded at your request from DLP." });
+}
+
 // UTF-8 safe base64 for attachment contentBytes (btoa alone corrupts non-Latin1 text).
 export const b64utf8 = (str) => {
   const bytes = new TextEncoder().encode(str);

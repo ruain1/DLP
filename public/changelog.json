@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV318",
+    "date": "2026-07-14",
+    "items": [
+      "Mark Forwarded now actually forwards. The Forward invite button on an invite request sends the existing witness meeting to the requester through Outlook, the same action Outlook's own Forward button performs, and only marks the request forwarded once Exchange has accepted it. Every active session is forwarded, and the existing attendees are not notified.",
+      "Forwarding as the organiser does not make the recipient an attendee, so the address is recorded against the invite and copied on every later send and update; a reschedule now reaches them instead of leaving them on a stale date.",
+      "Where DLP cannot send, it says why rather than failing quietly: no invite sent yet, Outlook not connected, or the invite was organised by someone else (the meeting lives in the organiser's mailbox). Mark forwarded stays for those cases."
+    ]
+  },
+  {
     "rev": "REV317",
     "date": "2026-07-14",
     "items": [

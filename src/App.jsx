@@ -883,6 +883,8 @@ const Icon = ({ n, s = 16 }) => String(n || "").indexOf("lucide:") === 0
   ? <LucideIcon name={String(n).slice(7)} s={s} />
   : <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{I[n]}</svg>;
 
+// REV318: the note that rides on a forwarded witness invite.
+const FWD_COMMENT = "Forwarded at your request from DLP.";
 const todayMid = () => new Date().setHours(0, 0, 0, 0);
 const parseD = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
 const fmtISO = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
@@ -2894,6 +2896,8 @@ export default function App({ session }) {
   const [olAcct, setOlAcct] = useState(null);      // connected Outlook account (email) or null
   const [olBusy, setOlBusy] = useState(null);      // activity id currently sending, or "bulk"
   const [olMsg, setOlMsg] = useState(null);        // { ok, text } result line in the popup
+  const [fwdBusy, setFwdBusy] = useState(null);    // REV318: invite request id currently forwarding
+  const [fwdMsg, setFwdMsg] = useState(null);      // REV318: { id, ok, text } result on the request card
   const vendorLogoCache = useRef({});              // company id -> fetched CID logo payload or null
   const [authDiag, setAuthDiag] = useState(null);  // last redirect-return diagnostics from the outlook module
   const digestBusy = useRef(false);                // re-entrancy guard for the digest scheduler
@@ -3200,6 +3204,18 @@ export default function App({ session }) {
   };
   const invEntries = (a) => (Array.isArray(a.witnessEvents) ? a.witnessEvents : []);
   const invActive = (a) => invEntries(a).filter((e) => e.status !== "cancelled");
+  // REV318: addresses this activity's invite has been forwarded to. Forwarding does not make
+  // the recipient an attendee, so they are recorded here and copied on every later send and
+  // update; otherwise a reschedule would leave them holding a stale date. Cancelled sessions
+  // are included so a re-send still reaches them.
+  const invForwarded = (a) => {
+    const out = [];
+    for (const e of invEntries(a)) for (const em of (e.fwd || [])) {
+      const k = String(em || "").trim().toLowerCase();
+      if (k && !out.some((x) => x.toLowerCase() === k)) out.push(String(em).trim());
+    }
+    return out;
+  };
   // Cancellation comment (plain text: the medium Exchange gives us). When the activity failed
   // and a scheduled retest child exists, the comment cross-references it so attendees' calendars
   // tell a coherent story; otherwise the plain template.
@@ -3266,7 +3282,7 @@ export default function App({ session }) {
       activityUrl: (typeof window !== "undefined" && window.location && window.location.origin ? window.location.origin : "") + "/?p=" + encodeURIComponent(S.projectId || "") + "&act=" + encodeURIComponent(a.id),
       notes: (a.notes || "").replace(/\n*LINK TO ACC FILES:[^\n]*/gi, "").trim(), fokRef: a.fokRef || "", accUrl: a.accUrl || "", assigneeEmail: a.assigneeEmail || "", retest,
       headerChip: retest ? `Attempt ${att}` + (dayChip ? " \u00b7 " + dayChip : "") : dayChip,
-      startLocal: sd, durationMin: mins, required: to || [], optional: cc || [],
+      startLocal: sd, durationMin: mins, required: to || [], optional: [...(cc || []), ...invForwarded(a).filter((em) => ![...(to || []), ...(cc || [])].some((x) => String(x).toLowerCase() === em.toLowerCase()))],
     };
   };
   // Fetch the responsible vendor's light-surface logo once per company, measured so Outlook
@@ -3553,6 +3569,38 @@ export default function App({ session }) {
       setS((prev) => ({ ...prev, inviteRequests: (prev.inviteRequests || []).filter((r) => r.id !== optimistic.id) }));
       alert("Could not send the request. Please try again.");
     }
+  };
+  // REV318: the real send. Forwards the existing witness meeting through Outlook to the
+  // requester, then records the address and marks the request forwarded. The request is only
+  // marked once Exchange has accepted the forward, so a failure leaves it pending rather than
+  // silently claiming it was sent.
+  const forwardInvite = async (r) => {
+    if (!isAdmin || fwdBusy) return;
+    const a = (S.activities || []).find((x) => x.id === r.activityId);
+    const email = String(r.requesterEmail || "").trim();
+    if (!a) { setFwdMsg({ id: r.id, ok: false, text: "That activity is no longer in this project." }); return; }
+    if (!email || !email.includes("@")) { setFwdMsg({ id: r.id, ok: false, text: "This request has no email address to forward to." }); return; }
+    setFwdBusy(r.id); setFwdMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const acct = await ol.outlookAccount();
+      if (!acct) throw new Error("Outlook is not connected, so DLP cannot forward on your behalf.");
+      const active = invActive(a).slice().sort((x, y) => x.day - y.day);
+      if (!active.length) throw new Error("No witness invite has been sent for this activity yet, so there is nothing to forward.");
+      const me = String(acct.username || "").toLowerCase();
+      const other = active.find((e) => e.organiser && String(e.organiser).toLowerCase() !== me);
+      if (other) throw new Error(`This invite was sent from ${other.organiser}. Only the organiser can forward it; you are signed in as ${acct.username}.`);
+      for (const e of active) await ol.forwardWitnessEvent(e.eventId, [{ email, name: r.requesterName || email }], FWD_COMMENT);
+      const low = email.toLowerCase();
+      const sent = new Set(active.map((e) => e.eventId));
+      const next = invEntries(a).map((e) => (sent.has(e.eventId) && !(e.fwd || []).some((x) => String(x).toLowerCase() === low)
+        ? { ...e, fwd: [...(e.fwd || []), email] } : e));
+      persistInv(a, next, "Forwarded witness invite", `${email} \u00b7 ${a.desc || ""}`);
+      await markInviteForwarded(r.id);
+      setFwdMsg({ id: r.id, ok: true, text: `Invite forwarded to ${email} (${active.length} session${active.length === 1 ? "" : "s"}). They will also be copied on any reschedule.` });
+    } catch (err) {
+      setFwdMsg({ id: r.id, ok: false, text: (err && err.message) || String(err) });
+    } finally { setFwdBusy(null); }
   };
   const markInviteForwarded = async (id) => {
     if (!isAdmin) return;
@@ -4325,7 +4373,11 @@ export default function App({ session }) {
                     <span style={{ fontSize: 12, fontWeight: 600 }}>{r.requesterName || "Someone"} requests this invite</span>
                     <span className="ytt-loc">{r.requesterEmail || ""}{r.location ? <> {"\u00b7"} {r.location}</> : ""}</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><button className="lk-btn primary" onClick={() => markInviteForwarded(r.id)}><Icon n="check" s={14} />Mark Forwarded</button></div>
+                  {fwdMsg && fwdMsg.id === r.id && <div style={{ fontSize: 11, lineHeight: 1.5, marginTop: 8, color: fwdMsg.ok ? "var(--st-done)" : "var(--red)" }}>{fwdMsg.text}</div>}
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, marginTop: 8 }}>
+                    <button className="lk-btn" disabled={fwdBusy === r.id} onClick={() => markInviteForwarded(r.id)} title="Record this as handled without sending anything">Mark forwarded</button>
+                    <button className="lk-btn primary" disabled={fwdBusy === r.id} onClick={() => forwardInvite(r)} title="Forward the witness invite to the requester through Outlook"><Icon n="mail" s={14} />{fwdBusy === r.id ? "Forwarding..." : "Forward invite"}</button>
+                  </div>
                 </div>; })}
               {byAct.length === 0 && pendingInvites.length === 0 && readyEvents.length === 0 ? <div className="ytt-empty" style={{ padding: 16 }}>Nothing needs your attention right now.</div>
                 : byAct.map(({ a, cons }) => { const lv = lvOf(LV, a.level); return <div key={a.id} className="ytt-card" style={{ borderLeftColor: lv.color }}>
