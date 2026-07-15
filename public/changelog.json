@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV319",
+    "date": "2026-07-14",
+    "items": [
+      "The Gantt's left column now stays put when you scroll the timeline sideways. The activity ID, name, and % done hold in place with a soft edge shadow showing the bars passing underneath, matching the way the date header already holds when you scroll down.",
+      "Applied to all three Gantts (live, P6 baseline, and compare), so the view behaves the same whichever source is selected. Group rows still collapse when clicked, from the frozen column or the timeline.",
+      "The PNG, JPG, and PDF exports are unaffected: they reset the frozen column before rendering, so an export taken while scrolled right still comes out correctly aligned."
+    ]
+  },
+  {
     "rev": "REV318",
     "date": "2026-07-14",
     "items": [

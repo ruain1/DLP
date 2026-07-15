@@ -7365,9 +7365,58 @@ function DrillModal({ title, items, S, LV, coName, onOpen, onClose }) {
     </div>);
 }
 
+// REV319: freeze the Gantt's left label column while the timeline scrolls sideways.
+// The Gantt is a single SVG with the labels painted inside it, so CSS sticky cannot pin
+// part of it the way it pins the date header (which is its own sticky SVG). Instead the
+// label layer is translated by the scroller's scrollLeft, which pins it visually without
+// touching any timeline coordinate maths. The layer carries data-frozen so the image
+// export can reset it: exports clone this SVG, and a clone taken while scrolled right
+// would otherwise bake the offset into the PNG, JPG, or PDF.
+function useFrozenLeft(scrollRef, refs) {
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const x = el.scrollLeft || 0;
+      const t = "translate(" + x + " 0)";
+      for (const r of refs) if (r && r.current) r.current.setAttribute("transform", t);
+      const sh = el.querySelectorAll("[data-frozen-shadow]");
+      for (let i = 0; i < sh.length; i++) sh[i].setAttribute("opacity", x > 0 ? "1" : "0");
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
+    apply();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => { el.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
+  });
+}
+// REV319: an export must render the true layout, so drop the frozen column's scroll offset
+// and its edge shadow from the clone before serialising.
+function resetFrozen(c) {
+  c.querySelectorAll("[data-frozen]").forEach((n) => n.removeAttribute("transform"));
+  c.querySelectorAll("[data-frozen-shadow]").forEach((n) => n.parentNode && n.parentNode.removeChild(n));
+  return c;
+}
+// REV319: the soft edge that shows bars passing under the frozen column. Built from plain
+// rects rather than a gradient so there is no defs id to collide across the three Gantts.
+function FrozenEdge({ x, h }) {
+  return (
+    <g data-frozen-shadow="1" opacity="0">
+      <rect x={x} y={0} width={2} height={h} fill="#000" opacity="0.16" />
+      <rect x={x + 2} y={0} width={3} height={h} fill="#000" opacity="0.08" />
+      <rect x={x + 5} y={0} width={4} height={h} fill="#000" opacity="0.04" />
+    </g>
+  );
+}
+
 function BaselineGantt({ baseline, LV, dark, zoom, compact, P, brandName }) {
   const [collapsed, setCollapsed] = useState({});
   const svgRef = useRef(null);
+  const scrollRef = useRef(null);       // REV319: the pane that scrolls the timeline
+  const frozenRef = useRef(null);       // REV319: left label layer, translated to stay pinned
+  const axisFrozenRef = useRef(null);   // REV319: the same strip on the sticky date header
+  useFrozenLeft(scrollRef, [frozenRef, axisFrozenRef]);
   const wbs = (baseline && baseline.wbs) || {};
   const groupName = (a) => { const p = wbsPath(wbs, a.wbs); return p.length > 1 ? p[1] : (p[0] || "Ungrouped"); };
   const items = ((baseline && baseline.activities) || []).filter((a) => a.start).map((a) => ({ id: a.pid, code: a.code, name: a.name || "Untitled", s: parseD(a.start), e: parseD(a.end || a.start), ms: !!a.ms, crit: !!a.crit, grp: groupName(a) }));
@@ -7395,12 +7444,12 @@ function BaselineGantt({ baseline, LV, dark, zoom, compact, P, brandName }) {
   const BASE = dark ? "#8A97A6" : "#94A3B8";
   const CRIT = dark ? "#E06C6C" : "#C0392B";
 
-  const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
+  const svgString = () => { const c = resetFrozen(svgRef.current.cloneNode(true)); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
   const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${brandName || "DLP"}-P6-baseline-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
 
   const meta = (baseline && baseline.meta) || {};
   return (
-    <div className="lk-sch-scroll" style={{ background: P.bg }}>
+    <div ref={scrollRef} className="lk-sch-scroll" style={{ background: P.bg }}>
       {items.length === 0 ? <div className="lk-empty">The stored baseline has no dated activities.</div> : <>
       <div style={{ display: "flex", gap: 10, padding: "8px 12px", alignItems: "center", borderBottom: "1px solid " + P.line, background: P.bg }}>
         <span style={{ fontFamily: "ui-monospace,monospace", fontSize: 11, color: P.mut }}>{(meta.project || "P6 baseline")}{baseline.source_filename ? " \u00b7 " + baseline.source_filename : ""} \u00b7 {items.length} activities \u00b7 {items.filter((i) => i.ms).length} milestones{meta.dataDate ? " \u00b7 data date " + meta.dataDate : ""}</span>
@@ -7412,19 +7461,32 @@ function BaselineGantt({ baseline, LV, dark, zoom, compact, P, brandName }) {
         <rect x={0} y={0} width={W} height={headH} fill={P.bg} />
         {months.map((m, i) => <g key={"hm" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
         {ticks.map((t, i) => <g key={"ht" + i}><line x1={t.x} y1={22} x2={t.x} y2={headH} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
-        <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+        {/* REV319: divider now drawn in the frozen layer below */}
         <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
         {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={headH} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
+        <g ref={axisFrozenRef} data-frozen="1">
+          <rect x={0} y={0} width={leftW} height={headH} fill={P.bg} />
+          <line x1={0} y1={headH} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+          <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+          <FrozenEdge x={leftW} h={headH} />
+        </g>
       </svg>
       <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif", position: "relative", zIndex: 1 }}>
         <rect x={0} y={0} width={W} height={H} fill={P.bg} />
         {months.map((m, i) => <g key={"m" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
         {ticks.map((t, i) => <g key={"t" + i}><line x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
-        <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+        {/* REV319: divider now drawn in the frozen layer */}
         <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
         {todayX >= leftW && todayX <= W && <line x1={todayX} y1={headH} x2={todayX} y2={H} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />}
-        {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { const open = !collapsed[r.k]; return <g key={"g" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}><rect x={0} y={y} width={W} height={rowH} fill={P.header} /><text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>{text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}</g>; } const it = r.it; const nm = it.name; return <g key={"tb" + it.id}>{i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}<line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" />{text(10, y + rowH / 2, it.code || "", { size: 9.5, fill: P.mut })}<text x={42} y={y + rowH / 2} fontSize="11.5" fill={P.ink} dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text></g>; })}
+        {/* REV319: full-width backgrounds only; the left labels moved to the frozen layer */}
+        {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { return <rect key={"g" + r.k} x={0} y={y} width={W} height={rowH} fill={P.header} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))} />; } const it = r.it; return <g key={"tb" + it.id}>{i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}<line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" /></g>; })}
         {rows.map((r, i) => { if (r.t !== "task") return null; const it = r.it; const y = headH + i * rowH, yc = y + rowH / 2; const xs = xOf(dayOff(it.s)); const xe = xOf(dayOff(it.e) + 1); const barH = rowH - 12, barY = y + (rowH - barH) / 2; const col = it.crit ? CRIT : BASE; if (it.ms) { return <polygon key={"ms" + it.id} points={`${xs},${yc - 6} ${xs + 6},${yc} ${xs},${yc + 6} ${xs - 6},${yc}`} fill={dark ? P.bg : "#FFFFFF"} stroke={col} strokeWidth="1.7" />; } return <g key={"bar" + it.id}><rect x={xs} y={barY} width={Math.max(xe - xs, 4)} height={barH} rx={3} fill={col} opacity={0.22} /><rect x={xs} y={barY} width={Math.max(xe - xs, 4)} height={barH} rx={3} fill="none" stroke={col} strokeWidth="1.1" /></g>; })}
+        <g ref={frozenRef} data-frozen="1">
+          <rect x={0} y={0} width={leftW} height={H} fill={P.bg} />
+          {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { const open = !collapsed[r.k]; return <g key={"fg" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}><rect x={0} y={y} width={leftW} height={rowH} fill={P.header} /><text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>{text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}</g>; } const it = r.it; const nm = it.name; return <g key={"fr" + it.id} style={{ pointerEvents: "none" }}><rect x={0} y={y} width={leftW} height={rowH} fill={i % 2 === 0 ? P.row : P.bg} /><line x1={0} y1={y + rowH} x2={leftW} y2={y + rowH} stroke={P.sep} strokeWidth="1" />{text(10, y + rowH / 2, it.code || "", { size: 9.5, fill: P.mut })}<text x={42} y={y + rowH / 2} fontSize="11.5" fill={P.ink} dominantBaseline="middle">{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text></g>; })}
+          <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+          <FrozenEdge x={leftW} h={H} />
+        </g>
       </svg>
       </>}
     </div>
@@ -7434,6 +7496,10 @@ function BaselineGantt({ baseline, LV, dark, zoom, compact, P, brandName }) {
 function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P, brandName }) {
   const [collapsed, setCollapsed] = useState({});
   const svgRef = useRef(null);
+  const scrollRef = useRef(null);       // REV319: the pane that scrolls the timeline
+  const frozenRef = useRef(null);       // REV319: left label layer, translated to stay pinned
+  const axisFrozenRef = useRef(null);   // REV319: the same strip on the sticky date header
+  useFrozenLeft(scrollRef, [frozenRef, axisFrozenRef]);
   const colorOf = (a) => ((LV[a.level] || {}).color || "#64748B");
   const baseById = {}; ((baseline && baseline.activities) || []).forEach((b) => { baseById[b.pid] = b; });
   const liveToBase = {}; const mp = mappings || {}; Object.keys(mp).forEach((bpid) => { if (mp[bpid]) liveToBase[mp[bpid]] = bpid; });
@@ -7466,14 +7532,14 @@ function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P, br
   const BASE = dark ? "#8A97A6" : "#94A3B8";
   const LATE = dark ? "#F87171" : "var(--red, #C0392B)", EARLY = dark ? "var(--st-ok)" : "var(--st-done)";
 
-  const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
+  const svgString = () => { const c = resetFrozen(svgRef.current.cloneNode(true)); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
   const exportImg = (type) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${brandName || "DLP"}-compare-${fmtISO(new Date())}.${type}`; a.click(); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
 
   const mappedN = liveItems.filter((i) => i.base).length;
   const slipped = liveItems.filter((i) => i.base && (dayOff(i.e) - dayOff(i.base.e)) > 1).length;
 
   return (
-    <div className="lk-sch-scroll" style={{ background: P.bg }}>
+    <div ref={scrollRef} className="lk-sch-scroll" style={{ background: P.bg }}>
       {liveItems.length === 0 ? <div className="lk-empty">No live activities with dates to compare.</div> : <>
       <div style={{ display: "flex", gap: 14, padding: "8px 12px", alignItems: "center", borderBottom: "1px solid " + P.line, background: P.bg, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: P.mut }}><b style={{ color: P.ink }}>{mappedN}</b> mapped · <b style={{ color: LATE }}>{slipped}</b> slipped vs baseline</span>
@@ -7486,19 +7552,32 @@ function CompareGantt({ baseline, live, mappings, LV, dark, zoom, compact, P, br
         <rect x={0} y={0} width={W} height={headH} fill={P.bg} />
         {months.map((m, i) => <g key={"hm" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
         {ticks.map((t, i) => <g key={"ht" + i}><line x1={t.x} y1={22} x2={t.x} y2={headH} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
-        <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+        {/* REV319: divider now drawn in the frozen layer below */}
         <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
         {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={headH} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
+        <g ref={axisFrozenRef} data-frozen="1">
+          <rect x={0} y={0} width={leftW} height={headH} fill={P.bg} />
+          <line x1={0} y1={headH} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+          <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+          <FrozenEdge x={leftW} h={headH} />
+        </g>
       </svg>
       <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif", position: "relative", zIndex: 1 }}>
         <rect x={0} y={0} width={W} height={H} fill={P.bg} />
         {months.map((m, i) => <rect key={"m" + i} x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />)}
         {ticks.map((t, i) => <line key={"t" + i} x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />)}
-        <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+        {/* REV319: divider now drawn in the frozen layer */}
         <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
         {todayX >= leftW && todayX <= W && <line x1={todayX} y1={headH} x2={todayX} y2={H} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />}
-        {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { const open = !collapsed[r.k]; return <g key={"g" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}><rect x={0} y={y} width={W} height={rowH} fill={P.header} /><text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>{text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}</g>; } const it = r.it; const nm = it.name; return <g key={"lx" + r.t + it.id}>{i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}<line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" />{text(10, y + rowH / 2, r.t === "live" ? it.code : "", { size: 9.5, fill: P.mut })}<text x={42} y={y + rowH / 2} fontSize="11.5" fill={r.t === "bm" ? P.mut : P.ink} dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text></g>; })}
+        {/* REV319: full-width backgrounds only; the left labels moved to the frozen layer */}
+        {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { return <rect key={"g" + r.k} x={0} y={y} width={W} height={rowH} fill={P.header} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))} />; } const it = r.it; return <g key={"lx" + r.t + it.id}>{i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}<line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" /></g>; })}
         {rows.map((r, i) => { const y = headH + i * rowH, yc = y + rowH / 2; if (r.t === "bm") { const it = r.it; const x = xOf(dayOff(it.s)); return <polygon key={"bm" + it.id} points={`${x},${yc - 6} ${x + 6},${yc} ${x},${yc + 6} ${x - 6},${yc}`} fill={dark ? P.bg : "#FFFFFF"} stroke={BASE} strokeWidth="1.6" />; } if (r.t !== "live") return null; const it = r.it; const barH = rowH - 14, barY = y + (rowH - barH) / 2; const lxs = xOf(dayOff(it.s)), lxe = xOf(dayOff(it.e) + 1); const vNodes = []; if (it.base) { const bxs = xOf(dayOff(it.base.s)), bxe = xOf(dayOff(it.base.e) + 1); const dd = dayOff(it.e) - dayOff(it.base.e); const vcol = dd > 1 ? LATE : dd < -1 ? EARLY : P.mut; if (it.base.ms || it.ms) { vNodes.push(<polygon key="bd" points={`${bxs},${yc - 5} ${bxs + 5},${yc} ${bxs},${yc + 5} ${bxs - 5},${yc}`} fill="none" stroke={BASE} strokeWidth="1.4" />); } else { vNodes.push(<rect key="bb" x={bxs} y={yc + 3} width={Math.max(bxe - bxs, 3)} height={4} rx={2} fill={BASE} opacity={0.7} />); } const chipX = Math.max(lxe, bxe) + 6; vNodes.push(text(chipX, yc, dd === 0 ? "on plan" : (dd > 0 ? "+" : "") + dd + "d", { size: 9.5, fill: dd === 0 ? P.mut : vcol, weight: 700 })); } const liveNode = it.ms ? <polygon points={`${lxs},${yc - 6} ${lxs + 6},${yc} ${lxs},${yc + 6} ${lxs - 6},${yc}`} fill={it.col} /> : <g><rect x={lxs} y={barY} width={Math.max(lxe - lxs, 4)} height={barH} rx={3} fill={it.col} opacity={0.32} /><rect x={lxs} y={barY} width={Math.max(lxe - lxs, 4)} height={barH} rx={3} fill="none" stroke={it.col} strokeWidth="1.1" /></g>; return <g key={"lb" + it.id}>{vNodes}{liveNode}</g>; })}
+        <g ref={frozenRef} data-frozen="1">
+          <rect x={0} y={0} width={leftW} height={H} fill={P.bg} />
+          {rows.map((r, i) => { const y = headH + i * rowH; if (r.t === "grp") { const open = !collapsed[r.k]; return <g key={"fg" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}><rect x={0} y={y} width={leftW} height={rowH} fill={P.header} /><text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>{text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}</g>; } const it = r.it; const nm = it.name; return <g key={"fr" + r.t + it.id} style={{ pointerEvents: "none" }}><rect x={0} y={y} width={leftW} height={rowH} fill={i % 2 === 0 ? P.row : P.bg} /><line x1={0} y1={y + rowH} x2={leftW} y2={y + rowH} stroke={P.sep} strokeWidth="1" />{text(10, y + rowH / 2, r.t === "live" ? it.code : "", { size: 9.5, fill: P.mut })}<text x={42} y={y + rowH / 2} fontSize="11.5" fill={r.t === "bm" ? P.mut : P.ink} dominantBaseline="middle">{nm.length > 34 ? nm.slice(0, 33) + "\u2026" : nm}</text></g>; })}
+          <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+          <FrozenEdge x={leftW} h={H} />
+        </g>
       </svg>
       </>}
     </div>
@@ -7518,6 +7597,10 @@ function SchedulePage({ S, coName, onOpen }) {
   const openDrill = (title, items) => setDrill({ title, items: items || [] });
   const [narr, setNarr] = useState(null);   // REV314: activity whose scheduling narrative drawer is open
   const svgRef = useRef(null);
+  const scrollRef = useRef(null);       // REV319: the pane that scrolls the timeline
+  const frozenRef = useRef(null);       // REV319: left label layer, translated to stay pinned
+  const axisFrozenRef = useRef(null);   // REV319: the same strip on the sticky date header
+  useFrozenLeft(scrollRef, [frozenRef, axisFrozenRef]);
   const [bl, setBl] = useState(null);
   const [source, setSource] = useState("live");
   useEffect(() => { if (!S.projectId) return; let on = true; loadBaseline(S.projectId).then((r) => { if (on) setBl(r); }).catch(() => {}); return () => { on = false; }; }, [S.projectId]);
@@ -7618,7 +7701,7 @@ function SchedulePage({ S, coName, onOpen }) {
     return <g key={key} style={{ pointerEvents: "none" }}><path d={d} fill="none" stroke="#7A8494" strokeWidth="1.1" strokeDasharray={dashed ? "3 2" : undefined} /><polygon points={`${tip - 5},${ay2 - 3} ${tip},${ay2} ${tip - 5},${ay2 + 3}`} fill="#7A8494" /></g>;
   };
 
-  const svgString = () => { const c = svgRef.current.cloneNode(true); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
+  const svgString = () => { const c = resetFrozen(svgRef.current.cloneNode(true)); c.setAttribute("xmlns", "http://www.w3.org/2000/svg"); return new XMLSerializer().serializeToString(c); };
   const rasterize = (cb) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); cb(cv); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
   const exportImg = (type) => rasterize((cv) => { const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-schedule-${fmtISO(new Date())}.${type}`; a.click(); });
   const exportPdf = () => { const w = window.open("", "_blank"); if (!w) return; w.document.write(`<!DOCTYPE html><html><head><title>${(S.brand && S.brand.projectName) || "DLP"} Schedule</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${svgString()}</body></html>`); w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350); };
@@ -7651,17 +7734,23 @@ function SchedulePage({ S, coName, onOpen }) {
       </div>
       {view === "gantt" && source === "p6" && hasBaseline && <BaselineGantt brandName={(S.brand && S.brand.projectName) || "DLP"} baseline={bl} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
       {view === "gantt" && source === "compare" && hasBaseline && <CompareGantt brandName={(S.brand && S.brand.projectName) || "DLP"} baseline={bl} live={S.activities} mappings={bl.mappings} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
-      {view === "gantt" && (source === "live" || !hasBaseline) && <div className="lk-sch-scroll" style={{ background: P.bg }}>
+      {view === "gantt" && (source === "live" || !hasBaseline) && <div ref={scrollRef} className="lk-sch-scroll" style={{ background: P.bg }}>
         {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
         <>
         <svg className="lk-sch-axis" width={W} height={headH} viewBox={`0 0 ${W} ${headH}`} xmlns="http://www.w3.org/2000/svg" style={{ position: "sticky", top: 0, zIndex: 3, display: "block", marginBottom: -headH, background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
           <rect x={0} y={0} width={W} height={headH} fill={P.bg} />
           {months.map((m, i) => <g key={"hm" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
           {ticks.map((t, i) => <g key={"ht" + i}><line x1={t.x} y1={22} x2={t.x} y2={headH} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
-          <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
-          {text(leftW - 10, 34, "% done", { anchor: "end", size: 9, weight: 700, fill: P.mut })}
+          {/* REV319: divider now drawn in the frozen layer below */}
           <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
           {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={headH} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
+          <g ref={axisFrozenRef} data-frozen="1">
+            <rect x={0} y={0} width={leftW} height={headH} fill={P.bg} />
+            {text(leftW - 10, 34, "% done", { anchor: "end", size: 9, weight: 700, fill: P.mut })}
+            <line x1={0} y1={headH} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+            <line x1={leftW} y1={0} x2={leftW} y2={headH} stroke={P.line} strokeWidth="1" />
+            <FrozenEdge x={leftW} h={headH} />
+          </g>
         </svg>
         <svg ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif", position: "relative", zIndex: 1 }}>
           <rect x={0} y={0} width={W} height={H} fill={P.bg} />
@@ -7669,29 +7758,22 @@ function SchedulePage({ S, coName, onOpen }) {
           {months.map((m, i) => <g key={"m" + i}><rect x={m.xs} y={0} width={Math.max(0, m.xe - m.xs)} height={22} fill={i % 2 ? P.band2 : P.band} />{(m.xe - m.xs) > 26 && text((m.xs + m.xe) / 2, 11, m.label, { anchor: "middle", size: 10.5, weight: 700, fill: P.mut })}</g>)}
           {/* unit gridlines + labels */}
           {ticks.map((t, i) => <g key={"t" + i}><line x1={t.x} y1={22} x2={t.x} y2={H} stroke={t.strong ? P.gridStrong : P.grid} strokeWidth="1" />{t.label && zoom !== "month" && text(t.x + 2, 34, t.label, { size: 9.5, fill: P.mut })}</g>)}
-          <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+          {/* REV319: divider now drawn in the frozen layer */}
           <line x1={0} y1={headH} x2={W} y2={headH} stroke={P.line} strokeWidth="1" />
           {/* today line */}
           {todayX >= leftW && todayX <= W && <g><line x1={todayX} y1={22} x2={todayX} y2={H} stroke={P.today} strokeWidth="1.5" strokeDasharray="3 3" />{text(todayX + 3, headH - 4, "today", { size: 9, fill: P.today, weight: 700 })}</g>}
 
-          {/* LAYER 1 - backgrounds, group headers, left-column text */}
+          {/* LAYER 1 - full-width backgrounds and group headers. REV319: the left-column
+              text moved to the frozen layer so it stays put as the timeline scrolls. */}
           {rows.map((r, i) => {
             const y = headH + i * rowH;
             if (r.t === "grp") {
-              const open = !collapsed[r.k];
-              return <g key={"gb" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}>
-                <rect x={0} y={y} width={W} height={rowH} fill={P.header} />
-                <text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>
-                {text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}
-              </g>;
+              return <rect key={"gb" + r.k} x={0} y={y} width={W} height={rowH} fill={P.header} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))} />;
             }
-            const a = r.a, nm = a.desc || "Untitled";
+            const a = r.a;
             return <g key={"tb" + a.id}>
               {i % 2 === 0 && <rect x={0} y={y} width={W} height={rowH} fill={P.row} />}
               <line x1={0} y1={y + rowH} x2={W} y2={y + rowH} stroke={P.sep} strokeWidth="1" />
-              {text(10, y + rowH / 2, a.code != null ? "#" + a.code : "", { size: 9.5, fill: P.mut })}
-              <text x={42} y={y + rowH / 2} fontSize="11.5" fill={P.ink} dominantBaseline="middle" style={{ pointerEvents: "none" }}>{nm.length > 30 ? nm.slice(0, 29) + "\u2026" : nm}</text>
-              {!a.isMilestone && text(leftW - 10, y + rowH / 2, pct(a) + "%", { anchor: "end", size: 10.5, fill: P.mut })}
             </g>;
           })}
 
@@ -7745,6 +7827,32 @@ function SchedulePage({ S, coName, onOpen }) {
               {showResp && coName(a.companyId) && text(respX, yc, coName(a.companyId), { size: 10, fill: P.mut })}
             </g>;
           })}
+          {/* REV319 LAYER 5 - the frozen left column. Drawn last so bars pass underneath;
+              translated by the pane's scrollLeft so it stays pinned. */}
+          <g ref={frozenRef} data-frozen="1">
+            <rect x={0} y={0} width={leftW} height={H} fill={P.bg} />
+            {rows.map((r, i) => {
+              const y = headH + i * rowH;
+              if (r.t === "grp") {
+                const open = !collapsed[r.k];
+                return <g key={"fg" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}>
+                  <rect x={0} y={y} width={leftW} height={rowH} fill={P.header} />
+                  <text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>
+                  {text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}
+                </g>;
+              }
+              const a = r.a, nm = a.desc || "Untitled";
+              return <g key={"fr" + a.id} style={{ pointerEvents: "none" }}>
+                <rect x={0} y={y} width={leftW} height={rowH} fill={i % 2 === 0 ? P.row : P.bg} />
+                <line x1={0} y1={y + rowH} x2={leftW} y2={y + rowH} stroke={P.sep} strokeWidth="1" />
+                {text(10, y + rowH / 2, a.code != null ? "#" + a.code : "", { size: 9.5, fill: P.mut })}
+                <text x={42} y={y + rowH / 2} fontSize="11.5" fill={P.ink} dominantBaseline="middle">{nm.length > 30 ? nm.slice(0, 29) + "\u2026" : nm}</text>
+                {!a.isMilestone && text(leftW - 10, y + rowH / 2, pct(a) + "%", { anchor: "end", size: 10.5, fill: P.mut })}
+              </g>;
+            })}
+            <line x1={leftW} y1={0} x2={leftW} y2={H} stroke={P.line} strokeWidth="1" />
+            <FrozenEdge x={leftW} h={H} />
+          </g>
         </svg>
         </>}
       </div>}
