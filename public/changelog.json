@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV323",
+  "date": "2026-07-20",
+  "items": [
+   "Witness Schedule: owners and admins can now change a witness point's date, time and duration inline, without opening the activity drawer. The row's date becomes a date field, the time an hour:minute picker (15 minute steps), and the duration a dropdown with the same eight options as the drawer, up to Full day. Client viewers keep the read-only row.",
+   "Edits use the normal save path, so any change flips the invite to Details Changed and surfaces Update Invite, exactly as a reschedule does; nothing is sent to Outlook until you press it. The new time applies to day one of a multi-day witness and each following day inherits it.",
+   "Rows no longer vanish mid-edit. The list is filtered to the selected period, so moving a date could push a row outside the window; any row you edit is now kept in view for the rest of the popout session and tagged when it sits outside the period, and the kept set clears when you close the window."
+  ]
+ },
+ {
   "rev": "REV322",
   "date": "2026-07-20",
   "items": [

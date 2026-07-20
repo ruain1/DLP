@@ -475,6 +475,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .wsch-list{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px;flex:1}
 .wsch-card{display:grid;grid-template-columns:118px 1fr;gap:13px;border:1px solid var(--line);border-left:3px solid #64748B;border-radius:calc(10px*var(--r,1));background:var(--card);padding:calc(11px*var(--pad,1)) calc(13px*var(--pad,1))}
 .wsch-when{display:flex;flex-direction:column;gap:3px}
+.wsch-elbl{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:2px 0 -3px}
 .wsch-day{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .wsch-time{font-size:18px;font-weight:800;line-height:1}
 .wsch-durpill{display:inline-block;margin-top:3px;background:var(--chipbg);border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:10.5px;color:var(--ink);width:max-content}
@@ -2894,6 +2895,7 @@ export default function App({ session }) {
   const [witSched, setWitSched] = useState(false);
   const [capOpen, setCapOpen] = useState(false);
   const [witPeriod, setWitPeriod] = useState("4w");
+  const [wsKeep, setWsKeep] = useState(() => new Set()); // REV323: witness rows kept visible after an inline edit even if the new date leaves the period
   const [olAcct, setOlAcct] = useState(null);      // connected Outlook account (email) or null
   const [olBusy, setOlBusy] = useState(null);      // activity id currently sending, or "bulk"
   const [olMsg, setOlMsg] = useState(null);        // { ok, text } result line in the popup
@@ -3044,6 +3046,7 @@ export default function App({ session }) {
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
   // REV321: keep the witness resolver in sync with this project's saved invite matrix.
   useEffect(() => { setInviteMatrix((S && S.settings && S.settings.inviteAttendees) || null); }, [S && S.settings && S.settings.inviteAttendees]);
+  useEffect(() => { if (!witSched) setWsKeep(new Set()); }, [witSched]); // REV323: clear the keep-set when the Witness Schedule closes
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks", "palette", "nameCase"];
   const cu = S && (() => {
@@ -3411,6 +3414,14 @@ export default function App({ session }) {
   // current start (time of day kept), then reconcile so the corrected event reaches attendees. No
   // email is sent until this explicit action, matching every other send path.
   const realignAndSend = (a) => runInv({ ...a, witnessAt: realignWitnessAt(a.witnessAt, a.start) }, "send");
+  // REV323: inline date/time/duration edits from the Witness Schedule popout (owner/admins). Each
+  // persists the single field through the normal update() path, which flips the invite to Details
+  // Changed so Update Invite pushes the correction. wsKept keeps the row visible if its new date
+  // leaves the selected period, so it cannot vanish mid-edit.
+  const wsKept = (id) => setWsKeep((k) => { const n = new Set(k); n.add(id); return n; });
+  const setWitnessDate = (a, ymd) => { const next = witnessAtWithDate(a.witnessAt, ymd); if (!next || next === a.witnessAt) return; update((pp) => ({ ...pp, activities: pp.activities.map((x) => (x.id === a.id ? { ...x, witnessAt: next } : x)) }), { action: "Change witness date", detail: (a.desc || "activity") + " to " + ymd }); wsKept(a.id); };
+  const setWitnessClock = (a, hhmm) => { const next = witnessAtWithTime(a.witnessAt, hhmm); if (!next || next === a.witnessAt) return; update((pp) => ({ ...pp, activities: pp.activities.map((x) => (x.id === a.id ? { ...x, witnessAt: next } : x)) }), { action: "Change witness time", detail: (a.desc || "activity") + " to " + hhmm }); wsKept(a.id); };
+  const setWitnessDur = (a, mins) => { const m = parseInt(mins, 10) || 60; if (m === (a.witnessDurationMin || 60)) return; update((pp) => ({ ...pp, activities: pp.activities.map((x) => (x.id === a.id ? { ...x, witnessDurationMin: m } : x)) }), { action: "Change witness duration", detail: (a.desc || "activity") + " " + m + " min" }); wsKept(a.id); };
   // ---- REV95: client-side digest scheduler ----
   const DIGEST_SENDER = "ruain.b@cs-nordics.com";
   const digestTick = async () => {
@@ -4524,7 +4535,7 @@ export default function App({ session }) {
         const list = (S.activities || [])
           .filter((a) => a.witnessInvite && a.witnessAt)
           .map((a) => ({ a, t: new Date(a.witnessAt).getTime(), open: (a.constraints || []).filter((c) => !c.done) }))
-          .filter((x) => !isNaN(x.t) && x.t >= startToday && (periodEnd === Infinity || x.t < periodEnd))
+          .filter((x) => !isNaN(x.t) && (wsKeep.has(x.a.id) || (x.t >= startToday && (periodEnd === Infinity || x.t < periodEnd))))
           .sort((x, y) => x.t - y.t);
         const periodOpts = [["1w", "This week"], ["2w", "Next 2 weeks"], ["4w", "Next 4 weeks (lookahead)"], ["all", "All upcoming"]];
         return (
@@ -4578,13 +4589,26 @@ export default function App({ session }) {
               {isAdmin && !olAcct && authDiag && (!authDiag.ok || (authDiag.hadHash && !authDiag.account)) && <div className="wsch-olmsg err">Sign-in return: {authDiag.ok ? "response processed but no account arrived" : (authDiag.code || "error") + ": " + authDiag.message}</div>}
               <div className="wsch-list">
                 {list.length === 0 ? <div className="ytt-empty" style={{ textAlign: "center", padding: 18 }}>No witness activities in this period.</div> :
-                  list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt); const st = (isAdmin && !isClientViewer) ? invState(a) : null;
-                    return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: (isClientViewer || isAdmin) ? "118px 1fr auto" : undefined }}>
+                  list.map(({ a, open }) => { const lv = lvOf(LV, a.level); const d = new Date(a.witnessAt); const st = (isAdmin && !isClientViewer) ? invState(a) : null; const busyRow = !!olBusy && (olBusy === a.id || olBusy === "bulk"); const outsidePeriod = wsKeep.has(a.id) && (isNaN(d.getTime()) || d.getTime() < startToday || (periodEnd !== Infinity && d.getTime() >= periodEnd));
+                    return <div key={a.id} className="wsch-card" style={{ borderLeftColor: lv.color, gridTemplateColumns: (isAdmin && !isClientViewer) ? "176px 1fr auto" : ((isClientViewer || isAdmin) ? "118px 1fr auto" : undefined) }}>
                       <div className="wsch-when">
-                        <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d); ed2.setDate(ed2.getDate() + (n - 1)); return f(d) + " - " + f(ed2); })()}</span>
-                        <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
-                        <span className="wsch-durpill">{durLabel(a.witnessDurationMin)}{Math.max(1, a.witnessDays || 1) > 1 ? " x " + (a.witnessDays || 1) + " days" : ""}</span>
-                        {a.witnessType ? <span className="wsch-durpill" style={{ fontWeight: 600 }}>{a.witnessType}</span> : null}
+                        {(isAdmin && !isClientViewer) ? <>
+                          <span className="wsch-elbl">Date</span>
+                          <input type="date" className="lk-in mono" value={(a.witnessAt || "").slice(0, 10)} disabled={busyRow} style={{ width: 152 }} onChange={(e) => setWitnessDate(a, e.target.value)} />
+                          <span className="wsch-elbl">Time</span>
+                          <TimePick compact value={(a.witnessAt || "").slice(11, 16) || "10:00"} disabled={busyRow} onChange={(hhmm) => setWitnessClock(a, hhmm)} />
+                          <span className="wsch-elbl">Duration</span>
+                          <select className="lk-select" value={a.witnessDurationMin || 60} disabled={busyRow} style={{ width: 152 }} onChange={(e) => setWitnessDur(a, e.target.value)}>
+                            <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option><option value={240}>Half day (4 h)</option><option value={480}>Full day (8 h)</option>
+                          </select>
+                          {Math.max(1, a.witnessDays || 1) > 1 ? <span className="wsch-durpill" style={{ marginTop: 4 }}>{"x " + (a.witnessDays || 1) + " days"}</span> : null}
+                          {a.witnessType ? <span className="wsch-durpill" style={{ fontWeight: 600 }}>{a.witnessType}</span> : null}
+                        </> : <>
+                          <span className="wsch-day">{(() => { const n = Math.max(1, a.witnessDays || 1); const f = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }); if (n === 1) return f(d); const ed2 = new Date(d); ed2.setDate(ed2.getDate() + (n - 1)); return f(d) + " - " + f(ed2); })()}</span>
+                          <span className="wsch-time">{String(d.getHours()).padStart(2, "0")}:{String(d.getMinutes()).padStart(2, "0")}</span>
+                          <span className="wsch-durpill">{durLabel(a.witnessDurationMin)}{Math.max(1, a.witnessDays || 1) > 1 ? " x " + (a.witnessDays || 1) + " days" : ""}</span>
+                          {a.witnessType ? <span className="wsch-durpill" style={{ fontWeight: 600 }}>{a.witnessType}</span> : null}
+                        </>}
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div className="wsch-name" onClick={() => { setWitSched(false); setEditing({ ...a }); }}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
@@ -4597,6 +4621,7 @@ export default function App({ session }) {
                           ? <><div className="wsch-conhdr">{open.length} open constraint{open.length === 1 ? "" : "s"}</div>
                               {open.map((c) => <div key={c.id} className="wsch-con"><span className="cdot" /><span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span></div>)}</>
                           : <div className="ytt-ready">No open constraints</div>}
+                        {outsidePeriod && <div style={{ marginTop: 6, display: "inline-block", fontSize: 10.5, color: "#e7c874", background: "color-mix(in srgb, var(--st-warn) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--st-warn) 40%, transparent)", borderRadius: 6, padding: "2px 8px" }}>Now {d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}, kept in view because you just edited it</div>}
                         {st === "behindplan" && (() => {
                           const fmt = (x) => x.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
                           const ps = parseD(a.start);
@@ -4654,6 +4679,22 @@ function realignWitnessAt(witnessAt, startISO) {
   if (!startISO) return witnessAt;
   const t = String(witnessAt || "").match(/T(\d{2}):(\d{2})/);
   return startISO + "T" + (t ? t[1] : "10") + ":" + (t ? t[2] : "00");
+}
+// REV323: recombine a witnessAt with a new date or a new time from the inline Witness Schedule
+// editors, preserving the untouched half and normalising to seconds. Return null on invalid input
+// so the caller no-ops rather than writing a malformed value.
+function witnessAtWithDate(witnessAt, ymd) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd || "")) return null;
+  let t = String(witnessAt || "").slice(11);
+  if (/^\d{2}:\d{2}$/.test(t)) t += ":00";
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(t)) t = "10:00:00";
+  return ymd + "T" + t;
+}
+function witnessAtWithTime(witnessAt, hhmm) {
+  if (!/^\d{2}:\d{2}$/.test(hhmm || "")) return null;
+  const d = String(witnessAt || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  return d + "T" + hhmm + ":00";
 }
 const FONT_STACKS = { grotesk: '"Space Grotesk","Inter",system-ui,sans-serif', inter: '"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif', system: 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif', serif: 'Georgia,Cambria,"Times New Roman",serif', mono: 'ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace' };
 // REV180: cssVars now takes the project settings so global design overrides (accent colour,
