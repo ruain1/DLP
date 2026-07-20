@@ -28,6 +28,35 @@ const HEADER_ALIASES = {
 function norm(v) { return String(v == null ? "" : v).trim(); }
 function normKey(v) { return norm(v).toLowerCase().replace(/\s+/g, " "); }
 
+// REV320: coerce a planned-date cell to a strict YYYY-MM-DD string or null. The register is
+// maintained by hand and a date column can legitimately carry a placeholder like "TBC" for an
+// item whose date is not yet confirmed. That placeholder must become null, never flow into the
+// date column: a literal "TBC" reaching planned_date fails the whole upsert with
+// invalid input syntax for type date: "TBC" and takes every other row down with it, which is
+// why an otherwise-clean 173-row import failed with nothing written. Real date cells already
+// arrive as YYYY-MM-DD from the import layer's isoDate; this also tolerates a hand-typed
+// day-first date (DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, the European convention on this project)
+// and nulls anything else (TBC, TBD, N/A, "week 30", "?", "-").
+export function coerceIsoDate(v) {
+  const s = norm(v);
+  if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T].*)?$/);   // already ISO; keep only the date part
+  if (m) return validYmd(+m[1], +m[2], +m[3]);
+  m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);      // day-first human format
+  if (m) return validYmd(+m[3], +m[2], +m[1]);
+  return null;
+}
+
+// Build YYYY-MM-DD only for a real calendar date, else null. No Date object is constructed, so
+// there is no time-zone drift and no silent month roll-over turning an invalid day into a valid one.
+function validYmd(y, mo, d) {
+  if (mo < 1 || mo > 12 || d < 1) return null;
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const dim = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (d > dim[mo - 1]) return null;
+  return y + "-" + String(mo).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+}
+
 // Map the header row to column indices. First matching alias wins; unknown headers ignored.
 export function mapFokHeaders(headerRow) {
   const idx = {};
@@ -78,7 +107,7 @@ export function parseFokRegister(rows, opts) {
       discipline:     opts.discipline || at("discipline") || null,
       title:          at("title") || null,
       description:    at("description") || null,
-      plannedDate:    at("plannedDate") || null,
+      plannedDate:    coerceIsoDate(at("plannedDate")),   // REV320: TBC and other non-dates -> null
       // Electrical carries emails, Mechanical and CSA carry names; keep emails lowercased, names as-is.
       assigneeEmail:  rawAssignee ? (rawAssignee.includes("@") ? rawAssignee.toLowerCase() : rawAssignee) : null,
       accUrl:         at("accUrl") || null,

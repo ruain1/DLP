@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV320",
+    "date": "2026-07-20",
+    "items": [
+      "Benchmarks import fix: a placeholder like TBC in a Planned Date cell no longer fails the whole register import. The register now carries TBC for FOK items whose date is not yet confirmed; that literal string was reaching the planned_date column and Postgres rejected the entire upsert batch (invalid input syntax for type date: TBC), so a clean 174-row file imported nothing. Planned dates are now coerced to a strict YYYY-MM-DD or null at the parser, so a TBC row imports as a No Date benchmark with its ref, title and assignee intact.",
+      "Date coercion is shared and defensive. A new coerceIsoDate in accReconcile.js accepts ISO dates (with or without a trailing time) and hand-typed day-first dates (DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY), validates a real calendar date with no time-zone drift, and nulls anything else (TBC, TBD, N/A, week 30). Both the manual import path and writeBenchmarks in data.js route planned_date through it, so no single non-date value can ever sink a batch again, including on the future ACC webhook path.",
+      "No schema change. Verified against the real FIN04 register: 174 rows parse, all 55 real dates preserved, the 2 TBC rows (refs 8276 and 8278, Lightning Protection) import as No Date, every surviving planned date is strict ISO or null."
+    ]
+  },
+  {
     "rev": "REV319",
     "date": "2026-07-14",
     "items": [

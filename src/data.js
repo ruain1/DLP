@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { coerceIsoDate } from "./accReconcile";   // REV320: strict date coercion, shared with the parser
 
 // ---- field mapping (db row <-> client activity) ----
 const fromActivity = (r) => ({
@@ -1391,7 +1392,7 @@ export async function writeBenchmarks(projectId, rows, importedByName) {
     fok_ref: String(r.fokRef),
     discipline: r.discipline || null,
     title: r.title || null,
-    planned_date: r.plannedDate || null,
+    planned_date: coerceIsoDate(r.plannedDate),   // REV320: defensive; a non-date (e.g. TBC) here would fail the whole batch upsert
     assignee_email: r.assigneeEmail || null,
     acc_url: r.accUrl || null,
     notes: r.notes || null,
