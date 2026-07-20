@@ -158,25 +158,49 @@ export const ORGANISER = [
 
 const norm = (e) => (e || "").trim().toLowerCase();
 
+// REV321: the hardcoded lists above are FIN04's original seed. They are exported so the
+// Invite Attendees editor can prefill FIN04 from them (nothing is lost until the first Save),
+// and so witnessRecipients can fall back to them for FIN04 when no saved matrix exists yet.
+export const FIN04_SEED = { to: TO, cc: CC, organiser: ORGANISER };
+
+// The live, per-project matrix. App sets this from settings.invite_attendees whenever settings
+// load or change; the resolver reads it the same way it already reads projName(). Shape:
+//   { to: { MECHANICAL:[...], ELECTRICAL:[...], "BMS/EPMS":[...], FLS:[...] }, cc:[...], organiser:[...] }
+let INVITE_MATRIX = null;
+export function setInviteMatrix(m) { INVITE_MATRIX = m || null; }
+
+// A matrix counts as configured once it has been saved through the editor (it then carries a
+// `to` object). An unsaved project has {} and falls through to the FIN04 seed or unconfigured.
+export function isConfiguredMatrix(m) { return !!(m && m.to && typeof m.to === "object"); }
+
 // Resolve a list of disciplines to { to, cc } deduped address lists.
 // Accepts an array (["ELECTRICAL","BMS/EPMS"]) or a "; "-joined string.
-// REV264: this matrix is FIN04's people. On any other project the resolver returns
-// empty lists and names itself unconfigured, so a Vantaa invite can never silently
-// summon the Koski contact set. New projects get their own matrix here (or a future
-// per-project editor) before witnessing goes live on them.
+// REV321: source is the saved per-project matrix when one exists (set via setInviteMatrix from
+// Settings > User management > Invite Attendees). With no saved matrix, FIN04 falls back to its
+// hardcoded seed (unchanged behaviour) and any other project returns empty and names itself
+// unconfigured, so a Vantaa invite can never silently summon the Koski contact set.
 export function witnessRecipients(disciplines) {
-  if ((projName() || "FIN04") !== "FIN04") return { to: [], cc: [], unconfigured: projName() };
+  const saved = INVITE_MATRIX;
+  let src;
+  if (isConfiguredMatrix(saved)) {
+    src = saved;
+  } else if ((projName() || "FIN04") === "FIN04") {
+    src = FIN04_SEED;
+  } else {
+    return { to: [], cc: [], unconfigured: projName() };
+  }
   const list = Array.isArray(disciplines)
     ? disciplines
     : String(disciplines || "").split(/\s*;\s*/);
   const sel = list.map((d) => (d || "").trim()).filter(Boolean);
 
-  const organiser = new Set(ORGANISER.map(norm));
-  const ccSet = new Set(CC.map(norm).filter((e) => !organiser.has(e)));
+  const organiser = new Set((src.organiser || []).map(norm));
+  const ccSet = new Set((src.cc || []).map(norm).filter((e) => !organiser.has(e)));
 
+  const srcTo = src.to || {};
   const toSet = new Set();
   sel.forEach((d) => {
-    (TO[d] || []).forEach((e) => {
+    (srcTo[d] || []).forEach((e) => {
       const n = norm(e);
       if (!organiser.has(n) && !ccSet.has(n)) toSet.add(n);
     });

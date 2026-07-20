@@ -74,7 +74,7 @@ export async function loadAll(session, projectId, projectName) {
     inviteTypes: (inviteTypes.data || []).map((s) => s.name),
     crews: (crews.data || []).map((c) => c.name),
     levels: levelsObj,
-    settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, workingDays: settings.data?.working_days ?? [1, 2, 3, 4, 5], hoursPerDay: settings.data?.hours_per_day ?? 8, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, crewsEnabled: settings.data?.crews_enabled ?? false, pageIcons: settings.data?.page_icons ?? {}, design: settings.data?.design ?? {} },
+    settings: { weeks: settings.data?.weeks ?? 4, makeReadyDays: settings.data?.make_ready_days ?? 7, workingDays: settings.data?.working_days ?? [1, 2, 3, 4, 5], hoursPerDay: settings.data?.hours_per_day ?? 8, ppcTarget: settings.data?.ppc_target ?? 80, benchmarksVisible: settings.data?.benchmarks_visible ?? false, crewsEnabled: settings.data?.crews_enabled ?? false, pageIcons: settings.data?.page_icons ?? {}, design: settings.data?.design ?? {}, inviteAttendees: settings.data?.invite_attendees ?? {} },
     users: (profiles.data || []).map((p) => ({ id: p.id, name: p.name, role: p.role, companyId: p.company_id, platformRole: p.platform_role || "user", mustReset: !!p.must_reset })),
     loadErrors,
     activities: (activities.data || []).map(fromActivity),
@@ -212,6 +212,23 @@ const brandFrom = (d, projectName) => ({
 // can brand themselves without threading a prop through every layer (REV264).
 let CURRENT_PROJECT_NAME = "FIN04";
 export const projName = () => CURRENT_PROJECT_NAME;
+
+// REV321: per-project invite attendee matrices for the "Copy from another project" picker in
+// the Invite Attendees editor. RLS on settings restricts reads to projects the caller can see,
+// so a plain project admin gets only their own and owner/super see all; the caller also gates
+// the cross-project sources to owner/super. Returns [{ projectId, code, name, matrix }].
+export async function loadInviteMatrices() {
+  const [sRes, pRes] = await Promise.all([
+    supabase.from("settings").select("project_id, invite_attendees"),
+    supabase.from("projects").select("id, code, name"),
+  ]);
+  if (sRes.error) return { error: sRes.error.message };
+  const byId = new Map((pRes.data || []).map((p) => [p.id, p]));
+  return (sRes.data || []).map((r) => {
+    const p = byId.get(r.project_id) || {};
+    return { projectId: r.project_id, code: p.code || "", name: p.name || "", matrix: r.invite_attendees || {} };
+  });
+}
 export function applyBrandToTab(brand) {
   if (!brand) return;
   CURRENT_PROJECT_NAME = brand.projectName || "FIN04";
@@ -285,7 +302,7 @@ export async function syncCollections(prev, next, session, projectId) {
   }
   // settings (one row per project)
   if (next.settings !== prev.settings) {
-    ops.push(supabase.from("settings").update({ weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays, working_days: next.settings.workingDays ?? [1, 2, 3, 4, 5], hours_per_day: next.settings.hoursPerDay ?? 8, ppc_target: next.settings.ppcTarget ?? 80, benchmarks_visible: !!next.settings.benchmarksVisible, crews_enabled: !!next.settings.crewsEnabled, page_icons: next.settings.pageIcons ?? {}, design: next.settings.design ?? {} }).eq("project_id", projectId));
+    ops.push(supabase.from("settings").update({ weeks: next.settings.weeks, make_ready_days: next.settings.makeReadyDays, working_days: next.settings.workingDays ?? [1, 2, 3, 4, 5], hours_per_day: next.settings.hoursPerDay ?? 8, ppc_target: next.settings.ppcTarget ?? 80, benchmarks_visible: !!next.settings.benchmarksVisible, crews_enabled: !!next.settings.crewsEnabled, page_icons: next.settings.pageIcons ?? {}, design: next.settings.design ?? {}, invite_attendees: next.settings.inviteAttendees ?? {} }).eq("project_id", projectId));
   }
   const results = await Promise.all(ops);
   const err = results.find((r) => r && r.error);

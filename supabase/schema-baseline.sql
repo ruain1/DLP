@@ -1642,6 +1642,7 @@ CREATE TABLE public.settings (
     benchmarks_visible boolean DEFAULT false NOT NULL,
     page_icons jsonb DEFAULT '{}'::jsonb NOT NULL,
     design jsonb DEFAULT '{}'::jsonb NOT NULL,
+    invite_attendees jsonb DEFAULT '{}'::jsonb NOT NULL,
     working_days jsonb DEFAULT '[1, 2, 3, 4, 5]'::jsonb NOT NULL,
     hours_per_day numeric DEFAULT 8 NOT NULL,
     crews_enabled boolean DEFAULT false NOT NULL,

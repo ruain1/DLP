@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
-import { DISCIPLINES, witnessRecipients } from "./witnessContacts";
+import { DISCIPLINES, witnessRecipients, setInviteMatrix, FIN04_SEED, isConfiguredMatrix } from "./witnessContacts";
 
 // REV161: module scope so both the App body and the separate Drawer component can resolve it
 // (REV160 defined it inside App only, so Drawer's recipient preview threw and blanked the page).
@@ -3041,6 +3041,8 @@ export default function App({ session }) {
   const prevPageRef = useRef("board"); // REV262: the page you came to Help from
   useEffect(() => { if (page !== "help") prevPageRef.current = page; }, [page]);
   useEffect(() => { if (!S) return; if (page === "admin" && !(isSuper || S.projectRole === "admin")) setPage("board"); }, [S, page, isSuper]);
+  // REV321: keep the witness resolver in sync with this project's saved invite matrix.
+  useEffect(() => { setInviteMatrix((S && S.settings && S.settings.inviteAttendees) || null); }, [S && S.settings && S.settings.inviteAttendees]);
 
   const PREF_KEYS = ["theme", "view", "grain", "laneBy", "hideDone", "viewWeeks", "palette", "nameCase"];
   const cu = S && (() => {
@@ -5602,6 +5604,122 @@ function groupTeamRows(rows, cn) {
   }));
 }
 
+// REV321: Invite Attendees editor. Settings > User management > Invite Attendees (owner/admin).
+// Edits the per-project witness invite matrix persisted as settings.invite_attendees. The
+// resolver (witnessContacts.js) reads the saved matrix when present and falls back to the
+// hardcoded FIN04 seed otherwise, so FIN04 keeps working untouched until the first Save.
+const IA_DISC = ["MECHANICAL", "ELECTRICAL", "BMS/EPMS", "FLS"];
+function iaEmpty() { return { to: { MECHANICAL: [], ELECTRICAL: [], "BMS/EPMS": [], FLS: [] }, cc: [], organiser: [] }; }
+function iaNorm(m) { const e = iaEmpty(); if (!m || typeof m !== "object") return e; const to = {}; IA_DISC.forEach((d) => { to[d] = Array.isArray(m.to && m.to[d]) ? m.to[d].slice() : []; }); return { to, cc: Array.isArray(m.cc) ? m.cc.slice() : [], organiser: Array.isArray(m.organiser) ? m.organiser.slice() : [] }; }
+const iaEmail = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+function iaExtract(tok) { const m = String(tok || "").match(/<([^>]+)>/); return (m ? m[1] : String(tok || "")).trim().toLowerCase(); }
+function iaParse(text) { const m = String(text || "").match(/[^\s<>,;]+@[^\s<>,;]+\.[^\s<>,;]+/g) || []; return m.map((e) => e.trim().toLowerCase()); }
+function iaResolve(mx, disc) { const org = new Set((mx.organiser || []).map((e) => e.toLowerCase())); const cc = new Set((mx.cc || []).map((e) => e.toLowerCase()).filter((e) => !org.has(e))); const to = new Set(); ((mx.to && mx.to[disc]) || []).forEach((e) => { const n = e.toLowerCase(); if (!org.has(n) && !cc.has(n)) to.add(n); }); return { to: to.size, cc: cc.size }; }
+
+function IASection({ title, sub, count, children }) {
+  return <div style={{ border: "1px solid var(--line)", borderRadius: 10, marginBottom: 12, overflow: "hidden" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 13px", borderBottom: "1px solid var(--line)" }}>
+      <div style={{ fontWeight: 700, fontSize: 12.5 }}>{title}{sub ? <span style={{ display: "block", fontWeight: 500, color: "var(--muted)", fontSize: 11, marginTop: 2 }}>{sub}</span> : null}</div>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>{count} address{count === 1 ? "" : "es"}</span>
+    </div>
+    <div style={{ padding: 13 }}>{children}</div>
+  </div>;
+}
+
+function IABulkBox({ text, setText, onAdd, res }) {
+  return <div style={{ border: "1px dashed var(--line)", borderRadius: 9, padding: 12, marginTop: 10 }}>
+    <textarea className="lk-in" value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste addresses. Newlines, commas, semicolons or spaces all work. Display names are accepted." style={{ width: "100%", minHeight: 84, resize: "vertical", fontFamily: "ui-monospace,Menlo,monospace", fontSize: 12.5 }} />
+    <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}><button className="lk-btn primary" onClick={onAdd}>Add pasted addresses</button><span style={{ fontSize: 11.5, color: "var(--muted)" }}>{res}</span></div>
+  </div>;
+}
+
+function InviteAttendeesTab({ S, update, canCross }) {
+  const projNm = (S.brand && S.brand.projectName) || "FIN04";
+  const saved = S.settings && S.settings.inviteAttendees;
+  const [mx, setMx] = useState(() => iaNorm(isConfiguredMatrix(saved) ? saved : (projNm === "FIN04" ? FIN04_SEED : null)));
+  const [disc, setDisc] = useState("ELECTRICAL");
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [fresh, setFresh] = useState(() => new Set());
+  const [bulkKind, setBulkKind] = useState("");
+  const [bulkText, setBulkText] = useState("");
+  const [bulkRes, setBulkRes] = useState("");
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copySrc, setCopySrc] = useState("");
+  const [copyRes, setCopyRes] = useState("");
+  const [others, setOthers] = useState(null);
+  const inTo = useRef(null), inCc = useRef(null), inOrg = useRef(null);
+  const refFor = (k) => (k === "to" ? inTo : k === "cc" ? inCc : inOrg);
+
+  useEffect(() => { if (canCross && others === null) loadInviteMatrices().then(setOthers).catch(() => setOthers({ error: true })); }, [canCross]);
+
+  const listFor = (k) => (k === "to" ? mx.to[disc] : mx[k]);
+  const commit = (nm, freshSet) => { setMx(nm); setDirty(true); setMsg(""); if (freshSet) setFresh(freshSet); };
+  const setList = (k, arr, freshSet) => commit(k === "to" ? { ...mx, to: { ...mx.to, [disc]: arr } } : { ...mx, [k]: arr }, freshSet);
+  const addOne = (k) => { const el = refFor(k).current; const e = iaExtract(el.value); if (!iaEmail(e)) { el.focus(); return; } const L = listFor(k); if (!L.some((x) => x.toLowerCase() === e)) setList(k, [...L, e], new Set([e])); el.value = ""; };
+  const del = (k, e) => setList(k, listFor(k).filter((x) => x !== e));
+  const doBulk = (k) => { const parsed = iaParse(bulkText); const L = listFor(k); const have = new Set(L.map((x) => x.toLowerCase())); const add = []; let dup = 0, bad = 0; parsed.forEach((e) => { if (!iaEmail(e)) { bad++; return; } if (have.has(e)) { dup++; return; } have.add(e); add.push(e); }); if (add.length) setList(k, [...L, ...add], new Set(add)); setBulkRes("+" + add.length + " added" + ((dup + bad) ? ", " + (dup + bad) + " skipped (" + dup + " duplicate, " + bad + " invalid)" : "")); setBulkText(""); };
+  const srcOptions = () => { const o = IA_DISC.filter((d) => d !== disc).map((d) => ({ v: "proj::" + d, label: "This project \u00b7 " + d + " (" + mx.to[d].length + ")" })); if (canCross && Array.isArray(others)) others.filter((p) => p.code !== projNm).forEach((p) => { const src = isConfiguredMatrix(p.matrix) ? p.matrix : (p.code === "FIN04" ? FIN04_SEED : null); if (!src || !src.to) return; IA_DISC.forEach((d) => { if ((src.to[d] || []).length) o.push({ v: "ext::" + p.projectId + "::" + d, label: (p.code || p.name) + " \u00b7 " + d + " (" + src.to[d].length + ")" }); }); }); return o; };
+  const doCopy = () => { const opts = srcOptions(); const v = copySrc || (opts[0] || {}).v; if (!v) return; const parts = v.split("::"); let srcArr = []; if (parts[0] === "proj") srcArr = mx.to[parts[1]] || []; else { const pj = (others || []).find((p) => p.projectId === parts[1]); const src = pj && (isConfiguredMatrix(pj.matrix) ? pj.matrix : (pj.code === "FIN04" ? FIN04_SEED : null)); srcArr = (src && src.to && src.to[parts[2]]) || []; } const L = mx.to[disc]; const have = new Set(L.map((x) => x.toLowerCase())); const add = []; srcArr.forEach((e) => { const n = e.toLowerCase(); if (!have.has(n)) { have.add(n); add.push(e); } }); if (add.length) setList("to", [...L, ...add], new Set(add)); setCopyRes("+" + add.length + " added" + (add.length < srcArr.length ? ", " + (srcArr.length - add.length) + " already present" : "")); };
+  const save = async () => { setBusy(true); setMsg(""); try { await update((p) => ({ ...p, settings: { ...p.settings, inviteAttendees: mx } }), { action: "Edit invite attendees", detail: projNm }); setDirty(false); setFresh(new Set()); setMsg("Saved."); } catch (e) { setMsg("Save failed: " + (e.message || e)); } finally { setBusy(false); } };
+
+  const chip = (k, e) => <span key={e} style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "var(--hover)", border: "1px solid " + (fresh.has(e) ? "rgba(46,139,87,.6)" : "var(--line)"), borderRadius: 20, padding: "4px 6px 4px 11px", fontSize: 12, color: "var(--ink)" }}>{e}<button className="lk-btn icon" style={{ width: 18, height: 18, padding: 0, borderRadius: "50%" }} title="Remove" onClick={() => del(k, e)}><Icon n="x" s={12} /></button></span>;
+  const pv = iaResolve(mx, disc);
+
+  return (<div style={{ maxWidth: 780 }}>
+    <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Required attendees and copies for witness calendar invites, set per discipline. An activity's discipline pulls the matching Required list, plus the shared Copied list, plus the activity's own assignee at send time. Owner and admins only. These lists apply to <b>{projNm}</b>; each project keeps its own.</div>
+
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{IA_DISC.map((d) => <button key={d} className={"lk-btn" + (d === disc ? " primary" : "")} onClick={() => { setDisc(d); setFresh(new Set()); setBulkKind(""); setCopyOpen(false); }}>{d} <span style={{ opacity: .8, marginLeft: 4 }}>{mx.to[d].length}</span></button>)}</div>
+
+    <div style={{ border: "1px solid rgba(46,139,87,.35)", background: "rgba(46,139,87,.08)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#9fd7b6", marginBottom: 12 }}>An <b>{disc}</b> invite resolves to <b>{pv.to} required</b> and <b>{pv.cc} copied</b>. The drawer reads <b>{pv.to + 1}</b> required once the activity assignee is merged in.</div>
+
+    <IASection title={"Required (To) for " + disc} count={mx.to[disc].length}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>{mx.to[disc].length ? mx.to[disc].map((e) => chip("to", e)) : <span style={{ color: "var(--muted)", fontSize: 12 }}>No required attendees for {disc} yet. Bulk add or Copy from to fill it.</span>}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input className="lk-in" ref={inTo} style={{ flex: 1, minWidth: 200 }} placeholder="name@company.com" onKeyDown={(e) => e.key === "Enter" && addOne("to")} />
+        <button className="lk-btn primary" onClick={() => addOne("to")}>Add</button>
+        <button className="lk-btn" onClick={() => { setBulkKind(bulkKind === "to" ? "" : "to"); setBulkText(""); setBulkRes(""); setCopyOpen(false); }}>Bulk add</button>
+        <button className="lk-btn" onClick={() => { setCopyOpen(!copyOpen); setBulkKind(""); setCopyRes(""); }}>Copy from</button>
+      </div>
+      {bulkKind === "to" && <IABulkBox text={bulkText} setText={setBulkText} onAdd={() => doBulk("to")} res={bulkRes} />}
+      {copyOpen && <div style={{ border: "1px dashed var(--line)", borderRadius: 9, padding: 12, marginTop: 10 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>Copy Required from</span>
+          <select className="lk-in" value={copySrc} onChange={(e) => setCopySrc(e.target.value)} style={{ minWidth: 220 }}>{srcOptions().map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</select>
+          <button className="lk-btn primary" onClick={doCopy}>Merge in</button>
+          <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{copyRes}</span>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Merge adds addresses not already present; it never removes. {canCross ? "Other projects are available to you." : "Other projects show for owners and supers only."}</div>
+      </div>}
+    </IASection>
+
+    <IASection title="Copied (CC)" sub="Copied on every invite, all disciplines" count={mx.cc.length}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>{mx.cc.length ? mx.cc.map((e) => chip("cc", e)) : <span style={{ color: "var(--muted)", fontSize: 12 }}>No CC addresses.</span>}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input className="lk-in" ref={inCc} style={{ flex: 1, minWidth: 200 }} placeholder="name@company.com" onKeyDown={(e) => e.key === "Enter" && addOne("cc")} />
+        <button className="lk-btn primary" onClick={() => addOne("cc")}>Add</button>
+        <button className="lk-btn" onClick={() => { setBulkKind(bulkKind === "cc" ? "" : "cc"); setBulkText(""); setBulkRes(""); }}>Bulk add</button>
+      </div>
+      {bulkKind === "cc" && <IABulkBox text={bulkText} setText={setBulkText} onAdd={() => doBulk("cc")} res={bulkRes} />}
+    </IASection>
+
+    <IASection title="Organiser" sub="Never invited (Outlook adds the sender automatically)" count={mx.organiser.length}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>{mx.organiser.length ? mx.organiser.map((e) => chip("organiser", e)) : <span style={{ color: "var(--muted)", fontSize: 12 }}>No organiser exclusions.</span>}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input className="lk-in" ref={inOrg} style={{ flex: 1, minWidth: 200 }} placeholder="name@company.com" onKeyDown={(e) => e.key === "Enter" && addOne("organiser")} />
+        <button className="lk-btn primary" onClick={() => addOne("organiser")}>Add</button>
+      </div>
+    </IASection>
+
+    <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 12 }}>
+      <button className="lk-btn primary" disabled={!dirty || busy} onClick={save}>{busy ? "Saving..." : "Save changes"}</button>
+      <span style={{ fontSize: 11.5, color: dirty ? "var(--st-warn)" : "var(--muted)" }}>{msg || (dirty ? "Unsaved changes." : "No unsaved changes.")}</span>
+    </div>
+  </div>);
+}
+
+
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
   const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections", "design"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("dlp_admintab", tab); } catch (e) {} }, [tab]);
@@ -6216,11 +6334,13 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     e.target.value = "";
   };
   const canv = can || (() => true);
+  const iaMePlat = ((S.users || []).find((u) => u.id === cu.id) || {}).platformRole || "user";
+  const iaCanCross = iaMePlat === "owner" || iaMePlat === "super";
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["inviteTypes", "Invite Types"], ...(S.settings.crewsEnabled ? [["crews", "Crews"]] : []), ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
     ["Appearance", [["design", "Design"]]],
-    ["User management", (canv("users") ? [["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : [])],
+    ["User management", (canv("users") ? [["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : []).concat((isOwner || canv("users")) ? [["inviteAttendees", "Invite Attendees"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
     ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
     ["Advanced", [["data", "Import / Export"]]],
@@ -6257,6 +6377,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             </div>
           </div>}
           {tab === "design" && <DesignTab S={S} update={update} />}
+          {tab === "inviteAttendees" && <InviteAttendeesTab S={S} update={update} canCross={iaCanCross} />}
           {tab === "systems" && <>
             <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
               <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
