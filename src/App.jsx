@@ -436,6 +436,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-subbody.wide .lk-db{height:100%;box-sizing:border-box}
 .lk-subbody.full .lk-db{height:100%;box-sizing:border-box;display:flex;flex-direction:column;min-height:0}
 .lk-stick{position:sticky;top:0;z-index:7;background:var(--paper);display:flex;gap:12px;align-items:center;height:54px;box-sizing:border-box;border-bottom:1px solid var(--line);margin-bottom:8px}
+.lk-iastick{position:sticky;top:0;z-index:8;background:var(--paper);padding:6px 0 11px;margin-bottom:12px;border-bottom:1px solid var(--line)}
 .lk-subbody.wide{max-width:1320px}.lk-subbody.full{max-width:none}
 .lk-userwrap .lk-ufilter{position:sticky;top:0;z-index:20;background:var(--card);padding:10px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
 .lk-teamstick{position:sticky;top:0;z-index:20;background:var(--card);margin:0 0 6px}
@@ -5670,9 +5671,11 @@ function InviteAttendeesTab({ S, update, canCross }) {
   return (<div style={{ maxWidth: 780 }}>
     <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Required attendees and copies for witness calendar invites, set per discipline. An activity's discipline pulls the matching Required list, plus the shared Copied list, plus the activity's own assignee at send time. Owner and admins only. These lists apply to <b>{projNm}</b>; each project keeps its own.</div>
 
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{IA_DISC.map((d) => <button key={d} className={"lk-btn" + (d === disc ? " primary" : "")} onClick={() => { setDisc(d); setFresh(new Set()); setBulkKind(""); setCopyOpen(false); }}>{d} <span style={{ opacity: .8, marginLeft: 4 }}>{mx.to[d].length}</span></button>)}</div>
+    <div className="lk-iastick">
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 11 }}>{IA_DISC.map((d) => <button key={d} className={"lk-btn" + (d === disc ? " primary" : "")} onClick={() => { setDisc(d); setFresh(new Set()); setBulkKind(""); setCopyOpen(false); }}>{d} <span style={{ opacity: .8, marginLeft: 4 }}>{mx.to[d].length}</span></button>)}</div>
 
-    <div style={{ border: "1px solid rgba(46,139,87,.35)", background: "rgba(46,139,87,.08)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#9fd7b6", marginBottom: 12 }}>An <b>{disc}</b> invite resolves to <b>{pv.to} required</b> and <b>{pv.cc} copied</b>. The drawer reads <b>{pv.to + 1}</b> required once the activity assignee is merged in.</div>
+    <div style={{ border: "1px solid rgba(46,139,87,.35)", background: "rgba(46,139,87,.08)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#9fd7b6" }}>An <b>{disc}</b> invite resolves to <b>{pv.to} required</b> and <b>{pv.cc} copied</b>. The drawer reads <b>{pv.to + 1}</b> required once the activity assignee is merged in.</div>
+    </div>
 
     <IASection title={"Required (To) for " + disc} count={mx.to[disc].length}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>{mx.to[disc].length ? mx.to[disc].map((e) => chip("to", e)) : <span style={{ color: "var(--muted)", fontSize: 12 }}>No required attendees for {disc} yet. Bulk add or Copy from to fill it.</span>}</div>
