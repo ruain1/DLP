@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV325",
+  "date": "2026-07-21",
+  "items": [
+   "Sign-in Log now records logins durably. A trigger on auth.sessions writes one row per real sign-in (not per token refresh) to a new login_events table, so the log no longer depends on Supabase's auth audit table, which was disabled on this project. Your currently-active sessions are seeded on install so the list is not empty immediately.",
+   "The Provider column is replaced by Device, parsed from the session user-agent into browser and operating system (unknown agents show the raw string or 'unknown'). Owner and super only, search, per-user filter, time range, day grouping and CSV export are unchanged, and CSV now carries the device.",
+   "History is complete from the moment the trigger goes live; there is no older session data to backfill. Requires the 2026-07-21_login-events migration; until it is applied the tab reads the old empty source and shows nothing, and the rest of the app is unaffected."
+  ]
+ },
+ {
   "rev": "REV324",
   "date": "2026-07-21",
   "items": [

@@ -222,7 +222,7 @@ export const projName = () => CURRENT_PROJECT_NAME;
 export async function loadSignins({ search = "", days = 30 } = {}) {
   const { data, error } = await supabase.rpc("login_history", { p_search: search || null, p_days: days == null ? null : days });
   if (error) return { error: error.message };
-  return (data || []).map((r) => ({ at: r.at, userId: r.user_id, email: r.email || "", name: r.name || "", ip: r.ip || "", provider: r.provider || "" }));
+  return (data || []).map((r) => ({ at: r.at, userId: r.user_id, email: r.email || "", name: r.name || "", ip: r.ip || "", userAgent: r.user_agent || "" }));
 }
 
 export async function loadInviteMatrices() {

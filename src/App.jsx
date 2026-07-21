@@ -5779,12 +5779,24 @@ function SigninLogTab({ S, initialUser }) {
   const userOpts = (S.users || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   const list = rows || [];
 
-  const exportCsv = () => { const headers = ["When", "Name", "Email", "IP address", "Provider"]; const data = list.map((r) => [new Date(r.at).toLocaleString("en-GB"), r.name || "", r.email || "", r.ip || "", r.provider || ""]); downloadFile(((S.brand && S.brand.projectName) || "DLP") + "-signins-" + new Date().toISOString().slice(0, 10) + ".csv", toCSV(headers, data)); };
+  const exportCsv = () => { const headers = ["When", "Name", "Email", "IP address", "Device"]; const dev = (ua) => { const d = deviceFromUA(ua); return !d ? "" : d.raw ? d.raw : (d.br + (d.os ? " " + d.os : "")); }; const data = list.map((r) => [new Date(r.at).toLocaleString("en-GB"), r.name || "", r.email || "", r.ip || "", dev(r.userAgent)]); downloadFile(((S.brand && S.brand.projectName) || "DLP") + "-signins-" + new Date().toISOString().slice(0, 10) + ".csv", toCSV(headers, data)); };
 
   const now = new Date();
   const dayLabel = (iso) => { const d = new Date(iso); const a = new Date(d); a.setHours(0, 0, 0, 0); const t = new Date(now); t.setHours(0, 0, 0, 0); const diff = Math.round((t - a) / 86400000); if (diff === 0) return "Today"; if (diff === 1) return "Yesterday"; if (diff < 7) return d.toLocaleDateString("en-GB", { weekday: "long" }); return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); };
   const avBg2 = (id) => { let h = 0; const s = String(id || ""); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return "hsl(" + (h % 360) + ",42%,42%)"; };
   const init = (nm) => (nm || "?").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
+  const deviceFromUA = (ua) => {
+    if (!ua) return null;
+    const os = /Windows NT/.test(ua) ? "Windows" : /iPhone|iPad|iOS/.test(ua) ? "iOS" : /Mac OS X|Macintosh/.test(ua) ? "macOS" : /Android/.test(ua) ? "Android" : /Linux/.test(ua) ? "Linux" : "";
+    let br = "", m;
+    if ((m = ua.match(/Edg\/(\d+)/))) br = "Edge " + m[1];
+    else if ((m = ua.match(/OPR\/(\d+)/))) br = "Opera " + m[1];
+    else if ((m = ua.match(/Chrome\/(\d+)/)) && !/Edg\/|OPR\//.test(ua)) br = "Chrome " + m[1];
+    else if ((m = ua.match(/Firefox\/(\d+)/))) br = "Firefox " + m[1];
+    else if (/Safari/.test(ua) && (m = ua.match(/Version\/(\d+)/))) br = "Safari " + m[1];
+    if (!br && !os) return { raw: ua.length > 42 ? ua.slice(0, 42) + "\u2026" : ua };
+    return { br: br || "Browser", os };
+  };
   let lastDay = null;
 
   return <div style={{ maxWidth: 1000 }}>
@@ -5810,7 +5822,7 @@ function SigninLogTab({ S, initialUser }) {
               <div style={{ minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.email || "Unknown"}</div>{r.name && r.email ? <div style={{ color: "var(--muted)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</div> : null}</div>
             </div>
             <div style={{ width: 132, flex: "none", fontFamily: "ui-monospace,Menlo,monospace", fontSize: 12, color: "#a9bdd6" }}>{r.ip || <span style={{ color: "var(--muted)" }}>unknown</span>}</div>
-            <div style={{ width: 92, flex: "none" }}>{r.provider ? <span style={{ display: "inline-block", background: "var(--chipbg)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 8px", fontSize: 10.5, color: "#a9bdd6" }}>{r.provider}</span> : null}</div>
+            <div style={{ width: 210, flex: "none", fontSize: 12 }}>{(() => { const d = deviceFromUA(r.userAgent); if (!d) return <span style={{ color: "var(--muted)", fontSize: 11.5 }}>unknown</span>; if (d.raw) return <span style={{ color: "var(--muted)", fontSize: 11 }} title={r.userAgent}>{d.raw}</span>; return <span style={{ color: "#cdd8e6" }}>{d.br}{d.os ? <span style={{ color: "var(--muted)" }}> {"\u00b7"} {d.os}</span> : null}</span>; })()}</div>
           </div>
         </React.Fragment>;
       })}
