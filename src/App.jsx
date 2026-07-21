@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients, setInviteMatrix, FIN04_SEED, isConfiguredMatrix } from "./witnessContacts";
@@ -5764,8 +5764,63 @@ function InviteAttendeesTab({ S, update, canCross }) {
 }
 
 
+// REV324: Sign-in Log. Owner/super only. Reads Supabase Auth's login history via loadSignins,
+// so it shows logins from before the view existed. Read-only; styled like the Audit tab.
+function SigninLogTab({ S, initialUser }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState("");
+  const [q, setQ] = useState(initialUser || "");
+  const [days, setDays] = useState(30);
+  const [busy, setBusy] = useState(false);
+
+  const run = async (search, d) => { setBusy(true); setErr(""); const res = await loadSignins({ search: search, days: d }); if (res && res.error) { setErr(res.error); setRows([]); } else { setRows(res || []); } setBusy(false); };
+  useEffect(() => { const t = setTimeout(() => run(q, days), 300); return () => clearTimeout(t); }, [q, days]);
+
+  const userOpts = (S.users || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const list = rows || [];
+
+  const exportCsv = () => { const headers = ["When", "Name", "Email", "IP address", "Provider"]; const data = list.map((r) => [new Date(r.at).toLocaleString("en-GB"), r.name || "", r.email || "", r.ip || "", r.provider || ""]); downloadFile(((S.brand && S.brand.projectName) || "DLP") + "-signins-" + new Date().toISOString().slice(0, 10) + ".csv", toCSV(headers, data)); };
+
+  const now = new Date();
+  const dayLabel = (iso) => { const d = new Date(iso); const a = new Date(d); a.setHours(0, 0, 0, 0); const t = new Date(now); t.setHours(0, 0, 0, 0); const diff = Math.round((t - a) / 86400000); if (diff === 0) return "Today"; if (diff === 1) return "Yesterday"; if (diff < 7) return d.toLocaleDateString("en-GB", { weekday: "long" }); return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); };
+  const avBg2 = (id) => { let h = 0; const s = String(id || ""); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return "hsl(" + (h % 360) + ",42%,42%)"; };
+  const init = (nm) => (nm || "?").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
+  let lastDay = null;
+
+  return <div style={{ maxWidth: 1000 }}>
+    <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)", marginBottom: 8 }}><Icon n="alert" s={13} />Login history for every user, owner and super only. Read directly from Supabase Auth, so it includes logins from before this view existed. Read-only; it cannot be edited here.</div>
+    <div style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, marginBottom: 10, padding: "10px 12px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <input className="lk-in" style={{ flex: 1, minWidth: 200 }} placeholder="Search user or IP address" value={q} onChange={(e) => setQ(e.target.value)} />
+      <select className="lk-select" value={q} onChange={(e) => setQ(e.target.value)}><option value="">All users</option>{userOpts.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}</select>
+      <select className="lk-select" value={days} onChange={(e) => setDays(parseInt(e.target.value, 10))}><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value={365}>This year</option><option value={0}>All time</option></select>
+      <button className="lk-btn" onClick={exportCsv} disabled={!list.length}><Icon n="download" s={14} />Export CSV</button>
+      <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto", whiteSpace: "nowrap" }}>{busy ? "Loading..." : list.length + " sign-in" + (list.length === 1 ? "" : "s")}</span>
+    </div>
+    {err && <div style={{ fontSize: 12, color: "#F87171", fontWeight: 600, margin: "6px 0" }}>Could not load sign-ins: {err}. If this says the function does not exist, run the 2026-07-21_login-history migration in Supabase first.</div>}
+    {!busy && !err && list.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>No sign-ins match this selection.</div>}
+    <div style={{ border: list.length ? "1px solid var(--line)" : "none", borderRadius: 10, overflow: "hidden", opacity: busy ? 0.55 : 1 }}>
+      {list.map((r, i) => {
+        const dl = dayLabel(r.at); const showDay = dl !== lastDay; lastDay = dl;
+        return <React.Fragment key={i}>
+          {showDay && <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".7px", textTransform: "uppercase", padding: "6px 13px", color: "var(--muted)", background: "var(--hover)", borderBottom: "1px solid var(--line)" }}>{dl} {"\u00b7"} {new Date(r.at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 13px", borderBottom: "1px solid var(--line)" }}>
+            <div style={{ width: 168, flex: "none", fontSize: 12.5 }}>{new Date(r.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}<span style={{ color: "var(--muted)", fontSize: 11 }}> {"\u00b7"} {relTime(r.at)}</span></div>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9 }}>
+              <span style={{ width: 24, height: 24, borderRadius: "50%", flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", background: avBg2(r.userId), color: "#fff", fontSize: 10, fontWeight: 800 }}>{init(r.name || r.email)}</span>
+              <div style={{ minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.email || "Unknown"}</div>{r.name && r.email ? <div style={{ color: "var(--muted)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.email}</div> : null}</div>
+            </div>
+            <div style={{ width: 132, flex: "none", fontFamily: "ui-monospace,Menlo,monospace", fontSize: 12, color: "#a9bdd6" }}>{r.ip || <span style={{ color: "var(--muted)" }}>unknown</span>}</div>
+            <div style={{ width: 92, flex: "none" }}>{r.provider ? <span style={{ display: "inline-block", background: "var(--chipbg)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 8px", fontSize: 10.5, color: "#a9bdd6" }}>{r.provider}</span> : null}</div>
+          </div>
+        </React.Fragment>;
+      })}
+    </div>
+  </div>;
+}
+
+
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections", "design"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections", "design", "signins"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("dlp_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
@@ -6386,7 +6441,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     ["Appearance", [["design", "Design"]]],
     ["User management", (canv("users") ? [["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : []).concat((isOwner || canv("users")) ? [["inviteAttendees", "Invite Attendees"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
-    ["Audit log", canv("auditView") ? [["audit", "Audit"]] : []],
+    ["Audit log", (canv("auditView") ? [["audit", "Audit"]] : []).concat(iaCanCross ? [["signins", "Sign-in Log"]] : [])],
     ["Advanced", [["data", "Import / Export"]]],
   ].filter(([, items]) => items.length);
   return (
@@ -6422,6 +6477,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
           </div>}
           {tab === "design" && <DesignTab S={S} update={update} />}
           {tab === "inviteAttendees" && <InviteAttendeesTab S={S} update={update} canCross={iaCanCross} />}
+          {tab === "signins" && iaCanCross && <SigninLogTab S={S} />}
           {tab === "systems" && <>
             <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
               <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />

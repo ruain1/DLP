@@ -217,6 +217,14 @@ export const projName = () => CURRENT_PROJECT_NAME;
 // the Invite Attendees editor. RLS on settings restricts reads to projects the caller can see,
 // so a plain project admin gets only their own and owner/super see all; the caller also gates
 // the cross-project sources to owner/super. Returns [{ projectId, code, name, matrix }].
+// REV324: read-only sign-in history for the Sign-in Log admin view. Calls the SECURITY DEFINER
+// login_history function, which self-gates to owner/super and reads Supabase Auth's audit trail.
+export async function loadSignins({ search = "", days = 30 } = {}) {
+  const { data, error } = await supabase.rpc("login_history", { p_search: search || null, p_days: days == null ? null : days });
+  if (error) return { error: error.message };
+  return (data || []).map((r) => ({ at: r.at, userId: r.user_id, email: r.email || "", name: r.name || "", ip: r.ip || "", provider: r.provider || "" }));
+}
+
 export async function loadInviteMatrices() {
   const [sRes, pRes] = await Promise.all([
     supabase.from("settings").select("project_id, invite_attendees"),

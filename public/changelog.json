@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV324",
+  "date": "2026-07-21",
+  "items": [
+   "New Sign-in Log under Admin, Audit log (owners and supers only). It shows the login history of every user: when they signed in, their IP address and the auth provider, grouped by day, with search, a per-user filter, time-range selection and CSV export.",
+   "Because it reads Supabase Auth's own audit trail rather than a new capture pipeline, it also shows logins from before this view existed, back as far as that audit history is retained. It is read-only and cannot be edited.",
+   "Backed by a SECURITY DEFINER login_history function that self-gates to owner/super, so only platform owners and supers can read other users' login history and IP addresses. Requires the 2026-07-21_login-history migration; until it is applied the tab shows a clear prompt to run it and the rest of the app is unaffected."
+  ]
+ },
+ {
   "rev": "REV323",
   "date": "2026-07-20",
   "items": [
