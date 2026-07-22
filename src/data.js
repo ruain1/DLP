@@ -562,7 +562,7 @@ export async function uploadCompanyLogo(file, companyId) {
 // pure churn. DELETE payloads carry only the primary key, so a delete on a
 // project table reloads conservatively (project_id unknowable without replica
 // identity full). Unknown table shapes also reload conservatively.
-const RT_IGNORE = new Set(["presence", "report_runs", "audit_log", "activity_snapshots"]);
+const RT_IGNORE = new Set(["presence", "report_runs", "audit_log", "activity_snapshots", "morning_attendance"]);
 const RT_GLOBAL = new Set(["companies", "profiles", "projects", "project_members", "user_privileges", "invite_requests", "access_requests", "branding"]);
 export function subscribeAll(onChange, getProjectId) {
   let t;
@@ -584,6 +584,26 @@ export function subscribeAll(onChange, getProjectId) {
 }
 
 // ---- REV192: import fingerprints ----
+// REV326: morning meeting attendance. One row per project per meeting date;
+// upsert replaces an earlier upload for the same date (the drawer states this).
+export async function loadMorningAttendance(projectId, limit) {
+  const { data, error } = await supabase.from("morning_attendance")
+    .select("id, meeting_date, meeting_title, meeting_start, duration_min, source_filename, participants, uploaded_by_name, uploaded_at")
+    .eq("project_id", projectId).order("meeting_date", { ascending: false }).limit(limit || 8);
+  if (error) throw error;
+  return data || [];
+}
+export async function saveMorningAttendance(row) {
+  const { data, error } = await supabase.from("morning_attendance")
+    .upsert(row, { onConflict: "project_id,meeting_date" }).select("id").single();
+  if (error) throw error;
+  return data;
+}
+export async function deleteMorningAttendance(id) {
+  const { error } = await supabase.from("morning_attendance").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function importFingerprint(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(text || "")));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
