@@ -300,7 +300,7 @@ export function weeklyKpis(rows: ActRow[], weekStartISO: string, weekEndISO: str
     if (a.actual_start) return pd(a.actual_start) > ps;
     return false;
   }).length;
-  const makeReady = inLA.filter((a) => openN(a) > 0 && a.status !== "complete").length;
+  const makeReady = inLA.filter((a) => openN(a) > 0 && a.status !== "complete" && a.outcome !== "failed").length;   // REV328: failed is terminal, not make-ready work
   const outs = rows.filter((a) => a.witness_invite && a.outcome && a.outcome !== "pending" && a.outcome_at && pd(a.outcome_at) >= ws && pd(a.outcome_at) <= we);
   return { ppc, delayed, makeReady, witnessPassed: outs.filter((a) => a.outcome === "succeeded").length, witnessAttempted: outs.length, due: due.length };
 }
