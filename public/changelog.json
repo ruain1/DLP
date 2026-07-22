@@ -1,5 +1,14 @@
 [
  {
+  "rev": "REV326",
+  "date": "2026-07-22",
+  "items": [
+   "Morning meeting attendance. The Morning Cx Update configure drawer gains an attendance section: upload the Teams attendance report (.csv) after the morning meeting and the next Morning Cx Update carries a company-level attendance block showing which invited companies were represented, who represented them, headcount and first-join time, with late joins flagged, absent companies named (toggleable) and unmatched participants listed separately.",
+   "Attendance is matched by email domain per company. The drawer holds the invited-companies list with editable domain mappings, seedable from the project company list and learnable from member emails. Both Teams export shapes parse (post-meeting report and legacy in-meeting list; UTF-16 or UTF-8, tab or comma, localised headers), one upload per meeting date with replace-on-reattach, and a staged preview so nothing persists until Attach is clicked.",
+   "New morning_attendance table (per project, per meeting date) with admin-write RLS; run supabase/migrations/2026-07-22_morning-attendance.sql before first use. The email block attaches the newest upload within 26 hours of the send and degrades to no block on any error, like the AI summary."
+  ]
+ },
+ {
   "rev": "REV325",
   "date": "2026-07-21",
   "items": [
