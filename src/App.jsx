@@ -2893,6 +2893,8 @@ export default function App({ session }) {
     } finally { setYttBusy(""); }
   };
   const [witSched, setWitSched] = useState(false);
+  const [wsCancelDone, setWsCancelDone] = useState(null);   // REV329: post-cancel follow-up popup { a, n }
+  const [editTab, setEditTab] = useState(null);             // REV329: one-shot initial tab for the Edit Activity drawer
   const [capOpen, setCapOpen] = useState(false);
   const [witPeriod, setWitPeriod] = useState("4w");
   const [wsKeep, setWsKeep] = useState(() => new Set()); // REV323: witness rows kept visible after an inline edit even if the new date leaves the period
@@ -3381,7 +3383,7 @@ export default function App({ session }) {
     persistInv(a, [...cancelled, ...keep.sort((x, y) => x.day - y.day)], "Sent witness invites", `${a.desc || ""}: ${done.join(", ")}`);
     return { done };
   };
-  const runInv = async (a, mode) => {
+  const runInv = async (a, mode, fromSched) => {
     if (!can("witnessSend") || olBusy) return;
     if (mode === "cancel" && !window.confirm(`Send a cancellation to all attendees for "${a.desc || "this activity"}"?`)) return;
     setOlBusy(a.id); setOlMsg(null);
@@ -3394,6 +3396,10 @@ export default function App({ session }) {
         for (const e of active) { await cancelInvSafe(ol, e.eventId, cancelComment(a)); }
         persistInv(a, [...invEntries(a).filter((e) => e.status === "cancelled"), ...active.map((e) => ({ ...e, status: "cancelled" }))], "Cancelled witness invites", `${a.desc || ""} (${active.length} session${active.length === 1 ? "" : "s"})`);
         setOlMsg({ ok: true, text: `Cancellation sent for ${a.desc || "activity"} (${active.length} session${active.length === 1 ? "" : "s"}).` });
+        // REV329: from the Witness Schedule popout, offer the jump to the activity's
+        // Schedule tab so the outcome, reschedule or retest gets recorded while the
+        // cancellation is fresh. Fires only after Graph confirmed every session.
+        if (fromSched) setWsCancelDone({ a: { ...a }, n: active.length });
       } else {
         // The interactive path keeps the per-activity confirm; the decision travels into the
         // shared core as a plain flag.
@@ -4352,7 +4358,18 @@ export default function App({ session }) {
       </div>
 
       {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "color-mix(in srgb, var(--st-done) 14%, transparent)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "var(--st-done)" : "#C0392B"), color: digestNote.ok ? "var(--st-done)" : "var(--red, #C0392B)", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
-      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onSavePercent={savePercent} canPercent={!isClientViewer && (can("editAny") || (can("editOwn") && editing.companyId === cu.companyId))} onClose={() => setEditing(null)} onDelete={removeActivity} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
+      {wsCancelDone && <div className="lk-bg" style={{ zIndex: 70 }} onClick={() => setWsCancelDone(null)}>
+        <div style={{ ...cssVars(S.theme, S.settings), width: "min(430px,94vw)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 18, boxShadow: "0 18px 50px rgba(0,0,0,.5)", color: "var(--ink)" }} onClick={(e) => e.stopPropagation()}>
+          <h4 style={{ margin: "0 0 8px", fontSize: 14 }}>Cancellation sent</h4>
+          <p style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.55, color: "var(--muted)" }}>All attendees for <b style={{ color: "var(--ink)", fontWeight: 600 }}>{wsCancelDone.a.desc || "this activity"}</b> have received the cancellation ({wsCancelDone.n} session{wsCancelDone.n === 1 ? "" : "s"}).</p>
+          <p style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.55, color: "var(--muted)" }}>Record what happens next on the activity's <b style={{ color: "var(--ink)", fontWeight: 600 }}>Schedule</b> tab: set the outcome, reschedule the work, or create a linked retest.</p>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+            <button className="lk-btn" onClick={() => setWsCancelDone(null)}>Stay here</button>
+            <button className="lk-btn primary" onClick={() => { const a2 = wsCancelDone.a; setWsCancelDone(null); setWitSched(false); setEditTab("schedule"); setEditing({ ...a2 }); }}>Open Schedule tab</button>
+          </div>
+        </div>
+      </div>}
+      {editing && <Drawer act={editing} S={S} canEdit={canEdit(editing)} isAdmin={isAdmin} can={can} by={cu.name} clientViewer={isClientViewer} inviteForMe={myInviteFor(editing.id)} onRequestInvite={requestInvite} onAdd={addOption} onSave={saveActivity} onSaveRetest={saveWithRetest} onSavePercent={savePercent} canPercent={!isClientViewer && (can("editAny") || (can("editOwn") && editing.companyId === cu.companyId))} onClose={() => { setEditing(null); setEditTab(null); }} onDelete={removeActivity} initialTab={editTab} hasLiveInvite={invActive(editing).length > 0} onCancelInvite={(x) => runInv(x, "cancel")} onTestInvite={testInv} olConnected={!!olAcct} />}
       {metricDrill && <DrillModal title={metricDrill.title} items={metricDrill.items} S={S} LV={LV} coName={coName} onOpen={(a) => { setMetricDrill(null); setEditing({ ...a }); }} onClose={() => setMetricDrill(null)} />}
       {notifOpen && (() => {
         const seen = {}; const byAct = [];
@@ -4640,7 +4657,7 @@ export default function App({ session }) {
                           <div className="wsch-btnrow">
                             {["notsent", "partial", "changed", "cancelled", "behindplan"].includes(st) && <button className="lk-btn primary" style={btn} disabled={!olAcct || busy} title={!olAcct ? "Connect Outlook first" : st === "behindplan" ? "The witness date drifted out of the plan; realign it to the current start and send the update" : undefined} onClick={() => st === "behindplan" ? realignAndSend(a) : runInv(a, "send")}>{busy ? "Working..." : st === "changed" ? "Update Invite" : st === "behindplan" ? "Realign & Update" : st === "partial" ? "Send Remaining" : st === "cancelled" ? "Send Again" : "Send"}</button>}
                             {st === "sent" && <button className="lk-btn" style={btn} disabled title="Nothing has changed since this invite was sent">Update</button>}
-                            {es.length > 0 && st !== "cancelled" && <button className="lk-btn" style={{ ...btn, color: "var(--red, #C0392B)", borderColor: "rgba(192,57,58,.5)" }} disabled={!olAcct || busy} onClick={() => runInv(a, "cancel")}>Cancel</button>}
+                            {es.length > 0 && st !== "cancelled" && <button className="lk-btn" style={{ ...btn, color: "var(--red, #C0392B)", borderColor: "rgba(192,57,58,.5)" }} disabled={!olAcct || busy} onClick={() => runInv(a, "cancel", true)}>Cancel</button>}
                             <button className="lk-btn" style={btn} disabled={!olAcct || busy} title="Creates this event in your calendar only, with the real template and vendor logo. Nothing goes to the witnesses and no status changes; delete it from your calendar after checking." onClick={() => testInv(a)}>Test To Me</button>
                           </div>
                         </div>;
@@ -4756,7 +4773,7 @@ function OwnerField({ value, ownerType, ownerId, companies, users, onChange, sty
   </div>;
 }
 
-function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onSavePercent, onClose, onDelete, hasLiveInvite, onCancelInvite, onTestInvite, olConnected }) {
+function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, inviteForMe, onRequestInvite, onAdd, onSave, onSaveRetest, onSavePercent, initialTab, onClose, onDelete, hasLiveInvite, onCancelInvite, onTestInvite, olConnected }) {
   const [a, setA] = useState(act);
   const [twBusy, setTwBusy] = useState(false);   // Test Invite To Me in-flight
   const [twNote, setTwNote] = useState(null);    // its result line, local to this drawer
@@ -4764,6 +4781,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   const [rtName, setRtName] = useState("");
   const [rtStart, setRtStart] = useState("");
   const [tab, setTab] = useState("details");
+  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab, act.id]);   // REV329: one-shot open on a named tab
   const [exReason, setExReason] = useState("");
   const [exNote, setExNote] = useState("");
   const [rsDate, setRsDate] = useState("");
@@ -5070,7 +5088,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
             {a.isMilestone && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Milestones are binary: a point event is either Planned or Complete.</span>}</div>
           {pastCompletionWindow(a) && !isAdmin && a.status !== "complete" && <div style={{ border: "1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)", background: "color-mix(in srgb, var(--st-warn) 7%, transparent)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "var(--st-warn)", marginTop: -4 }}><Icon n="alert" s={13} /> <b>Past its planned finish ({fmtISO(plannedFinish(a))}), so Complete is now admin-only.</b> Record the Reason for Non-Completion below, then ask an admin to record the actual completion. This keeps the completion date honest in PPC.</div>}
           {pastCompletionWindow(a) && isAdmin && a.status !== "complete" && <div style={{ border: "1px solid rgba(36,86,166,.55)", background: "rgba(36,86,166,.10)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "#7EA6E0", marginTop: -4 }}><Icon n="alert" s={13} /> You are recording an <b>overdue completion</b> (planned finish {fmtISO(plannedFinish(a))}). The audit log will name you and show the overrun. Set the true Actual finish date; it does not default to today on an overdue completion.</div>}
-          {a.witnessInvite && <div className="lk-f"><label>Witness Outcome</label>
+          {a.witnessInvite && <div className="lk-f"><label>Outcome</label>
             <div className="lk-status" style={needsOutcome ? { border: "1.5px solid var(--red, #C0392B)", boxShadow: "0 0 0 3px color-mix(in srgb, var(--red, #C0392B) 18%, transparent)", borderRadius: 8 } : undefined}>{[["pending", "Pending"], ["succeeded", "Succeeded"], ["failed", "Failed"]].map(([k, l]) => <button key={k} className={(a.outcome || "pending") === k ? "sel" : ""} disabled={!canEdit || (locked && !needsOutcome) || !can("witnessOutcome")} onClick={() => setOutcome(k)}>{l}</button>)}</div>
             <span style={{ fontSize: 10.5, color: "var(--muted)" }}>The result of the witnessed event, separate from the schedule status above.</span>{needsOutcome && <div style={{ display: "flex", gap: 8, alignItems: "flex-start", border: "1px solid var(--red, #C0392B)", background: "color-mix(in srgb, var(--red, #C0392B) 9%, transparent)", borderRadius: 9, padding: "9px 11px", marginTop: 8 }}><span style={{ color: "var(--red, #C0392B)", fontSize: 14, lineHeight: "1.2" }}>&#9888;</span><span style={{ fontSize: 12, color: "color-mix(in srgb, var(--red, #C0392B) 62%, #ffffff)", lineHeight: 1.5 }}>This activity is set to <b>Complete</b> but the witness outcome is still <b>Pending</b>. Select <b>Succeeded</b> or <b>Failed</b> before it can be saved.</span></div>}</div>}
           {a.witnessInvite && (a.outcome || "pending") === "succeeded" && <div className="lk-f"><label>Outcome Date</label><input className="lk-in mono" type="date" value={a.outcomeAt || ""} disabled={dis} onChange={(e) => set("outcomeAt", e.target.value)} /></div>}
