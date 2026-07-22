@@ -161,7 +161,7 @@ export function buildAttendanceHtml(att, showAbsent) {
     att.absent.slice(0, 10).forEach((a) => {
       inner += `<tr>`
         + `<td style="padding:5px 8px 5px 0; font-weight:bold; font-family:${MR_FF}; color:#C0392B;">${esc(a.name)} <span style="font-size:10.5pt;">${MID}absent</span></td>`
-        + `<td colspan="3" style="padding:5px 8px 5px 0; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">${(a.domains || []).length ? "no participant matched " + esc((a.domains || []).join(", ")) : "no domain mapped"}</td>`
+        + `<td colspan="3" style="padding:5px 8px 5px 0; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">N/A</td>`
         + `</tr>`;
     });
   }
