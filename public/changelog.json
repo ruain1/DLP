@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV328",
+  "date": "2026-07-22",
+  "items": [
+   "Failed inspections no longer report as overdue. A failed witness outcome is terminal in DLP (the card is ghosted and locked, and a retest activity carries the work forward), so failed activities are now closed for reporting: excluded from Overdue finishes, Finishing today, Starting, missed-yesterday and pushing lists in the Morning Cx Update, and excluded from the Make-Ready count in the weekly KPIs. Deliberately unchanged: a failed committed activity still counts as a miss in PPC, because the promise to complete was not kept; the retest carries the new promise."
+  ]
+ },
+ {
   "rev": "REV327",
   "date": "2026-07-22",
   "items": [
