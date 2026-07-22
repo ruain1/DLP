@@ -1,5 +1,6 @@
 // REV326 harness: morningReport attendance section. Bundled via esbuild first.
-import { buildAttendanceHtml, buildMorningEmail, morningCfg, MORNING_DEFAULTS } from "./src/morningReport.js";
+import { buildAttendanceHtml, buildMorningEmail, morningCfg, MORNING_DEFAULTS, morningData } from "./src/morningReport.js";
+import { weeklyKpis } from "./src/digestCore.ts";
 
 let n = 0;
 const ok = (cond, msg) => { n++; if (!cond) { console.error("FAIL:", msg); process.exit(1); } };
@@ -63,5 +64,30 @@ const dNo = { ...d, attendance: null };
 const fullNo = buildMorningEmail(dNo, morningCfg({}), meta);
 ok(!fullNo.includes("Morning meeting attendance"), "no upload, no block");
 ok(!/[\u2013\u2014]/.test(fullNo) && !/[\u2013\u2014]/.test(full), "no em/en dashes in full emails");
+
+// REV328: failed witness outcomes are terminal, so they never report as
+// overdue, finishing, starting or missed. Complete already excluded.
+const St = {
+  companies: [{ id: "c1", name: "Velox" }, { id: "c2", name: "DCS" }],
+  activities: [
+    { id: "a1", desc: "Genuinely overdue", companyId: "c1", start: "2026-07-20", duration: 1, status: "planned", outcome: "pending", constraints: [] },
+    { id: "a2", desc: "Failed SCADA test", companyId: "c2", start: "2026-07-15", duration: 1, status: "planned", outcome: "failed", percent: 100, constraints: [] },
+    { id: "a3", desc: "Done on time", companyId: "c1", start: "2026-07-21", duration: 1, status: "complete", outcome: "succeeded", constraints: [] },
+    { id: "a4", desc: "Finishing today", companyId: "c1", start: "2026-07-22", duration: 1, status: "planned", outcome: "pending", constraints: [] },
+  ],
+};
+const due2 = new Date("2026-07-22T05:00:00Z");   // 08:00 Helsinki, today = 2026-07-22
+const md = morningData(St, due2, []);
+ok(md.counts.overdue === 1, "REV328: failed activity not counted overdue, got " + md.counts.overdue);
+ok(md.overdue.length === 1 && md.overdue[0].a.id === "a1", "REV328: only the genuine overdue listed");
+ok(!md.overdue.some((r) => r.a.outcome === "failed") && !md.finishing.some((r) => r.a.outcome === "failed"), "REV328: failed absent from every live list");
+ok(md.counts.finishing === 1 && md.finishing[0].a.id === "a4", "REV328: live finishing unaffected");
+
+const kpiRows = [
+  { start_date: "2026-07-22", duration: 1, committed: true, status: "planned", actual_finish: null, actual_start: null, constraints: [{ done: false }], witness_invite: true, outcome: "failed", outcome_at: "2026-07-22" },
+  { start_date: "2026-07-22", duration: 1, committed: true, status: "planned", actual_finish: null, actual_start: null, constraints: [{ done: false }], witness_invite: false, outcome: "pending", outcome_at: null },
+];
+const k = weeklyKpis(kpiRows, "2026-07-20", "2026-07-26", "2026-07-22");
+ok(k.makeReady === 1, "REV328: failed excluded from make-ready, got " + k.makeReady);
 
 console.log("morning attendance harness: " + n + " assertions passed");

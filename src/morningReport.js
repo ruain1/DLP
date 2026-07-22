@@ -55,7 +55,12 @@ export function morningData(St, due, updates) {
   const endOf = (a) => iso(addD(pD(a.start), Math.max(0, (a.duration || 1) - 1)));
   const rows = (St.activities || []).filter((a) => a && a.start)
     .map((a) => ({ a, s: String(a.start).slice(0, 10), e: endOf(a), co: co[a.companyId] || "Unassigned", open: (a.constraints || []).filter((c) => !c.done) }));
-  const live = rows.filter((r) => r.a.status !== "complete");
+  // REV328: a failed witness outcome is terminal in this model (the card is
+  // ghosted and locked, a retest activity carries the work forward), so failed
+  // activities are closed for reporting: never overdue, finishing, starting,
+  // missed or pushing. Completed activities were already excluded.
+  const closedA = (r) => r.a.status === "complete" || String(r.a.outcome || "").toLowerCase() === "failed";
+  const live = rows.filter((r) => !closedA(r));
   const weekAgo = iso(addD(pD(today), -7));
   const finishing = live.filter((r) => r.e === today);
   const overdueAll = live.filter((r) => r.e < today);
