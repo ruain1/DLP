@@ -10,8 +10,11 @@ export const MORNING_DEFAULTS = {
   days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   recipients: "team",           // "team" (all project members) or "admins"
   excludeCoIds: [],             // company ids excluded from a team send (e.g. the client)
-  sections: { finishing: true, overdue: true, starting: true, constraints: true, updates: true, witness: true, ytt: true, ai: true },
+  sections: { finishing: true, overdue: true, starting: true, constraints: true, updates: true, witness: true, ytt: true, ai: true, attendance: true },
   aiSteer: "",   // REV277: tailorable AI instructions, appended to the summary steer
+  // REV326: morning meeting attendance. companies is the invited list with domain
+  // mappings; showAbsent controls whether absent companies are named in the email.
+  attendance: { showAbsent: true, companies: [] },
 };
 
 export function morningCfg(settings) {
@@ -19,7 +22,7 @@ export function morningCfg(settings) {
   // REV297: the morning config persists inside settings.design.morningReport (the design jsonb
   // round-trips through the DB); fall back to the legacy top-level key for any older state.
   const raw = (st.design && st.design.morningReport) || st.morningReport || {};
-  return { ...MORNING_DEFAULTS, ...raw, sections: { ...MORNING_DEFAULTS.sections, ...(raw.sections || {}) } };
+  return { ...MORNING_DEFAULTS, ...raw, sections: { ...MORNING_DEFAULTS.sections, ...(raw.sections || {}) }, attendance: { ...MORNING_DEFAULTS.attendance, ...(raw.attendance || {}), companies: (raw.attendance && Array.isArray(raw.attendance.companies)) ? raw.attendance.companies : [] } };
 }
 
 // Mirrors dueBoundaries: every configured day's send time inside the lookback window.
@@ -122,6 +125,56 @@ function actLine(r, extraRight) {
   return `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${esc(pct)}</span></td>${right}</tr>`;
 }
 
+// REV326: the Morning meeting attendance section. att comes from
+// aggregateAttendance in attendanceImport.js; showAbsent from cfg.attendance.
+export function buildAttendanceHtml(att, showAbsent) {
+  if (!att || !att.rows) return "";
+  const helT = (isoStr) => { if (!isoStr) return ""; return new Date(isoStr).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }); };
+  const dateLbl = att.meetingStartISO
+    ? new Date(att.meetingStartISO).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", timeZone: "Europe/Helsinki" })
+    : (att.meetingDate ? new Date(String(att.meetingDate) + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", timeZone: "UTC" }) : "");
+  const meta2 = [dateLbl, att.meetingStartISO ? helT(att.meetingStartISO) : "", att.durationMin != null ? att.durationMin + " min" : ""].filter(Boolean).join(MID);
+  const th = (lb, right) => `<td${right ? ' align="right"' : ""} style="padding:4px 0; font-size:8.5pt; letter-spacing:.07em; font-weight:bold; font-family:${MR_FF}; color:#68727f; border-bottom:1px solid #e3e8ef;">${lb}</td>`;
+  const t = att.totals || {};
+  let out = `<tr><td style="padding:16px 24px 5px; border-bottom:1px solid #e3e8ef;"><table width="100%" cellpadding="0" cellspacing="0"><tr>`
+    + `<td style="font-size:14pt; font-weight:bold; font-family:${MR_FF}; color:#2456A6;">Morning meeting attendance</td>`
+    + `<td align="right" style="font-size:10.5pt; font-family:${MR_FF}; color:#68727f;">${esc(meta2)}</td>`
+    + `</tr></table></td></tr>`;
+  let inner = `<tr><td colspan="4" style="padding:5px 0 8px; font-size:12pt; font-family:${MR_FF};">`
+    + `<b>${t.present || 0}</b> of <b>${t.invited || 0}</b> invited companies represented <span style="color:#68727f;">${MID}</span>`
+    + (t.absent ? `<b style="color:#C0392B;">${t.absent} absent</b> <span style="color:#68727f;">${MID}</span>` : "")
+    + `<span style="color:#68727f;">${t.people || 0} people joined</span></td></tr>`;
+  inner += `<tr>${th("COMPANY")}${th("REPRESENTED BY")}${th("JOINED", 1)}${th("FIRST IN", 1)}</tr>`;
+  const [rws, more] = [att.rows.slice(0, 14), Math.max(0, att.rows.length - 14)];
+  rws.forEach((r) => {
+    const names = (r.names || []).slice(0, 3).join(", ") + ((r.names || []).length > 3 ? " and " + ((r.names || []).length - 3) + " more" : "");
+    inner += `<tr>`
+      + `<td style="padding:5px 8px 5px 0; border-bottom:1px solid #f1f4f8; font-weight:bold; font-family:${MR_FF};">${esc(r.name)}${r.late ? ` <span style="font-size:10.5pt; font-weight:bold; color:#b07f00;">${MID}joined late</span>` : ""}</td>`
+      + `<td style="padding:5px 8px 5px 0; border-bottom:1px solid #f1f4f8; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">${esc(names)}</td>`
+      + `<td align="right" style="padding:5px 0; border-bottom:1px solid #f1f4f8; font-family:${MR_FF};">${r.count}</td>`
+      + `<td align="right" style="padding:5px 0; border-bottom:1px solid #f1f4f8; font-family:${MR_FF};${r.late ? " color:#b07f00;" : ""}">${esc(helT(r.firstJoinISO))}</td>`
+      + `</tr>`;
+  });
+  if (more) inner += `<tr><td colspan="4" style="padding:5px 0; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">and ${more} more companies</td></tr>`;
+  if (showAbsent !== false && (att.absent || []).length) {
+    inner += `<tr><td colspan="4" style="padding:8px 0 2px; font-size:8.5pt; letter-spacing:.07em; font-weight:bold; font-family:${MR_FF}; color:#C0392B; border-bottom:1px solid #e3e8ef;">NOT REPRESENTED ${MID}INVITED</td></tr>`;
+    att.absent.slice(0, 10).forEach((a) => {
+      inner += `<tr>`
+        + `<td style="padding:5px 8px 5px 0; font-weight:bold; font-family:${MR_FF}; color:#C0392B;">${esc(a.name)} <span style="font-size:10.5pt;">${MID}absent</span></td>`
+        + `<td colspan="3" style="padding:5px 8px 5px 0; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">${(a.domains || []).length ? "no participant matched " + esc((a.domains || []).join(", ")) : "no domain mapped"}</td>`
+        + `</tr>`;
+    });
+  }
+  if ((att.unmatched || []).length) {
+    inner += `<tr><td colspan="4" style="padding:8px 0 2px; font-size:8.5pt; letter-spacing:.07em; font-weight:bold; font-family:${MR_FF}; color:#68727f; border-bottom:1px solid #e3e8ef;">UNMATCHED ${MID}NO COMPANY MAPPING</td></tr>`;
+    const gs = att.unmatched.slice(0, 8).map((u) => `${esc(u.name)} <span style="color:#68727f; font-size:10.5pt;">${MID}${esc([u.domain, helT(u.firstJoinISO)].filter(Boolean).join(MID))}</span>`).join(" &nbsp;&nbsp; ");
+    inner += `<tr><td colspan="4" style="padding:5px 0; color:#48525e; font-size:10.5pt; font-family:${MR_FF};">${gs}${att.unmatched.length > 8 ? ` <span style="color:#68727f;">and ${att.unmatched.length - 8} more</span>` : ""}</td></tr>`;
+  }
+  if (att.uploadedByName) inner += `<tr><td colspan="4" style="padding:8px 0 4px; color:#8b96a3; font-size:9pt; font-family:${MR_FF};">Source: Teams attendance report${MID}uploaded by ${esc(att.uploadedByName)}</td></tr>`;
+  out += `<tr><td style="padding:8px 24px 2px;"><table width="100%" cellpadding="0" cellspacing="0" style="font-size:12pt; font-family:${MR_FF}; color:#1c2733;">${inner}</table></td></tr>`;
+  return out;
+}
+
 export function buildMorningEmail(d, cfg, meta) {
   const sec = cfg.sections || {};
   const c = d.counts;
@@ -151,6 +204,7 @@ export function buildMorningEmail(d, cfg, meta) {
     + cell(c.overdue, "OVERDUE", "#C0392B") + `<td width="8"></td>`
     + cell(c.starting, "STARTING", "#1e8e63") + `<td width="8"></td>`
     + cell(c.cons, "OPEN CONSTRAINTS", "#2456A6") + `</tr></table></td></tr>`;
+  if (sec.attendance !== false && d.attendance) body += buildAttendanceHtml(d.attendance, cfg.attendance && cfg.attendance.showAbsent);
   if (!c.inProgress && !c.finishing && !c.overdue && !c.starting && !c.cons && !d.upRows.length && !d.witness.length) {
     body += rowsWrap(`<tr><td style="padding:8px 0; color:#68727f;">Nothing scheduled for today.</td></tr>`);
   }
