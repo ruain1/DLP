@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV329",
+  "date": "2026-07-22",
+  "items": [
+   "Cancelling a witness invite from the Witness Schedule now offers the follow-through. After the cancellation is confirmed sent to all attendees, a popup offers Open Schedule tab, which closes the popout and opens Edit Activity for that activity with the Schedule tab already selected, so the outcome, reschedule or linked retest gets recorded while the cancellation is fresh. Cancelling from inside Edit Activity is unchanged.",
+   "Edit Activity: the Witness Outcome label is now simply Outcome."
+  ]
+ },
+ {
   "rev": "REV328",
   "date": "2026-07-22",
   "items": [
