@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV327",
+  "date": "2026-07-22",
+  "items": [
+   "Attendance block cleanup from the first live upload. Teams name qualifiers ((External), (Unverified), (Guest) and localised equivalents) are stripped from Represented by; transcription bots such as read.ai are excluded from participants and headcounts entirely; absent company rows now show N/A instead of the domain-match explanation. Applied at parse time for new uploads and at render time so the already-stored upload displays clean without re-uploading."
+  ]
+ },
+ {
   "rev": "REV326",
   "date": "2026-07-22",
   "items": [
