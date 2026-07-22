@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins } from "./data";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins, loadMorningAttendance, saveMorningAttendance, deleteMorningAttendance } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients, setInviteMatrix, FIN04_SEED, isConfiguredMatrix } from "./witnessContacts";
@@ -9790,6 +9790,24 @@ async function assembleMorning(St, due) {
   let ups = [];
   try { ups = await fetchUpdatesBetween(St.projectId, from.toISOString(), to.toISOString()); } catch (e) { ups = []; }
   const data = m.morningData(St, due, ups);
+  // REV326: attach the morning meeting attendance, when uploaded. Never blocks and
+  // never fails the send; any error degrades to no block, like the AI summary.
+  data.attendance = null;
+  if (!cfg.sections || cfg.sections.attendance !== false) {
+    try {
+      const am = await import("./attendanceImport");
+      const recs = await loadMorningAttendance(St.projectId, 6);
+      const rec = am.pickAttendanceFor(recs, due);
+      if (rec) {
+        const coById = {}; (St.companies || []).forEach((c2) => { coById[c2.id] = c2.name; });
+        const nameIdx = {};
+        (St.users || []).forEach((p2) => { const nm2 = coById[p2.companyId]; if (nm2 && p2.name) nameIdx[am.normName(p2.name)] = nm2; });
+        const agg = am.aggregateAttendance({ meetingTitle: rec.meeting_title, meetingStartISO: rec.meeting_start, meetingDate: rec.meeting_date, durationMin: rec.duration_min, participants: rec.participants || [] }, (cfg.attendance && cfg.attendance.companies) || [], nameIdx);
+        agg.uploadedByName = rec.uploaded_by_name || "";
+        data.attendance = agg;
+      }
+    } catch (e2) { data.attendance = null; }
+  }
   // REV277: the AI executive summary. Facts come from the assembled data; the project's
   // aiSteer shapes tone and emphasis. Any failure or a slow response degrades to no
   // block: the morning email never waits on the AI and never fails because of it.
@@ -9909,10 +9927,16 @@ function ScheduledReports({ S, update }) {
   const [dcfg, setDcfg] = useState(null);      // REV315: daily/weekly digest config (on/off + time)
   const [drDaily, setDrDaily] = useState(false);
   const [drWeekly, setDrWeekly] = useState(false);
+  const [attRecs, setAttRecs] = useState([]);      // REV326: recent attendance uploads
+  const [attPrev, setAttPrev] = useState(null);    // REV326: staged parse awaiting Attach
+  const [attErr, setAttErr] = useState("");
+  const [attCoIn, setAttCoIn] = useState("");      // REV326: company = domain input
   const savedTimer = React.useRef(null);
   const mrRef = React.useRef(null);
   useEffect(() => { import("./morningReport").then((m) => { mrRef.current = m; setCfg(m.morningCfg(S.settings || {})); }); }, [S.settings]);
   useEffect(() => { import("./digestCore").then((c) => setDcfg(c.digestCfg(S.settings || {}))); }, [S.settings]);
+  const refreshAtt = () => { loadMorningAttendance(S.projectId, 8).then(setAttRecs, () => setAttRecs([])); };
+  useEffect(() => { if (drOpen) refreshAtt(); }, [drOpen]);
   const load = async () => {
     try {
       const r = await supabase.from("report_runs").select("kind, sent_at, status, recipients").eq("project_id", S.projectId).in("kind", ["daily", "weekly", "morning"]).order("sent_at", { ascending: false }).limit(30);
@@ -9923,7 +9947,7 @@ function ScheduledReports({ S, update }) {
   };
   useEffect(() => { load(); }, []);
   const save = (patch) => {
-    const next = { ...cfg, ...patch, sections: { ...cfg.sections, ...(patch.sections || {}) } };
+    const next = { ...cfg, ...patch, sections: { ...cfg.sections, ...(patch.sections || {}) }, attendance: { ...cfg.attendance, ...(patch.attendance || {}) } };
     setCfg(next);
     // REV297: persist under settings.design.morningReport so it rides the design jsonb that
     // syncCollections actually writes to the DB; the old top-level key never persisted, so the
@@ -10017,7 +10041,80 @@ function ScheduledReports({ S, update }) {
   const segBtn = (on, lb, click) => <button key={lb} className="lk-btn" style={{ fontSize: 10.5, fontWeight: 700, padding: "5px 12px", borderColor: on ? "var(--accent)" : undefined, color: on ? "var(--accent)" : undefined, background: on ? "rgba(91,155,243,.08)" : "none" }} onClick={click}>{lb}</button>;
   const fld = { display: "block", fontSize: 9, fontWeight: 800, letterSpacing: ".7px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 7 };
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const SECS = [["ytt", "Yesterday / Today / Tomorrow"], ["ai", "AI summary"], ["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
+  const SECS = [["ytt", "Yesterday / Today / Tomorrow"], ["ai", "AI summary"], ["attendance", "Attendance"], ["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
+  // REV326: morning meeting attendance handlers. All parse and aggregate logic
+  // lives in attendanceImport.js; this is wiring only.
+  const attCfg = (cfg && cfg.attendance) || { showAbsent: true, companies: [] };
+  const myName = ((S.users || []).find((u) => u.id === S.currentUserId) || {}).name || "";
+  const helHm = (isoStr) => { try { return new Date(isoStr).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }); } catch (e) { return ""; } };
+  const fmtAttDate = (dstr) => { try { return new Date(String(dstr) + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", timeZone: "UTC" }); } catch (e) { return String(dstr || ""); } };
+  const attDateLbl = (pv) => fmtAttDate((pv && pv.parsed.meetingDate) || new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Helsinki" }).format(new Date()));
+  const attMetaLine = (agg) => [agg.meetingDate ? fmtAttDate(agg.meetingDate) : "", agg.meetingStartISO ? helHm(agg.meetingStartISO) : "", agg.durationMin != null ? agg.durationMin + " min" : "", agg.totals.people + " participants"].filter(Boolean).join(" \u00b7 ");
+  const attNameIndex = () => { const coById = {}; (S.companies || []).forEach((c2) => { coById[c2.id] = c2.name; }); const ix = {}; return { build: (am) => { (S.users || []).forEach((p2) => { const nm2 = coById[p2.companyId]; if (nm2 && p2.name) ix[am.normName(p2.name)] = nm2; }); return ix; } }; };
+  const onAttFile = async (ff) => {
+    setAttErr(""); setAttPrev(null);
+    try {
+      const am = await import("./attendanceImport");
+      const buf = await ff.arrayBuffer();
+      const parsed = am.parseAttendanceFile(buf, ff.name);
+      if (!parsed.ok) { setAttErr((parsed.warnings || []).join(" ") || "Could not parse the file."); return; }
+      const agg = am.aggregateAttendance(parsed, attCfg.companies || [], attNameIndex().build(am));
+      setAttPrev({ parsed, agg, filename: ff.name });
+    } catch (e) { setAttErr("Could not read the file: " + (e && e.message ? e.message : String(e))); }
+  };
+  const attachAtt = async () => {
+    if (!attPrev) return;
+    setBusy("attSave");
+    try {
+      const md = attPrev.parsed.meetingDate || new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Helsinki" }).format(new Date());
+      await saveMorningAttendance({ project_id: S.projectId, meeting_date: md, meeting_title: attPrev.parsed.meetingTitle || "", meeting_start: attPrev.parsed.meetingStartISO || null, duration_min: attPrev.parsed.durationMin == null ? null : attPrev.parsed.durationMin, source_filename: attPrev.filename || "", participants: attPrev.parsed.participants, uploaded_by: S.currentUserId || null, uploaded_by_name: myName });
+      setAttPrev(null); refreshAtt();
+      setMsg({ ok: true, text: "Attendance attached for " + fmtAttDate(md) + ". The next Morning Cx Update carries it." });
+    } catch (e) { setAttErr("Save failed: " + (e && e.message ? e.message : String(e))); }
+    setBusy(null);
+  };
+  const attRemove = async (id) => { try { await deleteMorningAttendance(id); } catch (e) { } refreshAtt(); };
+  const attSaveCos = (companies) => save({ attendance: { companies } });
+  const attRemoveCo = (name) => attSaveCos((attCfg.companies || []).filter((c2) => c2.name !== name));
+  const attAddCo = () => {
+    const txt = String(attCoIn || "").trim(); if (!txt) return;
+    const eq = txt.indexOf("=");
+    const name = (eq < 0 ? txt : txt.slice(0, eq)).trim();
+    const doms = eq < 0 ? [] : txt.slice(eq + 1).split(/[\s,;]+/).map((d2) => d2.trim().toLowerCase().replace(/^@/, "")).filter(Boolean);
+    if (!name) return;
+    const rest = (attCfg.companies || []).filter((c2) => c2.name.toLowerCase() !== name.toLowerCase());
+    attSaveCos([...rest, { name, domains: doms }].sort((a2, b2) => a2.name.localeCompare(b2.name)));
+    setAttCoIn("");
+  };
+  const attSeed = () => {
+    const ids = S.projectCompanyIds;
+    const pool = (S.companies || []).filter((c2) => !ids || ids.includes(c2.id));
+    const cur = {}; (attCfg.companies || []).forEach((c2) => { cur[c2.name.toLowerCase()] = c2; });
+    pool.forEach((c2) => {
+      const k = c2.name.toLowerCase();
+      const doms = c2.domain ? [String(c2.domain).toLowerCase()] : [];
+      if (cur[k]) cur[k] = { ...cur[k], domains: [...new Set([...(cur[k].domains || []), ...doms])] };
+      else cur[k] = { name: c2.name, domains: doms };
+    });
+    attSaveCos(Object.values(cur).sort((a2, b2) => a2.name.localeCompare(b2.name)));
+  };
+  const attLearn = async () => {
+    try {
+      const us = await fetchUserStatus();
+      const coById = {}; (S.companies || []).forEach((c2) => { coById[c2.id] = c2.name; });
+      const domsByCo = {};
+      (S.users || []).forEach((p2) => {
+        const em = us[p2.id] && us[p2.id].email; if (!em || !p2.companyId) return;
+        const nm2 = coById[p2.companyId]; if (!nm2) return;
+        const d2 = em.slice(em.lastIndexOf("@") + 1).toLowerCase();
+        (domsByCo[nm2.toLowerCase()] = domsByCo[nm2.toLowerCase()] || new Set()).add(d2);
+      });
+      attSaveCos((attCfg.companies || []).map((c2) => {
+        const add = domsByCo[c2.name.toLowerCase()];
+        return add ? { ...c2, domains: [...new Set([...(c2.domains || []), ...add])] } : c2;
+      }));
+    } catch (e) { setAttErr("Could not read member emails: " + (e && e.message ? e.message : String(e))); }
+  };
   const exNames = (cfg.excludeCoIds || []).map((id) => ((S.companies || []).find((cc) => cc.id === id) || {}).name).filter(Boolean);
   const coList = exAll ? (S.companies || []) : (S.companies || []).slice(0, 8);
   return (
@@ -10068,6 +10165,61 @@ function ScheduledReports({ S, update }) {
             </div>}
             <div><label style={fld}>Sections</label><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{SECS.map(([k, lb]) => segBtn(cfg.sections[k] !== false, lb, () => save({ sections: { [k]: !(cfg.sections[k] !== false) } })))}</div></div>
             <div><label style={fld}>AI instructions</label><textarea key={"ai-" + (cfg.aiSteer || "")} className="lk-in" rows={3} maxLength={320} defaultValue={cfg.aiSteer || ""} onBlur={(e) => save({ aiSteer: e.target.value.slice(0, 320) })} placeholder="Steer the summary, e.g. Name the most urgent action first and address the site team directly." style={{ width: "100%", resize: "vertical", fontSize: 12, lineHeight: 1.5 }} id="mr-aisteer" /><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}><button className="lk-btn primary" style={{ fontSize: 11.5, padding: "5px 12px" }} onClick={() => { const el = document.getElementById("mr-aisteer"); if (el) save({ aiSteer: String(el.value || "").slice(0, 320) }); }}>Save prompt</button>{saved && <span style={{ fontSize: 11, color: "var(--st-done)", fontWeight: 600 }}>Saved</span>}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Saved and reused every morning until you change it. Up to 320 characters; guides tone and emphasis only, every figure, date and name comes from that morning's data. If the AI is unreachable the email still sends, without the summary block.</div></div>
+            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+              <label style={{ ...fld, color: "var(--accent)", fontSize: 10 }}>Morning meeting attendance</label>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
+                <div><label style={fld}>Include in email</label>{segBtn(cfg.sections.attendance !== false, "ON", () => save({ sections: { attendance: true } }))} {segBtn(cfg.sections.attendance === false, "OFF", () => save({ sections: { attendance: false } }))}</div>
+                <div><label style={fld}>Show absentees</label>{segBtn(attCfg.showAbsent !== false, "ON", () => save({ attendance: { showAbsent: true } }))} {segBtn(attCfg.showAbsent === false, "OFF", () => save({ attendance: { showAbsent: false } }))}</div>
+              </div>
+              <label className="lk-btn primary" style={{ cursor: "pointer", fontSize: 12 }}>Upload Teams attendance (.csv)
+                <input type="file" accept=".csv,.txt" style={{ display: "none" }} onChange={(e) => { const ff = e.target.files && e.target.files[0]; e.target.value = ""; if (ff) onAttFile(ff); }} />
+              </label>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 7, lineHeight: 1.5 }}>In Teams open the meeting, go to the Attendance tab and choose Download. Both the in-meeting list and the post-meeting report are accepted; the meeting date, start time and durations are read from the file.</div>
+              {attErr && <div style={{ fontSize: 11.5, color: "var(--red)", marginTop: 8 }}>{attErr}</div>}
+              {attPrev && <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 12, background: "var(--line-2, rgba(255,255,255,.03))", marginTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attPrev.filename}</span>
+                  <span style={{ fontSize: 11, color: "var(--muted)" }}>parsed</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "4px 0 8px" }}>{attMetaLine(attPrev.agg)}</div>
+                <div style={{ fontSize: 12, marginBottom: 8 }}><b>{attPrev.agg.totals.present}</b> of <b>{attPrev.agg.totals.invited}</b> companies represented {"\u00b7"} <b style={{ color: "var(--red)" }}>{attPrev.agg.totals.absent} absent</b> {"\u00b7"} <b>{attPrev.agg.totals.unmatched}</b> unmatched</div>
+                {attPrev.agg.rows.slice(0, 4).map((r) => <div key={r.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid var(--line)" }}><span>{r.name}{r.late ? <span style={{ fontSize: 10, fontWeight: 700, color: "var(--amber)", border: "1px solid var(--amber)", borderRadius: 5, padding: "1px 6px", marginLeft: 6 }}>late</span> : null}</span><span style={{ color: "var(--muted)" }}>{r.count} joined{r.firstJoinISO ? " \u00b7 " + helHm(r.firstJoinISO) : ""}</span></div>)}
+                {attPrev.agg.absent.length > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0" }}><span style={{ color: "var(--red)" }}>{attPrev.agg.absent.map((a) => a.name).join(" \u00b7 ")}</span><span style={{ color: "var(--muted)" }}>absent</span></div>}
+                {attPrev.agg.rows.length > 4 && <div style={{ fontSize: 11, color: "var(--muted)", padding: "4px 0" }}>and {attPrev.agg.rows.length - 4} more companies</div>}
+                {attPrev.parsed.warnings.map((w, wi) => <div key={wi} style={{ fontSize: 10.5, color: "var(--amber)", marginTop: 4 }}>{w}</div>)}
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button className={"lk-btn primary" + (busy === "attSave" ? " disabled" : "")} disabled={busy === "attSave"} style={{ fontSize: 12 }} onClick={attachAtt}>Attach to {attDateLbl(attPrev)}</button>
+                  <button className="lk-btn" style={{ fontSize: 12 }} onClick={() => { setAttPrev(null); setAttErr(""); }}>Discard</button>
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 7 }}>Replaces any earlier upload for the same meeting date.</div>
+              </div>}
+              <div style={{ marginTop: 16 }}>
+                <label style={fld}>Invited companies {"\u00b7"} {(attCfg.companies || []).length}</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  {(attCfg.companies || []).map((cc) => <span key={cc.name} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 999, padding: "3px 10px", fontSize: 11, cursor: "pointer" }} title={(cc.domains || []).join(", ") || "no domain mapped"} onClick={() => setAttCoIn(cc.name + " = " + (cc.domains || []).join(", "))}>{cc.name}<b style={{ color: "var(--muted)", cursor: "pointer", fontWeight: 400 }} onClick={(e) => { e.stopPropagation(); attRemoveCo(cc.name); }}>{"\u2715"}</b></span>)}
+                  {!(attCfg.companies || []).length && <span style={{ fontSize: 11.5, color: "var(--muted)" }}>No companies yet; seed from the project or add below.</span>}
+                </div>
+                {(attCfg.companies || []).length > 0 && <div style={{ marginBottom: 8 }}>
+                  <label style={fld}>Domain mapping {"\u00b7"} click a chip to edit</label>
+                  {(attCfg.companies || []).slice(0, 6).map((cc) => <div key={cc.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--line)" }}><span>{cc.name}</span><span style={{ color: (cc.domains || []).length ? "var(--muted)" : "var(--amber)" }}>{(cc.domains || []).join(", ") || "no domain"}</span></div>)}
+                  {(attCfg.companies || []).length > 6 && <div style={{ fontSize: 11, color: "var(--muted)", padding: "3px 0" }}>and {(attCfg.companies || []).length - 6} more mappings</div>}
+                </div>}
+                <input className="lk-in" style={{ width: "100%", fontSize: 12 }} placeholder="Add: company = domain (e.g. Eaton = eaton.com)" value={attCoIn} onChange={(e) => setAttCoIn(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") attAddCo(); }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                  <button className="lk-btn" style={{ fontSize: 11 }} onClick={attAddCo}>Add / replace</button>
+                  <button className="lk-btn" style={{ fontSize: 11 }} onClick={attSeed}>Seed from project companies</button>
+                  <button className="lk-btn" style={{ fontSize: 11 }} onClick={attLearn}>Learn domains from members</button>
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 7, lineHeight: 1.5 }}>A company is present when at least one participant email matches one of its domains (subdomains included). Participants with no matching domain appear as unmatched and never count toward a company. Seed pulls the project company list; Learn fills domains from the emails of members assigned to each company.</div>
+              </div>
+              {attRecs.length > 0 && <div style={{ marginTop: 16 }}>
+                <label style={fld}>Recent uploads</label>
+                {attRecs.map((rr2) => <div key={rr2.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "4px 0", borderBottom: "1px solid var(--line)" }}>
+                  <span>{fmtAttDate(rr2.meeting_date)} {"\u00b7"} {(rr2.participants || []).length} rows</span>
+                  <span style={{ color: "var(--muted)" }}>{rr2.uploaded_by_name || ""}{" "}<b style={{ cursor: "pointer", fontWeight: 400 }} onClick={() => attRemove(rr2.id)}>{"\u2715"}</b></span>
+                </div>)}
+              </div>}
+            </div>
           </div>
           <div style={{ padding: "14px 18px", borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ fontSize: 10.5, color: saved ? "var(--st-done)" : "var(--muted)", flex: 1, fontWeight: saved ? 600 : 400 }}>{saved ? "Saved." : "Changes save automatically."}</span>
