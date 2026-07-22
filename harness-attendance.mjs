@@ -1,5 +1,5 @@
 // REV326 harness: attendanceImport.js. Run: node harness-attendance.bundle.mjs
-import { parseAttendanceFile, parseAttendanceText, aggregateAttendance, pickAttendanceFor, normName, emailDomain, domainMatches, parseDurMin, helTimeOf } from "./src/attendanceImport.js";
+import { parseAttendanceFile, parseAttendanceText, aggregateAttendance, pickAttendanceFor, normName, emailDomain, domainMatches, parseDurMin, helTimeOf, cleanName, isBotName } from "./src/attendanceImport.js";
 
 let n = 0;
 const ok = (cond, msg) => { n++; if (!cond) { console.error("FAIL:", msg); process.exit(1); } };
@@ -20,6 +20,8 @@ const en = [
   "Omar Belkhiria\t7/22/26, 7:14:02 AM\t7/22/26, 7:20:10 AM\t6m 8s\to.belkhiria@daikinapplied.eu\to@x\tAttendee",
   "Luis Andrade\t7/22/26, 7:05:30 AM\t7/22/26, 7:19:00 AM\t13m 30s\tluis.andrade@mail.mecwide.com\tl@x\tAttendee",
   "Ville Immonen\t7/22/26, 7:06:00 AM\t7/22/26, 7:20:00 AM\t14m 0s\tville.immonen@se.com\tv@x\tAttendee",
+  "Antti Tepponen (External)\t7/22/26, 7:04:00 AM\t7/22/26, 7:20:00 AM\t16m 0s\tantti.tepponen@partners.atnorth.com\ta@x\tAttendee",
+  "read.ai meeting notes (Unverified)\t7/22/26, 7:05:00 AM\t7/22/26, 7:20:00 AM\t15m 0s\t\t\tAttendee",
   "",
   "3. In-Meeting Activities",
   "Name\tJoin Time\tLeave Time\tDuration\tEmail\tRole",
@@ -33,7 +35,10 @@ ok(p1.meetingTitle === "FIN04 - Morning Cx Meeting", "en title, got " + JSON.str
 ok(p1.meetingDate === "2026-07-22", "en meetingDate, got " + p1.meetingDate);
 ok(helTimeOf(p1.meetingStartISO) === "07:05", "en start 07:05 Helsinki, got " + helTimeOf(p1.meetingStartISO));
 ok(p1.durationMin === 15, "en duration 15 from kv, got " + p1.durationMin);
-ok(p1.participants.length === 5, "en 5 participants (activities table not double-counted as best), got " + p1.participants.length);
+ok(p1.participants.length === 6, "en 6 participants (bot excluded, activities table not double-counted), got " + p1.participants.length);
+const antti = p1.participants.find((p) => p.email === "antti.tepponen@partners.atnorth.com");
+ok(antti && antti.name === "Antti Tepponen", "REV327: (External) qualifier stripped at parse, got " + JSON.stringify(antti && antti.name));
+ok(!p1.participants.some((p) => /read\.ai/i.test(p.name)), "REV327: read.ai bot excluded at parse");
 const damian = p1.participants.find((p) => p.email === "damian.c@cts-nordics.com");
 ok(damian && damian.name === "Chlebek, Damian", "quoted name preserved");
 ok(damian.durationMin === 18, "duration from column, got " + damian.durationMin);
@@ -74,6 +79,7 @@ ok(p3.warnings.some((w) => /member names/.test(w)), "legacy name-fallback warnin
 
 // ---------- aggregation ----------
 const companies = [
+  { name: "atnorth", domains: ["atnorth.com", "partners.atnorth.com"] },
   { name: "CS Nordics", domains: ["cts-nordics.com"] },
   { name: "Velox", domains: ["veloxelectro-nordics.com"] },
   { name: "Mecwide", domains: ["mecwide.com"] },
@@ -81,7 +87,15 @@ const companies = [
   { name: "DCS Norway", domains: ["dcsnorway.com"] },
 ];
 const agg = aggregateAttendance(p1, companies, null);
-ok(agg.totals.invited === 5 && agg.totals.present === 4, "agg present 4 of 5, got " + agg.totals.present);
+ok(agg.totals.invited === 6 && agg.totals.present === 5, "agg present 5 of 6, got " + agg.totals.present);
+ok(agg.totals.people === 6, "REV327: totals.people excludes bots, got " + agg.totals.people);
+const atn = agg.rows.find((r) => r.name === "atnorth");
+ok(atn && atn.names[0] === "Antti Tepponen", "REV327: aggregation renders cleaned name for stored uploads");
+// stored-upload path: aggregation cleans and excludes even when the parser did not
+const storedAgg = aggregateAttendance({ participants: [{ name: "Jan Ackermann (External)", email: "j@daikinapplied.eu" }, { name: "read.ai meeting notes (Unverified)", email: "" }] }, [{ name: "Daikin Applied", domains: ["daikinapplied.eu"] }], null);
+ok(storedAgg.rows[0].names[0] === "Jan Ackermann" && storedAgg.totals.people === 1 && storedAgg.unmatched.length === 0, "REV327: defensive clean on stored participants");
+ok(cleanName("A B (External)") === "A B" && cleanName("A (Guest) (Unverified)") === "A" && cleanName("Marcel - DCS") === "Marcel - DCS", "REV327: cleanName strips qualifiers only");
+ok(isBotName("read.ai meeting notes") && isBotName("Fireflies.ai Notetaker") && !isBotName("Mark Robertson"), "REV327: bot detection");
 ok(agg.absent.length === 1 && agg.absent[0].name === "DCS Norway", "DCS Norway absent");
 ok(agg.unmatched.length === 1 && agg.unmatched[0].domain === "se.com", "se.com unmatched, got " + JSON.stringify(agg.unmatched));
 const mec = agg.rows.find((r) => r.name === "Mecwide");

@@ -9,6 +9,21 @@
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// REV327: Teams decorates display names with qualifier suffixes ((External),
+// (Unverified), (Guest) and localised equivalents); these are noise in the
+// email. Transcription bots (read.ai and friends) are not people and are
+// excluded from participants entirely. Both run at parse time for new uploads
+// and again at aggregation time so already-stored uploads render clean too
+// (parser fixes without render-time filtering do not fix saved snapshots).
+const NAME_QUAL_RE = /\s*\((external|unverified|guest|ulkoinen|vahvistamaton|vieras)\)\s*$/i;
+export function cleanName(s2) {
+  let out = String(s2 || "").trim();
+  for (let i = 0; i < 3 && NAME_QUAL_RE.test(out); i++) out = out.replace(NAME_QUAL_RE, "");
+  return out.trim();
+}
+const BOT_RE = /\b(read\.?ai|otter\.?ai|fireflies|tl;?dv|meetgeek|notetaker|meeting notes)\b/i;
+export function isBotName(s2) { return BOT_RE.test(String(s2 || "")); }
+
 // ---------- decoding ----------
 function td(label) { return new TextDecoder(label); }
 export function decodeAttendanceBuffer(buf) {
@@ -231,7 +246,7 @@ export function parseAttendanceText(text, filename) {
     const tsCol = dtColIdx[0];
     const byName = {};
     data.forEach((r) => {
-      const nm = r[nameCol]; if (!nm) return;
+      const nm = cleanName(r[nameCol]); if (!nm || isBotName(r[nameCol])) return;
       const t = dtParser(r[tsCol]); if (!t) return;
       const rec = (byName[nm] = byName[nm] || { name: nm, email: "", first: null, last: null });
       if (!rec.first || t < rec.first) rec.first = t;
@@ -250,9 +265,10 @@ export function parseAttendanceText(text, filename) {
     const leaveCol = dtColIdx[1] != null ? dtColIdx[1] : -1;
     const seen = {};
     data.forEach((r) => {
-      const name = r[nameCol] || "";
+      const name = cleanName(r[nameCol] || "");
       const email = emailCol >= 0 ? (r[emailCol] || "").toLowerCase() : "";
       if (!name && !email) return;
+      if (isBotName(r[nameCol]) || isBotName(email)) return;
       const fj = joinCol >= 0 ? dtParser(r[joinCol]) : null;
       const ll = leaveCol >= 0 ? dtParser(r[leaveCol]) : null;
       let dur = durCol >= 0 ? parseDurMin(r[durCol]) : null;
@@ -332,7 +348,11 @@ export function aggregateAttendance(parsed, companies, nameIndex) {
   const byCo = {};
   cos.forEach((c) => { byCo[c.name] = { name: c.name, domains: (c.domains || []).filter(Boolean), count: 0, names: [], first: null }; });
   const unmatched = [];
+  let people = 0;
   (parsed.participants || []).forEach((p) => {
+    if (isBotName(p.name) || isBotName(p.email)) return;
+    p = { ...p, name: cleanName(p.name) };
+    people++;
     const dom = emailDomain(p.email);
     let hit = null;
     if (dom) hit = cos.find((c) => (c.domains || []).some((d) => domainMatches(dom, d)));
@@ -367,7 +387,7 @@ export function aggregateAttendance(parsed, companies, nameIndex) {
     meetingStartISO: parsed.meetingStartISO || null,
     meetingDate: parsed.meetingDate || null,
     durationMin: parsed.durationMin == null ? null : parsed.durationMin,
-    totals: { people: (parsed.participants || []).length, invited: cos.length, present: rows.length, absent: absent.length, unmatched: unmatched.length },
+    totals: { people, invited: cos.length, present: rows.length, absent: absent.length, unmatched: unmatched.length },
     rows, absent, unmatched,
   };
 }

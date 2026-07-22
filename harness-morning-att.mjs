@@ -27,7 +27,7 @@ ok(h.includes("07:05") && h.includes("15 min"), "start and duration in the meta 
 ok(h.includes("<b>9</b> of <b>11</b>"), "summary counts");
 ok(h.includes("joined late") && h.includes("07:14"), "late tag and amber first-in");
 ok(h.includes("and 2 more"), "names capped at 3 with more-line");
-ok(h.includes("NOT REPRESENTED") && h.includes("dcsnorway.com"), "absent block with failed domain");
+ok(h.includes("NOT REPRESENTED") && !h.includes("dcsnorway.com") && h.includes(">N/A<"), "REV327: absent rows render N/A, no domain text");
 ok(h.includes("UNMATCHED") && h.includes("se.com"), "unmatched block");
 ok(h.includes("uploaded by Ruain Burrows"), "provenance");
 ok(!/[\u2013\u2014]/.test(h), "no em/en dashes in output");
