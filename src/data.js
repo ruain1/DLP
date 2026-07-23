@@ -28,6 +28,17 @@ const toActivity = (a, session, isNew) => {
   return row;
 };
 
+// REV331: classify client-state activity changes into inserts (unknown to the client's
+// previous state), updates (known and changed), and deletes. Pure, exported for the harness.
+export function diffActivityRows(prevActs, nextActs) {
+  const pm = Object.fromEntries(prevActs.map((a) => [a.id, a]));
+  const nm = Object.fromEntries(nextActs.map((a) => [a.id, a]));
+  const ins = []; const upd = [];
+  nextActs.forEach((a) => { if (!pm[a.id]) ins.push(a); else if (JSON.stringify(pm[a.id]) !== JSON.stringify(a)) upd.push(a); });
+  const del = prevActs.filter((a) => !nm[a.id]).map((a) => a.id);
+  return { ins, upd, del };
+}
+
 // ---- invite requests (atnorth asks to be forwarded an activity invite) ----
 const fromInviteRequest = (r) => ({
   id: r.id, activityId: r.activity_id, requesterId: r.requester_id,
@@ -248,12 +259,21 @@ export async function syncCollections(prev, next, session, projectId) {
   const ops = [];
   // activities (keyed by id)
   if (next.activities !== prev.activities) {
-    const pm = Object.fromEntries(prev.activities.map((a) => [a.id, a]));
-    const nm = Object.fromEntries(next.activities.map((a) => [a.id, a]));
-    const ups = [];
-    next.activities.forEach((a) => { if (!pm[a.id] || JSON.stringify(pm[a.id]) !== JSON.stringify(a)) ups.push({ ...toActivity(a, session, !pm[a.id]), project_id: projectId }); });
-    const del = prev.activities.filter((a) => !nm[a.id]).map((a) => a.id);
-    if (ups.length) ops.push(supabase.from("activities").upsert(ups));
+    // REV331: rows the client already knows go through UPDATE, brand new rows through
+    // INSERT. The old blind whole-row upsert re-inserted rows that had been deleted by
+    // someone else: silent resurrection for admins, an RLS insert rejection for members.
+    // An update that matches zero rows is now surfaced as a named error instead.
+    const { ins, upd, del } = diffActivityRows(prev.activities, next.activities);
+    if (ins.length) ops.push(supabase.from("activities").insert(ins.map((a) => ({ ...toActivity(a, session, true), project_id: projectId }))));
+    upd.forEach((a) => {
+      const row = { ...toActivity(a, session, false), project_id: projectId };
+      ops.push(supabase.from("activities").update(row).eq("id", row.id).select("id").then((r) => {
+        if (!r.error && (!r.data || r.data.length === 0)) {
+          return { error: { message: "This activity no longer exists: \"" + (row.descr || row.id) + "\" was deleted by someone else while you had it open. Your change was not saved. Refresh to sync your board." } };
+        }
+        return r;
+      }));
+    });
     if (del.length) ops.push(supabase.from("activities").delete().in("id", del));
   }
   // companies (keyed by id) - global shared directory, not project-scoped
