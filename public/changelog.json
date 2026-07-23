@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV332",
+    "date": "2026-07-23",
+    "items": [
+      "Schedule page: comprehensive filtering behind a Filters button, opening a right-side drawer in the ACC style so the toolbar stays clean. Filter by Company, Cx Stage, Status (including Failed), Building, Level and Zone (cascading), System, Asset search, Discipline, Crew, commitment (WILL or uncommitted), witness state (points, invite sent, no invite yet), milestones, percent range, start window, Late only, Open constraints and Has predecessors. OR within a section, AND across sections, with per-option counts computed against the other active filters.",
+      "The filtered set drives the Gantt, Calendar and Workload views and all four exports (PNG, JPG, PDF, Excel), so what is exported is exactly what is shown. Group headers show filtered of total, the toolbar shows N of M shown, and filters persist per user per project. Projected finish dates still respect the full dependency network, including predecessors hidden by the filter."
+    ]
+  },
+  {
     "rev": "REV331",
     "date": "2026-07-23",
     "items": [
