@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import FilterDrawer, { applyActivityFilters, countActiveFilters, emptyFilters } from "./FilterDrawer.jsx";
 import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins, loadMorningAttendance, saveMorningAttendance, deleteMorningAttendance } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
@@ -7863,6 +7864,18 @@ function SchedulePage({ S, coName, onOpen }) {
     : { bg: "#FFFFFF", grid: "#EAEEF4", gridStrong: "#D6DCE6", band: "#EEF1F6", band2: "#F4F6FA", header: "#EEF1F6", row: "#FBFCFE", sep: "#F0F3F8", line: "#C9D2DE", ink: "#0F1419", mut: "#8A93A2", rollup: "#334155", today: "#2563EB" };
 
   const acts = S.activities.filter((a) => a.start);
+  // REV332: comprehensive filtering behind an ACC style drawer, persisted per user per project.
+  const fltKey = "dlpSchedFilters:" + (S.projectId || "");
+  const [flt, setFltState] = useState(() => { try { const raw = localStorage.getItem("dlpSchedFilters:" + (S.projectId || "")); if (raw) return { ...emptyFilters(), ...JSON.parse(raw) }; } catch (e) {} return emptyFilters(); });
+  const [fltOpen, setFltOpen] = useState(false);
+  useEffect(() => { try { const raw = localStorage.getItem(fltKey); setFltState(raw ? { ...emptyFilters(), ...JSON.parse(raw) } : emptyFilters()); } catch (e) { setFltState(emptyFilters()); } }, [fltKey]);
+  const setFlt = (nf) => { setFltState(nf); try { localStorage.setItem(fltKey, JSON.stringify(nf)); } catch (e) {} };
+  const nFlt = countActiveFilters(flt);
+  const filtersActive = nFlt > 0;
+  const fAll = filtersActive ? applyActivityFilters(S.activities, flt) : S.activities;
+  const fActs = filtersActive ? fAll.filter((a) => a.start) : acts;
+  const fSet = new Set(fActs.map((a) => a.id));
+  const fS = filtersActive ? { ...S, activities: fAll } : S;
   const byId = Object.fromEntries(acts.map((a) => [a.id, a]));
   const PAL = ["#2563EB", "var(--st-done)", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#475569"];
   const coColor = (id) => { if (!id) return "#94A3B8"; let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PAL[h % PAL.length]; };
@@ -7872,15 +7885,15 @@ function SchedulePage({ S, coName, onOpen }) {
 
   // timeline bounds (snapped to whole weeks)
   let t0, t1;
-  if (acts.length) {
-    const starts = acts.map((a) => parseD(a.start).getTime());
-    const ends = acts.map((a) => addDays(parseD(a.start), a.duration - 1).getTime());
+  if (fActs.length) {
+    const starts = fActs.map((a) => parseD(a.start).getTime());
+    const ends = fActs.map((a) => addDays(parseD(a.start), a.duration - 1).getTime());
     t0 = mondayOf(new Date(Math.min(...starts)));
     t1 = new Date(Math.max(...ends));
   } else { t0 = mondayOf(new Date()); t1 = addDays(t0, 28); }
   // forward pass for projected (forecast) ends, in day-offsets from t0
   const dayOff = (d) => Math.round((d.getTime() - t0.getTime()) / DAYMS);
-  const proj = {}; { const memo = {}, stk = {}; const pe = (id) => { const a = byId[id]; if (!a) return null; if (memo[id] !== undefined) return memo[id]; const planEnd = dayOff(addDays(parseD(a.start), a.duration - 1)); if (stk[id]) return planEnd; stk[id] = true; let so = dayOff(parseD(a.start)); (a.predecessors || []).forEach((pid) => { const e = pe(pid); if (e != null) so = Math.max(so, e + 1); }); const eo = (a.status === "complete" && a.actualFinish) ? dayOff(parseD(a.actualFinish)) : so + (a.duration - 1); stk[id] = false; proj[id] = { so, eo }; memo[id] = eo; return eo; }; acts.forEach((a) => pe(a.id)); acts.forEach((a) => { if (!proj[a.id]) proj[a.id] = { so: dayOff(parseD(a.start)), eo: dayOff(addDays(parseD(a.start), a.duration - 1)) }; t1 = new Date(Math.max(t1.getTime(), addDays(t0, proj[a.id].eo).getTime())); }); }
+  const proj = {}; { const memo = {}, stk = {}; const pe = (id) => { const a = byId[id]; if (!a) return null; if (memo[id] !== undefined) return memo[id]; const planEnd = dayOff(addDays(parseD(a.start), a.duration - 1)); if (stk[id]) return planEnd; stk[id] = true; let so = dayOff(parseD(a.start)); (a.predecessors || []).forEach((pid) => { const e = pe(pid); if (e != null) so = Math.max(so, e + 1); }); const eo = (a.status === "complete" && a.actualFinish) ? dayOff(parseD(a.actualFinish)) : so + (a.duration - 1); stk[id] = false; proj[id] = { so, eo }; memo[id] = eo; return eo; }; acts.forEach((a) => pe(a.id)); acts.forEach((a) => { if (!proj[a.id]) proj[a.id] = { so: dayOff(parseD(a.start)), eo: dayOff(addDays(parseD(a.start), a.duration - 1)) }; if (fSet.has(a.id)) t1 = new Date(Math.max(t1.getTime(), addDays(t0, proj[a.id].eo).getTime())); }); }
   t1 = addDays(mondayOf(addDays(t1, 7)), 6); // pad to end of week
   const N = Math.max(7, dayOff(t1) + 1);
   // REV314: scheduling narrative, computed from stored fields only (reschedule log,
@@ -7921,11 +7934,12 @@ function SchedulePage({ S, coName, onOpen }) {
   // ordered rows: group headers + tasks
   const rows = [];
   const groupTasks = {};
+  const totByKey = {}; if (groupBy !== "none") acts.forEach((a) => { const k = groupKey(a); totByKey[k] = (totByKey[k] || 0) + 1; });
   if (groupBy === "none") {
-    acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a }));
+    fActs.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a }));
   } else {
-    acts.forEach((a) => { const k = groupKey(a); (groupTasks[k] = groupTasks[k] || []).push(a); });
-    Object.keys(groupTasks).sort().forEach((k) => { rows.push({ t: "grp", k, n: groupTasks[k].length }); if (!collapsed[k]) groupTasks[k].slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a })); });
+    fActs.forEach((a) => { const k = groupKey(a); (groupTasks[k] = groupTasks[k] || []).push(a); });
+    Object.keys(groupTasks).sort().forEach((k) => { rows.push({ t: "grp", k, n: groupTasks[k].length, tot: totByKey[k] || groupTasks[k].length }); if (!collapsed[k]) groupTasks[k].slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => rows.push({ t: "task", a })); });
   }
   const H = headH + rows.length * rowH + 8;
 
@@ -7956,12 +7970,16 @@ function SchedulePage({ S, coName, onOpen }) {
   const rasterize = (cb) => { const str = svgString(); const img = new Image(); img.onload = () => { const sc = 2; const cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc; const ctx = cv.getContext("2d"); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0); cb(cv); }; img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str))); };
   const exportImg = (type) => rasterize((cv) => { const url = cv.toDataURL(type === "jpg" ? "image/jpeg" : "image/png", 0.92); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-schedule-${fmtISO(new Date())}.${type}`; a.click(); });
   const exportPdf = () => { const w = window.open("", "_blank"); if (!w) return; w.document.write(`<!DOCTYPE html><html><head><title>${(S.brand && S.brand.projectName) || "DLP"} Schedule</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${svgString()}</body></html>`); w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350); };
-  const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; acts.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
+  const exportXlsx = async () => { try { const mod = await import("exceljs/dist/exceljs.min.js"); const ExcelJS = mod.default || mod; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Schedule"); ws.columns = [{ header: "#", key: "code", width: 6 }, { header: "Activity", key: "desc", width: 38 }, { header: "Group", key: "grp", width: 18 }, { header: "Company", key: "co", width: 16 }, { header: "Cx", key: "cx", width: 6 }, { header: "Start", key: "s", width: 12 }, { header: "Finish", key: "f", width: 12 }, { header: "Days", key: "d", width: 6 }, { header: "Forecast finish", key: "ff", width: 15 }, { header: "%", key: "p", width: 6 }, { header: "Status", key: "st", width: 12 }, { header: "Predecessors", key: "pre", width: 18 }]; ws.getRow(1).font = { bold: true }; fActs.slice().sort((a, b) => (a.start || "").localeCompare(b.start || "")).forEach((a) => ws.addRow({ code: a.code != null ? "#" + a.code : "", desc: a.desc, grp: groupKey(a), co: coName(a.companyId), cx: a.level, s: a.start, f: fmtISO(addDays(parseD(a.start), a.duration - 1)), d: a.duration, ff: fmtISO(addDays(t0, proj[a.id].eo)), p: pct(a), st: a.status.replace("_", " "), pre: (a.predecessors || []).map((pid) => { const x = byId[pid]; return x && x.code != null ? "#" + x.code : ""; }).filter(Boolean).join(", ") })); const buf = await wb.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const a = document.createElement("a"); a.href = url; a.download = `${(S.brand && S.brand.projectName) || "DLP"}-schedule-${fmtISO(new Date())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { alert("Excel export failed: " + (e && e.message ? e.message : e)); } };
 
   return (
     <div className="lk-sch" style={cssVars(S.theme, S.settings, "schedule")}><style>{css}</style>
       <div className="lk-sch-bar">
         <div className="grp"><label>View</label><div className="seg">{[["gantt", "Gantt"], ["calendar", "Calendar"], ["workload", "Workload"]].map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}</div></div>
+        {view !== "gantt" && <>
+        <button className={"lk-btn" + (filtersActive ? " on" : "")} onClick={() => setFltOpen(true)}>Filters{nFlt ? " (" + nFlt + ")" : ""}</button>
+        {filtersActive && <span style={{ fontSize: 11.5, color: "var(--muted)", alignSelf: "center" }}>{fActs.length} of {acts.length} shown</span>}
+        </>}
         {view === "gantt" && hasBaseline && <div className="grp"><label>Schedule</label><div className="seg">{[["live", "Live"], ["p6", "P6 Baseline"], ["compare", "Compare"]].map(([k, l]) => <button key={k} className={source === k ? "on" : ""} onClick={() => setSource(k)}>{l}</button>)}</div></div>}
         {view === "gantt" && source !== "live" && hasBaseline && <>
         <div className="grp"><label>Zoom</label><div className="seg">{[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) => <button key={k} className={zoom === k ? "on" : ""} onClick={() => setZoom(k)}>{l}</button>)}</div></div>
@@ -7976,6 +7994,8 @@ function SchedulePage({ S, coName, onOpen }) {
         <button className={"lk-btn" + (showResp ? " on" : "")} onClick={() => setShowResp((v) => !v)}>Responsible</button>
         <button className={"lk-btn" + (showDeps ? " on" : "")} onClick={() => setShowDeps((v) => !v)}>Links</button>
         <button className={"lk-btn" + (compact ? " on" : "")} onClick={() => setCompact((v) => !v)}>Compact</button>
+        <button className={"lk-btn" + (filtersActive ? " on" : "")} onClick={() => setFltOpen(true)}>Filters{nFlt ? " (" + nFlt + ")" : ""}</button>
+        {filtersActive && <span style={{ fontSize: 11.5, color: "var(--muted)", alignSelf: "center" }}>{fActs.length} of {acts.length} shown</span>}
         <div style={{ flex: 1 }} />
         <button className="lk-btn" onClick={() => exportImg("png")}><Icon n="download" s={13} />PNG</button>
         <button className="lk-btn" onClick={() => exportImg("jpg")}><Icon n="download" s={13} />JPG</button>
@@ -7986,7 +8006,7 @@ function SchedulePage({ S, coName, onOpen }) {
       {view === "gantt" && source === "p6" && hasBaseline && <BaselineGantt brandName={(S.brand && S.brand.projectName) || "DLP"} baseline={bl} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
       {view === "gantt" && source === "compare" && hasBaseline && <CompareGantt brandName={(S.brand && S.brand.projectName) || "DLP"} baseline={bl} live={S.activities} mappings={bl.mappings} LV={LV} dark={dark} zoom={zoom} compact={compact} P={P} />}
       {view === "gantt" && (source === "live" || !hasBaseline) && <div ref={scrollRef} className="lk-sch-scroll" style={{ background: P.bg }}>
-        {acts.length === 0 ? <div className="lk-empty">No activities with dates yet.</div> :
+        {fActs.length === 0 ? <div className="lk-empty">{acts.length ? "No activities match the current filters." : "No activities with dates yet."}</div> :
         <>
         <svg className="lk-sch-axis" width={W} height={headH} viewBox={`0 0 ${W} ${headH}`} xmlns="http://www.w3.org/2000/svg" style={{ position: "sticky", top: 0, zIndex: 3, display: "block", marginBottom: -headH, background: P.bg, fontFamily: "Segoe UI, Arial, sans-serif" }}>
           <rect x={0} y={0} width={W} height={headH} fill={P.bg} />
@@ -8089,7 +8109,7 @@ function SchedulePage({ S, coName, onOpen }) {
                 return <g key={"fg" + r.k} style={{ cursor: "pointer" }} onClick={() => setCollapsed((c) => ({ ...c, [r.k]: !c[r.k] }))}>
                   <rect x={0} y={y} width={leftW} height={rowH} fill={P.header} />
                   <text x={10} y={y + rowH / 2} fontSize="10" fill={P.mut} dominantBaseline="middle">{open ? "\u25BC" : "\u25B6"}</text>
-                  {text(24, y + rowH / 2, `${r.k}  (${r.n})`, { weight: 700, size: 11.5, fill: P.ink })}
+                  {text(24, y + rowH / 2, `${r.k}  (${r.n}${filtersActive && r.tot !== r.n ? " of " + r.tot : ""})`, { weight: 700, size: 11.5, fill: P.ink })}
                 </g>;
               }
               const a = r.a, nm = a.desc || "Untitled";
@@ -8107,8 +8127,9 @@ function SchedulePage({ S, coName, onOpen }) {
         </svg>
         </>}
       </div>}
-      {view === "calendar" && <CalendarView S={S} coName={coName} onDrill={openDrill} LV={LV} P={P} dark={dark} />}
-      {view === "workload" && <WorkloadView S={S} coName={coName} onDrill={openDrill} P={P} dark={dark} />}
+      {view === "calendar" && <CalendarView S={fS} coName={coName} onDrill={openDrill} LV={LV} P={P} dark={dark} />}
+      {view === "workload" && <WorkloadView S={fS} coName={coName} onDrill={openDrill} P={P} dark={dark} />}
+      <FilterDrawer open={fltOpen} onClose={() => setFltOpen(false)} value={flt} onChange={setFlt} acts={acts} coName={coName} LV={LV} shown={fActs.length} total={acts.length} />
       {drill && <DrillModal title={drill.title} items={drill.items} S={S} LV={LV} coName={coName} onOpen={onOpen} onClose={() => setDrill(null)} />}
       {narr && (() => {
         const a = narr, nv = narrativeFor(a);
