@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV333",
+    "date": "2026-07-23",
+    "items": [
+      "The digest failure toast now carries its own fix. When a daily or weekly digest cannot send because the Microsoft session expired, the toast includes a Reconnect Microsoft button that runs the same quick full-page sign-in redirect as Settings and returns you to the app; the digest then retries automatically on the next scheduler tick. Non-auth failures are unchanged and still state that the send will retry."
+    ]
+  },
+  {
     "rev": "REV332",
     "date": "2026-07-23",
     "items": [
