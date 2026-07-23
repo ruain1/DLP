@@ -3506,7 +3506,7 @@ export default function App({ session }) {
           {
             const raw = String((err && err.message) || err || "").trim().replace(/\.+$/, "");
             const needsAuth = /Connect Outlook|sign.?in|session/i.test(raw);
-            setDigestNote({ ok: false, text: "Digest not sent (" + b.kind + " " + runDate + "): " + (needsAuth ? "your Microsoft session needs a refresh. Reconnect in Settings > Outlook & SharePoint; sending retries automatically on the next tick after that." : raw + ". It will retry on the next tick.") });
+            setDigestNote({ ok: false, needsAuth: needsAuth, text: "Digest not sent (" + b.kind + " " + runDate + "): " + (needsAuth ? "your Microsoft session needs a refresh. Press Reconnect Microsoft below; a quick sign-in redirect brings you straight back, and sending retries automatically on the next tick." : raw + ". It will retry on the next tick.") });
           }
           break;
         }
@@ -4358,7 +4358,7 @@ export default function App({ session }) {
       </div>
       </div>
 
-      {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "color-mix(in srgb, var(--st-done) 14%, transparent)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "var(--st-done)" : "#C0392B"), color: digestNote.ok ? "var(--st-done)" : "var(--red, #C0392B)", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button></div>}
+      {digestNote && <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 400, maxWidth: 440, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: digestNote.ok ? "color-mix(in srgb, var(--st-done) 14%, transparent)" : "rgba(192,57,58,.14)", border: "1px solid " + (digestNote.ok ? "var(--st-done)" : "#C0392B"), color: digestNote.ok ? "var(--st-done)" : "var(--red, #C0392B)", backdropFilter: "blur(4px)" }}>{digestNote.text}<button onClick={() => setDigestNote(null)} style={{ marginLeft: 10, background: "none", border: 0, color: "inherit", cursor: "pointer", fontWeight: 800 }}>&times;</button>{!digestNote.ok && digestNote.needsAuth && <div style={{ marginTop: 8 }}><button onClick={connectOl} title="Signs in via a quick full-page Microsoft redirect and returns here; the digest retries on the next tick" style={{ background: "#C0392B", color: "#fff", border: 0, borderRadius: 8, padding: "6px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Reconnect Microsoft</button></div>}</div>}
       {wsCancelDone && <div className="lk-bg" style={{ zIndex: 70 }} onClick={() => setWsCancelDone(null)}>
         <div style={{ ...cssVars(S.theme, S.settings), width: "min(430px,94vw)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 18, boxShadow: "0 18px 50px rgba(0,0,0,.5)", color: "var(--ink)" }} onClick={(e) => e.stopPropagation()}>
           <h4 style={{ margin: "0 0 8px", fontSize: 14 }}>Cancellation sent</h4>
