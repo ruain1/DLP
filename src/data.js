@@ -338,6 +338,28 @@ export async function syncCollections(prev, next, session, projectId) {
   return err ? err.error : null;
 }
 
+// ---- REV334: error reports ----
+export async function submitErrorReport(row) {
+  const { data: u } = await supabase.auth.getUser();
+  const ins = { ...row, user_id: (u && u.user) ? u.user.id : null };
+  const { data, error } = await supabase.from("error_reports").insert(ins).select("ref").single();
+  if (error) throw error;
+  return data ? data.ref : null;
+}
+export async function loadErrorReports() {
+  const { data, error } = await supabase.from("error_reports").select("*").order("ts", { ascending: false }).limit(500);
+  if (error) throw error;
+  return (data || []).map((r) => ({ id: r.id, ref: r.ref, ts: r.ts, userName: r.user_name || "", email: r.email || "", projectId: r.project_id, source: r.source || "", raw: r.raw_message || "", plain: r.plain_message || "", context: r.context || {}, status: r.status || "open", adminNote: r.admin_note || "", resolvedBy: r.resolved_by || "", resolvedAt: r.resolved_at || "" }));
+}
+export async function resolveErrorReport(id, status, note, by) {
+  const { error } = await supabase.from("error_reports").update({ status, admin_note: note || null, resolved_by: status === "resolved" ? (by || null) : null, resolved_at: status === "resolved" ? new Date().toISOString() : null }).eq("id", id);
+  if (error) throw error;
+}
+export function subscribeErrorReports(cb) {
+  const ch = supabase.channel("er-reports").on("postgres_changes", { event: "*", schema: "public", table: "error_reports" }, cb).subscribe();
+  return () => { try { supabase.removeChannel(ch); } catch (e) {} };
+}
+
 // ---- admin user management via the edge function ----
 export async function userOp(body) {
   const { data, error } = await supabase.functions.invoke("admin-users", { body });
@@ -582,7 +604,7 @@ export async function uploadCompanyLogo(file, companyId) {
 // pure churn. DELETE payloads carry only the primary key, so a delete on a
 // project table reloads conservatively (project_id unknowable without replica
 // identity full). Unknown table shapes also reload conservatively.
-const RT_IGNORE = new Set(["presence", "report_runs", "audit_log", "activity_snapshots", "morning_attendance"]);
+const RT_IGNORE = new Set(["presence", "report_runs", "audit_log", "activity_snapshots", "morning_attendance", "error_reports"]);
 const RT_GLOBAL = new Set(["companies", "profiles", "projects", "project_members", "user_privileges", "invite_requests", "access_requests", "branding"]);
 export function subscribeAll(onChange, getProjectId) {
   let t;
