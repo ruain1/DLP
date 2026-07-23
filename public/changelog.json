@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV334",
+    "date": "2026-07-23",
+    "items": [
+      "Descriptive errors with one-press reporting. The red database banner now leads with a plain-language explanation from a small error catalogue (permission refusals, duplicates, connectivity, session expiry; the named guard messages from REV330 pass through untouched), keeps the raw message behind a Technical detail expander, and carries a Report to admin button. Reporting stores the user, project, raw and plain messages in a new error_reports table and shows a reference (e.g. ER-0114). Could-not-save-progress alerts use the same catalogue.",
+      "New Settings, Support, Error Reports queue for owners and admins: pinned search and status filter with rows scrolling beneath, live badge with the open count on the tab, expandable rows showing the full detail, and Resolve with an optional note (stored with resolver and time) or Reopen. Realtime updates ride a dedicated channel so member reports never trigger a full project reload.",
+      "Run supabase/migrations/2026-07-23_error-reports-REV334.sql in the Supabase SQL editor before use; without it the Report button will say the report could not be sent and everything else continues to work."
+    ]
+  },
+  {
     "rev": "REV333",
     "date": "2026-07-23",
     "items": [
