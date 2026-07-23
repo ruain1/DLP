@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import FilterDrawer, { applyActivityFilters, countActiveFilters, emptyFilters } from "./FilterDrawer.jsx";
-import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins, loadMorningAttendance, saveMorningAttendance, deleteMorningAttendance } from "./data";
+import { catalogErr, erRef } from "./errorCatalog";
+import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins, loadMorningAttendance, saveMorningAttendance, deleteMorningAttendance, submitErrorReport, loadErrorReports, resolveErrorReport, subscribeErrorReports } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
 import { ASSETS, ASSET_BY_TAG, parseAssetTag, deriveFromAssets, parseAssetField, joinAssetField } from "./assets";
 import { DISCIPLINES, witnessRecipients, setInviteMatrix, FIN04_SEED, isConfiguredMatrix } from "./witnessContacts";
@@ -2861,6 +2862,7 @@ export default function App({ session }) {
   const [S, setS] = useState(null);
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
   const [syncErr, setSyncErr] = useState("");
+  const [erSent, setErSent] = useState(null);   // REV334: reference shown after Report to admin
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
   // REV244: YTT expansion state. yttUps is a lazy per-activity cache of the append-only
@@ -3722,7 +3724,7 @@ export default function App({ session }) {
       await setActivityPercent(id, percent);
       setS((prev) => ({ ...prev, activities: prev.activities.map((x) => x.id === id ? { ...x, percent } : x) }));
       setEditing(null);
-    } catch (e) { window.alert("Could not save progress: " + (e.message || String(e))); }
+    } catch (e) { window.alert("Could not save progress: " + catalogErr((e && e.message) || String(e)).plain); }
   };
   const removeActivity = (a) => { update((p) => ({ ...p, activities: p.activities.filter((x) => x.id !== a.id).map((x) => (x.predecessors && x.predecessors.includes(a.id)) ? { ...x, predecessors: x.predecessors.filter((pid) => pid !== a.id) } : x) }), { action: "Delete activity", detail: a.desc }); setEditing(null); };
   // Save the failed attempt and create its linked retest in one state update, so the pair persists together.
@@ -4089,7 +4091,11 @@ export default function App({ session }) {
   return (
     <div className={"lk" + (palette !== "default" ? " pal-" + palette : "")} style={cssVars(S.theme, S.settings)}><style>{css}</style>
       <div className={"lk-shell" + (navOpen ? " navopen" : "")}>
-        {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "var(--red, #C0392B)", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)", display: "flex", gap: 10, alignItems: "center" }}><b style={{ whiteSpace: "nowrap" }}>Database error</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{syncErr ? "Save failed: " + syncErr : "Load failed. " + S.loadErrors.join(" | ")}</span>{!!syncErr && <button onClick={() => setSyncErr("")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>}
+        {(syncErr || (S && S.loadErrors && S.loadErrors.length > 0)) && (() => { const erRaw = syncErr ? syncErr : ("Load failed. " + S.loadErrors.join(" | ")); const erCat = catalogErr(erRaw); return <div style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "var(--red, #C0392B)", color: "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 12.5, maxWidth: "82vw", boxShadow: "0 4px 14px rgba(0,0,0,.35)" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><b style={{ whiteSpace: "nowrap" }}>{syncErr ? "Save blocked" : "Database error"}</b><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{erCat.plain}</span>{!!syncErr && <button onClick={() => { setSyncErr(""); setErSent(null); }} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.6)", color: "#fff", borderRadius: 6, cursor: "pointer", padding: "2px 8px", fontSize: 11.5 }}>Dismiss</button>}</div>
+          {erCat.plain !== erRaw && <details style={{ marginTop: 6, fontSize: 11, opacity: .88 }}><summary style={{ cursor: "pointer" }}>Technical detail</summary><span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{erRaw}</span></details>}
+          {!!syncErr && (erSent ? <div style={{ marginTop: 7, fontWeight: 700, fontSize: 12 }}>{String(erSent).indexOf("ER-") === 0 ? "Reported. Your admin can see the detail under Settings, Support, Error Reports. Reference " + erSent + "." : "Report could not be sent: " + erSent}</div> : <div style={{ marginTop: 7 }}><button onClick={async () => { try { const ref = await submitErrorReport({ project_id: (S && S.projectId) || null, source: "save", raw_message: erRaw, plain_message: erCat.plain, context: {}, user_name: (cu && (cu.name || cu.email)) || "", email: (cu && cu.email) || "" }); setErSent(erRef(ref)); } catch (e) { setErSent((e && e.message) || String(e)); } }} style={{ background: "rgba(255,255,255,.92)", color: "#8c1812", border: 0, borderRadius: 8, padding: "5px 12px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Report to admin</button></div>)}
+        </div>; })()}
       {/* REV253: adding a page? Register it in PAGE_REGISTRY (top of file), then add its button here. */}
       <nav className={"lk-rail" + (navOpen ? " open" : "")}><div className="lk-rail-inner">
         <button className="lk-railtog" title={navOpen ? "Collapse menu" : "Expand menu"} onClick={toggleNav}><Icon n={navOpen ? "cl" : "cr"} s={18} /><span className="lbl">Collapse</span></button>
@@ -5785,6 +5791,48 @@ function InviteAttendeesTab({ S, update, canCross }) {
 
 // REV324: Sign-in Log. Owner/super only. Reads Supabase Auth's login history via loadSignins,
 // so it shows logins from before the view existed. Read-only; styled like the Audit tab.
+function ErrorReportsTab({ S, list, onResolve }) {
+  // REV334: admin queue for member error reports. Pinned block on top, rows scroll.
+  const [q, setQ] = useState("");
+  const [st, setSt] = useState("open");
+  const [openRow, setOpenRow] = useState(null);
+  const [note, setNote] = useState("");
+  const projName = (pid) => { const p = (S.projects || []).find((x) => x.id === pid); return p ? (p.code || p.name || "") : ""; };
+  const nq = q.trim().toLowerCase();
+  const rows = (list || []).filter((r) => (st === "all" || r.status === st) && (!nq || [r.userName, r.email, r.raw, r.plain, erRef(r.ref), projName(r.projectId)].join(" ").toLowerCase().includes(nq)));
+  const when = (ts) => { try { return new Date(ts).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ts; } };
+  const chip = (s) => <span style={{ display: "inline-block", borderRadius: 6, padding: "2px 9px", fontSize: 10.5, fontWeight: 700, background: s === "open" ? "color-mix(in srgb, var(--red, #C0392B) 22%, transparent)" : "color-mix(in srgb, var(--st-done) 22%, transparent)", color: s === "open" ? "var(--red, #C0392B)" : "var(--st-done)" }}>{s.toUpperCase()}</span>;
+  return <div>
+    <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--card)", borderBottom: "1px solid var(--line)", padding: "10px 0 9px" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 9 }}>
+        <input className="lk-in" style={{ flex: 1 }} placeholder="Search user, activity, message, reference..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className="lk-select" value={st} onChange={(e) => setSt(e.target.value)}><option value="open">Open</option><option value="resolved">Resolved</option><option value="all">All</option></select>
+        <span style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap" }}>{rows.length} shown</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "84px 118px 150px 1fr 92px", gap: 10, fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}><span>Ref</span><span>When</span><span>User</span><span>What happened</span><span>Status</span></div>
+    </div>
+    {!rows.length && <div style={{ padding: 18, fontSize: 12.5, color: "var(--muted)" }}>{st === "open" ? "No open reports. Quiet is good." : "Nothing matches."}</div>}
+    {rows.map((r) => <div key={r.id} style={{ borderBottom: "1px solid var(--line)", padding: "9px 0", fontSize: 12.5, cursor: "pointer" }} onClick={() => { setOpenRow(openRow === r.id ? null : r.id); setNote(""); }}>
+      <div style={{ display: "grid", gridTemplateColumns: "84px 118px 150px 1fr 92px", gap: 10, alignItems: "center" }}>
+        <span style={{ fontFamily: "ui-monospace, Consolas, monospace", fontSize: 11.5 }}>{erRef(r.ref)}</span>
+        <span style={{ color: "var(--muted)", fontSize: 11.5 }}>{when(r.ts)}</span>
+        <span>{r.userName || r.email || "Unknown"}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(r.plain || r.raw || "").slice(0, 160)}</span>
+        <span>{chip(r.status)}</span>
+      </div>
+      {openRow === r.id && <div style={{ margin: "9px 0 2px", background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 8, padding: "10px 12px", fontSize: 12, lineHeight: 1.6, cursor: "default" }} onClick={(e) => e.stopPropagation()}>
+        <div><b>User:</b> {(r.userName || "Unknown") + (r.email ? " \u00b7 " + r.email : "")}{r.projectId ? " \u00b7 " + (projName(r.projectId) || r.projectId) : ""}</div>
+        <div style={{ marginTop: 4 }}><b>Raw:</b> <span style={{ fontFamily: "ui-monospace, Consolas, monospace", fontSize: 11.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.raw}</span></div>
+        {r.status === "resolved" && <div style={{ marginTop: 4, color: "var(--muted)" }}>Resolved by {r.resolvedBy || "admin"}{r.resolvedAt ? " \u00b7 " + when(r.resolvedAt) : ""}{r.adminNote ? " \u00b7 " + r.adminNote : ""}</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 9, alignItems: "center" }}>
+          {r.status === "open" && <input className="lk-in" style={{ flex: 1 }} placeholder="Optional note for the record..." value={note} onChange={(e) => setNote(e.target.value)} />}
+          {r.status === "open" ? <button className="lk-btn" onClick={() => { onResolve(r.id, "resolved", note); setOpenRow(null); }}>Resolve</button> : <button className="lk-btn" onClick={() => { onResolve(r.id, "open", ""); }}>Reopen</button>}
+        </div>
+      </div>}
+    </div>)}
+  </div>;
+}
+
 function SigninLogTab({ S, initialUser }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState("");
@@ -5851,7 +5899,7 @@ function SigninLogTab({ S, initialUser }) {
 
 
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections", "design", "signins"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections", "design", "signins", "errors"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("dlp_admintab", tab); } catch (e) {} }, [tab]);
   // REV122: Connections tab state. null = checking, "" = not connected, string = account.
   const [connOl, setConnOl] = useState(null);
@@ -6466,6 +6514,13 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
   const canv = can || (() => true);
   const iaMePlat = ((S.users || []).find((u) => u.id === cu.id) || {}).platformRole || "user";
   const iaCanCross = iaMePlat === "owner" || iaMePlat === "super";
+  // REV334: error report queue and badge. Loads are RLS-gated to admins; for anyone
+  // else the select returns nothing and the tab stays hidden, so no client gate is
+  // needed around the hooks themselves.
+  const [erAll, setErAll] = useState([]);
+  useEffect(() => { let on = true; const load = () => loadErrorReports().then((r) => { if (on) setErAll(r || []); }).catch(() => {}); load(); const un = subscribeErrorReports(load); return () => { on = false; un(); }; }, []);
+  const erOpenN = erAll.filter((r) => r.status === "open").length;
+  const erResolve = async (id, status, note) => { try { await resolveErrorReport(id, status, note, (cu && (cu.name || cu.email)) || "admin"); setErAll((l) => l.map((r) => r.id === id ? { ...r, status, adminNote: note || r.adminNote, resolvedBy: status === "resolved" ? ((cu && (cu.name || cu.email)) || "admin") : "", resolvedAt: status === "resolved" ? new Date().toISOString() : "" } : r)); } catch (e) { window.alert("Could not update the report: " + ((e && e.message) || e)); } };
   const navGroups = [
     ["Project Setup", [["branding", "Branding"], ["levels", "Cx Stages"], ["systems", "Systems"], ["inviteTypes", "Invite Types"], ...(S.settings.crewsEnabled ? [["crews", "Crews"]] : []), ["areas", "Locations"], ["companies", "Companies"], ["vendors", "Vendors"], ["settings", "Lookahead & Targets"], ["baseline", "P6 Baseline"]]],
     ["Connections", [["connections", "Outlook & SharePoint"]]],
@@ -6473,14 +6528,15 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
     ["User management", (canv("users") ? [["members", "Project Team"]] : []).concat(canv("approve") ? [["requests", "Access requests"]] : []).concat((isOwner || canv("users")) ? [["inviteAttendees", "Invite Attendees"]] : [])],
     ["Access", [["privileges", "User Privileges"]]],
     ["Audit log", (canv("auditView") ? [["audit", "Audit"]] : []).concat(iaCanCross ? [["signins", "Sign-in Log"]] : [])],
+    ["Support", ((isOwner || canv("users")) ? [["errors", "Error Reports"]] : [])],
     ["Advanced", [["data", "Import / Export"]]],
   ].filter(([, items]) => items.length);
   return (
     <div className="lk-adminwrap2" style={cssVars(S.theme, S.settings, "admin")}><style>{css}</style>
         <div className="lk-subnav">
-          {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}</button>)}</div>)}
+          {navGroups.map(([g, items]) => <div key={g} className="grp"><div className="grphd">{g}</div>{items.map(([k, l]) => <button key={k} className={tab === k ? "sel" : ""} onClick={() => setTab(k)}>{l}{k === "requests" && pendReqs.length ? <span className="lk-reqbadge">{pendReqs.length}</span> : null}{k === "errors" && erOpenN ? <span className="lk-reqbadge">{erOpenN}</span> : null}</button>)}</div>)}
         </div>
-        <div className={"lk-subbody" + (tab === "members" || tab === "audit" || tab === "requests" ? " wide" : "") + (tab === "privileges" ? " wide full" : "")}><div className="lk-db">
+        <div className={"lk-subbody" + (tab === "members" || tab === "audit" || tab === "requests" || tab === "errors" ? " wide" : "") + (tab === "privileges" ? " wide full" : "")}><div className="lk-db">
           {tab === "privileges" && <PrivilegesTab S={S} cu={cu} isOwner={isOwner} projClient={projClient} />}
           {impGate && <div className="lk-modal-bg" style={{ zIndex: 70 }} onClick={() => setImpGate(null)}>
             <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
@@ -6509,6 +6565,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
           {tab === "design" && <DesignTab S={S} update={update} />}
           {tab === "inviteAttendees" && <InviteAttendeesTab S={S} update={update} canCross={iaCanCross} />}
           {tab === "signins" && iaCanCross && <SigninLogTab S={S} />}
+          {tab === "errors" && (isOwner || canv("users")) && <ErrorReportsTab S={S} list={erAll} onResolve={erResolve} />}
           {tab === "systems" && <>
             <div className="lk-list">{S.systems.map((name) => <div key={name} className="lk-li">
               <input className="lk-in" key={"sys:" + name} defaultValue={name} style={{ flex: 1 }} title="Rename system (updates every activity using it)" onKeyDown={(e) => { if (e.key === "Enter") { renameSystem(name, e.target.value); e.target.blur(); } else if (e.key === "Escape") { e.target.value = name; e.target.blur(); } }} onBlur={(e) => renameSystem(name, e.target.value)} />
