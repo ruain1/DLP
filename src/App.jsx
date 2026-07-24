@@ -161,6 +161,7 @@ const css = `
 .lk-day .dn{font-size:12.5px;color:var(--ink);font-weight:600;margin-top:1px}
 .lk-day.we{background:var(--weekend)}.lk-day.tod{background:var(--todhead);position:relative}.lk-day.tod .dn{color:var(--accent)}
 .lk-lane{display:grid;border-bottom:1px solid var(--line)}
+.lk-lane:has(+ .lk-lane){border-bottom:2px solid var(--lane-sep)}
 .lk-llbl{position:sticky;left:0;z-index:4;background:var(--paper);border-right:1px solid var(--line);padding:9px 11px;
   display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
 .lk-llbl .cnt{font-size:9.5px;color:var(--muted);font-weight:500}
@@ -4775,7 +4776,8 @@ function cssVars(theme, settings, page) { const t = THEMES[theme] || THEMES.ligh
   v["--bg"] = t.paper; v["--text"] = t.ink;
   v["--faint"] = theme === "dark" ? "#5f6c7c" : "#9aa5b1";
   v["--card2"] = theme === "dark" ? "#202a36" : "#f4f7fa";
-  v["--linkc"] = theme === "dark" ? "#8fb6dc" : "#2e6db4"; const d = settings && settings.design; if (d) { applyDesignBlock(v, d.global); if (page && d.pages) applyDesignBlock(v, d.pages[page]);
+  v["--linkc"] = theme === "dark" ? "#8fb6dc" : "#2e6db4";
+  v["--lane-sep"] = theme === "dark" ? "#38598f" : "#000000"; const d = settings && settings.design; if (d) { applyDesignBlock(v, d.global); if (page && d.pages) applyDesignBlock(v, d.pages[page]);
     // REV229 Effects tranche: project-wide depth and motion. Fallbacks in the CSS mean an
     // absent block renders byte-identical to today.
     if (d.effects) {
