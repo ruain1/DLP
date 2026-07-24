@@ -5,10 +5,17 @@
 // the layout for its interactive JSX Gantt; the SVG string builder exists for the
 // Copy Gantt as image path (Outlook strips pasted SVG, so it rasterises to PNG).
 
+// REV337: the module must never throw on data. toISOString throws RangeError on an
+// Invalid Date, so one activity with an unreadable start or a non-numeric duration
+// took the whole Reports page down through the error boundary. Every date operation
+// is now guarded; unreadable rows are counted and surfaced, never silently dropped.
 const pD = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
+const okD = (d) => d instanceof Date && !isNaN(d.getTime());
 const addD = (d, n) => new Date(d.getTime() + n * 86400000);
-const iso = (d) => d.toISOString().slice(0, 10);
-export const vlDd = (s) => pD(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+const iso = (d) => okD(d) ? d.toISOString().slice(0, 10) : "";
+const num = (v, fb) => { const n = +v; return Number.isFinite(n) ? n : fb; };
+const ISO_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}/;
+export const vlDd = (s) => { const d = pD(s); return okD(d) ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" }) : String(s == null ? "" : s).slice(0, 10); };
 const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const MID = " \u00b7 ";
 
@@ -39,10 +46,18 @@ export function vendorLookaheadData(St, todayISO, excludeNames) {
   const win = vlWindow(todayISO);
   const ws = win.anchor, we = win.end;
   const ex = new Set((excludeNames || []).map((n) => String(n || "").trim().toLowerCase()).filter(Boolean));
-  const cos = (St.companies || []).filter((c) => !ex.has(String(c.name || "").trim().toLowerCase()));
-  const endOf = (a) => iso(addD(pD(a.start), Math.max(0, (a.duration || 1) - 1)));
+  const cos = (St.companies || []).filter((c) => c && !ex.has(String(c.name || "").trim().toLowerCase()));
+  const durOf = (a) => Math.max(1, num(a.duration, 1));
+  const endOf = (a) => { const d0 = pD(a.start); return okD(d0) ? iso(addD(d0, durOf(a) - 1)) : ""; };
   const all = (St.activities || []).filter((a) => a && a.start);
-  const inWin = all.filter((a) => !vlClosed(a)).map((a) => ({ a, s: String(a.start).slice(0, 10), e: endOf(a) })).filter((r) => r.s <= we && r.e >= ws);
+  let skipped = 0;
+  const inWin = [];
+  all.filter((a) => !vlClosed(a)).forEach((a) => {
+    const s = String(a.start).slice(0, 10);
+    const e = endOf(a);
+    if (!ISO_RE.test(s) || !e) { skipped++; return; }
+    if (s <= we && e >= ws) inWin.push({ a, s, e, dur: durOf(a) });
+  });
   const wkOf = (dISO) => Math.min(3, Math.max(0, Math.floor((pD(dISO) - pD(ws)) / (7 * 86400000))));
   const witIn = (a) => a.witnessInvite && a.witnessAt && String(a.witnessAt).slice(0, 10) >= ws && String(a.witnessAt).slice(0, 10) <= we;
   const mkVendor = (id, name, rows) => {
@@ -66,7 +81,7 @@ export function vendorLookaheadData(St, todayISO, excludeNames) {
       const future = mine.filter((a) => !vlClosed(a) && String(a.start).slice(0, 10) > we).sort((x, y) => (String(x.start) < String(y.start) ? -1 : 1));
       if (future.length) ctx = "next activity starts " + vlDd(future[0].start);
       else {
-        const fins = mine.filter((a) => a.status === "complete").map((a) => (a.actualFinish ? String(a.actualFinish).slice(0, 10) : endOf(a))).sort();
+        const fins = mine.filter((a) => a.status === "complete").map((a) => (a.actualFinish ? String(a.actualFinish).slice(0, 10) : endOf(a))).filter(Boolean).sort();
         if (fins.length) ctx = "last activity finished " + vlDd(fins[fins.length - 1]);
         else { const n = mine.filter((a) => !vlClosed(a)).length; ctx = n + " open activit" + (n === 1 ? "y" : "ies") + ", all past-dated"; }
       }
@@ -81,7 +96,7 @@ export function vendorLookaheadData(St, todayISO, excludeNames) {
     witness: vendors.reduce((s, v) => s + v.witCount, 0),
     zeros: zeros.length,
   };
-  return { win, vendors, zeros, counts };
+  return { win, vendors, zeros, counts, skipped };
 }
 
 // Geometry only: the interactive JSX Gantt in App.jsx and the PNG copy path both draw
@@ -162,7 +177,7 @@ export function buildVendorCardsEmailHtml(d, projName) {
     shown.forEach((r) => {
       const chips = (r.a.committed ? `<span style="font-size:7.5pt; font-weight:bold; letter-spacing:.05em; color:#ffffff; background:#2456A6; padding:2px 7px;">WILL</span>&#160;` : "")
         + (r.a.witnessInvite ? `<span style="font-size:7.5pt; font-weight:bold; letter-spacing:.05em; color:#ffffff; background:#7C3AED; padding:2px 7px;">WIT</span>` : "");
-      inner += `<tr><td style="padding:5px 12px; border-bottom:1px solid #f6f8fb; font-family:${FF};"><span style="font-size:10.5pt; font-weight:bold;">${esc(r.a.desc || "Untitled")}</span> <span style="font-size:9.5pt; color:#68727f;">${MID}${esc([r.a.level, vlDd(r.s) + " (" + (r.a.duration || 1) + "d)"].filter(Boolean).join(MID))}</span></td><td align="right" style="padding:5px 12px 5px 0; border-bottom:1px solid #f6f8fb; white-space:nowrap;">${chips}</td></tr>`;
+      inner += `<tr><td style="padding:5px 12px; border-bottom:1px solid #f6f8fb; font-family:${FF};"><span style="font-size:10.5pt; font-weight:bold;">${esc(r.a.desc || "Untitled")}</span> <span style="font-size:9.5pt; color:#68727f;">${MID}${esc([r.a.level, vlDd(r.s) + " (" + r.dur + "d)"].filter(Boolean).join(MID))}</span></td><td align="right" style="padding:5px 12px 5px 0; border-bottom:1px solid #f6f8fb; white-space:nowrap;">${chips}</td></tr>`;
     });
     if (more > 0) inner += `<tr><td colspan="2" style="padding:5px 12px 7px; font-size:9pt; color:#68727f; font-family:${FF};">and ${more} more in the window</td></tr>`;
     h += `<tr><td style="padding:5px 0;"><table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3e8ef; border-left:4px solid ${v.color};">${inner}</table></td></tr>`;
@@ -173,6 +188,7 @@ export function buildVendorCardsEmailHtml(d, projName) {
       h += `<tr><td style="padding:5px 0; border-bottom:1px solid #f6f8fb; font-family:${FF};"><span style="font-size:10.5pt; font-weight:bold; color:#C0392B;">${esc(z.name)}</span> <span style="font-size:9.5pt; color:#68727f;">${MID}${esc(z.ctx)}</span></td></tr>`;
     });
   }
+  if (d.skipped > 0) h += `<tr><td style="padding:8px 0 2px; font-size:9pt; color:#68727f; font-family:${FF};">${d.skipped} open activit${d.skipped === 1 ? "y" : "ies"} not shown: unreadable start date or duration in DLP.</td></tr>`;
   return h + `</table>`;
 }
 
@@ -182,9 +198,10 @@ export function buildVendorCardsText(d, projName) {
   const L = ["Vendor Lookahead" + MID + (projName || "DLP") + MID + win4Label(d), ""];
   d.vendors.forEach((v) => {
     L.push(v.name + ": " + v.rows.length + " activit" + (v.rows.length === 1 ? "y" : "ies") + (v.witCount ? ", " + v.witCount + " witness" : "") + " (" + v.weekly.join("/") + " by week)");
-    v.rows.slice(0, VL_CARD_CAP).forEach((r) => L.push("  - " + (r.a.desc || "Untitled") + MID + vlDd(r.s) + " (" + (r.a.duration || 1) + "d)" + (r.a.committed ? " [WILL]" : "") + (r.a.witnessInvite ? " [WIT]" : "")));
+    v.rows.slice(0, VL_CARD_CAP).forEach((r) => L.push("  - " + (r.a.desc || "Untitled") + MID + vlDd(r.s) + " (" + r.dur + "d)" + (r.a.committed ? " [WILL]" : "") + (r.a.witnessInvite ? " [WIT]" : "")));
     if (v.rows.length > VL_CARD_CAP) L.push("  and " + (v.rows.length - VL_CARD_CAP) + " more in the window");
   });
   if (d.zeros.length) { L.push("", "Nothing planned in the next 4 weeks:"); d.zeros.forEach((z) => L.push("  - " + z.name + MID + z.ctx)); }
+  if (d.skipped > 0) L.push("", d.skipped + " open activit" + (d.skipped === 1 ? "y" : "ies") + " not shown: unreadable start date or duration in DLP.");
   return L.join("\n");
 }
