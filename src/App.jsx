@@ -8229,13 +8229,16 @@ function SchedulePage({ S, coName, onOpen }) {
       {narr && (() => {
         const a = narr, nv = narrativeFor(a);
         const dur = a.isMilestone ? 1 : Math.max(1, a.duration || 1);
+        const lateInfo = (() => { if (!a.start) return null; const DAY = 86400000; const ps = parseD(a.start); const pf = addDays(ps, dur - 1); if (a.status === "complete") { if (a.actualFinish && parseD(a.actualFinish) > pf) return { kind: "finLate", days: Math.round((parseD(a.actualFinish) - pf) / DAY) }; return null; } const lateStart = a.actualStart ? Math.round((parseD(a.actualStart) - ps) / DAY) : 0; const overdue = todayMid() > pf.getTime() ? Math.round((todayMid() - pf.getTime()) / DAY) : 0; const d = Math.max(0, lateStart, overdue); if (d <= 0) return null; return { kind: overdue >= lateStart ? "overdue" : "lateStart", days: d }; })();
+        const dayWord = (n) => n + (n === 1 ? " day" : " days");
         const summary = [];
+        if (lateInfo) summary.push(lateInfo.kind === "finLate" ? "Finished " + dayWord(lateInfo.days) + " after its planned finish." : lateInfo.kind === "lateStart" ? "Started " + dayWord(lateInfo.days) + " late against its planned start." : a.isMilestone ? "Running " + dayWord(lateInfo.days) + " past its planned date." : "Running " + dayWord(lateInfo.days) + " past its planned finish at " + pct(a) + "% complete.");
         if (nv.slipDays > 0) summary.push("Slipped " + nv.slipDays + " day" + (nv.slipDays === 1 ? "" : "s") + (nv.rs.length ? " across " + nv.rs.length + " reschedule" + (nv.rs.length === 1 ? "" : "s") : "") + ".");
         if (nv.binding && (nv.pushed || !nv.binding.done)) summary.push("Waiting on " + nv.binding.label + " (finishes " + shortDate(nv.binding.finish) + ").");
         if (nv.succs.length) summary.push("Moving it further pushes " + nv.succs.length + " downstream " + (nv.succs.length === 1 ? "activity" : "activities") + (nv.succs.some((x) => x.milestone) ? ", including a milestone" : "") + ".");
         if (!summary.length) summary.push("On plan. No slip, no upstream wait, and nothing downstream depends on it.");
         const lbl = (t) => <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--muted)", margin: "14px 0 6px" }}>{t}</div>;
-        const accent = (nv.slipDays > 0 || nv.pushed) ? "#D97706" : "var(--st-done)";
+        const accent = (lateInfo && lateInfo.kind !== "finLate") ? "var(--red, #C0392B)" : (nv.slipDays > 0 || nv.pushed || lateInfo) ? "#D97706" : "var(--st-done)";
         return <>
           <div onClick={() => setNarr(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", zIndex: 60 }} />
           <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: 424, maxWidth: "92vw", background: "var(--card)", borderLeft: "3px solid #3b82f6", boxShadow: "-8px 0 24px rgba(0,0,0,.3)", zIndex: 61, overflowY: "auto", padding: "18px 20px", boxSizing: "border-box" }}>
