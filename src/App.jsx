@@ -9038,7 +9038,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   // long before the blocks assembly (REV194 declared it mid-body, so building the
   // schedule hit the const in its temporal dead zone and Generate died silently).
   // Reads the module-level RPT_NARR map the launcher fills; missing key renders nothing.
-  const nar = (k) => { const t = RPT_NARR && RPT_NARR[k]; if(!t||!t.text) return ""; return `<div class="ai-nar">${esc(t.text)}${t.note?`<div class="ai-note scr-only">${esc(t.note)}</div>`:""}</div>`; };
+  const nar = (k) => { const t = RPT_NARR && RPT_NARR[k]; if(!t||!t.text) return ""; return `<div class="ai-nar">${esc(t.text)}</div>`; };
   const dueColor = (d) => { if(!d) return "ok"; const t=parseD(d).getTime(), now=r.today.getTime(); if(t<now) return "over"; if(t<=addDays(r.today,2).getTime()) return "soon"; return "ok"; };
   const dueLabel = (d) => { if(!d) return ["set","need by"]; const t=parseD(d).getTime(); return [fmtD(parseD(d)), t<r.today.getTime()?"overdue":"need by"]; };
   // REV154: analytics-parity render helpers. ppcCol matches the gauge colour rule; mixHead/mixLegend
@@ -9563,8 +9563,8 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
       try {
         const { data, error } = await supabase.functions.invoke("super-action", { body: { mode: "section", section: SEC_LABEL[k], facts, steer: (ai.secs[k].steer||"").trim() || undefined, tone: (ai.tone||"").trim() || undefined } });
         if (!error && data && data.text && rptNumbersOk(facts, data.text)) out[k] = { text: data.text, ai: true };
-        else { out[k].note = "AI narrative unavailable; showing drafted facts."; fb++; }
-      } catch (e) { out[k].note = "AI narrative unavailable; showing drafted facts."; fb++; }
+        else { fb++; }
+      } catch (e) { fb++; }
       setNarr({ ...out }); RPT_NARR = { ...out };
     }
     setNarrNote(`Narratives ready${fb?` (${fb} fallback${fb===1?"":"s"})`:""}.`);
