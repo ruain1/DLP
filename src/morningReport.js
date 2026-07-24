@@ -59,9 +59,16 @@ export function morningData(St, due, updates) {
   // ghosted and locked, a retest activity carries the work forward), so failed
   // activities are closed for reporting: never overdue, finishing, starting,
   // missed or pushing. Completed activities were already excluded.
-  const closedA = (r) => r.a.status === "complete" || String(r.a.outcome || "").toLowerCase() === "failed";
+  // REV335: percent and status are decoupled (percent-only member rights can set
+  // 100% without ever flipping status), so a reported-100% activity is also closed
+  // for every scheduling list; it surfaces once in Today as an amber
+  // "reported 100%, confirm complete" action instead of a false "starts" or "due".
+  const pctOfA = (a) => a.percent != null ? Math.max(0, Math.min(100, Math.round(a.percent))) : (a.status === "complete" ? 100 : 0);
+  const failedA = (r) => String(r.a.outcome || "").toLowerCase() === "failed";
+  const closedA = (r) => r.a.status === "complete" || failedA(r) || pctOfA(r.a) >= 100;
   const live = rows.filter((r) => !closedA(r));
   const weekAgo = iso(addD(pD(today), -7));
+  const confirm100 = rows.filter((r) => r.a.status !== "complete" && !failedA(r) && pctOfA(r.a) >= 100 && r.e >= weekAgo);
   const finishing = live.filter((r) => r.e === today);
   const overdueAll = live.filter((r) => r.e < today);
   const overdue = overdueAll.filter((r) => r.e >= weekAgo);
@@ -88,7 +95,19 @@ export function morningData(St, due, updates) {
   const consRows = [];
   live.forEach((r) => { if (r.e >= weekAgo) r.open.forEach((c) => consRows.push({ text: c.text || "", owner: c.owner || "", due: c.due || "", act: r.a.desc || "", actStart: r.s, actWit: !!(r.a.witnessInvite && r.a.witnessAt), od: !!c.due && c.due < today })); });
   consRows.sort((x, y) => ((x.due || "9999") < (y.due || "9999") ? -1 : 1));
-  const witness = rows.filter((r) => r.a.witnessInvite && r.a.witnessAt && String(r.a.witnessAt).slice(0, 10) === today);
+  // REV335: the active witness list now respects closure (the REV328 exclusion
+  // never covered it), and closed activities whose witness time falls today are
+  // reported separately as not going ahead, because attendees still hold the
+  // calendar invite; the cancel nudge shows only while an uncancelled session
+  // remains in witnessEvents.
+  const witToday = (r) => r.a.witnessInvite && r.a.witnessAt && String(r.a.witnessAt).slice(0, 10) === today;
+  const witness = live.filter(witToday);
+  const witnessDropped = rows.filter((r) => closedA(r) && witToday(r)).map((r) => ({
+    a: r.a, co: r.co,
+    reason: failedA(r) ? "failed" : (r.a.status === "complete" ? "completed" : "reported 100%"),
+    when: (r.a.status === "complete" && r.a.actualFinish) ? String(r.a.actualFinish).slice(0, 10) : null,
+    inviteLive: (Array.isArray(r.a.witnessEvents) ? r.a.witnessEvents : []).some((e) => e && e.status !== "cancelled"),
+  }));
   const byAct = {}; (updates || []).forEach((u) => { (byAct[u.activity_id] = byAct[u.activity_id] || []).push(u); });
   const upRows = Object.keys(byAct).map((id) => {
     const r = rows.find((x) => x.a.id === id);
@@ -96,7 +115,7 @@ export function morningData(St, due, updates) {
     const withPct = items.filter((u) => u.pct != null);
     return { desc: r ? (r.a.desc || "Untitled") : "(removed activity)", pct: withPct.length ? withPct[withPct.length - 1].pct : null, items };
   });
-  return { today, yday, tmrw, yDone, yMissed, tStart, tDue, pushing, counts: { inProgress: inProgress.length, finishing: finishing.length, overdue: overdueAll.length, starting: starting.length, cons: consRows.length }, finishing, overdue, overdueOlder: overdueAll.length - overdue.length, starting, consRows, witness, upRows };
+  return { today, yday, tmrw, yDone, yMissed, tStart, tDue, pushing, counts: { inProgress: inProgress.length, finishing: finishing.length, overdue: overdueAll.length, starting: starting.length, cons: consRows.length }, finishing, overdue, overdueOlder: overdueAll.length - overdue.length, starting, consRows, witness, witnessDropped, confirm100, upRows };
 }
 
 // REV277: the compact plaintext facts sheet the AI summary is written from. Every
@@ -113,6 +132,8 @@ export function buildMorningAiFacts(d) {
   if (d.pushing.length) L.push("Late activities pushing successors: " + d.pushing.slice(0, 8).map((pp) => (pp.from.a.desc || "?") + " (" + pp.from.co + ", " + pp.late + "d late) pushes " + (pp.to.a.desc || "?") + " which starts " + pp.to.s).join("; ") + ".");
   if (d.consRows.length) L.push("Open constraints: " + d.consRows.slice(0, 10).map((k) => k.text + " (" + (k.owner || "unowned") + (k.due ? ", was needed " + k.due : "") + ", on " + k.act + ")").join("; ") + ".");
   if (d.witness.length) L.push("Witness events today: " + d.witness.map((r) => (r.a.desc || "?") + " (" + r.co + ")").join("; ") + ".");
+  if ((d.witnessDropped || []).length) L.push("Witness sessions not going ahead today: " + d.witnessDropped.slice(0, 8).map((r) => (r.a.desc || "?") + " (" + r.co + ", " + (r.reason === "failed" ? "failed, retest to follow" : r.reason + (r.when ? " " + r.when : "")) + (r.inviteLive ? ", invite still live" : "") + ")").join("; ") + ".");
+  if ((d.confirm100 || []).length) L.push("Reported 100 percent, awaiting completion confirmation: " + d.confirm100.slice(0, 8).map((r) => (r.a.desc || "?") + " (" + r.co + ")").join("; ") + ".");
   if (d.upRows.length) L.push("Daily updates were logged yesterday on " + d.upRows.length + " activities.");
   return L.join("\n").slice(0, 3800);
 }
@@ -180,6 +201,20 @@ export function buildAttendanceHtml(att, showAbsent) {
   return out;
 }
 
+// REV335: closed activities whose witness time falls today are reported once,
+// muted, as not going ahead. Silent removal from the report would leave attendees
+// arriving on site holding a live Outlook invite for a session that is not happening.
+function witnessDropBlock(d) {
+  const wd = d.witnessDropped || [];
+  if (!wd.length) return "";
+  const line = (r) => {
+    const reason = r.reason === "failed" ? "failed" + MID + "retest to follow" : r.reason + (r.when ? " " + dd(r.when) : "");
+    const nudge = r.inviteLive ? `<br><span style="color:#C0392B;">${esc("invite still live" + MID + "cancel in Witness Schedule").replace(/ /g, "&#160;")}</span>` : "";
+    return `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF}; color:#8b96a3;">${r.a.isMilestone ? "\u25C6 " : ""}${esc(r.a.desc || "Untitled")}${MID}${esc(r.co)}</td><td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; color:#8b96a3;">${esc(reason).replace(/ /g, "&#160;")}${nudge}</td></tr>`;
+  };
+  return `<tr><td style="padding:12px 24px 0; font-size:8.5pt; letter-spacing:.07em; font-weight:bold; font-family:${MR_FF}; color:#68727f;">WITNESS SESSIONS NOT GOING AHEAD TODAY</td></tr>` + rowsWrap(wd.slice(0, 8).map(line).join(""));
+}
+
 export function buildMorningEmail(d, cfg, meta) {
   const sec = cfg.sections || {};
   const c = d.counts;
@@ -210,7 +245,7 @@ export function buildMorningEmail(d, cfg, meta) {
     + cell(c.starting, "STARTING", "#1e8e63") + `<td width="8"></td>`
     + cell(c.cons, "OPEN CONSTRAINTS", "#2456A6") + `</tr></table></td></tr>`;
   if (sec.attendance !== false && d.attendance) body += buildAttendanceHtml(d.attendance, cfg.attendance && cfg.attendance.showAbsent);
-  if (!c.inProgress && !c.finishing && !c.overdue && !c.starting && !c.cons && !d.upRows.length && !d.witness.length) {
+  if (!c.inProgress && !c.finishing && !c.overdue && !c.starting && !c.cons && !d.upRows.length && !d.witness.length && !(d.witnessDropped || []).length && !(d.confirm100 || []).length) {
     body += rowsWrap(`<tr><td style="padding:8px 0; color:#68727f;">Nothing scheduled for today.</td></tr>`);
   }
   if (sec.ytt !== false) {
@@ -226,8 +261,10 @@ export function buildMorningEmail(d, cfg, meta) {
     }
     const todayRows = d.finishing.map((r) => actLine(r, r.open.length ? tag(r.open.length + " open constraint" + (r.open.length === 1 ? "" : "s"), "#C0392B") : tag("finish due" + MID + "clear", "#1e8e63")))
       .concat(d.witness.map((r) => actLine(r, tag("witness " + new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }), "#2456A6"))))
-      .concat(d.starting.map((r) => actLine(r, tag("starts" + MID + "to " + dd(r.e), "#1e8e63"))));
+      .concat(d.starting.map((r) => actLine(r, tag("starts" + MID + "to " + dd(r.e), "#1e8e63"))))
+      .concat((d.confirm100 || []).map((r) => actLine(r, tag("reported 100%" + MID + "confirm complete", "#b07f00"))));
     if (todayRows.length) body += secHead("Today") + rowsWrap(todayRows.join(""));
+    body += witnessDropBlock(d);
     const tRows = d.tStart.map((r) => {
       const push = d.pushing.filter((pp) => pp.to === r).length;
       return actLine(r, r.open.length ? tag(r.open.length + " open constraint" + (r.open.length === 1 ? "" : "s"), "#C0392B") : (push ? tag("at risk" + MID + "predecessor late", "#b07f00") : tag("starts", "#1e8e63")));
@@ -264,6 +301,7 @@ export function buildMorningEmail(d, cfg, meta) {
     body += secHead("Witness events today", "#2456A6") + rowsWrap(d.witness.map((r) =>
       `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${MID}${esc(new Date(r.a.witnessAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" }))}</span></td></tr>`).join(""));
   }
+  if (sec.ytt === false && sec.witness !== false) body += witnessDropBlock(d);
   const html = `<table width="780" cellpadding="0" cellspacing="0" style="background:#ffffff; font-family:${MR_FF}; border:1px solid #d9dee5;">`
     + (() => {
         // REV285: identity masthead. Logo only if it is a hosted https URL (data-URIs and
