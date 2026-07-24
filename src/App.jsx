@@ -8872,7 +8872,7 @@ function computeReport({ S, LV, coName, start, end }){
   const made = (a) => a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= finishOf(a));
   const openCs = (a) => (a.constraints || []).filter((c) => !c.done);
   const openOf = (a) => openCs(a).length;
-  const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps,(a.duration||1)-1); if (a.status==="complete"&&a.actualFinish) return parseD(a.actualFinish)>pf; if (a.actualStart) return parseD(a.actualStart)>ps; return false; };
+  const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps,(a.duration||1)-1); if (a.status==="complete") return a.actualFinish ? parseD(a.actualFinish)>pf : false; if (a.actualStart && parseD(a.actualStart)>ps) return true; return todayMid()>pf.getTime(); };
   const today = new Date(todayMid());
   const sMs = start.getTime(), eMs = end.getTime();
   const dated = acts.filter((a) => a.start);
@@ -8907,7 +8907,7 @@ function computeReport({ S, LV, coName, start, end }){
     inProgress: acts.filter((a)=>a.status==="in_progress").length,
     ready: la.filter((a)=>openOf(a)===0&&a.status!=="complete").length,
     makeReady: la.filter((a)=>openOf(a)>0&&a.status!=="complete").length,
-    delayed: la.filter(isDelayed).length,
+    delayed: dated.filter((a) => a.status !== "complete" && isDelayed(a)).length,
     witness: la.filter((a)=>a.witnessInvite).length,
   };
   const cards = la.filter((a)=>openOf(a)>0)
@@ -10680,7 +10680,7 @@ function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeek
   const acts = S.activities.filter((a) => inSel(co, a.companyId) && inSel(ar, a.area) && inSel(lv, a.level) && inPeriod(a));
   const made = (a) => a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= finishOf(a));
   const openOf = (a) => (a.constraints || []).filter((c) => !c.done).length;
-  const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps, (a.duration || 1) - 1); if (a.status === "complete" && a.actualFinish) return parseD(a.actualFinish) > pf; if (a.actualStart) return parseD(a.actualStart) > ps; return false; };
+  const isDelayed = (a) => { if (!a.start) return false; const ps = parseD(a.start); const pf = addDays(ps, (a.duration || 1) - 1); if (a.status === "complete") return a.actualFinish ? parseD(a.actualFinish) > pf : false; if (a.actualStart && parseD(a.actualStart) > ps) return true; return todayMid() > pf.getTime(); };
   const committed = acts.filter((a) => a.committed);
   // D3 (REV106): the PPC denominator is committed work DUE TO DATE. A commitment whose promised
   // finish has not arrived cannot be kept yet, so counting it deflated the gauge exactly like the
