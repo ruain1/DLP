@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV336",
+  "date": "2026-07-24",
+  "items": [
+   "Vendor Lookahead: an owner/admin engagement snapshot on the Reports page (On demand, Open snapshot). A pure-forward four-week window anchored on next Monday: summary strip (vendors active, open activities, witness sessions, nothing planned), a clickable Gantt with one lane per vendor and witness diamonds, per-vendor cards sorted by volume showing each activity with WILL/WIT chips and the weekly rhythm, and vendors with nothing planned called out in red with context (last finished, next start beyond the window, all past-dated, or never on the board). Counting reuses the REV335 closure rules so completed, failed and reported-100% work never dresses up engagement; the client company is excluded. A filter box narrows cards and Gantt together; bars and rows open Edit Activity directly.",
+   "Two clipboard paths for pasting into an email: Copy cards for email puts a light, Outlook-Word-safe nested-table rendering on the clipboard (with a plain-text fallback), and Copy Gantt as image rasterises the snapshot to a PNG (Outlook strips pasted SVG), downloading the file instead where a browser blocks image clipboard writes. New pure module vendorLookahead.js carries all window maths, data assembly, Gantt layout, SVG and email builders; no SQL."
+  ]
+ },
+ {
   "rev": "REV335",
   "date": "2026-07-24",
   "items": [
