@@ -2838,9 +2838,13 @@ async function runPool(items, limit, fn) {
 // project switcher alive, and offers recovery; changing page clears the error via the
 // resetKey prop so navigating away from a broken page recovers without a full reload.
 class ErrorBoundaryInner extends React.Component {
-  constructor(props) { super(props); this.state = { err: null }; }
+  constructor(props) { super(props); this.state = { err: null, stack: "", copied: false }; }
   static getDerivedStateFromError(err) { return { err }; }
-  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null }); }
+  // REV338: keep the reassuring card, stop swallowing the diagnosis. The component
+  // stack is captured here; the render shows name, message and the first frames in a
+  // collapsed detail with a copy button, so a boundary hit carries its own evidence.
+  componentDidCatch(err, info) { this.setState({ stack: info && info.componentStack ? String(info.componentStack) : "" }); }
+  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null, stack: "", copied: false }); }
   render() {
     if (!this.state.err) return this.props.children;
     return (
@@ -2849,9 +2853,30 @@ class ErrorBoundaryInner extends React.Component {
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>This page hit an error</div>
           <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 18 }}>The rest of the app is fine and your work is not lost. Try this page again, or switch to another page from the sidebar. If it keeps happening, a full reload usually clears it.</div>
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-            <button className="lk-btn" onClick={() => this.setState({ err: null })}>Try again</button>
+            <button className="lk-btn" onClick={() => this.setState({ err: null, stack: "", copied: false })}>Try again</button>
             <button className="lk-btn primary" onClick={() => window.location.reload()}>Reload the app</button>
           </div>
+          {(() => {
+            const e = this.state.err;
+            const head = ((e && e.name) || "Error") + ": " + ((e && e.message) || String(e));
+            const frames = ((e && e.stack) ? String(e.stack).split("\n").slice(1, 3) : [])
+              .concat(this.state.stack ? String(this.state.stack).split("\n").filter(Boolean).slice(0, 2) : [])
+              .map((s) => s.trim()).join("\n");
+            const copyAll = async () => {
+              const full = head + "\n\n" + ((e && e.stack) || "") + "\n" + (this.state.stack || "");
+              try { await navigator.clipboard.writeText(full); this.setState({ copied: true }); }
+              catch (e2) { this.setState({ copied: false }); window.prompt("Copy the details below:", full); }
+            };
+            return (
+              <details style={{ textAlign: "left", border: "1px solid var(--line)", borderRadius: 8, background: "var(--paper)", marginTop: 16 }}>
+                <summary style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", padding: "8px 12px", cursor: "pointer" }}>Technical detail {"\u00b7"} for support</summary>
+                <div style={{ padding: "2px 12px 10px" }}>
+                  <code style={{ display: "block", fontFamily: "'Courier New',monospace", fontSize: 10.5, color: "var(--red)", whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.5 }}>{head + (frames ? "\n" + frames : "")}</code>
+                  <button className="lk-btn" style={{ marginTop: 8, fontSize: 10.5, padding: "4px 10px" }} onClick={copyAll}>{this.state.copied ? "Copied" : "Copy details"}</button>
+                </div>
+              </details>
+            );
+          })()}
         </div>
       </div>
     );
