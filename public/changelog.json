@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV344",
+    "date": "2026-07-24",
+    "items": [
+      "Schedule Gantt narrative drawer: the headline verdict now checks the clock, not just the paper trail. An activity past its planned finish and not complete opens with Running N days past its planned finish at its percent complete (milestones: past its planned date), a late-started activity with the finish still ahead says so, and a completed-late one states how late it finished. Previously the verdict was built only from recorded reschedules, predecessors and successors, so an overdue activity with a clean paper trail read On plan. The accent bar is red for live lateness, amber for reschedule slip or completed late, green only when genuinely clean."
+    ]
+  },
+  {
     "rev": "REV343",
     "date": "2026-07-24",
     "items": [
