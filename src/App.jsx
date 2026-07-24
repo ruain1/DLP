@@ -10555,6 +10555,8 @@ function VendorLookahead({ S, onOpen, projClient, onClose }) {
             {stat(d.counts.witness, "WITNESS SESSIONS", "#b79bf0")}
             {stat(d.counts.zeros, "NOTHING PLANNED", "var(--red)")}
           </div>
+          {/* REV337: unreadable rows are surfaced, never silently dropped */}
+          {d.skipped > 0 && <div style={{ fontSize: 11, fontWeight: 600, color: "var(--st-warn)" }}>{d.skipped} open activit{d.skipped === 1 ? "y" : "ies"} skipped: unreadable start date or duration. Fix them in the Activity Table and reopen.</div>}
           {msg && <div style={{ fontSize: 11.5, fontWeight: 600, color: msg.ok ? "var(--st-done)" : "var(--red)" }}>{msg.text}</div>}
         </div>
         <div style={{ padding: "12px 16px 16px", overflowY: "auto", flex: 1, minHeight: 0 }}>
@@ -10582,7 +10584,7 @@ function VendorLookahead({ S, onOpen, projClient, onClose }) {
               </div>
               {shown.map((r) => <div key={r.a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 13px", borderBottom: "1px solid var(--line)", cursor: "pointer" }} onClick={() => openAct(r.a)}>
                 <span style={{ fontSize: 12.5, fontWeight: 700 }}>{r.a.desc || "Untitled"}</span>
-                <span style={{ fontSize: 11, color: "var(--muted)" }}>{"\u00b7"} {[r.a.level, vlDd(r.s) + " (" + (r.a.duration || 1) + "d)"].filter(Boolean).join(" \u00b7 ")}</span>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>{"\u00b7"} {[r.a.level, vlDd(r.s) + " (" + r.dur + "d)"].filter(Boolean).join(" \u00b7 ")}</span>
                 <span style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
                   {r.a.committed && <span className="lk-chip commit">will</span>}
                   {r.a.witnessInvite && <span className="lk-chip wit">WIT</span>}
