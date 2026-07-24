@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV341",
+    "date": "2026-07-24",
+    "items": [
+      "Project team: a new Last online column between Status and Manage on every member row. Green Online now when the person is in the app right now (heartbeat within the last 2.5 minutes, same rule as the Latest Online panel); otherwise the later of their last heartbeat and last sign-in, shown as Today with the time, or the date for earlier days, with the full date and time on hover. Members who have never signed in show Never, matching their Invite pending status. The same figures were already in the Export Users CSV; the screen now shows them too."
+    ]
+  },
+  {
     "rev": "REV340",
     "date": "2026-07-24",
     "items": [
