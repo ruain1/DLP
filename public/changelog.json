@@ -1,5 +1,13 @@
 [
  {
+  "rev": "REV339",
+  "date": "2026-07-24",
+  "items": [
+   "Fix for the Vendor Lookahead crash, root cause found via the REV338 boundary detail: the popout mount (REV336) referenced onOpen and projClient inside ReportsHub, whose signature declared neither; a free identifier is legal JavaScript until evaluated, so every build gate passed while opening the snapshot threw a ReferenceError at runtime. Both props are now threaded into ReportsHub from App (bars and card rows open Edit Activity as designed, and the client company is excluded from the snapshot), and the REV336 threading mistakenly applied to the sibling ReportsPage is reverted.",
+   "A free-identifier lint gate (esbuild JSX transform, then eslint no-undef with full browser globals) was added to the build discipline and proven live against the pre-fix code. It also caught a latent pre-existing bug: the P6 baseline card renders fmtDate, which was a Portal-local helper, so any baseline carrying imported_at crashed that card with the same ReferenceError class. fmtDate is hoisted to module scope, fixing both call sites."
+  ]
+ },
+ {
   "rev": "REV338",
   "date": "2026-07-24",
   "items": [
