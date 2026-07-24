@@ -893,6 +893,10 @@ const FWD_COMMENT = "Forwarded at your request from DLP.";
 const todayMid = () => new Date().setHours(0, 0, 0, 0);
 const parseD = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
 const fmtISO = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+// REV339: hoisted from Portal. The P6 baseline card also renders fmtDate, and a
+// component-local helper left that reference undefined, a latent ReferenceError that
+// fired for any baseline carrying imported_at. Module scope serves both call sites.
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
 const addDays = (dt, n) => { const x = new Date(dt); x.setDate(x.getDate() + n); return x; };
 // REV186: completion window. Planned finish is start + duration - 1 calendar days; once that
 // day has passed, marking complete is admin-only (mirrored by the enforce_completion_window DB trigger).
@@ -2268,7 +2272,6 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
     return null;
   })();
   const fmtAgo = (ts) => { if (!ts) return ""; const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000); if (s < 60) return "just now"; const m = Math.floor(s / 60); if (m < 60) return m + "m ago"; const h = Math.floor(m / 60); if (h < 24) return h + "h ago"; const d = Math.floor(h / 24); if (d === 1) return "yesterday"; if (d < 7) return d + " days ago"; return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
   const ringEl = (pct, accent) => { const r = 22, c = 2 * Math.PI * r, off = c * (1 - pct / 100); return (<div className="ring"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r={r} fill="none" stroke="var(--ring-track)" strokeWidth="5" /><circle cx="26" cy="26" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} /></svg><div className="lbl">{pct}<small>%</small></div></div>); };
   // REV114: archived projects vanish from every hub surface except the Projects
   // list (greyed, behind Show Archived). vis is the working set everywhere else.
@@ -4377,8 +4380,8 @@ export default function App({ session }) {
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} can={can} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <div className="lk-scroll"><div style={{ maxWidth: "var(--content-max, 1500px)", width: "100%", margin: "0 auto" }}><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div></div>}
-      {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} update={update} projClient={projClient} /></div>}
-      {page === "reporthub" && isAdmin && <div className="lk-scroll"><ReportsHub S={S} update={update} coName={coName} LV={LV} by={cu.name} canWeekly={can("weekly")} canDist={can("distList")} projectId={selProj} exportActivities={exportActivities} /></div>}
+      {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} update={update} /></div>}
+      {page === "reporthub" && isAdmin && <div className="lk-scroll"><ReportsHub S={S} update={update} coName={coName} LV={LV} by={cu.name} canWeekly={can("weekly")} canDist={can("distList")} projectId={selProj} exportActivities={exportActivities} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} projClient={projClient} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} projCode={(((projects || []).find((p) => p.id === selProj) || {}).code || "").trim()} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} /></div>}
       {page === "assets" && <div className="lk-fillpage"><AssetStatusPage projectId={selProj} isAdmin={isAdmin} theme={S.theme} palette={palette} cu={cu} canEditAsset={can("editAsset")} canEditEE={can("editEE")} usersById={(S.users || []).reduce((m, u) => { m[u.id] = u.name; return m; }, {})} onAssetChange={reloadAssetEvents} focusTag={pendingAsset} onFocusConsumed={() => setPendingAsset(null)} /></div>}
@@ -10395,7 +10398,11 @@ function ReportKindChip({ kind }) {
   const [t, c] = map[kind] || [String(kind || "?").toUpperCase(), "#8593a2"];
   return <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 8px", borderRadius: 5, color: c, background: c + "1f", whiteSpace: "nowrap" }}>{t}</span>;
 }
-function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, exportActivities }) {
+// REV339: onOpen and projClient were referenced by the Vendor Lookahead mount (REV336)
+// but never declared in this component's scope; the ReferenceError only fired at
+// runtime when the popout opened, because a free identifier is legal JavaScript
+// until evaluated. Threaded properly from App below.
+function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, exportActivities, onOpen, projClient }) {
   const [rows, setRows] = useState(null);
   const [lim, setLim] = useState(30);
   const [view, setView] = useState(null);      // { row, html: undefined loading | null missing | string }
@@ -10630,7 +10637,7 @@ function VendorLookahead({ S, onOpen, projClient, onClose }) {
     </div>);
 }
 
-function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update, projClient }) {
+function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update }) {
   const [co, setCo] = useState([]);   // REV274: multi-select; empty = all
   const [ar, setAr] = useState([]);
   const [lv, setLv] = useState([]);   // REV274: multi-select; empty = all
