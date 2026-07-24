@@ -1,5 +1,12 @@
 [
   {
+    "rev": "REV343",
+    "date": "2026-07-24",
+    "items": [
+      "Weekly report: the Delayed figure is fixed. It previously missed activities running past their planned finish (it only caught late starts and late finishes) and it only looked inside the 4-week lookahead, which by definition excludes anything already past its planned window; together these forced the count to zero on a board full of delays. Delayed now uses the same rule as the board (late start, or today past planned finish, for incomplete work; late finish for completed work) and counts open delays across the whole project. Completed-late items stay out of this figure because missed commitments are already reported by PPC. The on-screen Reports page Delayed card and the running-late split use the corrected rule too."
+    ]
+  },
+  {
     "rev": "REV342",
     "date": "2026-07-24",
     "items": [
