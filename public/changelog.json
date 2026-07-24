@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV338",
+  "date": "2026-07-24",
+  "items": [
+   "The page error boundary now carries its own diagnosis. The card keeps its wording and recovery buttons and gains a collapsed Technical detail section showing the error name, message and first stack frames (from componentDidCatch), with a Copy details button that puts the full stack and component stack on the clipboard, falling back to a selectable prompt where the clipboard is blocked. Detail resets with the error on Try again and on page change. Built because a blank boundary card turned a live Vendor Lookahead crash into blind iteration; from now on a boundary hit names its cause on screen."
+  ]
+ },
+ {
   "rev": "REV337",
   "date": "2026-07-24",
   "items": [
