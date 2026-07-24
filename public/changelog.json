@@ -1,5 +1,12 @@
 [
  {
+  "rev": "REV337",
+  "date": "2026-07-24",
+  "items": [
+   "Hotfix: opening the Vendor Lookahead crashed the Reports page to the error boundary when any open activity carried an unreadable start date or a non-numeric duration, because the module's date maths called toISOString on an Invalid Date (the board tolerates the same rows since its maths never round-trip through toISOString). Reproduced with four poison shapes (TBC start, text duration, Date-object start, null company entry) and fixed at the root: every date operation in vendorLookahead.js is guarded, a junk duration falls back to one day rather than hiding a planned activity, null company entries are ignored, and unreadable rows are counted and surfaced as an amber note in the popout and a caveat line in both clipboard copies, never silently dropped. Regression and render harnesses green including the poison shapes."
+  ]
+ },
+ {
   "rev": "REV336",
   "date": "2026-07-24",
   "items": [
