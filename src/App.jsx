@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import FilterDrawer, { applyActivityFilters, countActiveFilters, emptyFilters } from "./FilterDrawer.jsx";
+import { vendorLookaheadData, vlGanttLayout, vlGanttSvg, buildVendorCardsEmailHtml, buildVendorCardsText, vlDd, VL_CARD_CAP } from "./vendorLookahead";
 import { catalogErr, erRef } from "./errorCatalog";
 import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins, loadMorningAttendance, saveMorningAttendance, deleteMorningAttendance, submitErrorReport, loadErrorReports, resolveErrorReport, subscribeErrorReports } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
@@ -4351,7 +4352,7 @@ export default function App({ session }) {
       {page === "table" && <TablePage S={S} cu={cu} isAdmin={isAdmin} can={can} canEdit={canEdit} update={update} coName={coName} />}
       {page === "schedule" && <SchedulePage S={S} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} />}
       {page === "constraints" && <div className="lk-scroll"><div style={{ maxWidth: "var(--content-max, 1500px)", width: "100%", margin: "0 auto" }}><ConstraintsPage S={S} update={update} canEdit={canEdit} coName={coName} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} /></div></div>}
-      {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} update={update} /></div>}
+      {page === "reports" && <div className="lk-scroll"><ReportsPage S={S} LV={LV} coName={coName} exportActivities={exportActivities} isAdmin={isAdmin} canWeekly={can("weekly")} canDist={can("distList")} by={cu.name} projectId={selProj} onOpen={(a) => { setPage("board"); setEditing({ ...a }); }} update={update} projClient={projClient} /></div>}
       {page === "reporthub" && isAdmin && <div className="lk-scroll"><ReportsHub S={S} update={update} coName={coName} LV={LV} by={cu.name} canWeekly={can("weekly")} canDist={can("distList")} projectId={selProj} exportActivities={exportActivities} /></div>}
       {page === "admin" && isAdmin && <div className="lk-scroll"><AdminPanel S={S} cu={cu} update={update} exportActivities={exportActivities} can={can} isOwner={isOwner} projClient={projClient} projCode={(((projects || []).find((p) => p.id === selProj) || {}).code || "").trim()} /></div>}
       {page === "cx" && <div className="lk-scroll"><CxProgressPage projectId={selProj} isAdmin={isAdmin} can={can} theme={S.theme} palette={palette} cu={cu} /></div>}
@@ -10374,6 +10375,7 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
   const [lim, setLim] = useState(30);
   const [view, setView] = useState(null);      // { row, html: undefined loading | null missing | string }
   const [arcQ, setArcQ] = useState("");
+  const [vlOpen, setVlOpen] = useState(false);   // REV336: Vendor Lookahead popout
   const [arcK, setArcK] = useState("");
   const [acct, setAcct] = useState(null);
   useEffect(() => {
@@ -10408,14 +10410,18 @@ function ReportsHub({ S, update, coName, LV, by, canWeekly, canDist, projectId, 
       <div style={{ ...secLbl }}>Scheduled</div>
       <ScheduledReports S={S} update={update} />
       <div style={secLbl}>On demand</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
         <ReportTile glyph={"\u270E"} glyphBg="color-mix(in srgb, var(--st-done) 12%, transparent)" glyphColor="var(--st-done)" title="Weekly Report" state={null}
           lines={<span>The stakeholder report: narrative blocks with AI drafting, figures, risk register, distribution and Outlook send.</span>}
           actions={<WeeklyReportLauncher S={S} LV={LV} coName={coName} by={by} isAdmin={canWeekly} canDist={canDist} projectId={projectId} label="Open the builder" />} />
         <ReportTile glyph={"\u2913"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Exports" state={null}
           lines={<span>The full activity workbook. The metrics workbook and board PDF stay on Analytics beside their charts.</span>}
           actions={<button className="lk-btn" style={{ fontSize: 10.5, padding: "6px 11px" }} onClick={exportActivities}><Icon n="download" s={14} />Activities (Excel)</button>} />
+        <ReportTile glyph={"\u25A6"} glyphBg="rgba(183,155,240,.12)" glyphColor="#b79bf0" title="Vendor Lookahead" state={null}
+          lines={<span>Four-week forward snapshot per vendor: Gantt, cards, and vendors with nothing planned called out. Copy paths for pasting into email.</span>}
+          actions={<button className="lk-btn" style={{ fontSize: 10.5, padding: "6px 11px" }} onClick={() => setVlOpen(true)}><Icon n="cal" s={14} />Open snapshot</button>} />
       </div>
+      {vlOpen && <VendorLookahead S={S} onOpen={onOpen} projClient={projClient} onClose={() => setVlOpen(false)} />}
       <div style={secLbl}>Reports</div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
         <input className="lk-in" style={{ flex: 1, minWidth: 200 }} placeholder="Search sent reports" value={arcQ} onChange={(e) => setArcQ(e.target.value)} />
@@ -10486,7 +10492,118 @@ function vendorLogoMap(companies) {
   });
   return map;
 }
-function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update }) {
+// REV336: Vendor Lookahead popout. Owner/admin engagement snapshot: next-Monday
+// anchored four-week window, one lane and one card per vendor, zero vendors called
+// out with context, and two clipboard paths for pasting into an email (light HTML
+// for the cards, rasterised PNG for the Gantt, because Outlook strips pasted SVG).
+function VendorLookahead({ S, onOpen, projClient, onClose }) {
+  const [q, setQ] = useState("");
+  const [exAll, setExAll] = useState({});
+  const [msg, setMsg] = useState(null);
+  const todayISO = fmtISO(new Date());
+  const d = useMemo(() => vendorLookaheadData(S, todayISO, [projClient, "atnorth"]), [S, todayISO, projClient]);
+  const ql = q.trim().toLowerCase();
+  const fVendors = useMemo(() => {
+    if (!ql) return d.vendors;
+    return d.vendors
+      .map((v) => (v.name.toLowerCase().includes(ql) ? v : { ...v, rows: v.rows.filter((r) => (r.a.desc || "").toLowerCase().includes(ql)) }))
+      .filter((v) => v.rows.length);
+  }, [d, ql]);
+  const lay = useMemo(() => vlGanttLayout({ ...d, vendors: fVendors }), [d, fVendors]);
+  const openAct = (a) => { onClose(); onOpen({ ...a }); };
+  const openId = (id) => { const a = (S.activities || []).find((x) => x.id === id); if (a) openAct(a); };
+  const copyCards = async () => {
+    try {
+      const nm = (S.brand && S.brand.projectName) || "DLP";
+      const html = buildVendorCardsEmailHtml(d, nm);
+      const txt = buildVendorCardsText(d, nm);
+      await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([txt], { type: "text/plain" }) })]);
+      setMsg({ ok: true, text: "Cards copied as email-safe HTML. Paste straight into Outlook." });
+    } catch (e) { setMsg({ ok: false, text: "Clipboard refused the copy: " + (e && e.message ? e.message : String(e)) }); }
+  };
+  const copyGantt = () => {
+    const layF = vlGanttLayout(d);
+    const str = vlGanttSvg(layF, "light");
+    const img = new Image();
+    img.onload = () => {
+      const sc = 2; const cv = document.createElement("canvas"); cv.width = layF.W * sc; cv.height = layF.H * sc;
+      const ctx = cv.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(sc, sc); ctx.drawImage(img, 0, 0);
+      cv.toBlob(async (blob) => {
+        try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]); setMsg({ ok: true, text: "Gantt copied as an image. Paste it under the cards." }); }
+        catch (e) { const el = document.createElement("a"); el.href = cv.toDataURL("image/png"); el.download = "vendor-lookahead-" + d.win.anchor + ".png"; el.click(); setMsg({ ok: true, text: "This browser blocks image clipboard writes; the PNG downloaded instead." }); }
+      }, "image/png");
+    };
+    img.onerror = () => setMsg({ ok: false, text: "Could not rasterise the Gantt in this session." });
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(str)));
+  };
+  const stat = (v, lb, c) => <div style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 8, textAlign: "center", padding: "7px 4px", background: "var(--card)" }}><b style={{ display: "block", fontSize: 16, color: c }}>{v}</b><span style={{ fontSize: 9.5, color: "var(--muted)", letterSpacing: ".04em", fontWeight: 700 }}>{lb}</span></div>;
+  return (
+    <div className="lk-bg" onClick={onClose}>
+      <div className="ytt" style={{ ...cssVars(S.theme, S.settings), maxWidth: 960, width: "94vw" }} onClick={(e) => e.stopPropagation()}>
+        <div className="ytt-head" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Icon n="cal" s={17} /><h3 style={{ margin: 0, fontSize: 15.5 }}>Vendor Lookahead</h3>
+            <span style={{ fontFamily: "'Courier New',monospace", fontSize: 9.5, letterSpacing: ".1em", color: "var(--accent)", border: "1px solid var(--line)", borderRadius: 4, padding: "3px 8px" }}>{d.win.label}</span>
+            <input className="lk-in" style={{ marginLeft: "auto", width: 190, fontSize: 11.5 }} placeholder="Filter vendors or activities" value={q} onChange={(e) => setQ(e.target.value)} />
+            <button className="lk-btn" onClick={copyGantt}>Copy Gantt as image</button>
+            <button className="lk-btn primary" onClick={copyCards}>Copy cards for email</button>
+            <button className="lk-btn icon" onClick={onClose}><Icon n="x" /></button>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {stat(d.counts.vendors, "VENDORS ACTIVE", "var(--accent)")}
+            {stat(d.counts.activities, "OPEN ACTIVITIES", "var(--st-done)")}
+            {stat(d.counts.witness, "WITNESS SESSIONS", "#b79bf0")}
+            {stat(d.counts.zeros, "NOTHING PLANNED", "var(--red)")}
+          </div>
+          {msg && <div style={{ fontSize: 11.5, fontWeight: 600, color: msg.ok ? "var(--st-done)" : "var(--red)" }}>{msg.text}</div>}
+        </div>
+        <div style={{ padding: "12px 16px 16px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+          <div style={{ fontSize: 10, letterSpacing: ".08em", fontWeight: 800, color: "var(--muted)", margin: "2px 0 8px" }}>SCHEDULE SNAPSHOT {"\u00b7"} CLICK A BAR TO OPEN THE ACTIVITY</div>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 10, background: "var(--card)", padding: "6px 4px 2px", marginBottom: 14 }}>
+            {fVendors.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 12px" }}>Nothing matches the filter in this window.</div>
+              : <svg viewBox={"0 0 " + lay.W + " " + lay.H} width="100%" style={{ display: "block" }}>
+                {lay.weeks.map((w, i) => <text key={i} x={w.x} y={14} fontFamily="Segoe UI,Arial" fontSize={10} fontWeight={700} fill="var(--muted)">{w.label}</text>)}
+                {lay.grid.map((x, i) => <line key={i} x1={x} y1={lay.TOP} x2={x} y2={lay.H - 6} stroke="var(--line)" />)}
+                {lay.lanes.map((l) => <text key={l.id || "un"} x={8} y={l.y + 4} fontFamily="Segoe UI,Arial" fontSize={11} fontWeight={700} fill="var(--ink)">{l.name}</text>)}
+                {lay.bars.map((b, i) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} rx={3} fill={b.color} opacity={b.opacity} style={{ cursor: "pointer" }} onClick={() => openId(b.id)}><title>{b.desc}</title></rect>)}
+                {lay.diamonds.map((p, i) => <path key={i} d={"M " + p.x + " " + (p.y - 5) + " l 5 5 l -5 5 l -5 -5 z"} fill="#b79bf0" style={{ pointerEvents: "none" }} />)}
+              </svg>}
+          </div>
+          <div style={{ fontSize: 10, letterSpacing: ".08em", fontWeight: 800, color: "var(--muted)", margin: "2px 0 8px" }}>BY VENDOR {"\u00b7"} SORTED BY VOLUME {"\u00b7"} CLICK A ROW TO OPEN</div>
+          {fVendors.map((v) => {
+            const all = !!exAll[v.id || "un"];
+            const shown = all ? v.rows : v.rows.slice(0, VL_CARD_CAP);
+            return <div key={v.id || "un"} style={{ border: "1px solid var(--line)", borderLeft: "4px solid " + v.color, borderRadius: 10, background: "var(--card)", marginBottom: 11, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "9px 13px 7px", borderBottom: "1px solid var(--line)" }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--head)" }}>{v.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 800 }}>{v.rows.length} activit{v.rows.length === 1 ? "y" : "ies"}</span>
+                {v.witCount > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent)" }}>{"\u00b7"} {v.witCount} witness</span>}
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--muted)", fontWeight: 700, letterSpacing: ".03em" }}>{v.weekly.join(" \u00b7 ")} by week</span>
+              </div>
+              {shown.map((r) => <div key={r.a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 13px", borderBottom: "1px solid var(--line)", cursor: "pointer" }} onClick={() => openAct(r.a)}>
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{r.a.desc || "Untitled"}</span>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>{"\u00b7"} {[r.a.level, vlDd(r.s) + " (" + (r.a.duration || 1) + "d)"].filter(Boolean).join(" \u00b7 ")}</span>
+                <span style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
+                  {r.a.committed && <span className="lk-chip commit">will</span>}
+                  {r.a.witnessInvite && <span className="lk-chip wit">WIT</span>}
+                </span>
+              </div>)}
+              {v.rows.length > VL_CARD_CAP && <div style={{ padding: "6px 13px 8px", fontSize: 10.5, color: "var(--muted)", cursor: "pointer" }} onClick={() => setExAll((p) => ({ ...p, [v.id || "un"]: !all }))}>{all ? "show fewer" : "and " + (v.rows.length - VL_CARD_CAP) + " more in the window \u00b7 show all"}</div>}
+            </div>;
+          })}
+          {d.zeros.length > 0 && <>
+            <div style={{ fontSize: 10, letterSpacing: ".08em", fontWeight: 800, color: "var(--red)", margin: "14px 0 8px" }}>NOTHING PLANNED IN THE NEXT 4 WEEKS</div>
+            {d.zeros.map((z) => <div key={z.id} style={{ border: "1px solid color-mix(in srgb, var(--red) 30%, transparent)", borderLeft: "4px solid var(--red)", borderRadius: 10, background: "color-mix(in srgb, var(--red) 6%, transparent)", padding: "8px 13px", marginBottom: 7, display: "flex", alignItems: "baseline", gap: 10 }}>
+              <b style={{ fontSize: 12.5, color: "var(--red)" }}>{z.name}</b>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>{z.ctx}</span>
+            </div>)}
+          </>}
+        </div>
+      </div>
+    </div>);
+}
+
+function ReportsPage({ S, LV, coName, exportActivities, onOpen, isAdmin, canWeekly, canDist, by, projectId, update, projClient }) {
   const [co, setCo] = useState([]);   // REV274: multi-select; empty = all
   const [ar, setAr] = useState([]);
   const [lv, setLv] = useState([]);   // REV274: multi-select; empty = all
