@@ -446,6 +446,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-teamstick{position:sticky;top:0;z-index:20;background:var(--card);margin:0 0 6px}
 .lk-teamstick .lk-ufilter{position:static;top:auto;z-index:auto;margin:0 0 6px;padding:0;border-bottom:0}
 .lk-teamstick .lk-uhead{border-bottom:1px solid var(--line);padding-bottom:8px;background:var(--card)}
+.lk-urow.wlo,.lk-uhead.wlo{grid-template-columns:34px minmax(126px,1fr) minmax(168px,1.2fr) 112px 80px 42px 110px 96px 74px}
+.lk-lo{font-size:11px;font-weight:600;white-space:nowrap;color:var(--muted)}
+.lk-lo.on{color:var(--st-ok)}
+.lk-lo.on::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--st-ok);margin-right:5px;vertical-align:.5px}
+.lk-lo.rec{color:var(--ink)}
+.lk-lo.nev{color:var(--faint);font-weight:500}
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
 .cal-head h3{font-size:15px;color:var(--ink)}
@@ -6805,14 +6811,14 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                   </div>
                 )}
                 {members !== null && !!all.length && !!rows.length && (
-                      <div className="lk-uhead"><span /><span>Member</span><span>Email</span><span>Company</span><span>Role</span><span className="ctr">Proj</span><span>Status</span><span /></div>
+                      <div className="lk-uhead wlo"><span /><span>Member</span><span>Email</span><span>Company</span><span>Role</span><span className="ctr">Proj</span><span>Status</span><span>Last online</span><span /></div>
                 )}
                 </div>
                 {members === null ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "8px 2px" }}>Loading members…</div>
                   : !all.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No one on the team yet. Add people from Global Contacts below.</div>
                   : !rows.length ? <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 2px" }}>No members match these filters.</div>
                   : <>
-                      {(() => { const renderTeamRow = (r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-urow">
+                      {(() => { const renderTeamRow = (r) => { const seen = seenOf(r.user_id); const sup = (r.u.platformRole || "user") === "super"; const np = mcount[r.user_id] || 0; return <div key={r.user_id} className="lk-urow wlo">
                         <span className="lk-uava" style={{ background: avBg(r.user_id) }}>{avInit(r.u.name)}</span>
                         <div className="lk-uname"><b>{r.u.name || "(unnamed)"}</b>{r.user_id === S.currentUserId ? <span className="lk-you">you</span> : null}</div>
                         <span className="lk-uemail" title={(ustat[r.user_id] || {}).email || ""}>{(ustat[r.user_id] || {}).email || ""}</span>
@@ -6820,6 +6826,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
                         <span className="lk-platbadge" data-super={r.role === "admin" ? "1" : "0"} title="Role on this project">{r.role === "admin" ? "Admin" : "Member"}</span>
                         <span className="lk-mpc" title={"On " + np + " project" + (np === 1 ? "" : "s") + " across the platform"} style={{ color: np ? "var(--ink)" : "var(--muted)" }}>{np}</span>
                         <span className={"lk-stat " + (seen ? "act" : "pend")} title={seen ? "Has signed in" : "Onboarding link not yet used"}>{seen ? (sup ? "Active \u00b7 super" : "Active") : "Invite pending"}</span>
+                        {(() => { const pv = pres[r.user_id] ? new Date(pres[r.user_id]).getTime() : 0; const svRaw = (ustat[r.user_id] || {}).lastSignIn; const sv = svRaw ? new Date(svRaw).getTime() : 0; const last = Math.max(pv, sv); const online = pv > 0 && (Date.now() - pv) < 150000; if (online) return <span className="lk-lo on" title="Online now">Online now</span>; if (!last) return <span className="lk-lo nev" title="Onboarding link not yet used">Never</span>; const d = new Date(last); const sameDay = d.toDateString() === new Date().toDateString(); const txt = sameDay ? "Today " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : d.toLocaleString("en-GB", { day: "2-digit", month: "short" }); return <span className={"lk-lo" + ((Date.now() - last) < 14400000 ? " rec" : "")} title={"Last online " + d.toLocaleString("en-GB")}>{txt}</span>; })()}
                         <button className="lk-mbtn" onClick={() => setPmManageId(r.user_id)}>Manage</button>
                       </div>; };
                       return groupTeamRows(rows, cn).map((g) => { const open = !!mOpenGroups[g.key] || !!q; return <div key={g.key} className="lk-ugroup">
