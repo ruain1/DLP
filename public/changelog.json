@@ -1,5 +1,17 @@
 [
   {
+    "rev": "REV345",
+    "date": "2026-07-26",
+    "items": [
+      "YTT Focus can now be ordered by company. A new Priority / Company switch sits in the panel header. Priority is unchanged and stays the default: open constraints first, then committed, then start date. Company groups the same cards into one band per contractor so the morning meeting can run contractor by contractor.",
+      "Each company band carries that contractor's day at a glance: activity count, overdue, missed and open-constraint pills, and a plain-language shape on the right such as 1 overdue · 2 running · 3 starting. Bands with anything overdue or missed turn red; a contractor with nothing outstanding shows CLEAR. The company logo is used where one is set, otherwise its initials.",
+      "Band tallies are derived from the same status resolver the card badges use, so a band can never disagree with the cards beneath it.",
+      "Collapse a band once that contractor has spoken, or use Collapse all / Expand all, giving the meeting a visible run order. Company ordering can be switched between A to Z (a predictable running order) and Most attention first (worst news at the top). Activities with no company group into a final Unassigned band.",
+      "The Priority / Company choice and the company order are remembered between sessions; collapsed bands are per meeting and reset when YTT Focus closes.",
+      "The three-column yesterday / today / tomorrow geometry is untouched: a multi-day activity still spans exactly the days it covers in both orderings."
+    ]
+  },
+  {
     "rev": "REV344",
     "date": "2026-07-24",
     "items": [
