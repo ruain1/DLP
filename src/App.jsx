@@ -484,13 +484,17 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .ytt-ord button{background:transparent;border:0;color:var(--muted);font:800 10.5px/1 inherit;letter-spacing:.4px;padding:7px 11px;cursor:pointer;text-transform:uppercase}
 .ytt-ord button+button{border-left:1px solid var(--line)}
 .ytt-ord button.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
-.ytt-cband{display:flex;align-items:center;gap:9px;padding:7px 10px 7px 8px;border-radius:calc(8px*var(--r,1));background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 13%,transparent),transparent);border:1px solid var(--line);border-left:3px solid var(--accent);margin-top:4px;min-width:0}
+.ytt-cband{position:relative;display:flex;align-items:center;gap:10px;padding:9px 12px 9px 10px;border-radius:calc(8px*var(--r,1));background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 13%,transparent),transparent);border:1px solid var(--line);border-left:3px solid var(--accent);margin-top:4px;min-width:0}
+.ytt-cband.sep{margin-top:18px}
+.ytt-cband.sep::before{content:"";position:absolute;left:-3px;right:-3px;top:-14px;height:2px;background:var(--lane-sep);border-radius:1px}
 .ytt-cband.attn{border-left-color:var(--st-over);background:linear-gradient(90deg,color-mix(in srgb,var(--st-over) 15%,transparent),transparent)}
 .ytt-cband.shut{opacity:.72}
 .ytt-cband-chev{flex:none;width:20px;height:20px;padding:0;font-size:9px;line-height:1;background:transparent;border:1px solid var(--line);border-radius:5px;color:var(--muted);cursor:pointer}
-.ytt-cband-logo{flex:none;width:22px;height:22px;border-radius:5px;background:var(--hover);color:var(--ink);font:800 10px/22px inherit;text-align:center;letter-spacing:.3px;overflow:hidden}
-.ytt-cband-logo img{width:100%;height:100%;object-fit:contain;display:block}
-.ytt-cband-name{font-weight:800;font-size:13px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ytt-cband-logo{flex:none;width:30px;height:30px;border-radius:6px;background:var(--hover);border:1px solid var(--line);color:var(--ink);font:800 11.5px/28px inherit;text-align:center;letter-spacing:.3px;overflow:hidden}
+.ytt-cband-logo.ltile{background:#FFFFFF}
+.ytt-cband-logo.dtile{background:#0B121B}
+.ytt-cband-logo img{width:100%;height:100%;object-fit:contain;display:block;padding:3px}
+.ytt-cband-name{font-weight:800;font-size:14px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ytt-cband-count{font-size:11px;color:var(--muted);white-space:nowrap}
 .ytt-cband-pill{font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:2px 7px;border-radius:5px;white-space:nowrap;flex:none}
 .ytt-cband-sp{flex:1;min-width:6px}
@@ -4537,7 +4541,7 @@ export default function App({ session }) {
         // Flat render list. In priority mode this is exactly the old rows array, so the
         // grid geometry is byte-identical to REV344; grouping only interleaves band rows.
         const flat = [];
-        if (yttOrder === "co") bandGroups.forEach((g) => { flat.push({ band: g }); if (!yttShut[g.name]) g.list.forEach((r) => flat.push(r)); });
+        if (yttOrder === "co") bandGroups.forEach((g, gi) => { flat.push({ band: g, first: gi === 0 }); if (!yttShut[g.name]) g.list.forEach((r) => flat.push(r)); });
         else rows.forEach((r) => flat.push(r));
         const pillSt = {
           over: { background: "color-mix(in srgb, var(--st-over) 20%, transparent)", color: "var(--st-over)", border: "1px solid color-mix(in srgb, var(--st-over) 45%, transparent)" },
@@ -4546,12 +4550,18 @@ export default function App({ session }) {
         };
         const initialsOf = (n) => { const w = String(n || "").split(/[\s\-_.]+/).filter(Boolean); return (w.slice(0, 2).map((x) => x[0]).join("") || "?").toUpperCase(); };
         const dayShape = (g) => [g.t.overdue ? g.t.overdue + " overdue" : "", g.t.due ? g.t.due + " finishing" : "", g.t.ongoing ? g.t.ongoing + " running" : "", g.t.starts ? g.t.starts + " starting" : "", g.t.done ? g.t.done + " done" : ""].filter(Boolean).join(" \u00b7 ");
-        const yttBand = (g, row) => {
+        // REV346: the logo plate ground is chosen from which mark pickLogo actually returned.
+        // In dark theme it prefers logoDark, a light mark drawn for a dark ground, so that tile
+        // stays dark; where a company has no logoDark and we fall back to logoUrl, that mark is
+        // drawn for white and needs a white plate or it disappears. Light theme is always white.
+        // Initials keep the neutral hover ground, since they are painted in var(--ink).
+        const logoTile = (co, lg) => { if (!lg) return ""; if (S.theme !== "dark") return " ltile"; return (co && co.logoDark) ? " dtile" : " ltile"; };
+        const yttBand = (g, row, first) => {
           const shut = !!yttShut[g.name]; const lg = pickLogo(g.co); const attn = (g.t.overdue + g.missed) > 0;
           const clear = (g.t.overdue + g.missed + g.cons) === 0;
-          return <div key={"yttband:" + g.name} className={"ytt-cband" + (attn ? " attn" : "") + (shut ? " shut" : "")} style={{ gridColumn: "1 / 4", gridRow: row }}>
+          return <div key={"yttband:" + g.name} className={"ytt-cband" + (attn ? " attn" : "") + (shut ? " shut" : "") + (first ? "" : " sep")} style={{ gridColumn: "1 / 4", gridRow: row }}>
             <button className="ytt-cband-chev" title={shut ? "Expand " + g.name : "Collapse once " + g.name + " has spoken"} onClick={() => setYttShut((prev) => ({ ...prev, [g.name]: !prev[g.name] }))}>{shut ? "\u25B6" : "\u25BC"}</button>
-            <span className="ytt-cband-logo" title={g.name}>{lg ? <img src={lg} alt="" /> : initialsOf(g.name)}</span>
+            <span className={"ytt-cband-logo" + logoTile(g.co, lg)} title={g.name}>{lg ? <img src={lg} alt="" /> : initialsOf(g.name)}</span>
             <span className="ytt-cband-name">{g.name}</span>
             <span className="ytt-cband-count">{g.list.length} {g.list.length === 1 ? "activity" : "activities"}</span>
             {g.t.overdue > 0 && <span className="ytt-cband-pill" style={pillSt.over}>{g.t.overdue} OVERDUE</span>}
@@ -4591,7 +4601,7 @@ export default function App({ session }) {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", columnGap: G, rowGap: 9, position: "relative", zIndex: 1 }}>
                   {rows.length === 0 && <div style={{ gridColumn: "1 / 4", fontSize: 12.5, color: "var(--muted)", padding: "14px 4px" }}>Nothing scheduled across these three days.</div>}
                   {flat.map((it, idx) => {
-                    if (it.band) return yttBand(it.band, idx + 1);
+                    if (it.band) return yttBand(it.band, idx + 1, it.first);
                     const a = it.a, open = it.open, c1 = it.c1, c2 = it.c2, c3 = it.c3;
                     const st = yttStatusV3(a, todayOffset);
                     const stTxt = st === "done" ? "FINISHED" + (a.actualFinish ? " " + a.actualFinish.slice(5) : "")
