@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV346",
+    "date": "2026-07-26",
+    "items": [
+      "YTT Focus company bands are taller and the contractor logo is larger, 30px on a bordered plate, so the mark reads at a glance rather than dissolving into the band.",
+      "The logo plate picks its own background from the mark it is showing: dark theme keeps a dark plate where the company has a dark-mode logo, but switches to a white plate where it has only a standard logo drawn for white, which previously vanished. Light theme always uses a white plate. Companies with no logo on file keep their initials on the neutral ground.",
+      "Companies are now separated by the same bold rule the Planning Board uses between vendor swimlanes: steel blue in dark mode, black in light mode, drawn from the shared lane separator token so the two surfaces stay in step. The first band carries no rule, and each following company gains clear breathing room above it."
+    ]
+  },
+  {
     "rev": "REV345",
     "date": "2026-07-26",
     "items": [
