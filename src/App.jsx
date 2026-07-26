@@ -480,6 +480,21 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .ytt-meta2{color:var(--muted)}
 .ytt-due{color:#C0392B}
 .ytt-ready{margin-top:7px;font-size:11px;font-weight:700;color:var(--st-done)}
+.ytt-ord{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+.ytt-ord button{background:transparent;border:0;color:var(--muted);font:800 10.5px/1 inherit;letter-spacing:.4px;padding:7px 11px;cursor:pointer;text-transform:uppercase}
+.ytt-ord button+button{border-left:1px solid var(--line)}
+.ytt-ord button.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.ytt-cband{display:flex;align-items:center;gap:9px;padding:7px 10px 7px 8px;border-radius:calc(8px*var(--r,1));background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 13%,transparent),transparent);border:1px solid var(--line);border-left:3px solid var(--accent);margin-top:4px;min-width:0}
+.ytt-cband.attn{border-left-color:var(--st-over);background:linear-gradient(90deg,color-mix(in srgb,var(--st-over) 15%,transparent),transparent)}
+.ytt-cband.shut{opacity:.72}
+.ytt-cband-chev{flex:none;width:20px;height:20px;padding:0;font-size:9px;line-height:1;background:transparent;border:1px solid var(--line);border-radius:5px;color:var(--muted);cursor:pointer}
+.ytt-cband-logo{flex:none;width:22px;height:22px;border-radius:5px;background:var(--hover);color:var(--ink);font:800 10px/22px inherit;text-align:center;letter-spacing:.3px;overflow:hidden}
+.ytt-cband-logo img{width:100%;height:100%;object-fit:contain;display:block}
+.ytt-cband-name{font-weight:800;font-size:13px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ytt-cband-count{font-size:11px;color:var(--muted);white-space:nowrap}
+.ytt-cband-pill{font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:2px 7px;border-radius:5px;white-space:nowrap;flex:none}
+.ytt-cband-sp{flex:1;min-width:6px}
+.ytt-cband-day{font-size:10px;color:var(--muted);white-space:nowrap;font-weight:600}
 .wsch-period{display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-shrink:0}
 .wsch-period select{appearance:none;background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:6px 10px;font-size:12.5px;font-family:inherit}
 .wsch-list{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px;flex:1}
@@ -2901,12 +2916,21 @@ export default function App({ session }) {
   const [erSent, setErSent] = useState(null);   // REV334: reference shown after Report to admin
   const [makeReady, setMakeReady] = useState(false);
   const [ytt, setYtt] = useState(false);
+  // REV345: YTT ordering. "pri" keeps the original priority sort (open constraints first,
+  // then committed, then start date). "co" groups the same cards into per-company bands so
+  // the morning meeting can run contractor by contractor. The mode and the company order
+  // persist across sessions; collapsed bands are a per-meeting scratchpad and reset on close.
+  const [yttOrder, setYttOrder] = useState(() => { try { return localStorage.getItem("dlp_ytt_order") === "co" ? "co" : "pri"; } catch (e) { return "pri"; } });
+  const [yttCoSort, setYttCoSort] = useState(() => { try { return localStorage.getItem("dlp_ytt_cosort") === "attn" ? "attn" : "az"; } catch (e) { return "az"; } });
+  const [yttShut, setYttShut] = useState({});
+  useEffect(() => { try { localStorage.setItem("dlp_ytt_order", yttOrder); } catch (e) {} }, [yttOrder]);
+  useEffect(() => { try { localStorage.setItem("dlp_ytt_cosort", yttCoSort); } catch (e) {} }, [yttCoSort]);
   // REV244: YTT expansion state. yttUps is a lazy per-activity cache of the append-only
   // daily-update log; entries load on first expand, and everything resets when YTT closes.
   const [yttEx, setYttEx] = useState({});
   const [yttUps, setYttUps] = useState({});
   const [yttBusy, setYttBusy] = useState("");
-  useEffect(() => { if (!ytt) { setYttEx({}); setYttUps({}); setYttBusy(""); } }, [ytt]);
+  useEffect(() => { if (!ytt) { setYttEx({}); setYttUps({}); setYttBusy(""); setYttShut({}); } }, [ytt]);
   const yttToggle = (a) => {
     const opening = !yttEx[a.id];
     setYttEx((prev) => ({ ...prev, [a.id]: opening }));
@@ -4484,13 +4508,77 @@ export default function App({ session }) {
         const G = 12;
         const stC = { done: "var(--st-done)", overdue: "var(--st-over)", due: "var(--st-warn)", starts: "var(--st-ok)", ongoing: "var(--accent)" };
         const badgeSt = { done: { color: "var(--st-done)", border: "1px solid color-mix(in srgb, var(--st-done) 50%, transparent)", background: "transparent", opacity: 0.85 }, overdue: { color: "var(--st-over-ink)", background: "var(--st-over)" }, due: { color: "var(--st-warn-ink)", background: "var(--st-warn)" }, starts: { color: "var(--st-ok-ink)", background: "var(--st-ok)" }, ongoing: { color: "#fff", background: "#2456A6" } };
+        // REV345: company grouping. Every band tally is derived from yttStatusV3, the same
+        // resolver the card badges use, so a band can never contradict the cards beneath it.
+        // No new delay logic is introduced here; see the delayInfo consolidation backlog.
+        const bandGroups = (() => {
+          const m = new Map();
+          rows.forEach((r) => { const n = coName(r.a.companyId); if (!m.has(n)) m.set(n, []); m.get(n).push(r); });
+          const gs = Array.from(m.entries()).map((ent) => {
+            const name = ent[0], list = ent[1];
+            const t = { done: 0, overdue: 0, due: 0, starts: 0, ongoing: 0 };
+            let missed = 0, cons = 0;
+            list.forEach((r) => {
+              const k = yttStatusV3(r.a, todayOffset); if (t[k] !== undefined) t[k] += 1;
+              cons += r.open.length;
+              if (r.c1 && r.a.committed && r.a.status !== "complete") missed += 1;
+            });
+            const co = (S.companies || []).find((c) => (c.name || "") === name) || null;
+            return { name: name, list: list, t: t, missed: missed, cons: cons, co: co, score: t.overdue * 100 + missed * 10 + cons };
+          });
+          gs.sort((x, y) => {
+            if (x.name === "Unassigned") return y.name === "Unassigned" ? 0 : 1;
+            if (y.name === "Unassigned") return -1;
+            return yttCoSort === "attn" ? ((y.score - x.score) || x.name.localeCompare(y.name)) : x.name.localeCompare(y.name);
+          });
+          return gs;
+        })();
+        const allShut = bandGroups.length > 0 && bandGroups.every((g) => yttShut[g.name]);
+        // Flat render list. In priority mode this is exactly the old rows array, so the
+        // grid geometry is byte-identical to REV344; grouping only interleaves band rows.
+        const flat = [];
+        if (yttOrder === "co") bandGroups.forEach((g) => { flat.push({ band: g }); if (!yttShut[g.name]) g.list.forEach((r) => flat.push(r)); });
+        else rows.forEach((r) => flat.push(r));
+        const pillSt = {
+          over: { background: "color-mix(in srgb, var(--st-over) 20%, transparent)", color: "var(--st-over)", border: "1px solid color-mix(in srgb, var(--st-over) 45%, transparent)" },
+          warn: { background: "color-mix(in srgb, var(--st-warn) 18%, transparent)", color: "var(--st-warn)", border: "1px solid color-mix(in srgb, var(--st-warn) 42%, transparent)" },
+          ok: { background: "color-mix(in srgb, var(--st-done) 14%, transparent)", color: "var(--st-done)", border: "1px solid color-mix(in srgb, var(--st-done) 38%, transparent)" },
+        };
+        const initialsOf = (n) => { const w = String(n || "").split(/[\s\-_.]+/).filter(Boolean); return (w.slice(0, 2).map((x) => x[0]).join("") || "?").toUpperCase(); };
+        const dayShape = (g) => [g.t.overdue ? g.t.overdue + " overdue" : "", g.t.due ? g.t.due + " finishing" : "", g.t.ongoing ? g.t.ongoing + " running" : "", g.t.starts ? g.t.starts + " starting" : "", g.t.done ? g.t.done + " done" : ""].filter(Boolean).join(" \u00b7 ");
+        const yttBand = (g, row) => {
+          const shut = !!yttShut[g.name]; const lg = pickLogo(g.co); const attn = (g.t.overdue + g.missed) > 0;
+          const clear = (g.t.overdue + g.missed + g.cons) === 0;
+          return <div key={"yttband:" + g.name} className={"ytt-cband" + (attn ? " attn" : "") + (shut ? " shut" : "")} style={{ gridColumn: "1 / 4", gridRow: row }}>
+            <button className="ytt-cband-chev" title={shut ? "Expand " + g.name : "Collapse once " + g.name + " has spoken"} onClick={() => setYttShut((prev) => ({ ...prev, [g.name]: !prev[g.name] }))}>{shut ? "\u25B6" : "\u25BC"}</button>
+            <span className="ytt-cband-logo" title={g.name}>{lg ? <img src={lg} alt="" /> : initialsOf(g.name)}</span>
+            <span className="ytt-cband-name">{g.name}</span>
+            <span className="ytt-cband-count">{g.list.length} {g.list.length === 1 ? "activity" : "activities"}</span>
+            {g.t.overdue > 0 && <span className="ytt-cband-pill" style={pillSt.over}>{g.t.overdue} OVERDUE</span>}
+            {g.missed > 0 && <span className="ytt-cband-pill" style={pillSt.over}>{g.missed} MISSED</span>}
+            {g.cons > 0 && <span className="ytt-cband-pill" style={pillSt.warn}>{g.cons} OPEN {g.cons === 1 ? "CONSTRAINT" : "CONSTRAINTS"}</span>}
+            {clear && <span className="ytt-cband-pill" style={pillSt.ok}>CLEAR</span>}
+            <span className="ytt-cband-sp" />
+            <span className="ytt-cband-day">{shut ? "covered" : dayShape(g)}</span>
+          </div>;
+        };
         const colHd = (lb, off, on) => <div key={lb} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "10px 4px 4px", fontWeight: 700, fontSize: 13, color: on ? "var(--accent)" : undefined }}>{lb}<span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{addDays(anchor, off).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</span></div>;
         return (
           <div className="lk-bg" onClick={() => setYtt(false)}>
             <div className="ytt" style={cssVars(S.theme, S.settings)} onClick={(e) => e.stopPropagation()}>
               <div className="ytt-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon n="cross" s={18} /><h3 style={{ margin: 0, fontSize: 16 }}>YTT Focus</h3><span className="ytt-sub">One card per activity, spanning the days it covers; the badge is its status against today. Tick a constraint to clear it.</span></div>
-                <button className="lk-btn icon" onClick={() => setYtt(false)}><Icon n="x" /></button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
+                  <div className="ytt-ord" title="Priority: open constraints first, then committed, then start date. Company: one band per contractor, for running the morning meeting.">
+                    <button className={yttOrder === "pri" ? "on" : ""} onClick={() => setYttOrder("pri")}>Priority</button>
+                    <button className={yttOrder === "co" ? "on" : ""} onClick={() => setYttOrder("co")}>Company</button>
+                  </div>
+                  {yttOrder === "co" && <select className="lk-select" style={{ fontSize: 11, padding: "6px 8px" }} value={yttCoSort} onChange={(e) => setYttCoSort(e.target.value)} title="A to Z gives a predictable running order. Most attention first puts overdue and missed work at the top.">
+                    <option value="az">A to Z</option><option value="attn">Most attention first</option>
+                  </select>}
+                  {yttOrder === "co" && <button className="lk-btn" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".4px", textTransform: "uppercase" }} onClick={() => setYttShut(() => { if (allShut) return {}; const n = {}; bandGroups.forEach((g) => { n[g.name] = true; }); return n; })}>{allShut ? "Expand all" : "Collapse all"}</button>}
+                  <button className="lk-btn icon" onClick={() => setYtt(false)}><Icon n="x" /></button>
+                </div>
               </div>
               <div style={{ position: "relative", padding: "0 14px", flex: "none", borderBottom: "1px solid var(--line)" }}>
                 <div style={{ position: "absolute", top: 0, bottom: 0, left: `calc((100% - 28px - ${2 * G}px) / 3 + 14px + ${G}px)`, width: `calc((100% - 28px - ${2 * G}px) / 3)`, background: "rgba(91,155,243,.05)", borderLeft: "1px solid rgba(91,155,243,.14)", borderRight: "1px solid rgba(91,155,243,.14)", pointerEvents: "none", zIndex: 0 }} />
@@ -4502,7 +4590,9 @@ export default function App({ session }) {
                 <div style={{ position: "absolute", top: 0, bottom: 14, left: `calc((100% - 28px - ${2 * G}px) / 3 + 14px + ${G}px)`, width: `calc((100% - 28px - ${2 * G}px) / 3)`, background: "rgba(91,155,243,.05)", borderLeft: "1px solid rgba(91,155,243,.14)", borderRight: "1px solid rgba(91,155,243,.14)", pointerEvents: "none", zIndex: 0 }} />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", columnGap: G, rowGap: 9, position: "relative", zIndex: 1 }}>
                   {rows.length === 0 && <div style={{ gridColumn: "1 / 4", fontSize: 12.5, color: "var(--muted)", padding: "14px 4px" }}>Nothing scheduled across these three days.</div>}
-                  {rows.map(({ a, open, c1, c2, c3 }, idx) => {
+                  {flat.map((it, idx) => {
+                    if (it.band) return yttBand(it.band, idx + 1);
+                    const a = it.a, open = it.open, c1 = it.c1, c2 = it.c2, c3 = it.c3;
                     const st = yttStatusV3(a, todayOffset);
                     const stTxt = st === "done" ? "FINISHED" + (a.actualFinish ? " " + a.actualFinish.slice(5) : "")
                       : st === "overdue" ? "FINISH OVERDUE \u00b7 was " + dShort(a.endOff)
