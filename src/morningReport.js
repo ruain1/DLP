@@ -98,24 +98,37 @@ export function morningData(St, due, updates) {
   const confirm100 = rows.filter((r) => r.a.status !== "complete" && !failedA(r) && pctOfA(r.a) >= 100 && r.e >= weekAgo);
   const finishing = live.filter((r) => r.e === today);
   const overdueAll = live.filter((r) => r.e < today);
-  // REV350: knock-on separation. An activity whose predecessor is still open cannot have
-  // finished, so reporting it as an overdue finish names its holder for something upstream.
-  // Nothing is dropped: held rows move to their own list and the Overdue heading carries the
-  // count. Off by default, so the lists are byte-identical to REV349 unless it is switched on.
-  const acts350 = (St.activities || []);
+  const overdue = overdueAll.filter((r) => r.e >= weekAgo);
+  // REV351: predecessor-aware reporting, replacing the REV350 overdue-only split. REV350 only
+  // reclassified activities that were themselves overdue, which missed the more damaging case:
+  // an activity scheduled today or tomorrow whose predecessor is still open reads as a normal
+  // due item while already being impossible. Every live row is now tested, blocked rows are
+  // labelled where they sit, and each open blocker is rolled up once so the meeting works the
+  // causes rather than the symptoms. Overdue items stay in Overdue finishes; only their label
+  // changes, so no list shrinks and no count moves.
+  const acts351 = (St.activities || []);
   const daysLate = (endIso) => Math.max(1, Math.round((pD(today).getTime() - pD(endIso).getTime()) / 86400000));
-  const splitHeld = !!morningCfg(St.settings || {}).splitHeld;
-  const heldOf = (r) => openPredecessors(r.a, acts350).map((p) => {
-    const pr = rows.find((x) => x.a.id === p.id) || null;
-    return { desc: p.desc || "Untitled", co: pr ? pr.co : "Unassigned", late: (pr && pr.e < today) ? daysLate(pr.e) : 0 };
-  });
-  const held = splitHeld
-    ? overdueAll.map((r) => ({ ...r, blockers: heldOf(r), heldDays: daysLate(r.e) })).filter((r) => r.blockers.length > 0)
-        .sort((x, y) => y.heldDays - x.heldDays)
-    : [];
-  const heldIds = new Set(held.map((r) => r.a.id));
-  const overdueOwn = splitHeld ? overdueAll.filter((r) => !heldIds.has(r.a.id)) : overdueAll;
-  const overdue = overdueOwn.filter((r) => r.e >= weekAgo);
+  const predAware = !!morningCfg(St.settings || {}).splitHeld;
+  const blockedMap = {};
+  const clearFirst = [];
+  if (predAware) {
+    const byBlocker = {};
+    live.forEach((r) => {
+      const bl = openPredecessors(r.a, acts351).map((p) => {
+        const pr = rows.find((x) => x.a.id === p.id) || null;
+        return { id: p.id, desc: p.desc || "Untitled", co: pr ? pr.co : "Unassigned", e: pr ? pr.e : null, late: (pr && pr.e < today) ? daysLate(pr.e) : 0 };
+      });
+      if (!bl.length) return;
+      blockedMap[r.a.id] = bl;
+      bl.forEach((b) => {
+        const k = String(b.id);
+        if (!byBlocker[k]) byBlocker[k] = { desc: b.desc, co: b.co, e: b.e, late: b.late, holding: [] };
+        byBlocker[k].holding.push({ desc: r.a.desc || "Untitled", co: r.co, s: r.s, e: r.e, overdue: r.e < today });
+      });
+    });
+    Object.keys(byBlocker).forEach((k) => clearFirst.push(byBlocker[k]));
+    clearFirst.sort((x, y) => (y.holding.length - x.holding.length) || (y.late - x.late));
+  }
   const starting = live.filter((r) => r.s === today && r.e !== today);
   const inProgress = live.filter((r) => r.s <= today && r.e >= today);
   const yday = iso(addD(pD(today), -1));
@@ -159,7 +172,7 @@ export function morningData(St, due, updates) {
     const withPct = items.filter((u) => u.pct != null);
     return { desc: r ? (r.a.desc || "Untitled") : "(removed activity)", pct: withPct.length ? withPct[withPct.length - 1].pct : null, items };
   });
-  return { today, yday, tmrw, yDone, yMissed, tStart, tDue, pushing, counts: { inProgress: inProgress.length, finishing: finishing.length, overdue: overdueAll.length, starting: starting.length, cons: consRows.length }, finishing, overdue, held, overdueOlder: overdueOwn.length - overdue.length, starting, consRows, witness, witnessDropped, confirm100, upRows };
+  return { today, yday, tmrw, yDone, yMissed, tStart, tDue, pushing, counts: { inProgress: inProgress.length, finishing: finishing.length, overdue: overdueAll.length, blocked: Object.keys(blockedMap).length, starting: starting.length, cons: consRows.length }, finishing, overdue, blockedMap, clearFirst, overdueOlder: overdueAll.length - overdue.length, starting, consRows, witness, witnessDropped, confirm100, upRows };
 }
 
 // REV277: the compact plaintext facts sheet the AI summary is written from. Every
@@ -170,9 +183,9 @@ export function buildMorningAiFacts(d) {
   L.push("Date: " + d.today + ". Counts: " + c.inProgress + " in progress, " + c.finishing + " finishing today, " + c.overdue + " overdue, " + c.starting + " starting today, " + c.cons + " open constraints.");
   const act = (r) => (r.a.desc || "Untitled") + " (" + r.co + (r.a.percent != null ? ", " + r.a.percent + "%" : "") + ")";
   if (d.overdue.length) L.push("Overdue finishes: " + d.overdue.slice(0, 10).map((r) => act(r) + " was due " + r.e).join("; ") + (d.overdueOlder ? "; plus " + d.overdueOlder + " older than a week" : "") + ".");
-  // REV350: held items are given to the model as held, with their blocker named, so the
-  // summary does not chase a contractor for a delay that is upstream of them.
-  if (d.held && d.held.length) L.push("Waiting on predecessors, not the holder's own slip: " + d.held.slice(0, 10).map((r) => act(r) + " held " + r.heldDays + " day" + (r.heldDays === 1 ? "" : "s") + ", waiting on " + r.blockers.map((b) => b.desc + " (" + b.co + ")").join(" and ")).join("; ") + ".");
+  // REV351: the model is told what is blocking what, grouped by blocker, so the summary can
+  // push the one activity that unlocks several rather than chasing each held item separately.
+  if (d.clearFirst && d.clearFirst.length) L.push("Clear these first, each holding other work: " + d.clearFirst.slice(0, 6).map((b) => b.desc + " (" + b.co + ")" + (b.late ? ", " + b.late + " day" + (b.late === 1 ? "" : "s") + " late" : ", in progress") + ", holding " + b.holding.length + " activit" + (b.holding.length === 1 ? "y" : "ies") + ": " + b.holding.map((h) => h.desc).join(", ")).join("; ") + ".");
   if (d.finishing.length) L.push("Due to finish today: " + d.finishing.slice(0, 8).map((r) => act(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : " clear")).join("; ") + ".");
   if (d.starting.length) L.push("Starting today: " + d.starting.slice(0, 8).map(act).join("; ") + ".");
   if (d.tStart.length) L.push("Starting tomorrow: " + d.tStart.slice(0, 8).map((r) => act(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : "")).join("; ") + ".");
@@ -191,24 +204,38 @@ const rowsWrap = (inner) => `<tr><td style="padding:8px 24px 2px;"><table width=
 const moreLine = (n, noun) => n > 0 ? `<tr><td style="padding:5px 0; color:#68727f; font-size:10.5pt; font-family:${MR_FF};">and ${n} more ${esc(noun)}</td></tr>` : "";
 const cap = (arr, n) => [arr.slice(0, n), Math.max(0, arr.length - n)];
 
-function actLine(r, extraRight) {
+function actLineBase(r, extraRight) {
   const pct = r.a.percent != null ? MID + r.a.percent + "%" : "";
   const mile = r.a.isMilestone ? "\u25C6 " : "";
   const right = extraRight ? `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; ${extraRight.style}">${esc(extraRight.text).replace(/ /g, "&#160;")}</td>` : "";
   return `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${esc(pct)}</span></td>${right}</tr>`;
 }
 
-// REV350: a held row carries a second line naming what is holding it. actLine cannot do
-// this (single row, no sub-line), and the blocker is the whole point of the section.
-function heldLine(r) {
+// REV351: a blocked row replaces its status with "blocked" and carries a second line naming
+// what must finish first. Any open constraints are kept on that line: an activity can be both
+// blocked and unconstrained-upon, and losing the constraint count would trade one blind spot
+// for another.
+function blockedLine(r, bl) {
   const mile = r.a.isMilestone ? "\u25C6 " : "";
-  const bl = (r.blockers || []);
-  const shown = bl.slice(0, 2).map((b) => esc(b.desc) + " (" + esc(b.co) + ")" + (b.late ? ", itself " + b.late + " day" + (b.late === 1 ? "" : "s") + " late" : "")).join("; ");
+  const shown = bl.slice(0, 2).map((b) => esc(b.desc) + " (" + esc(b.co) + ")" + (b.late ? ", " + b.late + " day" + (b.late === 1 ? "" : "s") + " late" : "")).join("; ");
   const extra = bl.length > 2 ? " and " + (bl.length - 2) + " more" : "";
-  const right = esc("held " + r.heldDays + " day" + (r.heldDays === 1 ? "" : "s")).replace(/ /g, "&#160;");
+  const cons = (r.open && r.open.length) ? `<span style="color:#C0392B;">${MID}${r.open.length} open constraint${r.open.length === 1 ? "" : "s"}</span>` : "";
   return `<tr><td style="padding:5px 0 1px; font-size:12pt; font-family:${MR_FF};">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}</span></td>`
-    + `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; color:#68727f;">${right}</td></tr>`
-    + `<tr><td colspan="2" style="padding:0 0 6px; font-size:10.5pt; font-family:${MR_FF}; color:#8a6100;">waiting on ${shown}${extra}</td></tr>`;
+    + `<td align="right" style="white-space:nowrap;"><span style="font-size:10pt; font-weight:bold; font-family:${MR_FF}; color:#8a6100;">blocked</span></td></tr>`
+    + `<tr><td colspan="2" style="padding:0 0 6px; font-size:10.5pt; font-family:${MR_FF}; color:#8a6100;">needs ${shown}${extra} finished first${cons}</td></tr>`;
+}
+
+// REV351: one entry per open blocker, with everything it is holding. This is the section that
+// does the actual work: four blocked activities across three sections is four conversations,
+// the same information grouped by blocker is one or two actions.
+function clearFirstLine(b, today, tmrw) {
+  const st = b.late ? (b.late + " day" + (b.late === 1 ? "" : "s") + " late") : (b.e ? "in progress, to " + dd(b.e) : "in progress");
+  const stCol = b.late ? "#C0392B" : "#b07f00";
+  const when = (h) => h.overdue ? "overdue" : (h.s === today ? "starts today" : (h.s === tmrw ? "starts tomorrow" : (h.e === today ? "due today" : (h.e === tmrw ? "due tomorrow" : "starts " + dd(h.s)))));
+  return `<tr><td style="padding:8px 0 1px; font-size:12pt; font-family:${MR_FF};"><b>${esc(b.desc)}</b> <span style="color:#68727f;">${MID}${esc(b.co)}</span></td>`
+    + `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; color:${stCol};">${esc(st).replace(/ /g, "&#160;")}</td></tr>`
+    + b.holding.map((h) => `<tr><td colspan="2" style="padding:0 0 2px 14px; font-size:10.5pt; font-family:${MR_FF}; color:#3d4855;">${MID}${esc(h.desc)} <span style="color:#68727f;">(${esc(h.co)})</span>, ${esc(when(h))}</td></tr>`).join("")
+    + `<tr><td colspan="2" style="padding:0 0 4px;"></td></tr>`;
 }
 
 // REV326: the Morning meeting attendance section. att comes from
@@ -276,6 +303,11 @@ function witnessDropBlock(d) {
 }
 
 export function buildMorningEmail(d, cfg, meta) {
+  // REV351: one shadow instead of rewriting every call site. Any row with an open predecessor
+  // renders as blocked wherever it appears, so no section can present an impossible item as
+  // merely due, starting or late.
+  const bmap351 = d.blockedMap || {};
+  const actLine = (r, extraRight) => { const bl = bmap351[r.a.id]; return (bl && bl.length) ? blockedLine(r, bl) : actLineBase(r, extraRight); };
   const sec = cfg.sections || {};
   const c = d.counts;
   const cell = (v, lb, color) => `<td align="center" style="border:1px solid #e3e8ef; border-radius:5px; padding:9px 4px; font-family:${MR_FF};"><span style="font-size:15pt; font-weight:bold; color:${color};">${v}</span><br><span style="font-size:10pt; color:#68727f; letter-spacing:.03em;">${lb}</span></td>`;
@@ -302,8 +334,14 @@ export function buildMorningEmail(d, cfg, meta) {
     + cell(c.inProgress, "IN PROGRESS", "#2456A6") + `<td width="8"></td>`
     + cell(c.finishing, "FINISH DUE TODAY", "#b07f00") + `<td width="8"></td>`
     + cell(c.overdue, "OVERDUE", "#C0392B") + `<td width="8"></td>`
+    + (c.blocked ? cell(c.blocked, "BLOCKED", "#8a6100") + `<td width="8"></td>` : "")
     + cell(c.starting, "STARTING", "#1e8e63") + `<td width="8"></td>`
     + cell(c.cons, "OPEN CONSTRAINTS", "#2456A6") + `</tr></table></td></tr>`;
+  if (sec.overdue !== false && (d.clearFirst || []).length) {
+    const cf = d.clearFirst, held = cf.reduce((n, b) => n + b.holding.length, 0);
+    body += secHead("Clear these first (" + cf.length + " holding " + held + " other" + (held === 1 ? "" : "s") + ")", "#8a6100")
+      + rowsWrap(cf.slice(0, 8).map((b) => clearFirstLine(b, d.today, d.tmrw)).join("") + moreLine(Math.max(0, cf.length - 8), "blocking activities"));
+  }
   if (sec.attendance !== false && d.attendance) body += buildAttendanceHtml(d.attendance, cfg.attendance && cfg.attendance.showAbsent);
   if (!c.inProgress && !c.finishing && !c.overdue && !c.starting && !c.cons && !d.upRows.length && !d.witness.length && !(d.witnessDropped || []).length && !(d.confirm100 || []).length) {
     body += rowsWrap(`<tr><td style="padding:8px 0; color:#68727f;">Nothing scheduled for today.</td></tr>`);
@@ -337,16 +375,10 @@ export function buildMorningEmail(d, cfg, meta) {
       ? { text: r.open.length + " open constraint" + (r.open.length === 1 ? "" : "s"), style: "color:#C0392B;" }
       : { text: "clear", style: "color:#1e8e63;" })).join("") + moreLine(more, "finishing today"));
   }
-  const held350 = (d.held || []);
   if (sec.overdue !== false && d.overdue.length) {
     const [rowsO, more] = cap(d.overdue, 14);
-    const hd = held350.length ? "Overdue finishes (" + d.overdue.length + ", plus " + held350.length + " waiting on predecessors)" : "Overdue finishes";
-    body += secHead(hd, "#C0392B") + rowsWrap(rowsO.map((r) => actLine(r, { text: "was " + dd(r.e), style: "color:#C0392B;" })).join("")
+    body += secHead("Overdue finishes", "#C0392B") + rowsWrap(rowsO.map((r) => actLine(r, { text: "was " + dd(r.e), style: "color:#C0392B;" })).join("")
       + moreLine(more, "in the last week") + moreLine(d.overdueOlder, "older than a week"));
-  }
-  if (sec.overdue !== false && held350.length) {
-    const [rowsH, moreH] = cap(held350, 10);
-    body += secHead("Waiting on predecessors", "#8a6100") + rowsWrap(rowsH.map(heldLine).join("") + moreLine(moreH, "waiting on predecessors"));
   }
   if (sec.ytt === false && sec.starting !== false && d.starting.length) {
     const [rowsS, more] = cap(d.starting, 14);
