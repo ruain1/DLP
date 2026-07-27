@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV349",
+    "date": "2026-07-26",
+    "items": [
+      "Review before sending, new and off by default. When switched on in the Morning Cx Update configuration, the scheduled run assembles the email exactly as it always did and then parks it as a draft instead of sending it. The Reports page shows a banner and the tile reads Awaiting review.",
+      "The review window lets you edit the narrative freely, regenerate it from that morning's data and your saved prompt, revert to the generated version, rebuild the preview from whatever is in the box, or skip the day entirely. The preview is built the same way the email is, so what you read is what sends.",
+      "Failsafe: an unreviewed draft sends itself once the grace window expires, default 60 minutes, selectable at 30 minutes, 60 minutes, 2 hours or Never. A review gate that can silently swallow the morning email would be worse than no gate. Runs released this way are recorded in the archive as auto-sent, not reviewed.",
+      "Sending from the review window records who sent it and stores the narrative that went out. Skipping records the run as skipped rather than deleting it, so the archive still shows what happened that morning.",
+      "Requires the 2026-07-26 migration, which adds two nullable columns to report_runs and one partial index. Nothing is dropped or altered, and with review off no code path writes them."
+    ]
+  },
+  {
     "rev": "REV348",
     "date": "2026-07-26",
     "items": [
