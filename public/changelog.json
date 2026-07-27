@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV354",
+    "date": "2026-07-26",
+    "items": [
+      "Preview and send for the Morning Cx Update. The tile now offers Preview and send, which assembles the email exactly as the real send does and opens the same review window: the narrative is editable, Regenerate re-runs the AI against your saved prompt, Update preview rebuilds the email from whatever is in the box, and Send now mails precisely what you are looking at.",
+      "Nothing is written to the report archive until you press Send now, so opening the preview and closing it costs nothing. This also serves as the way to check what your AI instructions actually produce without waiting for the next morning.",
+      "Sending from the preview claims the run through the same machinery as the manual send, including the guard that warns before sending a second time on a day already sent.",
+      "Where a scheduled run has already parked a draft for review, that takes priority and the tile continues to show Review and send. Revert to generated and Skip today appear only in that case, since there is no generated draft or scheduled run to skip in a preview."
+    ]
+  },
+  {
     "rev": "REV353",
     "date": "2026-07-26",
     "items": [
