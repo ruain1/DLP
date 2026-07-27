@@ -66,14 +66,19 @@ export function isClosedActivity(a) {
   const pct = a.percent != null ? Math.max(0, Math.min(100, Math.round(a.percent))) : (a.status === "complete" ? 100 : 0);
   return a.status === "complete" || String(a.outcome || "").toLowerCase() === "failed" || pct >= 100;
 }
-// Predecessors are stored as an array of activity codes, matched against another activity's
-// code. An activity with no links, or links to codes that were never imported, returns an
-// empty list and is therefore treated as an ordinary slip. That is the safe direction to fail:
+// REV352 correctness fix. predecessors stores activity id UUIDs, not codes. REV350 and REV351
+// matched them against code (an integer), which can never equal a UUID, so predecessor-aware
+// reporting silently produced nothing on real data. Verified directly against FIN04: every
+// stored predecessor value resolves against activities.id and none against activities.code.
+// Both are accepted here because a UUID can never collide with an integer code, so supporting
+// the legacy form costs nothing and guards against older rows. An activity with no links, or
+// links that resolve to nothing, returns an empty list and is treated as an ordinary slip:
 // missing link data can only ever leave an item flagged, never hide one.
 export function openPredecessors(a, activities) {
   const preds = (a && Array.isArray(a.predecessors) ? a.predecessors : []).map(String);
   if (!preds.length) return [];
-  return (activities || []).filter((x) => x && x.code != null && preds.includes(String(x.code)) && !isClosedActivity(x));
+  return (activities || []).filter((x) => x && !isClosedActivity(x)
+    && (preds.includes(String(x.id)) || (x.code != null && preds.includes(String(x.code)))));
 }
 
 export function morningData(St, due, updates) {
@@ -142,11 +147,13 @@ export function morningData(St, due, updates) {
   // via the predecessor code links; the facts sheet and the Tomorrow tags both use them.
   const lateBy = (r) => Math.max(1, Math.round((pD(today).getTime() - pD(r.e).getTime()) / 86400000));
   const pushing = [];
+  // REV352: same identity fault as openPredecessors. This matched only on code, so the
+  // pushing pairs, and the "at risk, predecessor" tags they drive, have never once fired.
   overdueAll.forEach((r) => {
-    if (r.a.code == null) return;
     live.forEach((x) => {
       const preds = (x.a.predecessors || []).map(String);
-      if (preds.includes(String(r.a.code)) && x.s >= today && x.s <= horizon) pushing.push({ from: r, to: x, late: lateBy(r) });
+      const hit = preds.includes(String(r.a.id)) || (r.a.code != null && preds.includes(String(r.a.code)));
+      if (hit && x.s >= today && x.s <= horizon) pushing.push({ from: r, to: x, late: lateBy(r) });
     });
   });
   const consRows = [];
