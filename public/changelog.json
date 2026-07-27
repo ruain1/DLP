@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV351",
+    "date": "2026-07-26",
+    "items": [
+      "Predecessor-aware reporting now covers the whole email, not just overdue finishes. REV350 only reclassified activities that were themselves overdue, which missed the more damaging case: an activity scheduled today or tomorrow whose predecessor is still open reads as an ordinary due item while already being impossible.",
+      "Any activity with an open predecessor is now labelled blocked wherever it appears, with a line naming what must finish first and how late that blocker is. Open constraints on a blocked activity are kept on that line rather than lost.",
+      "New Clear these first section, high in the email: every open blocker listed once with everything it is holding and when each of those is scheduled. Four blocked activities spread across three sections is four conversations; grouped by blocker it is usually one or two actions. The AI summary is given the same roll-up, so it can push the activity that unlocks several rather than chasing each symptom.",
+      "The REV350 Waiting on predecessors section is removed as redundant. Overdue items stay in Overdue finishes and only their label changes, so no list shrinks and no count moves. A new BLOCKED tile appears in the counts strip when the feature is on and the count is non-zero; it deliberately overlaps with OVERDUE rather than subtracting from it, because an item can be both.",
+      "The setting is renamed Predecessor-aware reporting. It is the same stored setting as REV350's Separate knock-on delays, so an existing choice carries over."
+    ]
+  },
+  {
     "rev": "REV350",
     "date": "2026-07-26",
     "items": [
