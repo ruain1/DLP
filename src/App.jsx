@@ -499,6 +499,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .ytt-cband-pill{font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:2px 7px;border-radius:5px;white-space:nowrap;flex:none}
 .ytt-cband-sp{flex:1;min-width:6px}
 .ytt-cband-day{font-size:10px;color:var(--muted);white-space:nowrap;font-weight:600}
+.ytt-tip{position:relative;cursor:help}
+.ytt-tip::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 7px);z-index:40;white-space:pre;font:600 11px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;letter-spacing:0;text-transform:none;text-align:left;padding:8px 11px;border-radius:calc(8px*var(--r,1));background:var(--paper);color:var(--ink);border:1px solid var(--line);box-shadow:0 10px 26px rgba(0,0,0,calc(.42*var(--fx-sh,1)));opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease .25s,visibility 0s linear .37s}
+.ytt-tip::before{content:"";position:absolute;left:9px;top:calc(100% + 2px);z-index:41;width:9px;height:9px;transform:rotate(45deg);background:var(--paper);border-left:1px solid var(--line);border-top:1px solid var(--line);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease .25s,visibility 0s linear .37s}
+.ytt-tip:hover::after,.ytt-tip:hover::before{opacity:1;visibility:visible;transition-delay:.25s,0s}
+.ytt-tip.tipR::after{left:auto;right:0}
+.ytt-tip.tipR::before{left:auto;right:9px}
 .wsch-period{display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-shrink:0}
 .wsch-period select{appearance:none;background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:6px 10px;font-size:12.5px;font-family:inherit}
 .wsch-list{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px;flex:1}
@@ -4509,6 +4515,52 @@ export default function App({ session }) {
           .map((a) => ({ a, open: (a.constraints || []).filter((c) => !c.done), c1: present(a, yOff), c2: present(a, todayOffset), c3: present(a, mOff) }))
           .sort((x, y) => (y.open.length > 0) - (x.open.length > 0) || (y.a.committed ? 1 : 0) - (x.a.committed ? 1 : 0) || (x.a.startOff - y.a.startOff));
         const dShort = (off) => addDays(anchor, off).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+        // REV347: commence date on hover. dLong drops the en-GB comma so the tooltip reads
+        // "Mon 27 Jul 2026". isoLong takes actualStart / actualFinish, which are stored as
+        // ISO date strings, and falls back to the raw value rather than printing an error.
+        const dLong = (off) => addDays(anchor, off).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).replace(",", "");
+        const isoLong = (iso) => { const d = new Date(String(iso) + "T00:00:00"); return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).replace(",", ""); };
+        const plural = (n, w) => n + " " + w + (Math.abs(n) === 1 ? "" : "s");
+        // The promise. Where an actual start exists it is shown and compared against plan.
+        // Where the planned start has passed with nothing logged, say so rather than implying
+        // the work began: that gap is itself the question to put to the contractor.
+        const willTip = (a) => {
+          const L = ["Committed promise"];
+          const planned = addDays(anchor, a.startOff);
+          if (a.actualStart) {
+            const ad = new Date(String(a.actualStart) + "T00:00:00");
+            L.push("Commenced " + isoLong(a.actualStart));
+            if (!isNaN(ad.getTime())) {
+              const v = Math.round((ad.getTime() - planned.getTime()) / 86400000);
+              if (v > 0) L.push("Planned " + dLong(a.startOff) + ", started " + plural(v, "day") + " late");
+              else if (v < 0) L.push("Planned " + dLong(a.startOff) + ", started " + plural(-v, "day") + " early");
+              else L.push("Started on plan");
+            }
+          } else if (a.startOff > todayOffset) {
+            L.push("Commences " + (a.startOff === todayOffset + 1 ? "tomorrow, " : "") + dLong(a.startOff));
+          } else if (a.startOff === todayOffset) {
+            L.push("Commences today, " + dLong(a.startOff));
+          } else {
+            L.push("Planned start " + dLong(a.startOff));
+            L.push("No actual start recorded");
+          }
+          return L.join("\n");
+        };
+        // The window. Attached to the status badge, which every card has, so cards with no
+        // will chip are still covered. Days are calendar days and are labelled as such.
+        const badgeTip = (a) => {
+          if (a.isMilestone) return "Milestone\n" + dLong(a.startOff);
+          const span = (a.endOff - a.startOff) + 1;
+          let line2 = plural(span, "calendar day");
+          if (todayOffset < a.startOff) line2 += ", starts in " + plural(a.startOff - todayOffset, "day");
+          else if (todayOffset > a.endOff) line2 += ", window ended " + plural(todayOffset - a.endOff, "day") + " ago";
+          else line2 += ", day " + ((todayOffset - a.startOff) + 1) + " of " + span;
+          const L = [dLong(a.startOff) + " to " + dLong(a.endOff), line2];
+          if (a.actualStart) L.push("Actual start " + isoLong(a.actualStart));
+          else if (a.startOff <= todayOffset) L.push("No actual start recorded");
+          if (a.actualFinish) L.push("Actual finish " + isoLong(a.actualFinish));
+          return L.join("\n");
+        };
         const G = 12;
         const stC = { done: "var(--st-done)", overdue: "var(--st-over)", due: "var(--st-warn)", starts: "var(--st-ok)", ongoing: "var(--accent)" };
         const badgeSt = { done: { color: "var(--st-done)", border: "1px solid color-mix(in srgb, var(--st-done) 50%, transparent)", background: "transparent", opacity: 0.85 }, overdue: { color: "var(--st-over-ink)", background: "var(--st-over)" }, due: { color: "var(--st-warn-ink)", background: "var(--st-warn)" }, starts: { color: "var(--st-ok-ink)", background: "var(--st-ok)" }, ongoing: { color: "#fff", background: "#2456A6" } };
@@ -4616,13 +4668,13 @@ export default function App({ session }) {
                       {a.endOff > mOff && !a.isMilestone && <span style={{ position: "absolute", right: 3, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", fontSize: 12 }}>{"\u203a"}</span>}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                         <div className="ytt-card-desc" onClick={() => setEditing({ ...a })}>{a.isMilestone ? "\u25C6 " : ""}{a.desc || "Untitled"}</div>
-                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".3px", padding: "3px 9px", borderRadius: 6, whiteSpace: "nowrap", flex: "none", ...badgeSt[st] }}>{stTxt}</span>
+                        <span className="ytt-tip tipR" data-tip={badgeTip(a)} style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".3px", padding: "3px 9px", borderRadius: 6, whiteSpace: "nowrap", flex: "none", ...badgeSt[st] }}>{stTxt}</span>
                         <button className="lk-btn icon" title={yttEx[a.id] ? "Collapse" : "Percent and daily updates"} style={{ flex: "none", width: 22, height: 20, padding: 0, fontSize: 9, color: yttEx[a.id] ? "var(--accent)" : "var(--muted)", borderColor: yttEx[a.id] ? "var(--accent)" : undefined, transform: yttEx[a.id] ? "rotate(180deg)" : "none" }} onClick={(e) => { e.stopPropagation(); yttToggle(a); }}>{"\u25BC"}</button>
                       </div>
                       <div className="ytt-card-meta">
                         <span className="dot" style={{ background: a.status === "complete" ? "#9AA6B2" : open.length ? "var(--st-warn)" : "var(--st-done)" }} />
                         {missed && <span className="lk-chip late">missed</span>}
-                        {a.committed && <span className="lk-chip commit">will</span>}
+                        {a.committed && <span className="lk-chip commit ytt-tip" data-tip={willTip(a)}>will</span>}
                         {a.witnessInvite && <span className="lk-chip wit">WIT</span>}
                         {a.status === "complete" && <span style={{ color: "var(--st-done)", fontWeight: 700 }}>done</span>}
                         {a.percent != null && <span style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", border: "1px solid rgba(91,155,243,.4)", borderRadius: 5, padding: "1px 6px" }}>{a.percent}%</span>}
