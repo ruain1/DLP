@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV353",
+    "date": "2026-07-26",
+    "items": [
+      "Fixed the AI summary contradicting itself. It would name MV Energisation as blocking eight activities in one bullet, then in the next two tell Schneider to clear two of those same eight. The cause: a blocked activity still appeared unmarked in the overdue list and the pushing list handed to the model, and its blocked state was only mentioned separately further down.",
+      "Every mention of a blocked activity in the facts now carries the marker. Overdue items are split into the holder's own slip and a separate blocked group carrying an explicit instruction that those holders cannot proceed and must not be told to clear, progress, expedite or protect a date. Items due to finish, starting today and starting tomorrow are marked in place, and a pushing pair whose late activity is itself blocked now says so.",
+      "The summary prompt gains a matching absolute rule, above the author instruction: where the facts mark an activity blocked, never direct the action at its holder; report it as held, name what it is waiting on, and direct the action at the blocking activity and its owner."
+    ]
+  },
+  {
     "rev": "REV352",
     "date": "2026-07-26",
     "items": [
