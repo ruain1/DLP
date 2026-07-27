@@ -10260,6 +10260,7 @@ function ScheduledReports({ S, update }) {
   const [revHtml, setRevHtml] = useState("");
   const [revBusy, setRevBusy] = useState("");
   const [revMsg, setRevMsg] = useState(null);
+  const [revMode, setRevMode] = useState("draft");   // REV354: "draft" reviews a parked scheduled run; "adhoc" previews a send you are about to make now
   const [dcfg, setDcfg] = useState(null);      // REV315: daily/weekly digest config (on/off + time)
   const [drDaily, setDrDaily] = useState(false);
   const [drWeekly, setDrWeekly] = useState(false);
@@ -10384,7 +10385,19 @@ function ScheduledReports({ S, update }) {
   // REV349: reviewing a parked morning draft. Every path rebuilds the email from the text in
   // the box via assembleMorning's aiOverride, so what is previewed is what is sent.
   const morningDue = () => { const m = mrRef.current; const bs = (m && cfg) ? m.morningBoundaries(new Date(), 9 * 24, { ...cfg, enabled: true }) : []; return bs.length ? bs[bs.length - 1].due : new Date(); };
-  const openReview = () => { if (!draft) return; setRevText(draft.narrative || ""); setRevHtml(draft.html || ""); setRevMsg(null); setRevOpen(true); };
+  const openReview = () => { if (!draft) return; setRevMode("draft"); setRevText(draft.narrative || ""); setRevHtml(draft.html || ""); setRevMsg(null); setRevOpen(true); };
+  // REV354: preview and edit before sending, without waiting for a scheduled run to park a
+  // draft. Assembles the email exactly as the send does, then opens the same review window.
+  // Nothing is written to report_runs until Send now, so closing this costs nothing and it
+  // doubles as the way to see what your prompt produces before tomorrow morning.
+  const openAdhoc = async () => {
+    setBusy("morningPrev"); setMsg(null);
+    try {
+      const asm = await assembleMorning(S, morningDue());
+      setRevMode("adhoc"); setRevText(asm.ai || ""); setRevHtml(asm.html); setRevMsg(null); setRevOpen(true);
+    } catch (e) { setMsg({ ok: false, text: (e && e.message) || String(e) }); }
+    setBusy(null);
+  };
   const draftGraceLine = () => {
     const g = Number((cfg && cfg.reviewGrace) || 0);
     if (!g) return "It will not send until you send it: auto-send is set to Never.";
@@ -10404,8 +10417,24 @@ function ScheduledReports({ S, update }) {
       const asm = await assembleMorning(S, morningDue(), { aiOverride: revText });
       const rr = await resolveMorningRecipients(S);
       if (!rr.recipients.length) throw new Error("no recipient email addresses resolved");
+      // REV354: an ad hoc send has no parked row yet, so claim one the same way the manual
+      // Send now path does, including the already-sent guard. A draft review updates its row.
+      let rowId = draft ? draft.id : null;
+      if (revMode === "adhoc") {
+        const core = await import("./digestCore");
+        const runDate = core.helDateStr(morningDue());
+        const ex = await supabase.from("report_runs").select("id, status, sent_at").eq("project_id", S.projectId).eq("kind", "morning").eq("run_date", runDate).maybeSingle();
+        if (ex.data) {
+          if (ex.data.status === "sent" && !window.confirm("The morning update for " + runDate + " was already sent at " + new Date(ex.data.sent_at).toLocaleString("en-GB") + ".\n\nSend it again?")) { setRevBusy(""); return; }
+          rowId = ex.data.id;
+        } else {
+          const claim = await claimReportRun(supabase, "morning", runDate, { projectId: S.projectId });
+          if (claim.error) throw new Error(claim.transport ? "Could not reach the database to claim the run (a connection blip). Check your network and retry." : "claim failed");
+          rowId = claim.id || null;
+        }
+      }
       await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
-      await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, narrative: revText, subject: asm.subject, html: asm.html, detail: asm.subject + " \u00b7 reviewed and sent by " + a.username }).eq("id", draft.id);
+      if (rowId) await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, narrative: revText, subject: asm.subject, html: asm.html, detail: asm.subject + " \u00b7 reviewed and sent by " + a.username }).eq("id", rowId);
       setRevOpen(false); setDraft(null);
       setMsg({ ok: true, text: "Morning Cx Update sent to " + rr.recipients.length + " recipient" + (rr.recipients.length === 1 ? "" : "s") + "." + (rr.missing.length ? " " + rr.missing.length + " member(s) have no email address." : "") });
       load();
@@ -10505,25 +10534,25 @@ function ScheduledReports({ S, update }) {
         <span style={{ flex: 1, fontSize: 12, color: "var(--ink)" }}><b style={{ display: "block", fontSize: 12.5, marginBottom: 1 }}>Morning Cx Update is drafted and waiting for review</b><span style={{ color: "var(--muted)" }}>{draftGraceLine()}</span></span>
         <button className="lk-btn primary" style={{ fontSize: 11.5, padding: "6px 13px", flex: "none" }} onClick={openReview}>Review</button>
       </div>}
-      {revOpen && draft && <div className="lk-modal-bg" onClick={() => setRevOpen(false)}>
+      {revOpen && (draft || revMode === "adhoc") && <div className="lk-modal-bg" onClick={() => setRevOpen(false)}>
         <div className="lk-card" style={{ width: "min(900px, 95vw)", maxHeight: "92vh", overflow: "auto", padding: 18, borderRadius: 14 }} onClick={(e) => e.stopPropagation()}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-            <div><h3 style={{ margin: 0, fontSize: 15 }}>Morning Cx Update {"\u00b7"} review</h3>
-              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{draft.run_date} {"\u00b7"} {draftGraceLine()}</div></div>
+            <div><h3 style={{ margin: 0, fontSize: 15 }}>Morning Cx Update {"\u00b7"} {revMode === "adhoc" ? "preview and send" : "review"}</h3>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{revMode === "adhoc" ? "Nothing has been sent. Edit the narrative, update the preview, then send when it reads right." : (draft.run_date + " \u00b7 " + draftGraceLine())}</div></div>
             <button className="lk-btn icon" onClick={() => setRevOpen(false)}><Icon n="x" /></button>
           </div>
           <label style={fld}>Narrative {"\u00b7"} edit freely</label>
           <textarea className="lk-in" rows={12} value={revText} onChange={(e) => setRevText(e.target.value)} style={{ width: "100%", resize: "vertical", fontSize: 12, lineHeight: 1.55 }} />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted)", marginTop: 5 }}>
-            <span>{revText === (draft.narrative || "") ? "Unchanged from the generated draft" : "Edited from the generated draft"}</span>
+            <span>{revText === ((draft && draft.narrative) || "") ? "Unchanged from the generated draft" : "Edited from the generated draft"}</span>
             <span>{revText.length} characters</span>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
             <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy} onClick={revRegen}>{revBusy === "regen" ? "Regenerating..." : "Regenerate"}</button>
-            <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy || revText === (draft.narrative || "")} onClick={() => setRevText(draft.narrative || "")}>Revert to generated</button>
+            <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy || !draft || revText === (draft.narrative || "")} onClick={() => setRevText((draft && draft.narrative) || "")}>Revert to generated</button>
             <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy} onClick={revPreview}>{revBusy === "prev" ? "Building..." : "Update preview"}</button>
             <span style={{ flex: 1 }} />
-            <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy} onClick={revSkip}>{revBusy === "skip" ? "Skipping..." : "Skip today"}</button>
+            {draft && <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy} onClick={revSkip}>{revBusy === "skip" ? "Skipping..." : "Skip today"}</button>}
             <button className="lk-btn primary" style={{ fontSize: 11.5, padding: "6px 14px" }} disabled={!!revBusy} onClick={revSend}>{revBusy === "send" ? "Sending..." : "Send now"}</button>
           </div>
           {revMsg && <div style={{ marginTop: 9, fontSize: 11.5, color: revMsg.ok ? "var(--st-done)" : "var(--st-over)" }}>{revMsg.text}</div>}
@@ -10540,7 +10569,7 @@ function ScheduledReports({ S, update }) {
             <span>{lastLine("morning")}</span>
             {draft && <span style={{ color: "var(--st-warn)", fontWeight: 700 }}>Awaiting review {"\u00b7"} {draftGraceLine()}</span>}
           </>}
-          actions={<>{act("Configure", () => setDrOpen(true))}{draft ? act("Review and send", openReview, true) : null}<span style={{ flex: 1 }} />{act("Test", () => sendMorning(true), false, busy === "morningTest")}{act(busy === "morning" ? "Sending..." : "Send now", () => sendMorning(false), true, !!busy)}</>} />
+          actions={<>{act("Configure", () => setDrOpen(true))}{draft ? act("Review and send", openReview, true) : act(busy === "morningPrev" ? "Building..." : "Preview and send", openAdhoc, true, busy === "morningPrev")}<span style={{ flex: 1 }} />{act("Test", () => sendMorning(true), false, busy === "morningTest")}{act(busy === "morning" ? "Sending..." : "Send now", () => sendMorning(false), true, !!busy)}</>} />
         <ReportTile glyph={"\u263D"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Daily Digest" state={!!dcfg.daily.enabled}
           lines={<>
             <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{dcfg.daily.time}</b> Helsinki {"\u00b7"} every day {"\u00b7"} admins</span>
