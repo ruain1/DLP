@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV348",
+    "date": "2026-07-26",
+    "items": [
+      "Fixed the Morning Cx Update ignoring the AI instructions. The summary prompt carried the fact rules and the house writing style in a single paragraph, and that house style is a concrete specification for a blocker-first chase list. An author instruction appended after it could not win, so a request for a positive tone still produced a chase list.",
+      "The prompt is now tiered. Absolute rules (no invented or altered figure, date or name, nothing outside the supplied facts, no markdown, no em or en dashes) come first and override everything. The house style, including the escalation verbs and the blockers-first ordering, is now an explicit default that applies only where the author instruction is silent. The author instruction comes last, in its own block, governs tone, voice, emphasis, ordering and format outright, and is re-read and checked before the model answers.",
+      "One rule deliberately sits above the author instruction: an overdue item, missed commitment or open constraint is never omitted, buried or softened away to satisfy a requested tone. Tone governs how a fact is framed, never whether it appears.",
+      "The AI instructions box now accepts 2000 characters instead of 320, with a live character count. The old limit was also inconsistent with the pipeline behind it, which already allowed 400; all three enforcement points now agree at 2000. The box is taller and the placeholder shows a fuller example.",
+      "This revision changes the super-action Edge Function as well as the app. The Edge Function must be deployed separately; a push to main updates the app only."
+    ]
+  },
+  {
     "rev": "REV347",
     "date": "2026-07-26",
     "items": [
