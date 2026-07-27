@@ -77,6 +77,7 @@ const MORNING_HARD = [
   "- Do not add, remove, or change any number, percentage, date, or proper noun.",
   "- Do not introduce any figure, activity, company, or fact that is not in the supplied facts.",
   "- Never omit, bury, or soften away an overdue item, a missed commitment, or an open constraint in order to satisfy a requested tone. Tone governs how a fact is framed, never whether it appears.",
+  "- Where the facts mark an activity BLOCKED or waiting on a predecessor, never tell its holder to clear it, progress it, expedite it, show visible progress on it, or protect a date with it. They cannot: something upstream is not finished. Report it as held, name what it is waiting on, and direct the action at that blocking activity and its owner instead. Do not describe such an activity as the holder's slip or use it to press that company.",
   "- Do not use markdown (no #, no **bold**, no backticks). Plain text with simple dash bullets only.",
   "- Do not use em dashes or en dashes. Use commas, full stops, semicolons, colons, parentheses, or hyphens.",
   "- Return only the summary itself. No preamble, no sign-off, no quotation marks.",
