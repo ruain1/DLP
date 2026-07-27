@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV352",
+    "date": "2026-07-26",
+    "items": [
+      "Correctness fix: predecessor links never resolved. The predecessors field stores activity id UUIDs, but REV350 and REV351 matched them against the integer activity code. A UUID can never equal an integer, so predecessor-aware reporting silently found nothing on real data and the Clear these first section could never appear.",
+      "The same fault was present in the original REV277 pushing-pair logic, which also matched on code alone. The at risk, predecessor tags it drives have therefore never fired since they were written.",
+      "Both now resolve a predecessor by id, falling back to code for any legacy row. Supporting both costs nothing because a UUID cannot collide with an integer code. Verified directly against the FIN04 database: every stored predecessor value resolves against activities.id and none against activities.code.",
+      "Also deployed in this revision: the REV348 super-action Edge Function, which had been committed but never deployed, so the tiered morning summary prompt was not yet live."
+    ]
+  },
+  {
     "rev": "REV351",
     "date": "2026-07-26",
     "items": [
