@@ -17,6 +17,9 @@ export const MORNING_DEFAULTS = {
   // accepts that a morning nobody reviews goes out with no email at all.
   review: false,
   reviewGrace: 60,
+  // REV350: separate knock-on delays. When on, an overdue activity whose own predecessor is
+  // still open leaves Overdue finishes and is reported under what is holding it instead.
+  splitHeld: false,
   // REV326: morning meeting attendance. companies is the invited list with domain
   // mappings; showAbsent controls whether absent companies are named in the email.
   attendance: { showAbsent: true, companies: [] },
@@ -54,6 +57,25 @@ const dd = (s) => pD(s).toLocaleDateString("en-GB", { day: "2-digit", month: "sh
 const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const MID = " \u00b7 ";
 
+// REV350: the single predecessor test. Exported deliberately: the board, the YTT drawer and
+// the Delayed KPI each carry their own delay logic already, and adopting this rule there must
+// be an import rather than a fifth reimplementation. isClosedActivity mirrors the closedA rule
+// used throughout this file: complete, failed outcome, or reported 100 percent.
+export function isClosedActivity(a) {
+  if (!a) return true;
+  const pct = a.percent != null ? Math.max(0, Math.min(100, Math.round(a.percent))) : (a.status === "complete" ? 100 : 0);
+  return a.status === "complete" || String(a.outcome || "").toLowerCase() === "failed" || pct >= 100;
+}
+// Predecessors are stored as an array of activity codes, matched against another activity's
+// code. An activity with no links, or links to codes that were never imported, returns an
+// empty list and is therefore treated as an ordinary slip. That is the safe direction to fail:
+// missing link data can only ever leave an item flagged, never hide one.
+export function openPredecessors(a, activities) {
+  const preds = (a && Array.isArray(a.predecessors) ? a.predecessors : []).map(String);
+  if (!preds.length) return [];
+  return (activities || []).filter((x) => x && x.code != null && preds.includes(String(x.code)) && !isClosedActivity(x));
+}
+
 export function morningData(St, due, updates) {
   const today = helDateStr(due);
   const co = {}; (St.companies || []).forEach((c) => { co[c.id] = c.name; });
@@ -76,7 +98,24 @@ export function morningData(St, due, updates) {
   const confirm100 = rows.filter((r) => r.a.status !== "complete" && !failedA(r) && pctOfA(r.a) >= 100 && r.e >= weekAgo);
   const finishing = live.filter((r) => r.e === today);
   const overdueAll = live.filter((r) => r.e < today);
-  const overdue = overdueAll.filter((r) => r.e >= weekAgo);
+  // REV350: knock-on separation. An activity whose predecessor is still open cannot have
+  // finished, so reporting it as an overdue finish names its holder for something upstream.
+  // Nothing is dropped: held rows move to their own list and the Overdue heading carries the
+  // count. Off by default, so the lists are byte-identical to REV349 unless it is switched on.
+  const acts350 = (St.activities || []);
+  const daysLate = (endIso) => Math.max(1, Math.round((pD(today).getTime() - pD(endIso).getTime()) / 86400000));
+  const splitHeld = !!morningCfg(St.settings || {}).splitHeld;
+  const heldOf = (r) => openPredecessors(r.a, acts350).map((p) => {
+    const pr = rows.find((x) => x.a.id === p.id) || null;
+    return { desc: p.desc || "Untitled", co: pr ? pr.co : "Unassigned", late: (pr && pr.e < today) ? daysLate(pr.e) : 0 };
+  });
+  const held = splitHeld
+    ? overdueAll.map((r) => ({ ...r, blockers: heldOf(r), heldDays: daysLate(r.e) })).filter((r) => r.blockers.length > 0)
+        .sort((x, y) => y.heldDays - x.heldDays)
+    : [];
+  const heldIds = new Set(held.map((r) => r.a.id));
+  const overdueOwn = splitHeld ? overdueAll.filter((r) => !heldIds.has(r.a.id)) : overdueAll;
+  const overdue = overdueOwn.filter((r) => r.e >= weekAgo);
   const starting = live.filter((r) => r.s === today && r.e !== today);
   const inProgress = live.filter((r) => r.s <= today && r.e >= today);
   const yday = iso(addD(pD(today), -1));
@@ -120,7 +159,7 @@ export function morningData(St, due, updates) {
     const withPct = items.filter((u) => u.pct != null);
     return { desc: r ? (r.a.desc || "Untitled") : "(removed activity)", pct: withPct.length ? withPct[withPct.length - 1].pct : null, items };
   });
-  return { today, yday, tmrw, yDone, yMissed, tStart, tDue, pushing, counts: { inProgress: inProgress.length, finishing: finishing.length, overdue: overdueAll.length, starting: starting.length, cons: consRows.length }, finishing, overdue, overdueOlder: overdueAll.length - overdue.length, starting, consRows, witness, witnessDropped, confirm100, upRows };
+  return { today, yday, tmrw, yDone, yMissed, tStart, tDue, pushing, counts: { inProgress: inProgress.length, finishing: finishing.length, overdue: overdueAll.length, starting: starting.length, cons: consRows.length }, finishing, overdue, held, overdueOlder: overdueOwn.length - overdue.length, starting, consRows, witness, witnessDropped, confirm100, upRows };
 }
 
 // REV277: the compact plaintext facts sheet the AI summary is written from. Every
@@ -131,6 +170,9 @@ export function buildMorningAiFacts(d) {
   L.push("Date: " + d.today + ". Counts: " + c.inProgress + " in progress, " + c.finishing + " finishing today, " + c.overdue + " overdue, " + c.starting + " starting today, " + c.cons + " open constraints.");
   const act = (r) => (r.a.desc || "Untitled") + " (" + r.co + (r.a.percent != null ? ", " + r.a.percent + "%" : "") + ")";
   if (d.overdue.length) L.push("Overdue finishes: " + d.overdue.slice(0, 10).map((r) => act(r) + " was due " + r.e).join("; ") + (d.overdueOlder ? "; plus " + d.overdueOlder + " older than a week" : "") + ".");
+  // REV350: held items are given to the model as held, with their blocker named, so the
+  // summary does not chase a contractor for a delay that is upstream of them.
+  if (d.held && d.held.length) L.push("Waiting on predecessors, not the holder's own slip: " + d.held.slice(0, 10).map((r) => act(r) + " held " + r.heldDays + " day" + (r.heldDays === 1 ? "" : "s") + ", waiting on " + r.blockers.map((b) => b.desc + " (" + b.co + ")").join(" and ")).join("; ") + ".");
   if (d.finishing.length) L.push("Due to finish today: " + d.finishing.slice(0, 8).map((r) => act(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : " clear")).join("; ") + ".");
   if (d.starting.length) L.push("Starting today: " + d.starting.slice(0, 8).map(act).join("; ") + ".");
   if (d.tStart.length) L.push("Starting tomorrow: " + d.tStart.slice(0, 8).map((r) => act(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : "")).join("; ") + ".");
@@ -154,6 +196,19 @@ function actLine(r, extraRight) {
   const mile = r.a.isMilestone ? "\u25C6 " : "";
   const right = extraRight ? `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; ${extraRight.style}">${esc(extraRight.text).replace(/ /g, "&#160;")}</td>` : "";
   return `<tr><td style="padding:5px 0; font-size:12pt; font-family:${MR_FF};">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}${esc(pct)}</span></td>${right}</tr>`;
+}
+
+// REV350: a held row carries a second line naming what is holding it. actLine cannot do
+// this (single row, no sub-line), and the blocker is the whole point of the section.
+function heldLine(r) {
+  const mile = r.a.isMilestone ? "\u25C6 " : "";
+  const bl = (r.blockers || []);
+  const shown = bl.slice(0, 2).map((b) => esc(b.desc) + " (" + esc(b.co) + ")" + (b.late ? ", itself " + b.late + " day" + (b.late === 1 ? "" : "s") + " late" : "")).join("; ");
+  const extra = bl.length > 2 ? " and " + (bl.length - 2) + " more" : "";
+  const right = esc("held " + r.heldDays + " day" + (r.heldDays === 1 ? "" : "s")).replace(/ /g, "&#160;");
+  return `<tr><td style="padding:5px 0 1px; font-size:12pt; font-family:${MR_FF};">${mile}${esc(r.a.desc || "Untitled")} <span style="color:#68727f;">${MID}${esc(r.co)}</span></td>`
+    + `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; color:#68727f;">${right}</td></tr>`
+    + `<tr><td colspan="2" style="padding:0 0 6px; font-size:10.5pt; font-family:${MR_FF}; color:#8a6100;">waiting on ${shown}${extra}</td></tr>`;
 }
 
 // REV326: the Morning meeting attendance section. att comes from
@@ -282,10 +337,16 @@ export function buildMorningEmail(d, cfg, meta) {
       ? { text: r.open.length + " open constraint" + (r.open.length === 1 ? "" : "s"), style: "color:#C0392B;" }
       : { text: "clear", style: "color:#1e8e63;" })).join("") + moreLine(more, "finishing today"));
   }
+  const held350 = (d.held || []);
   if (sec.overdue !== false && d.overdue.length) {
     const [rowsO, more] = cap(d.overdue, 14);
-    body += secHead("Overdue finishes", "#C0392B") + rowsWrap(rowsO.map((r) => actLine(r, { text: "was " + dd(r.e), style: "color:#C0392B;" })).join("")
+    const hd = held350.length ? "Overdue finishes (" + d.overdue.length + ", plus " + held350.length + " waiting on predecessors)" : "Overdue finishes";
+    body += secHead(hd, "#C0392B") + rowsWrap(rowsO.map((r) => actLine(r, { text: "was " + dd(r.e), style: "color:#C0392B;" })).join("")
       + moreLine(more, "in the last week") + moreLine(d.overdueOlder, "older than a week"));
+  }
+  if (sec.overdue !== false && held350.length) {
+    const [rowsH, moreH] = cap(held350, 10);
+    body += secHead("Waiting on predecessors", "#8a6100") + rowsWrap(rowsH.map(heldLine).join("") + moreLine(moreH, "waiting on predecessors"));
   }
   if (sec.ytt === false && sec.starting !== false && d.starting.length) {
     const [rowsS, more] = cap(d.starting, 14);
