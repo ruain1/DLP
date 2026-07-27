@@ -189,14 +189,26 @@ export function buildMorningAiFacts(d) {
   const c = d.counts;
   L.push("Date: " + d.today + ". Counts: " + c.inProgress + " in progress, " + c.finishing + " finishing today, " + c.overdue + " overdue, " + c.starting + " starting today, " + c.cons + " open constraints.");
   const act = (r) => (r.a.desc || "Untitled") + " (" + r.co + (r.a.percent != null ? ", " + r.a.percent + "%" : "") + ")";
-  if (d.overdue.length) L.push("Overdue finishes: " + d.overdue.slice(0, 10).map((r) => act(r) + " was due " + r.e).join("; ") + (d.overdueOlder ? "; plus " + d.overdueOlder + " older than a week" : "") + ".");
+  // REV353: the roll-up alone was not enough. A blocked activity still appeared, unmarked, in
+  // the overdue list and the pushing list, so the model chased its holder there and named the
+  // real blocker only in a separate line. The result contradicted itself: one bullet said MV
+  // Energisation was holding eight activities, the next two told Schneider to clear two of
+  // them. Every mention now carries the marker, and blocked items are stated separately with
+  // an explicit instruction not to direct action at their holder.
+  const bmap = d.blockedMap || {};
+  const blk = (r) => bmap[r.a.id];
+  const blkTxt = (r) => { const b = blk(r); return b ? b.map((x) => x.desc + " (" + x.co + ")").join(" and ") : ""; };
+  const actB = (r) => act(r) + (blk(r) ? " [BLOCKED, waiting on " + blkTxt(r) + "]" : "");
+  const odOwn = d.overdue.filter((r) => !blk(r)), odBlk = d.overdue.filter((r) => blk(r));
+  if (odOwn.length) L.push("Overdue finishes, the holder's own slip and theirs to answer for: " + odOwn.slice(0, 10).map((r) => act(r) + " was due " + r.e).join("; ") + (d.overdueOlder ? "; plus " + d.overdueOlder + " older than a week" : "") + ".");
+  if (odBlk.length) L.push("Overdue BUT BLOCKED. These holders cannot proceed. Do not tell them to clear, progress, expedite or make visible progress on these; the action belongs to the blocking activity and its owner: " + odBlk.slice(0, 10).map((r) => act(r) + " was due " + r.e + ", waiting on " + blkTxt(r)).join("; ") + ".");
   // REV351: the model is told what is blocking what, grouped by blocker, so the summary can
   // push the one activity that unlocks several rather than chasing each held item separately.
   if (d.clearFirst && d.clearFirst.length) L.push("Clear these first, each holding other work: " + d.clearFirst.slice(0, 6).map((b) => b.desc + " (" + b.co + ")" + (b.late ? ", " + b.late + " day" + (b.late === 1 ? "" : "s") + " late" : ", in progress") + ", holding " + b.holding.length + " activit" + (b.holding.length === 1 ? "y" : "ies") + ": " + b.holding.map((h) => h.desc).join(", ")).join("; ") + ".");
-  if (d.finishing.length) L.push("Due to finish today: " + d.finishing.slice(0, 8).map((r) => act(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : " clear")).join("; ") + ".");
-  if (d.starting.length) L.push("Starting today: " + d.starting.slice(0, 8).map(act).join("; ") + ".");
-  if (d.tStart.length) L.push("Starting tomorrow: " + d.tStart.slice(0, 8).map((r) => act(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : "")).join("; ") + ".");
-  if (d.pushing.length) L.push("Late activities pushing successors: " + d.pushing.slice(0, 8).map((pp) => (pp.from.a.desc || "?") + " (" + pp.from.co + ", " + pp.late + "d late) pushes " + (pp.to.a.desc || "?") + " which starts " + pp.to.s).join("; ") + ".");
+  if (d.finishing.length) L.push("Due to finish today: " + d.finishing.slice(0, 8).map((r) => actB(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : " clear")).join("; ") + ".");
+  if (d.starting.length) L.push("Starting today: " + d.starting.slice(0, 8).map(actB).join("; ") + ".");
+  if (d.tStart.length) L.push("Starting tomorrow: " + d.tStart.slice(0, 8).map((r) => actB(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : "")).join("; ") + ".");
+  if (d.pushing.length) L.push("Late activities pushing successors: " + d.pushing.slice(0, 8).map((pp) => (pp.from.a.desc || "?") + " (" + pp.from.co + ", " + pp.late + "d late" + (blk(pp.from) ? ", ITSELF BLOCKED by " + blkTxt(pp.from) + ", so the push is not its holder's to fix" : "") + ") pushes " + (pp.to.a.desc || "?") + " which starts " + pp.to.s).join("; ") + ".");
   if (d.consRows.length) L.push("Open constraints: " + d.consRows.slice(0, 10).map((k) => k.text + " (" + (k.owner || "unowned") + (k.due ? ", was needed " + k.due : "") + ", on " + k.act + ")").join("; ") + ".");
   if (d.witness.length) L.push("Witness events today: " + d.witness.map((r) => (r.a.desc || "?") + " (" + r.co + ")").join("; ") + ".");
   if ((d.witnessDropped || []).length) L.push("Witness sessions not going ahead today: " + d.witnessDropped.slice(0, 8).map((r) => (r.a.desc || "?") + " (" + r.co + ", " + (r.reason === "failed" ? "failed, retest to follow" : r.reason + (r.when ? " " + r.when : "")) + (r.inviteLive ? ", invite still live" : "") + ")").join("; ") + ".");
