@@ -3564,6 +3564,17 @@ export default function App({ session }) {
         try {
           const asm = b.kind === "morning" ? await assembleMorning(St, b.due) : await assembleDigest(core, St, b.kind, b.due);
           const subject = asm.subject, html = asm.html;
+          // REV349: review before sending. The run is assembled exactly as it would be to send,
+          // then parked as a draft. The claim row already exists so this boundary will not fire
+          // again; the failsafe sweep further down is what eventually releases it.
+          if (b.kind === "morning" && !test && claimId) {
+            const mrev = (await import("./morningReport")).morningCfg(St.settings || {});
+            if (mrev.review) {
+              await supabase.from("report_runs").update({ status: "draft", drafted_at: new Date().toISOString(), subject: subject, html: html, narrative: asm.ai || "", detail: subject }).eq("id", claimId);
+              setDigestNote({ ok: true, text: "Morning Cx Update is drafted and waiting for review." });
+              continue;
+            }
+          }
           const rr = b.kind === "morning" ? await resolveMorningRecipients(St) : await resolveDigestRecipients(St);
           const missing = rr.missing;
           let recipients = rr.recipients;
@@ -3582,6 +3593,31 @@ export default function App({ session }) {
           }
           break;
         }
+      }
+      // REV349: the failsafe. A review gate that can silently swallow the morning email is
+      // worse than no gate, so an unreviewed draft releases itself once the grace window has
+      // passed. It sends the html exactly as drafted, which is the version the reviewer would
+      // have seen. Wrapped so a sweep failure can never stop the scheduler doing its real job.
+      if (!test) {
+        try {
+          const St2 = digestRef.current.S;
+          if (St2 && St2.projectId) {
+            const mrev = (await import("./morningReport")).morningCfg(St2.settings || {});
+            const grace = Number(mrev.reviewGrace);
+            if (mrev.enabled && mrev.review && grace > 0) {
+              const q = await supabase.from("report_runs").select("id, status, drafted_at, subject, html").eq("project_id", St2.projectId).eq("kind", "morning").eq("status", "draft").order("run_date", { ascending: false }).limit(1).maybeSingle();
+              const d = q.data;
+              if (d && d.drafted_at && d.html && (Date.now() - new Date(d.drafted_at).getTime()) >= grace * 60000) {
+                const rr = await resolveMorningRecipients(St2);
+                if (rr.recipients.length) {
+                  await ol.sendMailMessage({ subject: d.subject, html: d.html, to: rr.recipients });
+                  await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, detail: (d.subject || "") + " \u00b7 auto-sent, not reviewed" }).eq("id", d.id);
+                  setDigestNote({ ok: true, text: "Morning Cx Update auto-sent to " + rr.recipients.length + " recipient" + (rr.recipients.length === 1 ? "" : "s") + ": the review window expired." });
+                }
+              }
+            }
+          }
+        } catch (e) { /* the sweep must never break the scheduler */ }
       }
       if (test) { try { localStorage.removeItem("dlp_digest_test"); } catch (e) { } }
     } finally { digestBusy.current = false; }
@@ -10069,7 +10105,7 @@ function archiveReportHtml(claimId, subject, html) {
   if (!claimId) return;
   try { supabase.from("report_runs").update({ subject: subject || "", html: html || "" }).eq("id", claimId).then(() => {}, () => {}); } catch (e) { }
 }
-async function assembleMorning(St, due) {
+async function assembleMorning(St, due, opts) {
   const m = await import("./morningReport");
   const core = await import("./digestCore");
   const cfg = m.morningCfg(St.settings || {});
@@ -10101,7 +10137,11 @@ async function assembleMorning(St, due) {
   // aiSteer shapes tone and emphasis. Any failure or a slow response degrades to no
   // block: the morning email never waits on the AI and never fails because of it.
   data.ai = "";
-  if (cfg.sections && cfg.sections.ai !== false) {
+  // REV349: when a reviewed narrative is supplied, use it verbatim and do not call the AI.
+  // What was approved is what must send; a fresh generation here would mail text nobody read.
+  const aiOverride = opts && typeof opts.aiOverride === "string" ? opts.aiOverride : null;
+  if (aiOverride !== null) data.ai = aiOverride;
+  else if (cfg.sections && cfg.sections.ai !== false) {
     try {
       const facts = m.buildMorningAiFacts(data);
       // REV299: respect the author's prompt. Default to a tight, bullet-friendly brief for these
@@ -10119,7 +10159,7 @@ async function assembleMorning(St, due) {
   const pline = St.projectMeta ? [St.projectMeta.client, St.projectMeta.location].filter(Boolean).join(" ") : "";
   const { subject, dateLine } = m.morningSubject(pnm || null, due);
   const html = m.buildMorningEmail(data, cfg, { projName: pnm, projLine: pline, dateLine, logoDark: (St.brand && St.brand.logoDark) || "", logoUrl: (St.brand && St.brand.logoUrl) || "", appUrl: window.location.origin + "/?p=" + encodeURIComponent(St.projectId) });
-  return { subject, html, attachments: undefined };
+  return { subject, html, attachments: undefined, ai: data.ai };
 }
 async function resolveMorningRecipients(St) {
   const m = await import("./morningReport");
@@ -10214,6 +10254,12 @@ function ScheduledReports({ S, update }) {
   const [exAll, setExAll] = useState(false);
   const [saved, setSaved] = useState(false);   // REV298: brief confirmation after a save
   const [steerLen, setSteerLen] = useState(null);   // REV348: live length for the AI prompt; null means nothing typed yet, so fall back to the saved value
+  const [draft, setDraft] = useState(null);        // REV349: the morning run parked for review, if any
+  const [revOpen, setRevOpen] = useState(false);
+  const [revText, setRevText] = useState("");
+  const [revHtml, setRevHtml] = useState("");
+  const [revBusy, setRevBusy] = useState("");
+  const [revMsg, setRevMsg] = useState(null);
   const [dcfg, setDcfg] = useState(null);      // REV315: daily/weekly digest config (on/off + time)
   const [drDaily, setDrDaily] = useState(false);
   const [drWeekly, setDrWeekly] = useState(false);
@@ -10233,6 +10279,11 @@ function ScheduledReports({ S, update }) {
       const by = {}; (r.data || []).forEach((x) => { if (!by[x.kind]) by[x.kind] = x; });
       setRuns(by);
     } catch (e) { setRuns({}); }
+    // REV349: the newest morning run still awaiting review, if there is one.
+    try {
+      const dq = await supabase.from("report_runs").select("id, run_date, drafted_at, subject, html, narrative, status").eq("project_id", S.projectId).eq("kind", "morning").eq("status", "draft").order("run_date", { ascending: false }).limit(1).maybeSingle();
+      setDraft(dq.data || null);
+    } catch (e) { setDraft(null); }
     try { const ol = await import("./outlook"); const a = await ol.outlookAccount(); setAcct(a ? a.username : null); } catch (e) { setAcct(null); }
   };
   useEffect(() => { load(); }, []);
@@ -10330,6 +10381,46 @@ function ScheduledReports({ S, update }) {
   const act = (lb, on, primary, dis) => <button key={lb} className={"lk-btn" + (primary ? " primary" : "")} style={{ fontSize: 10.5, padding: "6px 11px" }} disabled={dis} onClick={on}>{lb}</button>;
   const segBtn = (on, lb, click) => <button key={lb} className="lk-btn" style={{ fontSize: 10.5, fontWeight: 700, padding: "5px 12px", borderColor: on ? "var(--accent)" : undefined, color: on ? "var(--accent)" : undefined, background: on ? "rgba(91,155,243,.08)" : "none" }} onClick={click}>{lb}</button>;
   const fld = { display: "block", fontSize: 9, fontWeight: 800, letterSpacing: ".7px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 7 };
+  // REV349: reviewing a parked morning draft. Every path rebuilds the email from the text in
+  // the box via assembleMorning's aiOverride, so what is previewed is what is sent.
+  const morningDue = () => { const m = mrRef.current; const bs = (m && cfg) ? m.morningBoundaries(new Date(), 9 * 24, { ...cfg, enabled: true }) : []; return bs.length ? bs[bs.length - 1].due : new Date(); };
+  const openReview = () => { if (!draft) return; setRevText(draft.narrative || ""); setRevHtml(draft.html || ""); setRevMsg(null); setRevOpen(true); };
+  const draftGraceLine = () => {
+    const g = Number((cfg && cfg.reviewGrace) || 0);
+    if (!g) return "It will not send until you send it: auto-send is set to Never.";
+    if (!draft || !draft.drafted_at) return "It sends automatically once the review window expires.";
+    const mins = Math.round(((new Date(draft.drafted_at).getTime() + g * 60000) - Date.now()) / 60000);
+    return mins > 0 ? ("Sends automatically in " + mins + " minute" + (mins === 1 ? "" : "s") + " if you do nothing.")
+                    : "The review window has passed; it sends on the next scheduler tick.";
+  };
+  const revPreview = async () => { setRevBusy("prev"); setRevMsg(null); try { const asm = await assembleMorning(S, morningDue(), { aiOverride: revText }); setRevHtml(asm.html); } catch (e) { setRevMsg({ ok: false, text: (e && e.message) || String(e) }); } setRevBusy(""); };
+  const revRegen = async () => { setRevBusy("regen"); setRevMsg(null); try { const asm = await assembleMorning(S, morningDue()); setRevText(asm.ai || ""); setRevHtml(asm.html); setRevMsg({ ok: true, text: "Regenerated from this morning's data and your saved prompt." }); } catch (e) { setRevMsg({ ok: false, text: (e && e.message) || String(e) }); } setRevBusy(""); };
+  const revSend = async () => {
+    setRevBusy("send"); setRevMsg(null);
+    try {
+      const ol = await import("./outlook");
+      const a = await ol.outlookAccount();
+      if (!a) throw new Error("Connect Outlook first: open the Weekly Report window or the Witness Schedule and press Connect Outlook, then retry.");
+      const asm = await assembleMorning(S, morningDue(), { aiOverride: revText });
+      const rr = await resolveMorningRecipients(S);
+      if (!rr.recipients.length) throw new Error("no recipient email addresses resolved");
+      await ol.sendMailMessage({ subject: asm.subject, html: asm.html, to: rr.recipients });
+      await supabase.from("report_runs").update({ status: "sent", sent_at: new Date().toISOString(), recipients: rr.recipients.length, narrative: revText, subject: asm.subject, html: asm.html, detail: asm.subject + " \u00b7 reviewed and sent by " + a.username }).eq("id", draft.id);
+      setRevOpen(false); setDraft(null);
+      setMsg({ ok: true, text: "Morning Cx Update sent to " + rr.recipients.length + " recipient" + (rr.recipients.length === 1 ? "" : "s") + "." + (rr.missing.length ? " " + rr.missing.length + " member(s) have no email address." : "") });
+      load();
+    } catch (e) { setRevMsg({ ok: false, text: (e && e.message) || String(e) }); }
+    setRevBusy("");
+  };
+  const revSkip = async () => {
+    if (!window.confirm("Skip today's Morning Cx Update?\n\nNo email will be sent and the run is recorded as skipped.")) return;
+    setRevBusy("skip"); setRevMsg(null);
+    try {
+      await supabase.from("report_runs").update({ status: "skipped", detail: "Skipped by reviewer" }).eq("id", draft.id);
+      setRevOpen(false); setDraft(null); setMsg({ ok: true, text: "Morning Cx Update skipped for today. No email was sent." }); load();
+    } catch (e) { setRevMsg({ ok: false, text: (e && e.message) || String(e) }); }
+    setRevBusy("");
+  };
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const SECS = [["ytt", "Yesterday / Today / Tomorrow"], ["ai", "AI summary"], ["attendance", "Attendance"], ["finishing", "Finishing today"], ["overdue", "Overdue"], ["starting", "Starting"], ["constraints", "Constraints"], ["updates", "Daily updates"], ["witness", "Witness events"]];
   // REV326: morning meeting attendance handlers. All parse and aggregate logic
@@ -10409,14 +10500,47 @@ function ScheduledReports({ S, update }) {
   const coList = exAll ? (S.companies || []) : (S.companies || []).slice(0, 8);
   return (
     <>
+      {draft && <div style={{ display: "flex", alignItems: "center", gap: 11, border: "1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)", background: "color-mix(in srgb, var(--st-warn) 11%, transparent)", borderRadius: 11, padding: "11px 14px", marginBottom: 12 }}>
+        <span style={{ width: 26, height: 26, borderRadius: 7, flex: "none", background: "var(--st-warn)", color: "var(--st-warn-ink)", fontWeight: 800, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>{"!"}</span>
+        <span style={{ flex: 1, fontSize: 12, color: "var(--ink)" }}><b style={{ display: "block", fontSize: 12.5, marginBottom: 1 }}>Morning Cx Update is drafted and waiting for review</b><span style={{ color: "var(--muted)" }}>{draftGraceLine()}</span></span>
+        <button className="lk-btn primary" style={{ fontSize: 11.5, padding: "6px 13px", flex: "none" }} onClick={openReview}>Review</button>
+      </div>}
+      {revOpen && draft && <div className="lk-modal-bg" onClick={() => setRevOpen(false)}>
+        <div className="lk-card" style={{ width: "min(900px, 95vw)", maxHeight: "92vh", overflow: "auto", padding: 18, borderRadius: 14 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+            <div><h3 style={{ margin: 0, fontSize: 15 }}>Morning Cx Update {"\u00b7"} review</h3>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{draft.run_date} {"\u00b7"} {draftGraceLine()}</div></div>
+            <button className="lk-btn icon" onClick={() => setRevOpen(false)}><Icon n="x" /></button>
+          </div>
+          <label style={fld}>Narrative {"\u00b7"} edit freely</label>
+          <textarea className="lk-in" rows={12} value={revText} onChange={(e) => setRevText(e.target.value)} style={{ width: "100%", resize: "vertical", fontSize: 12, lineHeight: 1.55 }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted)", marginTop: 5 }}>
+            <span>{revText === (draft.narrative || "") ? "Unchanged from the generated draft" : "Edited from the generated draft"}</span>
+            <span>{revText.length} characters</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
+            <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy} onClick={revRegen}>{revBusy === "regen" ? "Regenerating..." : "Regenerate"}</button>
+            <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy || revText === (draft.narrative || "")} onClick={() => setRevText(draft.narrative || "")}>Revert to generated</button>
+            <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy} onClick={revPreview}>{revBusy === "prev" ? "Building..." : "Update preview"}</button>
+            <span style={{ flex: 1 }} />
+            <button className="lk-btn" style={{ fontSize: 11.5, padding: "6px 12px" }} disabled={!!revBusy} onClick={revSkip}>{revBusy === "skip" ? "Skipping..." : "Skip today"}</button>
+            <button className="lk-btn primary" style={{ fontSize: 11.5, padding: "6px 14px" }} disabled={!!revBusy} onClick={revSend}>{revBusy === "send" ? "Sending..." : "Send now"}</button>
+          </div>
+          {revMsg && <div style={{ marginTop: 9, fontSize: 11.5, color: revMsg.ok ? "var(--st-done)" : "var(--st-over)" }}>{revMsg.text}</div>}
+          <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 9, lineHeight: 1.5 }}>Regenerate re-runs the AI against this morning's data and your saved prompt. Update preview rebuilds the email below from the text in the box, which is exactly what Send now will mail. Skip today records the run as skipped and sends nothing.</div>
+          <label style={{ ...fld, marginTop: 14 }}>Preview</label>
+          <iframe title="Morning Cx preview" srcDoc={revHtml} style={{ width: "100%", height: 430, border: "1px solid var(--line)", borderRadius: 10, background: "#fff" }} />
+        </div>
+      </div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
         <ReportTile glyph={"\u2600"} glyphBg="color-mix(in srgb, var(--st-warn) 12%, transparent)" glyphColor="var(--st-warn)" title="Morning Cx Update" state={!!cfg.enabled}
           lines={<>
             <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{cfg.time}</b> Helsinki {"\u00b7"} {mrRef.current ? mrRef.current.fmtDaysSummary(cfg.days) : ""} {"\u00b7"} {cfg.recipients === "team" ? "entire team" : "admins only"}{cfg.recipients === "team" && exNames.length ? " (" + exNames.length + " excluded)" : ""}</span>
             <span style={{ color: "var(--accent)", fontWeight: 700 }}>{nextLine({ time: cfg.time, days: cfg.days }, cfg.enabled)}</span>
             <span>{lastLine("morning")}</span>
+            {draft && <span style={{ color: "var(--st-warn)", fontWeight: 700 }}>Awaiting review {"\u00b7"} {draftGraceLine()}</span>}
           </>}
-          actions={<>{act("Configure", () => setDrOpen(true))}<span style={{ flex: 1 }} />{act("Test", () => sendMorning(true), false, busy === "morningTest")}{act(busy === "morning" ? "Sending..." : "Send now", () => sendMorning(false), true, !!busy)}</>} />
+          actions={<>{act("Configure", () => setDrOpen(true))}{draft ? act("Review and send", openReview, true) : null}<span style={{ flex: 1 }} />{act("Test", () => sendMorning(true), false, busy === "morningTest")}{act(busy === "morning" ? "Sending..." : "Send now", () => sendMorning(false), true, !!busy)}</>} />
         <ReportTile glyph={"\u263D"} glyphBg="rgba(91,155,243,.12)" glyphColor="var(--accent)" title="Daily Digest" state={!!dcfg.daily.enabled}
           lines={<>
             <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{dcfg.daily.time}</b> Helsinki {"\u00b7"} every day {"\u00b7"} admins</span>
@@ -10455,6 +10579,19 @@ function ScheduledReports({ S, update }) {
             </div>}
             <div><label style={fld}>Sections</label><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{SECS.map(([k, lb]) => segBtn(cfg.sections[k] !== false, lb, () => save({ sections: { [k]: !(cfg.sections[k] !== false) } })))}</div></div>
             <div><label style={fld}>AI instructions</label><textarea key={"ai-" + (cfg.aiSteer || "")} className="lk-in" rows={8} maxLength={2000} defaultValue={cfg.aiSteer || ""} onInput={(e) => setSteerLen(e.target.value.length)} onBlur={(e) => { setSteerLen(e.target.value.length); save({ aiSteer: e.target.value.slice(0, 2000) }); }} placeholder="Steer the summary, e.g. Open with what the team achieved yesterday and name the companies who delivered. Where an item is delayed, state the knock on effect factually and then the action that clears it. Keep every bullet actionable." style={{ width: "100%", resize: "vertical", fontSize: 12, lineHeight: 1.5 }} id="mr-aisteer" />{(() => { const sl = steerLen === null ? String(cfg.aiSteer || "").length : steerLen; const near = sl > 1800; const col = near ? "var(--st-warn)" : "var(--st-done)"; return <div style={{ marginTop: 6 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5, color: "var(--muted)" }}><span>Guides tone, emphasis and format.</span><span><b style={{ color: col, fontWeight: 700 }}>{sl}</b> / 2000</span></div><div style={{ height: 3, borderRadius: 2, background: "var(--line)", overflow: "hidden", marginTop: 5 }}><i style={{ display: "block", height: "100%", width: Math.min(100, Math.round((sl / 2000) * 100)) + "%", background: col }} /></div></div>; })()}<div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}><button className="lk-btn primary" style={{ fontSize: 11.5, padding: "5px 12px" }} onClick={() => { const el = document.getElementById("mr-aisteer"); if (el) { setSteerLen(String(el.value || "").length); save({ aiSteer: String(el.value || "").slice(0, 2000) }); } }}>Save prompt</button>{saved && <span style={{ fontSize: 11, color: "var(--st-done)", fontWeight: 600 }}>Saved</span>}</div><div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>Saved and reused every morning until you change it. Up to 2000 characters. Your instruction governs tone, voice and format outright, ahead of the built-in house style. It cannot override the fact rules: figures, dates and names are never invented or changed, and an overdue item, missed commitment or open constraint is never dropped to satisfy a tone. If the AI is unreachable the email still sends, without the summary block.</div></div>
+            <div style={{ marginTop: 16 }}><label style={fld}>Review before sending</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className={"lk-btn" + (cfg.review ? " primary" : "")} style={{ fontSize: 11.5, padding: "6px 14px" }} onClick={() => save({ review: true })}>ON</button>
+                <button className={"lk-btn" + (!cfg.review ? " primary" : "")} style={{ fontSize: 11.5, padding: "6px 14px" }} onClick={() => save({ review: false })}>OFF</button>
+              </div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>When on, the scheduled run assembles the email and parks it instead of sending. The tile shows Awaiting review and you can edit the narrative before it goes.</div>
+              {cfg.review && <div style={{ marginTop: 12 }}><label style={fld}>Send anyway if not reviewed by</label>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[[30, "+30 min"], [60, "+60 min"], [120, "+2 hrs"], [0, "Never"]].map((o) => <button key={o[0]} className={"lk-btn" + (Number(cfg.reviewGrace) === o[0] ? " primary" : "")} style={{ fontSize: 11.5, padding: "6px 12px" }} onClick={() => save({ reviewGrace: o[0] })}>{o[1]}</button>)}
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>An unreviewed draft sends itself as drafted once this window expires. Choose Never only if you accept that a morning nobody reviews goes out with no email at all.</div>
+              </div>}
+            </div>
             <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16 }}>
               <label style={{ ...fld, color: "var(--accent)", fontSize: 10 }}>Morning meeting attendance</label>
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
