@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV347",
+    "date": "2026-07-26",
+    "items": [
+      "Hovering the blue will chip on a YTT Focus card now shows the commence date, so the promise can be checked without leaving the panel. Where an actual start has been logged it is shown and compared against plan, for example started 3 days late. Where the planned start has passed with no actual recorded, the tooltip says exactly that rather than implying the work began.",
+      "The same hover is attached to the status badge, which every card carries. Roughly half the cards on a typical board are not committed and so have no will chip at all; the badge covers those. It also fills a gap the badge itself created, since a card reading ONGOING to 31 Jul showed the finish date and hid the start completely.",
+      "The badge tooltip gives the full window, the duration in calendar days, and where today sits inside it, plus any recorded actual start and finish.",
+      "Both tooltips are pure CSS with a short delay so they do not fire while the mouse sweeps across the panel. Nothing moves on the card and no card changes size."
+    ]
+  },
+  {
     "rev": "REV346",
     "date": "2026-07-26",
     "items": [
