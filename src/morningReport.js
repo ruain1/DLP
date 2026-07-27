@@ -12,6 +12,11 @@ export const MORNING_DEFAULTS = {
   excludeCoIds: [],             // company ids excluded from a team send (e.g. the client)
   sections: { finishing: true, overdue: true, starting: true, constraints: true, updates: true, witness: true, ytt: true, ai: true, attendance: true },
   aiSteer: "",   // REV277: tailorable AI instructions, appended to the summary steer
+  // REV349: hold the morning email for a human before it goes. reviewGrace is the number
+  // of minutes after drafting before an unreviewed draft sends itself; 0 means never, which
+  // accepts that a morning nobody reviews goes out with no email at all.
+  review: false,
+  reviewGrace: 60,
   // REV326: morning meeting attendance. companies is the invited list with domain
   // mappings; showAbsent controls whether absent companies are named in the email.
   attendance: { showAbsent: true, companies: [] },
