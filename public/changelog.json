@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV350",
+    "date": "2026-07-26",
+    "items": [
+      "Separate knock-on delays, new and off by default. An activity whose own predecessor is still open cannot have finished, so reporting it as an overdue finish names a contractor for something upstream of them. When switched on, those items leave Overdue finishes and appear under Waiting on predecessors, labelled with how long they have been held and what is holding them, including that blocker's company and its own lateness.",
+      "Nothing is hidden. The Overdue finishes heading carries the count that moved, every held item still appears in full, and the raw overdue total is unchanged. The AI summary is given the same split, so the narrative no longer chases a contractor for a delay the table shows as upstream.",
+      "Constraints are deliberately unaffected. A constraint stays due whatever its activity is waiting on, and the open constraint list is identical in both modes.",
+      "An activity with no predecessor links, or links to codes that were never imported, is treated as an ordinary slip. Missing link data can therefore only ever leave an item flagged, never hide one.",
+      "The predecessor test ships as an exported helper (openPredecessors and isClosedActivity) so the board, the YTT drawer and the Delayed KPI can adopt the same rule by import rather than by reimplementing delay logic a fifth time."
+    ]
+  },
+  {
     "rev": "REV349",
     "date": "2026-07-26",
     "items": [
