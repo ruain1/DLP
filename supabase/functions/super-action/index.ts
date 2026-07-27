@@ -62,18 +62,34 @@ const SECTION_SYSTEM = [
 // REV300: the Morning Cx Update is a fast, scannable field brief, not a client narrative.
 // It gets its own system prompt: the author's instruction leads and the model is free to
 // choose structure (bullets by default), within the same hard factual limits.
-const MORNING_SYSTEM = [
+// REV348: the morning summary prompt is tiered. Previously one paragraph carried both the
+// inviolable fact rules and the house style, and that house style is a concrete, roughly
+// two hundred word specification for a blocker-first chase list ("critical path blockers
+// first", "chase, resolve, confirm, push, escalate"). A short author steer appended after
+// it could not win: an author asking for a positive tone still got a chase list. The rules
+// now sit in two tiers and the author instruction comes last, in its own block, governing
+// the style tier outright, with a re-read before the model answers.
+const MORNING_HARD = [
   "You write the executive summary at the top of a data centre commissioning team's Morning Cx Update email.",
-  "It is read fast on a phone on site at the start of the day. It exists to tell the team what to act on today. Actionability and scannability beat prose.",
+  "It is read fast on a phone on site at the start of the day. It exists to tell the team what to act on today.",
   "You are given a block of drafted facts. Those facts are the entire universe of what you may say.",
-  "Write five to seven bullet lines, never more than eight. Each bullet is one line and one idea: a single action to take today or the single fact that forces it. Keep each bullet to about one sentence, roughly fifteen to twenty five words; do not stack multiple activities or clauses into one bullet. Lead each bullet with the action or the owner who must act (for example: chase, resolve, confirm, push, escalate). Order by priority: critical path blockers first, then today's commitments, then approaching risks. Every bullet starts with a dash and a space. Only write flowing paragraphs instead if the author's instruction explicitly asks for prose.",
-  "The author's instruction below is the primary guide to tone, emphasis, and format. Follow it. If it asks for bullets, use bullets; if it asks for something specific, do that.",
-  "Absolute limits, no exceptions:",
+  "The following limits are absolute. They override every other instruction in this prompt, including the author instruction below:",
   "- Do not add, remove, or change any number, percentage, date, or proper noun.",
   "- Do not introduce any figure, activity, company, or fact that is not in the supplied facts.",
+  "- Never omit, bury, or soften away an overdue item, a missed commitment, or an open constraint in order to satisfy a requested tone. Tone governs how a fact is framed, never whether it appears.",
   "- Do not use markdown (no #, no **bold**, no backticks). Plain text with simple dash bullets only.",
   "- Do not use em dashes or en dashes. Use commas, full stops, semicolons, colons, parentheses, or hyphens.",
-  "Return only the summary itself. No preamble, no sign-off, no quotation marks.",
+  "- Return only the summary itself. No preamble, no sign-off, no quotation marks.",
+].join(" ");
+
+// House default. Applies only where the author instruction is silent, and loses to it on
+// any point where the two conflict. The escalation verbs live here deliberately, so that
+// an author asking for a different voice is no longer fighting them.
+const MORNING_STYLE = [
+  "House default style, applied only where the author instruction does not say otherwise:",
+  "Write five to seven bullet lines, never more than eight. Each bullet is one line and one idea: a single action to take today or the single fact that forces it. Keep each bullet to roughly fifteen to twenty five words; do not stack multiple activities or clauses into one bullet. Every bullet starts with a dash and a space.",
+  "Lead each bullet with the action or the owner who must act (for example: chase, resolve, confirm, push, escalate). Order by priority: critical path blockers first, then today's commitments, then approaching risks.",
+  "Only write flowing paragraphs instead if the author instruction explicitly asks for prose.",
 ].join(" ");
 
 Deno.serve(async (req: Request) => {
@@ -104,9 +120,13 @@ Deno.serve(async (req: Request) => {
     if (body && body.mode === "morning") {
       const facts = typeof body.facts === "string" ? body.facts.trim() : "";
       if (!facts) return json({ error: "no_facts" });
-      const steerClean = (typeof body.steer === "string" ? body.steer.trim() : "").slice(0, 400);
-      let system = MORNING_SYSTEM;
-      if (steerClean) system += ' Author instruction, primary guide (never invents or changes a figure, date, or name): "' + steerClean + '".';
+      const steerClean = (typeof body.steer === "string" ? body.steer.trim() : "").slice(0, 2000);
+      let system = MORNING_HARD + "\n\n" + MORNING_STYLE;
+      if (steerClean) {
+        system += "\n\nAUTHOR INSTRUCTION. Written by the project lead who owns this email. It governs tone, voice, emphasis, ordering and format. Where it conflicts with the house default style above, follow the author instruction outright: do not blend the two, do not soften it, do not revert to the default. It does not override the absolute limits.\n\n"
+          + steerClean
+          + "\n\nBefore you answer, re-read the author instruction above and check your draft obeys it, in particular anything it says about tone. If the draft does not read the way the author asked, rewrite it before returning.";
+      }
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
