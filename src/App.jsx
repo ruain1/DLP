@@ -233,7 +233,16 @@ const css = `
 .lk-legend{display:flex;gap:14px;align-items:center;padding:8px 20px;border-top:1px solid var(--line);font-size:10.5px;color:var(--muted);flex-wrap:wrap;background:var(--card)}
 .lk-legend .it{display:flex;align-items:center;gap:6px}.lk-legend .sw{width:11px;height:11px;border-radius:3px}
 .lk-pv{font-size:10.5px;color:var(--muted);padding:6px 20px;background:var(--card);border-top:1px solid var(--line);display:flex;align-items:center;gap:8px}
-.lk-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;display:flex;justify-content:flex-end}
+/* REV358 Focus scrim. The old rule washed the page with 40% black. On the dark theme the
+   board is already #10151C, so that wash shifted luminance by roughly 6/255 and read as
+   flat. Blur is what actually separates the planes because it destroys detail regardless
+   of theme luminance; the desaturate drains the red hatch and blue chips that survive a
+   pure luminance wash. The wash sits on ::before so the panel does not inherit the filter.
+   Every var carries a fallback reproducing the pre-REV358 render exactly, so an absent
+   design block is byte-identical to REV354. */
+.lk-bg{position:fixed;inset:0;z-index:80;display:flex;justify-content:flex-end;animation:lkbgin calc(.16s*var(--fx-t,1)) ease-out}
+.lk-bg::before{content:"";position:absolute;inset:0;pointer-events:none;background:rgba(var(--fx-scrim-rgb,0,0,0),var(--fx-scrim,.4));-webkit-backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1));backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1))}
+@keyframes lkbgin{from{opacity:0}to{opacity:1}}
 .lk-drawer{width:400px;max-width:94vw;height:100%;overflow:auto;background:var(--paper);box-shadow:-8px 0 30px rgba(0,0,0,calc(.3*var(--fx-sh,1)));display:flex;flex-direction:column}
 .lk-dh{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:2;flex:none}
 .lk-dh h3{margin:0;font-size:15px;font-weight:700;color:var(--head)}
@@ -455,7 +464,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-rep-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .cal-head{display:flex;align-items:center;gap:8px;padding:12px 14px}
 .cal-head h3{font-size:15px;color:var(--ink)}
-.ytt{background:var(--paper);color:var(--ink);width:min(1240px,96vw);max-height:92vh;margin:auto;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,calc(.28*var(--fx-sh,1)))}
+.ytt{background:var(--paper);color:var(--ink);width:min(1240px,96vw);max-height:92vh;margin:auto;border-radius:14px;border:1px solid var(--pnl-edge,var(--line));display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,calc(.51*var(--fx-sh,1)))}
 .ytt-head{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
 .ytt-sub{font-size:11.5px;color:var(--muted);margin-left:4px}
 .ytt-cols{display:grid;grid-template-columns:repeat(3,1fr);overflow:auto;flex:1}
@@ -699,7 +708,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-day.addday:hover .addp{opacity:1}
 .lk-day.addday:hover{background:var(--hover)}
 .lk-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;overflow:auto}
-.lk-modal{background:var(--paper);border:1px solid var(--line);border-radius:14px;max-width:660px;width:100%;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,calc(.35*var(--fx-sh,1)));display:flex;flex-direction:column;max-height:calc(100vh - 92px);overflow:hidden}
+.lk-modal{background:var(--paper);border:1px solid var(--pnl-edge,var(--line));border-radius:14px;max-width:660px;width:100%;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,calc(.55*var(--fx-sh,1)));display:flex;flex-direction:column;max-height:calc(100vh - 92px);overflow:hidden}
 .rep-fld{margin-bottom:13px}.rep-fld>label{display:block;font-size:12px;font-weight:600;margin-bottom:6px}
 .rep-mut{font-weight:400;color:var(--muted)}
 .rep-seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -4971,12 +4980,29 @@ function cssVars(theme, settings, page) { const t = THEMES[theme] || THEMES.ligh
   v["--faint"] = theme === "dark" ? "#5f6c7c" : "#9aa5b1";
   v["--card2"] = theme === "dark" ? "#202a36" : "#f4f7fa";
   v["--linkc"] = theme === "dark" ? "#8fb6dc" : "#2e6db4";
-  v["--lane-sep"] = theme === "dark" ? "#38598f" : "#000000"; const d = settings && settings.design; if (d) { applyDesignBlock(v, d.global); if (page && d.pages) applyDesignBlock(v, d.pages[page]);
+  v["--lane-sep"] = theme === "dark" ? "#38598f" : "#000000";
+  // REV358 Focus scrim defaults. Dark needs a deeper wash because the board is already
+  // near-black; light needs less or it turns oppressive. A slightly blue-black (4,8,14)
+  // matches --backdrop and reads as depth rather than a dirty filter.
+  v["--fx-scrim-rgb"] = theme === "dark" ? "4,8,14" : "0,0,0";
+  v["--fx-scrim"] = theme === "dark" ? ".62" : ".42";
+  v["--fx-scrim-blur"] = "3px";
+  v["--fx-scrim-sat"] = theme === "dark" ? ".6" : ".72";
+  v["--pnl-edge"] = theme === "dark" ? "rgba(127,176,255,.27)" : t.line; const d = settings && settings.design; if (d) { applyDesignBlock(v, d.global); if (page && d.pages) applyDesignBlock(v, d.pages[page]);
     // REV229 Effects tranche: project-wide depth and motion. Fallbacks in the CSS mean an
     // absent block renders byte-identical to today.
     if (d.effects) {
       if (d.effects.depth) v["--fx-sh"] = d.effects.depth === "flat" ? "0" : d.effects.depth === "elevated" ? "1.6" : "1";
       if (d.effects.motion) v["--fx-t"] = d.effects.motion === "off" ? "0" : d.effects.motion === "reduced" ? "0.5" : "1";
+      // REV358: Off keeps a plain dim with no blur, the cheap path for machines without GPU
+      // compositing. backdrop-filter promotes the viewport to a compositor layer on open;
+      // the board is static while a modal is up so there is no repaint churn, but the
+      // one-off cost is real on low-spec site hardware.
+      if (d.effects.scrim) { const k = d.effects.scrim;
+        if (k === "off") { v["--fx-scrim-blur"] = "0px"; v["--fx-scrim-sat"] = "1"; v["--fx-scrim"] = theme === "dark" ? ".5" : ".42"; }
+        else if (k === "soft") { v["--fx-scrim-blur"] = "2px"; v["--fx-scrim-sat"] = theme === "dark" ? ".8" : ".85"; v["--fx-scrim"] = theme === "dark" ? ".52" : ".38"; }
+        else if (k === "deep") { v["--fx-scrim-blur"] = "6px"; v["--fx-scrim-sat"] = theme === "dark" ? ".45" : ".6"; v["--fx-scrim"] = theme === "dark" ? ".74" : ".55"; }
+      }
     }
   } return v; }
 // Page-only override delta for the shared content wrapper (global already lives on the root).
@@ -5804,7 +5830,7 @@ function DesignTab({ S, update }) {
     </div>}
 
     {tab === "effects" && <div>
-      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>Depth and motion for the whole project; no per-page scope, so the surface feels consistent everywhere. Signal effects always show whatever is chosen: the search spotlight ring, selection rings, the online pulse, and notification badges are information, not decoration. The app also respects the operating system's reduce-motion preference automatically, regardless of the setting here.</div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.55 }}>Depth, motion and the focus scrim for the whole project; no per-page scope, so the surface feels consistent everywhere. Signal effects always show whatever is chosen: the search spotlight ring, selection rings, the online pulse, and notification badges are information, not decoration. The app also respects the operating system's reduce-motion preference automatically, regardless of the setting here.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <div style={{ ...lab }}>Depth</div>
@@ -5815,6 +5841,11 @@ function DesignTab({ S, update }) {
           <div style={{ ...lab }}>Motion</div>
           {seg(fxBlk.motion || "standard", [["off", "Off"], ["reduced", "Reduced"], ["standard", "Standard"]], (v) => setFx({ motion: v }))}
           <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Scales transition speed on the sidebar rail, toggles, hovers, and expanding panels. Off makes every state change instant.</div>
+        </div>
+        <div>
+          <div style={{ ...lab }}>Focus scrim</div>
+          {seg(fxBlk.scrim || "standard", [["off", "Off"], ["soft", "Soft"], ["standard", "Standard"], ["deep", "Deep"]], (v) => setFx({ scrim: v }))}
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Dims and blurs the page behind any open modal or drawer so the open panel is unambiguously the thing you are looking at. Off restores a plain dim with no blur, which is cheaper on older machines. Deep suits a projector in a bright meeting room.</div>
         </div>
       </div>
       {Object.keys(fxBlk).length > 0 && <button className="lk-btn" style={{ marginTop: 16 }} onClick={() => setFx(null)}>Reset Effects to defaults</button>}
@@ -9408,7 +9439,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
       ? bhead + w.failReasons.map((x)=>{ _cw += x.n; const sh = totWF?Math.round(x.n/totWF*100):0, cu = totWF?Math.round(_cw/totWF*100):0; return `<div class="barrow p5"><span class="nm">${esc(x.name)}</span><div class="track" style="position:relative"><div class="fill" style="width:${sh}%;background:var(--red)"></div><div style="position:absolute;top:0;bottom:0;left:${cu>=100?"calc(100% - 2px)":`calc(${cu}% - 1px)`};width:2px;background:var(--green)"></div></div><span class="ct num">${x.n}</span><span class="psh num">${sh}%</span><span class="pcu num">${cu}%</span></div>`; }).join("")
       : (w.attempted ? `<div class="empty">No failed witness events in the period.</div>` : "");
     const woLead = w.attempted
-      ? `<div class="wo-lead"><b>${w.attempted}</b> witnessed event${w.attempted===1?"":"s"} reached an outcome in the period: <b style="color:var(--green)">${w.passed}</b> passed, <b style="color:var(--red)">${w.failed}</b> failed. First-time pass to date: <b>${w.ftp==null?"&ndash;":w.ftp+"%"}</b>${w.roots?` of ${w.roots} first attempt${w.roots===1?"":"s"}`:""} (retest chains count once at the root).</div>`
+      ? `<div class="wo-lead"><b>${w.attempted}</b> witnessed event${w.attempted===1?"":"s"} reached an outcome in the period: <b style="color:var(--green)">${w.passed}</b> passed, <b style="color:var(--red)">${w.failed}</b> failed. First-time pass to date: <b>${w.ftp==null?"&#183;":w.ftp+"%"}</b>${w.roots?` of ${w.roots} first attempt${w.roots===1?"":"s"}`:""} (retest chains count once at the root).</div>`
       : `<div class="empty">No witness outcomes recorded in the period.</div>`;
     blocks.push(`<section>${sh("Invitation outcomes")}${woLead}${woBars?`<div class="bars">${woBars}</div>`:""}</section>`);
   }
@@ -9624,7 +9655,7 @@ function buildCxReportSections(snap, sel, baselineAgreed){
   if (SS.irl){
     const irl = D.irl || { opened:snap.irl_opened, started:snap.irl_started, delivered:snap.irl_delivered, verified:snap.irl_verified };
     const steps = [["Opened",irl.opened],["Started",irl.started],["Delivered",irl.delivered],["Verified",irl.verified]];
-    const html = steps.map(([l,v])=>`<div class="cx-step"><div class="n num">${v==null?"&ndash;":v}</div><div class="k">${l}</div></div>`).join('<span class="cx-arr">&rsaquo;</span>');
+    const html = steps.map(([l,v])=>`<div class="cx-step"><div class="n num">${v==null?"&#183;":v}</div><div class="k">${l}</div></div>`).join('<span class="cx-arr">&rsaquo;</span>');
     secs.push(`<section>${sh("IRL workflow this week")}<div class="cx-irl">${html}</div></section>`);
   }
   if (SS.docs && D.docs && (D.docs.rows||[]).length){
