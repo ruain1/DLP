@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV359",
+    "date": "2026-07-29",
+    "items": [
+      "Fixed the REV358 focus scrim painting on top of the open panel instead of behind it. The YTT Focus header, its Priority and Company toggle, the sort control and Collapse all were being blurred along with the board.",
+      "Extended the focus scrim to the second backdrop class, which carries 23 of the app's modals and was left untreated by REV358. Confirmation dialogs, editors and the directory modals now match YTT Focus.",
+      "Hub modals outside the project shell keep their backdrop and pick up the same treatment."
+    ]
+  },
+  {
     "rev": "REV358",
     "date": "2026-07-29",
     "items": [
