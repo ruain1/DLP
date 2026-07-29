@@ -241,7 +241,18 @@ const css = `
    Every var carries a fallback reproducing the pre-REV358 render exactly, so an absent
    design block is byte-identical to REV354. */
 .lk-bg{position:fixed;inset:0;z-index:80;display:flex;justify-content:flex-end;animation:lkbgin calc(.16s*var(--fx-t,1)) ease-out}
-.lk-bg::before{content:"";position:absolute;inset:0;pointer-events:none;background:rgba(var(--fx-scrim-rgb,0,0,0),var(--fx-scrim,.4));-webkit-backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1));backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1))}
+/* REV359 paint order. REV358 put the scrim on an absolutely positioned ::before while the
+   panels (.ytt, .lk-modal, .lk-drawer) are not positioned at all. In CSS paint order a
+   positioned pseudo with z-index auto paints AFTER non-positioned block content, so the
+   scrim landed on top of the panel and backdrop-filter sampled the panel as backdrop. Parts
+   that happened to be positioned stayed sharp (.ytt-colhead is sticky z-index 1,
+   .ytt-cband is relative) which is why only the header, the toolbar and the cards blurred.
+   Fixed by pinning the scrim to z-index 0 and lifting every direct child to z-index 1.
+   position:fixed rather than absolute so the scrim cannot scroll away inside
+   .lk-modal-bg, which is overflow:auto; no ancestor carries transform or filter, so fixed
+   resolves against the viewport as intended. */
+.lk-bg::before,.lk-modal-bg::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(var(--fx-scrim-rgb,0,0,0),var(--fx-scrim,.4));-webkit-backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1));backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1))}
+.lk-bg>*,.lk-modal-bg>*{position:relative;z-index:1}
 @keyframes lkbgin{from{opacity:0}to{opacity:1}}
 .lk-drawer{width:400px;max-width:94vw;height:100%;overflow:auto;background:var(--paper);box-shadow:-8px 0 30px rgba(0,0,0,calc(.3*var(--fx-sh,1)));display:flex;flex-direction:column}
 .lk-dh{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:2;flex:none}
@@ -707,7 +718,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,input[type="datetime
 .lk-day.addday .addp{position:absolute;top:2px;right:3px;opacity:0;color:var(--accent);transition:opacity calc(.12s*var(--fx-t,1));display:flex}
 .lk-day.addday:hover .addp{opacity:1}
 .lk-day.addday:hover{background:var(--hover)}
-.lk-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;overflow:auto}
+.lk-modal-bg{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;overflow:auto}
 .lk-modal{background:var(--paper);border:1px solid var(--pnl-edge,var(--line));border-radius:14px;max-width:660px;width:100%;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,calc(.55*var(--fx-sh,1)));display:flex;flex-direction:column;max-height:calc(100vh - 92px);overflow:hidden}
 .rep-fld{margin-bottom:13px}.rep-fld>label{display:block;font-size:12px;font-weight:600;margin-bottom:6px}
 .rep-mut{font-weight:400;color:var(--muted)}
@@ -1843,7 +1854,7 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-ughead .cnt{font-weight:500;color:var(--muted);font-size:11px}
 .lk-ughead .chev{display:inline-block;transition:transform .12s;color:var(--muted);font-size:10px}
 .lk-ufilter{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:6px}
-.lk-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;overflow:auto}
+.lk-modal-bg{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;overflow:auto}
 .lk-modal{background:var(--paper);border:1px solid var(--line);border-radius:14px;max-width:660px;width:100%;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;max-height:calc(100vh - 92px);overflow:hidden}
 .rep-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 18px;border-top:1px solid var(--line)}
 .lk-modal .bd{padding:18px 20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1 1 auto}
@@ -1852,7 +1863,9 @@ const HUB_LK_CSS = `.mono{font-variant-numeric:tabular-nums}
 .lk-modal .ref b{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-bottom:4px}
 .lk-locked{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}
 .lk-locked .lkv{font-weight:600;font-size:13px}
-.lk-locked .lkn{font-size:11px;color:var(--muted)}`;
+.lk-locked .lkn{font-size:11px;color:var(--muted)}
+.lk-modal-bg::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(var(--fx-scrim-rgb,0,0,0),var(--fx-scrim,.45));-webkit-backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1));backdrop-filter:blur(var(--fx-scrim-blur,0px)) saturate(var(--fx-scrim-sat,1))}
+.lk-modal-bg>*{position:relative;z-index:1}`;
 
 // REV203: hub Global Settings scene, owner/super only, mounted from the Portal. Self-contained:
 // loads the platform directory itself (loadDirectory + fetchUserStatus + loadMembershipCounts),
