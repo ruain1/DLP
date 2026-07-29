@@ -1,5 +1,15 @@
 [
   {
+    "rev": "REV358",
+    "date": "2026-07-29",
+    "items": [
+      "Focus scrim: the page behind any open modal or drawer is now dimmed, blurred and desaturated, so the open panel is unambiguously the thing you are looking at. The previous 40% black wash was near-invisible on the dark theme because the board is already near-black.",
+      "New Design > Effects control: Focus scrim (Off, Soft, Standard, Deep). Off restores a plain dim with no blur for machines without GPU compositing.",
+      "YTT Focus and confirmation modals lift off the page with a stronger edge and shadow.",
+      "Weekly report: two en dash placeholders replaced with the standard middot."
+    ]
+  },
+  {
     "rev": "REV354",
     "date": "2026-07-26",
     "items": [
