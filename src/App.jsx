@@ -9517,7 +9517,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const periodLabel = mode==="range"
     ? `${fmtFull(r.start)} to ${fmtFull(r.end)}`
     : `Week ${weekNo} &nbsp;|&nbsp; commencing ${r.start.toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}`;
-  const sumHtml = esc(summary).replace(/\n+/g,"<br>");
+  const sumHtml = String(summary||"").trim().split(/\n{2,}/).filter(Boolean).map((x)=>`<p class="lede">${esc(x).replace(/\n/g,"<br>")}</p>`).join("") || `<p class="lede"></p>`;   // REV363: blank lines become paragraphs
 
   // Dynamic section assembly: gate each block by `sections`, number contiguously, inject Cx block.
   const SEC = Object.assign({ summary:true, kpis:true, ppc:true, constraints:true, reasons:true, invites:true, byco:true, bycx:true, nextweek:true, milestones:true, schedule:true, statusmix:true }, sections||{});
@@ -9525,7 +9525,7 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
   const sh = (title) => `<div class="sec-head"><span class="eyebrow">${nn()}</span><h2>${title}</h2><div class="rule"></div></div>`;
   const blocks = [];
   let intro = "";
-  if (SEC.summary) intro += `${sh("Executive summary")}<p class="lede">${sumHtml}</p>`;
+  if (SEC.summary) intro += `${sh("Executive summary")}${sumHtml}`;
   if (SEC.kpis) intro += `<div class="kpis">${kpiTiles}</div>`;
   if (intro) blocks.push(`<section>${intro}</section>`);
   if (SEC.ppc) blocks.push(`<section>${sh("Plan reliability")}${nar("ppc")}`
@@ -9804,21 +9804,23 @@ function buildCxReportSections(snap, sel, baselineAgreed){
 
 // Deterministic narrative composed from only the included sections' live data.
 function draftReportSummary({ r, sections, cxSnap, cxSel }){
-  const SEC = sections||{}; const parts=[];
+  // REV363: themed paragraphs (commitments and constraints; witnessing; attainment; risks and
+  // documentation), blank-line separated so every renderer and the AI polish inherit structure.
+  const SEC = sections||{}; const g1=[], g2=[], g3=[], g4=[];
   if (r && SEC.ppc!==false){
-    if (r.ppc==null) parts.push("No commitments fell due this week.");
-    else { parts.push(`Commitment reliability stood at ${r.ppc}% PPC against the ${r.ppcTarget||80}% target, with ${r.kept.length} of ${r.due.length} committed activit${r.due.length===1?"y":"ies"} completed on time.`); if (r.qaFails && r.qaFails.length) parts.push(`Quality-adjusted, ${r.qaPpc}%: ${r.qaFails.length} on-time witness failure${r.qaFails.length===1?"":"s"} carr${r.qaFails.length===1?"ies":"y"} retests.`); }
+    if (r.ppc==null) g1.push("No commitments fell due this week.");
+    else { g1.push(`Commitment reliability stood at ${r.ppc}% PPC against the ${r.ppcTarget||80}% target, with ${r.kept.length} of ${r.due.length} committed activit${r.due.length===1?"y":"ies"} completed on time.`); if (r.qaFails && r.qaFails.length) g1.push(`Quality-adjusted, ${r.qaPpc}%: ${r.qaFails.length} on-time witness failure${r.qaFails.length===1?"":"s"} carr${r.qaFails.length===1?"ies":"y"} retests.`); }
   }
-  if (r && SEC.constraints!==false && r.cards.length) parts.push(`${r.cards.length} activit${r.cards.length===1?"y carries":"ies carry"} open constraints in the lookahead.`);
-  if (r && SEC.reasons!==false && r.reasons[0] && r.reasons[0].name!=="Unattributed") parts.push(`The main driver of non-completion was ${r.reasons[0].name.toLowerCase()}.`);
-  if (r && SEC.invites!==false && r.witnessOut && r.witnessOut.attempted) parts.push(`${r.witnessOut.passed} of ${r.witnessOut.attempted} witnessed event${r.witnessOut.attempted===1?"":"s"} passed in the period; first-time pass to date is ${r.witnessOut.ftp==null?"not yet measurable":r.witnessOut.ftp+"%"}.`);
+  if (r && SEC.constraints!==false && r.cards.length) g1.push(`${r.cards.length} activit${r.cards.length===1?"y carries":"ies carry"} open constraints in the lookahead.`);
+  if (r && SEC.reasons!==false && r.reasons[0] && r.reasons[0].name!=="Unattributed") g1.push(`The main driver of non-completion was ${r.reasons[0].name.toLowerCase()}.`);
+  if (r && SEC.invites!==false && r.witnessOut && r.witnessOut.attempted) g2.push(`${r.witnessOut.passed} of ${r.witnessOut.attempted} witnessed event${r.witnessOut.attempted===1?"":"s"} passed in the period; first-time pass to date is ${r.witnessOut.ftp==null?"not yet measurable":r.witnessOut.ftp+"%"}.`);
   if (cxSnap){
     const cs = cxSel||{}, D = cxSnap.detail||{};
-    if (cs.cxkpis!==false) parts.push(`On asset attainment, L1 red-tag reached ${Math.round((cxSnap.red_pct||0)*10)/10}% across ${(cxSnap.assets||0).toLocaleString()} assets, with L3 at ${Math.round((cxSnap.green_pct||0)*10)/10}%.`);
-    if (cs.risks!==false && (D.risks||[]).length){ const crit=D.risks.filter((x)=>/crit/i.test(x[4])).length; if (crit) parts.push(`${crit} critical risk${crit===1?"":"s"} remain open on the register.`); }
-    if (cs.docs!==false && D.docs && (D.docs.rows||[]).length){ const red=D.docs.rows.filter((x)=>(x[1]||[]).some((g)=>String(g).toUpperCase()==="R")).length; if (red) parts.push(`${red} document vendor${red===1?" is":"s are"} red on the register.`); }
+    if (cs.cxkpis!==false) g3.push(`On asset attainment, L1 red-tag reached ${Math.round((cxSnap.red_pct||0)*10)/10}% across ${(cxSnap.assets||0).toLocaleString()} assets, with L3 at ${Math.round((cxSnap.green_pct||0)*10)/10}%.`);
+    if (cs.risks!==false && (D.risks||[]).length){ const crit=D.risks.filter((x)=>/crit/i.test(x[4])).length; if (crit) g4.push(`${crit} critical risk${crit===1?"":"s"} remain open on the register.`); }
+    if (cs.docs!==false && D.docs && (D.docs.rows||[]).length){ const red=D.docs.rows.filter((x)=>(x[1]||[]).some((g)=>String(g).toUpperCase()==="R")).length; if (red) g4.push(`${red} document vendor${red===1?" is":"s are"} red on the register.`); }
   }
-  return parts.join(" ");
+  return [g1, g2, g3, g4].filter((g)=>g.length).map((g)=>g.join(" ")).join("\n\n");
 }
 
 const RPT_PLAN_SECTIONS = [["summary","Executive summary"],["ppc","Commitment reliability"],["kpis","Lookahead KPIs"],["constraints","Open constraint cards"],["reasons","Reasons for non-completion"],["invites","Invitation outcomes"],["breakdowns","By contractor / Cx stage"],["statusmix","Status mix"],["nextweek","Next week commitments"],["milestones","Milestones"],["schedule","Schedule snapshot"]];
@@ -9849,6 +9851,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   const [narr, setNarr] = useState({});
   const [narrNote, setNarrNote] = useState("");
   const [cxSnap, setCxSnap] = useState(null);
+  const [cxPrev, setCxPrev] = useState(null);   // REV363: prior cx_week row for week-on-week deltas
   const [cxBaseline, setCxBaseline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [polishing, setPolishing] = useState(false);
@@ -9929,12 +9932,13 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     import("./outlook").then(async (m) => { const acct = await m.outlookAccount(); const d = await m.authDiagnostics(); setRepOl(acct ? acct.username : null); setRepDiag(d); }).catch(() => {});
     try {
       const [{ data: wk }, { data: conf }] = await Promise.all([
-        supabase.from("cx_week").select("*").eq("project_id", projectId).order("week_ending", { ascending: false }).limit(1),
+        supabase.from("cx_week").select("*").eq("project_id", projectId).order("week_ending", { ascending: false }).limit(2),
         supabase.from("cx_config").select("config").eq("project_id", projectId).maybeSingle(),
       ]);
       setCxSnap(wk && wk[0] ? wk[0] : null);
+      setCxPrev(wk && wk[1] ? wk[1] : null);
       setCxBaseline(!!(conf && conf.config && conf.config.baselineAgreed));
-    } catch(e) { setCxSnap(null); }
+    } catch(e) { setCxSnap(null); setCxPrev(null); }
     try {
       const [rr, us] = await Promise.all([ loadReportRecipients(projectId), fetchUserStatus() ]);
       const em = {}; Object.keys(us || {}).forEach((id) => { if (us[id] && us[id].email) em[id] = us[id].email; });
@@ -9996,15 +10000,28 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
   const composeParts = (ol, organiserLabel) => {
     const cxHtml = cxSnap ? buildCxReportSections(cxSnap, cx, cxBaseline) : "";
     const mk = (th) => buildWeeklyReportHTML({ logoUrl: (S.brand && S.brand.logoUrl) || "", logoDark: (S.brand && S.brand.logoDark) || "", projectName: (S.brand && S.brand.projectName) || "", projectLocation: (S.projectMeta && S.projectMeta.location) || "", r: rData, summary: summaryVal, includeSchedule: !!plan.schedule, by, mode, theme: th, sections: secObj(), cxSectionsHtml: cxHtml });
-    const lbl = mode === "week" ? "Week " + isoWeek(defWeek.end) + " &#183; week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
+    const lbl = mode === "week" ? "Week " + isoWeek(defWeek.end) + " \u00b7 week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#2456A6" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.late != null ? rData.kpis.late : rData.kpis.delayed), l: "Late", color: "#C0392B" });
     if (plan.kpis && rData.kpis.held) tiles.push({ v: String(rData.kpis.held), l: "Held", color: "#b07f00" });
     if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "#0E9384" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "#E0A106" });
+    // REV363: tag attainment lead strip. Latest cx_week row with week-on-week movement
+    // against the prior import; drops cleanly when a project has no Cx imports yet.
+    const tagTiles = []; let tagMeta = null;
+    if (cxSnap && cx.cxkpis !== false) {
+      const p1 = (v) => (v == null || isNaN(v)) ? 0 : Math.round(v * 10) / 10;
+      const tg = (v, pv, l, color) => tagTiles.push({ v: p1(v) + "%", l, color, d: cxPrev ? Math.round((p1(v) - p1(pv)) * 10) / 10 : null });
+      tg(cxSnap.red_pct, cxPrev ? cxPrev.red_pct : null, "L1 Red", "#C0392B");
+      tg(cxSnap.yellow_pct, cxPrev ? cxPrev.yellow_pct : null, "L2 Yellow", "#E0A106");
+      tg(cxSnap.green_pct, cxPrev ? cxPrev.green_pct : null, "L3 Green", "#1E8E3E");
+      tg(cxSnap.blue_pct, cxPrev ? cxPrev.blue_pct : null, "L4 Blue", "#2456A6");
+      tg(cxSnap.white_pct, cxPrev ? cxPrev.white_pct : null, "L5 White", "#8593A2");
+      tagMeta = { assets: (cxSnap.assets || 0).toLocaleString(), vs: cxPrev && cxPrev.week_ending ? fmtDoW(parseD(cxPrev.week_ending)) : null };
+    }
     const base = ((S.brand && S.brand.projectName) || "DLP") + "-weekly-report-" + fmtISO(start);
-    return { fullLight: mk("light"), fullDark: mk("dark"), lbl, tiles, organiserLabel, names: { light: base + "-light.html", dark: base + "-dark.html" }, emlName: base + ".eml" };
+    return { fullLight: mk("light"), fullDark: mk("dark"), lbl, tiles, tagTiles, tagMeta, organiserLabel, names: { light: base + "-light.html", dark: base + "-dark.html" }, emlName: base + ".eml" };
   };
   // Classic Outlook draft: downloads an .eml (X-Unsent: 1) that opens in classic Outlook as an
   // editable, pre-addressed draft with both report themes attached. Pure client-side.
@@ -10014,7 +10031,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     try {
       const ol = await import("./outlook");
       const p = composeParts(ol, by);
-      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", periodLabel: p.lbl, by, summary: summaryVal, tiles: p.tiles, attached: { mode: "both", light: p.names.light, dark: p.names.dark } });
+      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", periodLabel: p.lbl, by, summary: summaryVal, tiles: p.tiles, tagTiles: p.tagTiles, tagMeta: p.tagMeta, attached: { mode: "both", light: p.names.light, dark: p.names.dark } });
       const eml = ol.buildReportEml({ subject: ((S.brand && S.brand.projectName) || "DLP") + " Weekly DLP Report, " + p.lbl, to: recips.filter((r) => r.email), bodyHtml, attachments: [{ name: p.names.light, html: p.fullLight }, { name: p.names.dark, html: p.fullDark }] });
       const url = URL.createObjectURL(new Blob([eml], { type: "message/rfc822" }));
       const a2 = document.createElement("a"); a2.href = url; a2.download = p.emlName; a2.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -10038,7 +10055,7 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
       const LIMIT = 3400000;   // sendMail is one JSON request with a 4 MB ceiling; guard the pair
       const attMode = bL.length + bD.length <= LIMIT ? "both" : (bL.length <= LIMIT ? "light" : "none");
       const lbl = p.lbl;
-      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles: p.tiles, attached: { mode: attMode, light: p.names.light, dark: p.names.dark } });
+      const bodyHtml = ol.buildReportEmailHtml({ projectName: (S.brand && S.brand.projectName) || "", logoDark: (S.brand && S.brand.logoDark) || "", logoUrl: (S.brand && S.brand.logoUrl) || "", periodLabel: lbl, by: by || acct.username, summary: summaryVal, tiles: p.tiles, tagTiles: p.tagTiles, tagMeta: p.tagMeta, attached: { mode: attMode, light: p.names.light, dark: p.names.dark } });
       const attachments = attMode === "both"
         ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }, { name: p.names.dark, contentType: "text/html", contentBytes: bD }]
         : attMode === "light" ? [{ name: p.names.light, contentType: "text/html", contentBytes: bL }] : [];

@@ -42,7 +42,7 @@ const SYSTEM = [
   "- Do not introduce any figure, statistic, or fact that is not already in the source text.",
   "- Keep exactly the same set of facts; only improve flow, clarity, and tone.",
   "- Do not use em dashes or en dashes. Use commas, full stops, semicolons, or hyphens.",
-  "Return only the rewritten paragraph. No preamble, no markdown, no quotation marks.",
+  "Return only the rewritten text, as 2 to 4 short paragraphs separated by one blank line, grouped by theme where the content allows: commitments and constraints; witnessing; asset attainment; risks and documentation. No preamble, no markdown, no headings, no quotation marks.",
 ].join(" ");
 
 // REV194: system prompt for section narratives. The facts are the entire universe;
@@ -69,6 +69,8 @@ const SECTION_SYSTEM = [
 // it could not win: an author asking for a positive tone still got a chase list. The rules
 // now sit in two tiers and the author instruction comes last, in its own block, governing
 // the style tier outright, with a re-read before the model answers.
+// REV353: added the blocked-activity rule. The roll-up alone was not enough; the model was
+// still chasing the holders of activities the same email reported as blocked.
 const MORNING_HARD = [
   "You write the executive summary at the top of a data centre commissioning team's Morning Cx Update email.",
   "It is read fast on a phone on site at the start of the day. It exists to tell the team what to act on today.",
@@ -188,9 +190,14 @@ Deno.serve(async (req: Request) => {
     // REV157: append the author steer to the system prompt, bounded so it can
     // never justify inventing or altering a figure, date, or name.
     const steerClean = (typeof steer === "string" ? steer.trim() : "").slice(0, 400);
-    const system = steerClean
-      ? SYSTEM + ' Author style guidance, to be followed only where it does not require inventing or changing any figure, date, or name: "' + steerClean + '".'
-      : SYSTEM;
+    // REV363: the steer adopts the REV348 elevated author-instruction pattern; the old
+    // subordinated phrasing lost to the output-format contract and was silently ignored.
+    let system = SYSTEM;
+    if (steerClean) {
+      system += "\n\nAUTHOR INSTRUCTION. Written by the project lead who owns this report. It governs tone, voice, emphasis, ordering, length and paragraphing. Where it conflicts with the default style above, follow the author instruction outright: do not blend the two, do not soften it, do not revert to the default. It does not override the absolute rules on figures, dates and proper nouns.\n\n"
+        + steerClean
+        + "\n\nBefore you answer, re-read the author instruction above and check your draft obeys it, in particular anything it says about structure or paragraphs. If the draft does not read the way the author asked, rewrite it before returning.";
+    }
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

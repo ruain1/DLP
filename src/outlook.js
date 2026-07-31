@@ -355,8 +355,23 @@ export function buildReportEmailHtml(p) {
     || `<p style="margin:6px 0 10px;font-size:13.5px;color:${TPL.ink};${FSTACK}">Weekly DLP report for the period.</p>`;
   const tile = (t) => `<td width="25%" align="center" style="padding:10px 6px 8px 6px;border-top:3px solid ${t.color || TPL.blue};background-color:#F8FAFD;"><span style="font-size:22px;font-weight:bold;color:${t.color === "#111827" || !t.color ? TPL.ink : t.color};${FSTACK}">${eH(t.v)}</span><br><span style="font-size:10px;color:${TPL.mut};text-transform:uppercase;letter-spacing:0.5px;${FSTACK}">${eH(t.l)}</span></td>`;
   const gap = `<td width="8" style="font-size:0;line-height:0;">&nbsp;</td>`;
+  // REV363: tag attainment leads the email. One tile per tag level from the latest
+  // cx_week import, each carrying its week-on-week movement in points; a null delta
+  // reads first import. The whole strip drops when the project has no Cx imports.
+  const tagTile = (t) => `<td width="20%" align="center" style="padding:10px 4px 8px 4px;border-top:3px solid ${t.color};background-color:#F8FAFD;"><span style="font-size:21px;font-weight:bold;color:${t.color};${FSTACK}">${eH(t.v)}</span><br><span style="font-size:10px;font-weight:bold;color:${TPL.mut};text-transform:uppercase;letter-spacing:0.5px;${FSTACK}">${eH(t.l)}</span><br>${t.d == null
+    ? `<span style="font-size:10.5px;color:#94A3B8;${FSTACK}">first import</span>`
+    : t.d > 0 ? `<span style="font-size:11px;font-weight:bold;color:#1E8E3E;${FSTACK}">&#9650; +${t.d} pts</span>`
+    : t.d < 0 ? `<span style="font-size:11px;font-weight:bold;color:#C0392B;${FSTACK}">&#9660; ${t.d} pts</span>`
+    : `<span style="font-size:11px;color:#94A3B8;${FSTACK}">no change</span>`}</td>`;
+  const tm = p.tagMeta || {};
+  const tagStrip = p.tagTiles && p.tagTiles.length
+    ? `<tr><td style="padding:16px 20px 0 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Tag Attainment</td><td align="right" style="font-size:11px;color:${TPL.mut};${FSTACK}">${eH(tm.assets || "0")} assets${tm.vs ? " \u00b7 change vs week ending " + eH(tm.vs) : ""}</td></tr></table></td></tr><tr><td style="padding:8px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr>` + p.tagTiles.map(tagTile).join(gap) + `</tr></table></td></tr>`
+    : "";
+  const commitCaption = tagStrip && p.tiles && p.tiles.length
+    ? `<tr><td style="padding:14px 20px 0 20px;"><span style="font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Commitments</span></td></tr>`
+    : "";
   const strip = p.tiles && p.tiles.length
-    ? `<tr><td style="padding:16px 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr>` + p.tiles.map(tile).join(gap) + `</tr></table></td></tr>`
+    ? `<tr><td style="padding:${tagStrip ? "8px" : "16px"} 20px 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;"><tr>` + p.tiles.map(tile).join(gap) + `</tr></table></td></tr>`
     : "";
   const a = p.attached || { mode: "none" };
   const fileRow = (dot, name, note) => `<tr><td width="16" style="padding:4px 8px 4px 0;font-size:13px;color:${dot};font-weight:bold;">&#9679;</td><td style="padding:4px 0;font-size:12.5px;color:${TPL.ink};${FSTACK}">${eH(name)} <span style="color:${TPL.mut};">&#183; ${eH(note)}</span></td></tr>`;
@@ -395,6 +410,8 @@ export function buildReportEmailHtml(p) {
           + `<tr><td style="background-color:${TPL.blue};font-size:0;line-height:0;height:4px;">&nbsp;</td></tr>`
           + `</table></td></tr>`;
       })()
+    + tagStrip
+    + commitCaption
     + strip
     + `<tr><td style="padding:16px 20px 4px 20px;"><span style="font-size:11px;font-weight:bold;color:${TPL.blue};text-transform:uppercase;letter-spacing:0.6px;${FSTACK}">Executive Summary</span>${paras}</td></tr>`
     + attachedBlock
