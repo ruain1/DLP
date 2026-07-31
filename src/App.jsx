@@ -954,6 +954,18 @@ const addDays = (dt, n) => { const x = new Date(dt); x.setDate(x.getDate() + n);
 // day has passed, marking complete is admin-only (mirrored by the enforce_completion_window DB trigger).
 const plannedFinish = (a) => addDays(parseD(a.start), Math.max(0, (a.duration || 1) - 1));
 const pastCompletionWindow = (a) => !!(a && a.start) && plannedFinish(a).getTime() < todayMid();
+// REV360: percent 100 exists only through Complete. pctCap is the single ceiling rule for
+// every percent writer (drawer input, YTT slider, imports); applyStatus is the single copy
+// of the status-change mutation, so demoting a Complete activity steps percent back to 99
+// and the invariant (percent = 100 if and only if status = complete) holds everywhere.
+const pctCap = (status) => (status === "complete" ? 100 : 99);
+const applyStatus = (p, k) => {
+  const n = { ...p, status: k };
+  if (k === "in_progress") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (n.percent != null && n.percent >= 100) n.percent = 99; }
+  else if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish && !pastCompletionWindow(p)) n.actualFinish = fmtISO(new Date()); n.percent = 100; }
+  else if (k === "planned") n.percent = 0;
+  return n;
+};
 const finishVsPlan = (a) => { if (!a.start || !a.actualFinish) return null; return Math.round((parseD(a.actualFinish) - plannedFinish(a)) / DAYMS); };
 const pctOf = (a) => (a && a.percent != null) ? Math.max(0, Math.min(100, Math.round(a.percent))) : ((a && a.status === "complete") ? 100 : 0);
 const statusWord = (a) => a.status === "complete" ? "Complete" : a.status === "in_progress" ? "In progress" : "Planned";
@@ -1036,6 +1048,7 @@ function parseActivityRowsV2(rows, consRows, ctx) {
   const refIds = new Map();
   const pendingPreds = [];
   let noticedStage = false, noticedStatus = false;
+  const pctHeld = [];   // REV360: rows where Percent 100 was held at 99 (Status not Complete)
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r] || [];
     const g = (i) => (i >= 0 && i < row.length && row[i] != null ? String(row[i]).trim() : "");
@@ -1094,6 +1107,7 @@ function parseActivityRowsV2(rows, consRows, ctx) {
     if (statusRaw) { stProvided = true; const st = statusRaw.toLowerCase().replace(/\s+/g, "_"); if (["planned", "in_progress", "complete"].includes(st)) status = st; else if (ctx.createMissing) { stProvided = false; if (!noticedStatus) { notices.push("Unknown Status values were set to Planned (valid: Planned, In progress, Complete)."); noticedStatus = true; } } else e.push('column Status: "' + statusRaw + '" is not Planned, In progress or Complete'); }
     let pctVal = null; const pctRaw = g(ci.pct);
     if (pctRaw !== "") { const n = Math.round(+pctRaw); if (isNaN(n) || n < 0 || n > 100) e.push("column Percent: must be 0 to 100"); else pctVal = n; }
+    if (pctVal === 100) { const effSt = isUpd ? (stProvided ? status : (target ? target.status : "planned")) : status; if (effSt !== "complete") { pctVal = 99; pctHeld.push(ln); } }   // REV360: 100 only through Complete
     const actualStart = impNormDate(g(ci.astart)); const actualFinish = impNormDate(g(ci.afin));
     const witRaw = g(ci.wit); const witnessInvite = yes(witRaw); const witAtRaw = g(ci.witat); const witAt = impNormDT(witAtRaw);
     if (witAtRaw && !witAt) e.push("column Witness date & time: invalid (use YYYY-MM-DD HH:MM)");
@@ -1155,6 +1169,7 @@ function parseActivityRowsV2(rows, consRows, ctx) {
     if (predsRaw) pendingPreds.push({ sid, isUpd: false, tokens: predsRaw.split(/\s*;\s*/).filter(Boolean), ln });
     staged.push(act); addMeta.push({ ln, ref: refRaw });
   }
+  if (pctHeld.length) { const one = pctHeld.length === 1; notices.push((one ? "1 row held at 99%: " : pctHeld.length + " rows held at 99%: ") + "Percent was 100 but Status was not Complete (row" + (one ? " " : "s ") + pctHeld.join(", ") + "). Mark " + (one ? "it" : "them") + " Complete in DLP to record the real finish, or correct the source file."); }
   for (const p of pendingPreds) {
     const ids = [];
     for (const t of p.tokens) {
@@ -1339,7 +1354,7 @@ function auditRelTime(ts, now) {
 // REV244: YTT card expansion. Percent editing follows the REV230 rule (canPct);
 // daily updates are an append-only log (canNote = admins and the owner). ups is the
 // fetched log for this activity: null while loading, { err } when the fetch failed.
-function YttExpand({ a, ups, canPct, canNote, canCons, onAddCons, busy, onSave }) {
+function YttExpand({ a, ups, canPct, canNote, canCons, onAddCons, busy, onSave, onFinish }) {
   const [ct, setCt] = useState("");
   const [co, setCo] = useState("");
   const [cd, setCd] = useState("");
@@ -1347,7 +1362,8 @@ function YttExpand({ a, ups, canPct, canNote, canCons, onAddCons, busy, onSave }
   const [pct, setPct] = useState(a.percent == null ? "" : String(a.percent));
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
-  const pctN = pct === "" ? null : Math.max(0, Math.min(100, Math.round(+pct) || 0));
+  const cap = pctCap(a.status);   // REV360: 99 unless complete
+  const pctN = pct === "" ? null : Math.max(0, Math.min(cap, Math.round(+pct) || 0));
   const pctChanged = pctN != null && pctN !== (a.percent == null ? null : a.percent);
   const canSave = !busy && ((canNote && note.trim()) || (canPct && pctChanged));
   const lbl = { fontSize: 9, fontWeight: 800, letterSpacing: ".6px", textTransform: "uppercase", color: "var(--muted)", margin: "0 0 5px" };
@@ -1366,10 +1382,11 @@ function YttExpand({ a, ups, canPct, canNote, canCons, onAddCons, busy, onSave }
       </>}
       <div style={lbl}>Percent complete</div>
       {canPct
-        ? <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
-            <input type="range" min={0} max={100} value={pctN == null ? 0 : pctN} style={{ flex: 1, accentColor: "var(--accent)" }} onChange={(e) => setPct(e.target.value)} />
+        ? <><div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
+            <input type="range" min={0} max={cap} value={pctN == null ? 0 : pctN} style={{ flex: 1, accentColor: "var(--accent)" }} onChange={(e) => setPct(e.target.value)} />
             <input className="lk-in" style={{ width: 62, textAlign: "center", fontWeight: 700 }} value={pct} placeholder="\u00b7" onChange={(e) => setPct(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} />
           </div>
+          {pctN === 99 && a.status !== "complete" && <div style={{ border: "1px solid rgba(91,155,243,.4)", background: "rgba(91,155,243,.07)", borderRadius: 9, padding: "8px 10px", fontSize: 11, color: "var(--accent)", lineHeight: 1.5, margin: "-4px 0 10px" }}>At 99%. 100% comes with completion{onFinish ? <>: <a style={{ color: "inherit", fontWeight: 800, textDecoration: "underline", cursor: "pointer" }} onClick={async () => { setErr(""); try { await onSave({ pct: pctChanged ? pctN : null, note: canNote ? note.trim() : "" }); setNote(""); onFinish(); } catch (e) { setErr(String((e && e.message) || e)); } }}>save and open Edit Activity</a> to mark it Complete.</> : "; an editor marks it Complete, which sets 100 and records the actual finish."}</div>}</>
         : <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{a.percent == null ? "Not recorded." : a.percent + "%"}</div>}
       <div style={lbl}>Daily updates</div>
       {ups == null && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Loading updates...</div>}
@@ -2977,6 +2994,7 @@ export default function App({ session }) {
       ? { ...x, constraints: [...(x.constraints || []), { id: uid("c"), text, done: false, owner: owner || "", ownerType: "", ownerId: null, due: due || "", hist: [{ t: "raised", by: cu.name || "", at: new Date().toISOString() }] }] }
       : x) }));
   };
+  const yttFinishFor = (a) => () => { setYtt(false); setEditTab("schedule"); setEditing(a); };   // REV360: close YTT, open Edit Activity on Schedule
   const yttSaveFor = (a) => async ({ pct, note }) => {
     setYttBusy(a.id);
     try {
@@ -4744,7 +4762,7 @@ export default function App({ session }) {
                             <span>{c.text}{c.owner ? <span className="ytt-meta2"> {"\u00b7"} {c.owner}</span> : ""}{c.due ? <span className="ytt-due"> {"\u00b7"} need {c.due}</span> : ""}</span>
                           </label>)}</div>
                         : (a.status !== "complete" && <div className="ytt-ready">No open constraints</div>)}
-                      {yttEx[a.id] && <YttExpand a={a} ups={yttUps[a.id] === undefined ? null : yttUps[a.id]} canPct={!isClientViewer && (can("editAny") || (can("editOwn") && a.companyId === cu.companyId))} canNote={isAdmin} canCons={isAdmin} onAddCons={yttAddConsFor(a)} busy={yttBusy === a.id} onSave={yttSaveFor(a)} />}
+                      {yttEx[a.id] && <YttExpand a={a} ups={yttUps[a.id] === undefined ? null : yttUps[a.id]} canPct={!isClientViewer && (can("editAny") || (can("editOwn") && a.companyId === cu.companyId))} canNote={isAdmin} canCons={isAdmin} onAddCons={yttAddConsFor(a)} busy={yttBusy === a.id} onSave={yttSaveFor(a)} onFinish={!isClientViewer && canEdit(a) && !(pastCompletionWindow(a) && !isAdmin) ? yttFinishFor(a) : undefined} />}
                     </div>; })}
                 </div>
               </div>
@@ -5049,6 +5067,8 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   const [twBusy, setTwBusy] = useState(false);   // Test Invite To Me in-flight
   const [twNote, setTwNote] = useState(null);    // its result line, local to this drawer
   const [rtOpen, setRtOpen] = useState(false);
+  const [ask100, setAsk100] = useState(false);   // REV360: 100-means-Complete prompt
+  const [cap99, setCap99] = useState("");        // REV360: why percent held at 99 ("plain" | "overdue")
   const [rtName, setRtName] = useState("");
   const [rtStart, setRtStart] = useState("");
   const [tab, setTab] = useState("details");
@@ -5097,7 +5117,17 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
     if (onSaveRetest && can("retest")) onSaveRetest(a, clone); else onSave(a, isNew);
   };
   const setReason = (v) => { if (!canEdit) return; setA((p) => ({ ...p, slipReason: v })); };
-  const setPct = (v) => { if (locked || !canPercent) return; setA((p) => ({ ...p, percent: v })); };
+  const setPct = (v) => {
+    if (locked || !canPercent) return;
+    if (v != null && v >= 100 && a.status !== "complete") {   // REV360: 100 only through Complete
+      setA((p) => ({ ...p, percent: 99 }));
+      const canFinish = canEdit && !(pastCompletionWindow(a) && !isAdmin);
+      if (canFinish) { setAsk100(true); setCap99(""); } else setCap99(pastCompletionWindow(a) && !isAdmin ? "overdue" : "plain");
+      return;
+    }
+    if (cap99) setCap99("");
+    setA((p) => ({ ...p, percent: v }));
+  };
   const isNew = !act.desc && act.constraints.length === 0;
   const doReschedule = () => { if (!can("delay") || !rsDate || !rsReason.trim() || rsDate === a.start) return; setA((p) => ({ ...p, start: rsDate, witnessAt: p.witnessInvite ? shiftWitnessAt(p.witnessAt, p.start, rsDate) : p.witnessAt, reschedules: [...(p.reschedules || []), { from: p.start, to: rsDate, at: fmtISO(new Date()), by: by || "", reason: rsReason.trim() }] })); setRsDate(""); setRsReason(""); };
   const addC = () => { if (!cText.trim()) return; set("constraints", [...a.constraints, { id: uid("c"), text: cText.trim(), done: false, owner: cOwner.trim(), ownerType: cOwnerType, ownerId: cOwnerId, due: cDue, hist: [{ t: "raised", by: by || "", at: new Date().toISOString() }] }]); setCText(""); setCOwner(""); setCOwnerType(""); setCOwnerId(null); setCDue(""); };
@@ -5160,6 +5190,28 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
   const predLabel = (id) => { const x = (S.activities || []).find((p) => p.id === id); return x ? `#${x.code ?? "?"} ${x.desc || "Untitled"}` : "(removed)"; };
   return (
     <div className="lk-bg"><style>{css}</style>
+      {ask100 && (() => { const witPend = a.witnessInvite && (a.outcome || "pending") === "pending"; const overdueAdm = pastCompletionWindow(a) && isAdmin; return <div className="lk-modal-bg" style={{ zIndex: 60 }} onClick={() => setAsk100(false)}>
+        <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".8px", textTransform: "uppercase", color: "var(--st-warn)", marginBottom: 6 }}>100% entered</div>
+          <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>100 means Complete</h3>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55, marginBottom: 10 }}>An activity only reaches <b style={{ color: "var(--ink, inherit)" }}>100%</b> by being marked <b style={{ color: "var(--ink, inherit)" }}>Complete</b>. Complete it now, or hold at 99 until it is done-done.</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px", fontSize: 11.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.5 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: witPend ? "var(--st-warn)" : "var(--st-done)", marginTop: 5, flex: "none" }} />
+            <span>{witPend
+              ? <>This is a <b>witnessed activity</b>; completion needs the outcome recorded. Mark Complete takes you to it.</>
+              : overdueAdm
+                ? <>Past its planned finish, so this records an <b>overdue completion</b>. Set the true Actual finish; it does not default to today.</>
+                : a.actualFinish
+                  ? <>Completing records the actual finish as <b>{a.actualFinish}</b> (already entered) and locks the schedule fields.</>
+                  : <>Completing records the actual finish as <b>today</b> and locks the schedule fields.</>}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button className="lk-btn primary" onClick={() => { setA((p) => applyStatus(p, "complete")); setAsk100(false); }}>Mark Complete</button>
+            {witPend && <span style={{ fontSize: 10, color: "var(--muted)", textAlign: "center", marginTop: -4 }}>Then pick Succeeded or Failed before saving</span>}
+            <button className="lk-btn" onClick={() => setAsk100(false)}>Hold at 99%</button>
+          </div>
+        </div>
+      </div>; })()}
       {rtOpen && <div className="lk-modal-bg" style={{ zIndex: 60 }} onClick={() => setRtOpen(false)}>
         <div className="lk-modal" style={{ ...cssVars(S.theme, S.settings), maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
           <div className="lk-dh"><h3>Create Retest</h3><button className="lk-btn icon" onClick={() => setRtOpen(false)}><Icon n="x" /></button></div>
@@ -5355,7 +5407,7 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
           {tab === "schedule" && <>
           {locked && canEdit && a.status === "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Marked complete, so the fields are locked. Set the status back to In progress or Planned to edit them. The reason for non-completion can still be recorded.</div>}
           {locked && canEdit && failedOnRecord && a.status !== "complete" && <div className="lk-pv" style={{ borderRadius: 8, border: "1px solid var(--line)" }}><Icon n="alert" s={13} />Witness outcome recorded as Failed, so the record is locked. An admin can reopen the outcome by setting it back to Pending.</div>}
-          <div className="lk-f"><label>Status</label><div className="lk-status">{(a.isMilestone ? [["planned", "Planned"], ["complete", "Complete"]] : [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]).map(([k, l]) => { const blockLate = k === "complete" && pastCompletionWindow(a) && !isAdmin; return <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit || blockLate} title={blockLate ? "Past its planned finish; overdue completion is admin-only" : undefined} onClick={() => setA((p) => { const n = { ...p, status: k }; if (k === "in_progress" && !n.actualStart) n.actualStart = fmtISO(new Date()); if (k === "complete") { if (!n.actualStart) n.actualStart = fmtISO(new Date()); if (!n.actualFinish && !pastCompletionWindow(p)) n.actualFinish = fmtISO(new Date()); n.percent = 100; } else if (k === "planned") n.percent = 0; return n; })}>{l}</button>; })}</div>
+          <div className="lk-f"><label>Status</label><div className="lk-status">{(a.isMilestone ? [["planned", "Planned"], ["complete", "Complete"]] : [["planned", "Planned"], ["in_progress", "In progress"], ["complete", "Complete"]]).map(([k, l]) => { const blockLate = k === "complete" && pastCompletionWindow(a) && !isAdmin; return <button key={k} className={a.status === k ? "sel" : ""} disabled={!canEdit || blockLate} title={blockLate ? "Past its planned finish; overdue completion is admin-only" : undefined} onClick={() => setA((p) => applyStatus(p, k))}>{l}</button>; })}</div>
             {a.isMilestone && <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Milestones are binary: a point event is either Planned or Complete.</span>}</div>
           {pastCompletionWindow(a) && !isAdmin && a.status !== "complete" && <div style={{ border: "1px solid color-mix(in srgb, var(--st-warn) 45%, transparent)", background: "color-mix(in srgb, var(--st-warn) 7%, transparent)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "var(--st-warn)", marginTop: -4 }}><Icon n="alert" s={13} /> <b>Past its planned finish ({fmtISO(plannedFinish(a))}), so Complete is now admin-only.</b> Record the Reason for Non-Completion below, then ask an admin to record the actual completion. This keeps the completion date honest in PPC.</div>}
           {pastCompletionWindow(a) && isAdmin && a.status !== "complete" && <div style={{ border: "1px solid rgba(36,86,166,.55)", background: "rgba(36,86,166,.10)", borderRadius: 9, padding: "10px 12px", fontSize: 12, color: "#7EA6E0", marginTop: -4 }}><Icon n="alert" s={13} /> You are recording an <b>overdue completion</b> (planned finish {fmtISO(plannedFinish(a))}). The audit log will name you and show the overrun. Set the true Actual finish date; it does not default to today on an overdue completion.</div>}
@@ -5394,7 +5446,9 @@ function Drawer({ act, S, canEdit, isAdmin, can, by, clientViewer, canPercent, i
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--muted)" }}><span>{a.status === "complete" ? "100" : "0"}%</span><span style={{ fontSize: 9.5, border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>locked for milestones</span></div>
                 <span style={{ fontSize: 10.5, color: "var(--muted)" }}>0 while Planned, 100 on Complete. Keeps the Gantt fill and exports clean.</span></div>
             : <div className="lk-f"><label>Percent complete</label><input className="lk-in mono" type="number" min="0" max="100" step="5" value={a.percent == null ? "" : a.percent} disabled={locked || !canPercent} placeholder={a.status === "complete" ? "100" : "0"} onChange={(e) => { const v = e.target.value; setPct(v === "" ? null : Math.max(0, Math.min(100, Math.round(Number(v) || 0)))); }} />
-                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Manual progress you set. Left blank it reads {a.status === "complete" ? "100" : "0"}% from the status.</span></div>}
+                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Manual progress you set. Left blank it reads {a.status === "complete" ? "100" : "0"}% from the status.</span>
+                {cap99 && <div style={{ border: "1px solid " + (cap99 === "overdue" ? "color-mix(in srgb, var(--st-warn) 45%, transparent)" : "rgba(91,155,243,.4)"), background: cap99 === "overdue" ? "color-mix(in srgb, var(--st-warn) 8%, transparent)" : "rgba(91,155,243,.07)", borderRadius: 9, padding: "9px 11px", fontSize: 11.5, color: cap99 === "overdue" ? "var(--st-warn)" : "var(--accent)", lineHeight: 1.5, marginTop: 4 }}>{cap99 === "overdue" ? <>Past its planned finish, so Complete is admin-only. Held at 99%; record the Reason for Non-Completion and ask an admin to record the actual completion.</> : <>100% comes with completion. An editor or admin marks it Complete, which sets 100 and records the actual finish.</>}</div>}
+                {act.status === "complete" && a.status === "in_progress" && a.percent === 99 && <div style={{ border: "1px solid rgba(91,155,243,.4)", background: "rgba(91,155,243,.07)", borderRadius: 9, padding: "9px 11px", fontSize: 11.5, color: "var(--accent)", lineHeight: 1.5, marginTop: 4 }}>Reopened from Complete, so percent stepped back to 99. It returns to 100 when the activity is completed again.</div>}</div>}
           {(() => { const ps = parseD(a.start), pf = addDays(ps, a.duration - 1); let d = null, lbl = ""; if (a.status === "complete" && a.actualFinish) { d = Math.round((parseD(a.actualFinish) - pf) / DAYMS); lbl = "Finish vs plan"; } else if (a.actualStart) { d = Math.round((parseD(a.actualStart) - ps) / DAYMS); lbl = "Start vs plan"; } if (d == null) return null; return <div style={{ fontSize: 12.5, fontWeight: 600, color: d > 0 ? "var(--red, #C0392B)" : "var(--st-done)" }}>{lbl}: {d > 0 ? "+" + d : d} day{Math.abs(d) === 1 ? "" : "s"} {d > 0 ? "late" : d < 0 ? "early" : "on plan"}</div>; })()}
           {(() => { const pf = addDays(parseD(a.start), a.duration - 1); const made = a.status === "complete" && (!a.actualFinish || parseD(a.actualFinish) <= pf); const miss = a.committed && !made && (pf.getTime() < todayMid() || (a.status === "complete" && a.actualFinish && parseD(a.actualFinish) > pf)); if (!miss) return null; return <div className="lk-f"><label>Reason for non-completion <span style={{ fontWeight: 400, color: "var(--muted)" }}>(this committed activity missed its promised finish)</span></label>
             <select className="lk-select" value={a.slipReason || ""} disabled={!canEdit} onChange={(e) => setReason(e.target.value)}>
