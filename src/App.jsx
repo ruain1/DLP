@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import FilterDrawer, { applyActivityFilters, countActiveFilters, emptyFilters } from "./FilterDrawer.jsx";
 import { vendorLookaheadData, vlGanttLayout, vlGanttSvg, buildVendorCardsEmailHtml, buildVendorCardsText, vlDd, VL_CARD_CAP } from "./vendorLookahead";
+import { delayIndex } from "./delayInfo";
 import { catalogErr, erRef } from "./errorCatalog";
 import { loadAll, loadProjects, loadProjectOverview, createProject, syncCollections, userOp, signOut, subscribeAll, updateBranding, uploadLogo, uploadCompanyLogo, applyBrandToTab, fetchUserStatus, heartbeat, loadPresence, loadLatestAuditByUser, fetchActivityAudit, fetchAccessRequests, decideAccessRequest, subscribeAccessRequests, submitInviteRequest, decideInviteRequest, createCompany, setCompanyDomain, loadProjectMembers, addMember, setMemberRole, removeMember, loadMembershipCounts, loadDirectory, loadProjectCompanyMap, companyUsage, renameCompany, deleteCompanyById, setCompanyLogo, scopeCompanies, scopeCompaniesWith, ensureProjectCompanies, loadVendors, createVendor, updateVendor, deleteVendorById, loadVendorUsageByName, mergeVendorNames, loadProjectCompanies, addProjectCompany, removeProjectCompany, countCompanyActivitiesOnProject, setPlatformRole, loadBaseline, saveBaseline, saveBaselineMappings, clearBaseline, loadReportRecipients, saveReportRecipients, loadActivitySnapshots, applyAuditRevert, resolvePriv, PRIV_GROUPS, saveUserPrivileges, updateProject, loadPortfolioAnalytics, fetchCreatedBetween, loadAccSync, loadAccSyncEvents, linkBenchmarksToActivities, setActivityPercent, importFingerprint, checkImportFingerprint, recordImportFingerprint , fetchActivityUpdates, addActivityUpdate , fetchUpdatesBetween, loadInviteMatrices, loadSignins, loadMorningAttendance, saveMorningAttendance, deleteMorningAttendance, submitErrorReport, loadErrorReports, resolveErrorReport, subscribeErrorReports } from "./data";
 import { parseXER, parseMSPDI, parseCSV, autodetectMapping, autodetectMsCol, tabularToBaseline, decodeXer, wbsPath } from "./xer";
@@ -8517,14 +8518,22 @@ function SchedulePage({ S, coName, onOpen }) {
         const dur = a.isMilestone ? 1 : Math.max(1, a.duration || 1);
         const lateInfo = (() => { if (!a.start) return null; const DAY = 86400000; const ps = parseD(a.start); const pf = addDays(ps, dur - 1); if (a.status === "complete") { if (a.actualFinish && parseD(a.actualFinish) > pf) return { kind: "finLate", days: Math.round((parseD(a.actualFinish) - pf) / DAY) }; return null; } const lateStart = a.actualStart ? Math.round((parseD(a.actualStart) - ps) / DAY) : 0; const overdue = todayMid() > pf.getTime() ? Math.round((todayMid() - pf.getTime()) / DAY) : 0; const d = Math.max(0, lateStart, overdue); if (d <= 0) return null; return { kind: overdue >= lateStart ? "overdue" : "lateStart", days: d }; })();
         const dayWord = (n) => n + (n === 1 ? " day" : " days");
+        // REV361: an activity that cannot lawfully start because its own predecessor is still open
+        // is held, not late. REV344 made the verdict clock-honest, which was right, but it still
+        // read "Running N days past its planned finish" over a company that had no route to start.
+        // The verdict now leads with the hold, names the driver and the earliest feasible start,
+        // and states where the drift belongs. Red is unchanged for genuine slips.
+        const dInfo = delayIndex(acts, fmtISO(new Date(todayMid()))).get(a);
+        const isHeld = !!dInfo && dInfo.state === "held";
         const summary = [];
-        if (lateInfo) summary.push(lateInfo.kind === "finLate" ? "Finished " + dayWord(lateInfo.days) + " after its planned finish." : lateInfo.kind === "lateStart" ? "Started " + dayWord(lateInfo.days) + " late against its planned start." : a.isMilestone ? "Running " + dayWord(lateInfo.days) + " past its planned date." : "Running " + dayWord(lateInfo.days) + " past its planned finish at " + pct(a) + "% complete.");
+        if (isHeld) summary.push("Held by predecessor. Cannot start before " + shortDate(parseD(dInfo.forecastStart)) + (dInfo.driver ? "; the binding predecessor is #" + (dInfo.driver.code != null ? dInfo.driver.code : "?") + " " + dInfo.driver.desc + " (" + coName(dInfo.driver.companyId) + "), finishing " + shortDate(parseD(dInfo.driver.forecastFinish)) : "") + ". Planned " + shortDate(parseD(dInfo.plannedStart)) + " to " + shortDate(parseD(dInfo.plannedFinish)) + " is " + dayWord(dInfo.days) + " adrift of the forecast " + shortDate(parseD(dInfo.forecastStart)) + " to " + shortDate(parseD(dInfo.forecastFinish)) + "; the drift is driven upstream, not by this activity's owner." + (dInfo.rootDriver && dInfo.driver && dInfo.rootDriver.id !== dInfo.driver.id ? " The root driver is #" + (dInfo.rootDriver.code != null ? dInfo.rootDriver.code : "?") + " " + dInfo.rootDriver.desc + "." : " Moving the driver moves this."));
+        else if (lateInfo) summary.push(lateInfo.kind === "finLate" ? "Finished " + dayWord(lateInfo.days) + " after its planned finish." : lateInfo.kind === "lateStart" ? "Started " + dayWord(lateInfo.days) + " late against its planned start." : a.isMilestone ? "Running " + dayWord(lateInfo.days) + " past its planned date." : "Running " + dayWord(lateInfo.days) + " past its planned finish at " + pct(a) + "% complete.");
         if (nv.slipDays > 0) summary.push("Slipped " + nv.slipDays + " day" + (nv.slipDays === 1 ? "" : "s") + (nv.rs.length ? " across " + nv.rs.length + " reschedule" + (nv.rs.length === 1 ? "" : "s") : "") + ".");
-        if (nv.binding && (nv.pushed || !nv.binding.done)) summary.push("Waiting on " + nv.binding.label + " (finishes " + shortDate(nv.binding.finish) + ").");
-        if (nv.succs.length) summary.push("Moving it further pushes " + nv.succs.length + " downstream " + (nv.succs.length === 1 ? "activity" : "activities") + (nv.succs.some((x) => x.milestone) ? ", including a milestone" : "") + ".");
+        if (!isHeld && nv.binding && (nv.pushed || !nv.binding.done)) summary.push("Waiting on " + nv.binding.label + " (finishes " + shortDate(nv.binding.finish) + ").");
+        if (nv.succs.length) summary.push((isHeld ? "If it slips further it pushes " : "Moving it further pushes ") + nv.succs.length + " downstream " + (nv.succs.length === 1 ? "activity" : "activities") + (nv.succs.some((x) => x.milestone) ? ", including a milestone" : "") + ".");
         if (!summary.length) summary.push("On plan. No slip, no upstream wait, and nothing downstream depends on it.");
         const lbl = (t) => <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--muted)", margin: "14px 0 6px" }}>{t}</div>;
-        const accent = (lateInfo && lateInfo.kind !== "finLate") ? "var(--red, #C0392B)" : (nv.slipDays > 0 || nv.pushed || lateInfo) ? "#D97706" : "var(--st-done)";
+        const accent = isHeld ? "#D97706" : (lateInfo && lateInfo.kind !== "finLate") ? "var(--red, #C0392B)" : (nv.slipDays > 0 || nv.pushed || lateInfo) ? "#D97706" : "var(--st-done)";
         return <>
           <div onClick={() => setNarr(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", zIndex: 60 }} />
           <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: 424, maxWidth: "92vw", background: "var(--card)", borderLeft: "3px solid #3b82f6", boxShadow: "-8px 0 24px rgba(0,0,0,.3)", zIndex: 61, overflowY: "auto", padding: "18px 20px", boxSizing: "border-box" }}>
@@ -9165,6 +9174,9 @@ function computeReport({ S, LV, coName, start, end }){
   const today = new Date(todayMid());
   const sMs = start.getTime(), eMs = end.getTime();
   const dated = acts.filter((a) => a.start);
+  // REV361: one shared index for the whole report build, so the KPI split, and any surface that
+  // adopts it later, read the same classification the digest and the drawer read.
+  const dIx = delayIndex(acts, fmtISO(today));
   const dueInWk = (a) => { const f = finishOf(a).getTime(); return f >= sMs && f <= eMs; };
   const due = dated.filter((a) => a.committed && dueInWk(a));
   const kept = due.filter(made);
@@ -9196,7 +9208,13 @@ function computeReport({ S, LV, coName, start, end }){
     inProgress: acts.filter((a)=>a.status==="in_progress").length,
     ready: la.filter((a)=>openOf(a)===0&&a.status!=="complete").length,
     makeReady: la.filter((a)=>openOf(a)>0&&a.status!=="complete").length,
+    // REV361: the REV343 total is preserved exactly and decomposed, never shrunk. late + held
+    // always equals delayed, so no count moves; management sees which of the two conversations
+    // each activity actually is. Held means an open predecessor makes the planned start
+    // infeasible, so the drift belongs upstream of the company named against the row.
     delayed: dated.filter((a) => a.status !== "complete" && isDelayed(a)).length,
+    late: dated.filter((a) => a.status !== "complete" && isDelayed(a) && (dIx.get(a) || {}).state !== "held").length,
+    held: dated.filter((a) => a.status !== "complete" && isDelayed(a) && (dIx.get(a) || {}).state === "held").length,
     witness: la.filter((a)=>a.witnessInvite).length,
   };
   const cards = la.filter((a)=>openOf(a)>0)
@@ -9384,7 +9402,8 @@ function buildWeeklyReportHTML({ r, summary, includeSchedule, by, mode, theme, s
     ["In progress", K.inProgress, ""],
     ["Ready to run", K.ready, "var(--green)"],
     ["Need make-ready", K.makeReady, "var(--amber)"],
-    ["Delayed", K.delayed, "var(--red)"],
+    ["Late", K.late != null ? K.late : K.delayed, "var(--red)"],
+    ["Held by predecessor", K.held != null ? K.held : 0, "var(--amber)"],
     ["Witness required", K.witness, "#6D3BD0"],
   ].map(([l,v,c])=>`<div class="kpi"><div class="v num"${c?` style="color:${c}"`:""}>${v}</div><div class="l">${l}</div></div>`).join("");
   // promise cells
@@ -9955,7 +9974,8 @@ function WeeklyReportLauncher({ S, LV, coName, by, isAdmin, canDist, projectId, 
     const lbl = mode === "week" ? "Week " + isoWeek(defWeek.end) + " &#183; week ending " + fmtDoW(defWeek.end) : fmtISO(start) + " to " + fmtISO(end);
     const tiles = [];
     if (plan.ppc && rData.ppc != null) tiles.push({ v: rData.ppc + "%", l: "PPC", color: "#2456A6" });
-    if (plan.kpis) tiles.push({ v: String(rData.kpis.delayed), l: "Delayed", color: "#C0392B" });
+    if (plan.kpis) tiles.push({ v: String(rData.kpis.late != null ? rData.kpis.late : rData.kpis.delayed), l: "Late", color: "#C0392B" });
+    if (plan.kpis && rData.kpis.held) tiles.push({ v: String(rData.kpis.held), l: "Held", color: "#b07f00" });
     if (plan.invites && rData.witnessOut && rData.witnessOut.attempted > 0) tiles.push({ v: rData.witnessOut.passed + " / " + rData.witnessOut.attempted, l: "Witness Passed", color: "#0E9384" });
     if (plan.kpis) tiles.push({ v: String(rData.kpis.makeReady), l: "Make-Ready", color: "#E0A106" });
     const base = ((S.brand && S.brand.projectName) || "DLP") + "-weekly-report-" + fmtISO(start);

@@ -3,6 +3,13 @@
 // tested headless. The scheduler and Graph send live in App.jsx and ride the same
 // report_runs claim machinery as the daily and weekly digests, under kind "morning".
 import { helParts, utcForHelsinki, helDateStr, emailBtn, emailShell, projectFooter } from "./digestCore";
+// REV361: the closure and predecessor predicates moved to delayInfo.js so the board, the weekly
+// report, the drawer and this file share one rule. Imported for local use and re-exported so
+// existing importers keep working without a second definition drifting out of step. Note the
+// import is required as well as the export: a bare re-export creates no local binding, which is
+// the same free-identifier class of fault as REV339 and was caught here by the render harness.
+import { delayIndex, isClosedActivity, openPredecessors } from "./delayInfo";
+export { isClosedActivity, openPredecessors };
 
 export const MORNING_DEFAULTS = {
   enabled: false,
@@ -57,29 +64,6 @@ const dd = (s) => pD(s).toLocaleDateString("en-GB", { day: "2-digit", month: "sh
 const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const MID = " \u00b7 ";
 
-// REV350: the single predecessor test. Exported deliberately: the board, the YTT drawer and
-// the Delayed KPI each carry their own delay logic already, and adopting this rule there must
-// be an import rather than a fifth reimplementation. isClosedActivity mirrors the closedA rule
-// used throughout this file: complete, failed outcome, or reported 100 percent.
-export function isClosedActivity(a) {
-  if (!a) return true;
-  const pct = a.percent != null ? Math.max(0, Math.min(100, Math.round(a.percent))) : (a.status === "complete" ? 100 : 0);
-  return a.status === "complete" || String(a.outcome || "").toLowerCase() === "failed" || pct >= 100;
-}
-// REV352 correctness fix. predecessors stores activity id UUIDs, not codes. REV350 and REV351
-// matched them against code (an integer), which can never equal a UUID, so predecessor-aware
-// reporting silently produced nothing on real data. Verified directly against FIN04: every
-// stored predecessor value resolves against activities.id and none against activities.code.
-// Both are accepted here because a UUID can never collide with an integer code, so supporting
-// the legacy form costs nothing and guards against older rows. An activity with no links, or
-// links that resolve to nothing, returns an empty list and is treated as an ordinary slip:
-// missing link data can only ever leave an item flagged, never hide one.
-export function openPredecessors(a, activities) {
-  const preds = (a && Array.isArray(a.predecessors) ? a.predecessors : []).map(String);
-  if (!preds.length) return [];
-  return (activities || []).filter((x) => x && !isClosedActivity(x)
-    && (preds.includes(String(x.id)) || (x.code != null && preds.includes(String(x.code)))));
-}
 
 export function morningData(St, due, updates) {
   const today = helDateStr(due);
@@ -112,8 +96,12 @@ export function morningData(St, due, updates) {
   // causes rather than the symptoms. Overdue items stay in Overdue finishes; only their label
   // changes, so no list shrinks and no count moves.
   const acts351 = (St.activities || []);
-  const daysLate = (endIso) => Math.max(1, Math.round((pD(today).getTime() - pD(endIso).getTime()) / 86400000));
   const predAware = !!morningCfg(St.settings || {}).splitHeld;
+  // REV361: classification comes from the shared delayIndex so the digest, the drawer and the
+  // weekly KPI cannot drift apart again. The defect this closes: a blocker that is itself held
+  // was rendered with a red "N days late" chip carrying its owner's company name, which put
+  // Schneider's name on an 8-day slip that belongs to the atnorth energisation upstream.
+  const DI = delayIndex(acts351, today);
   const blockedMap = {};
   const clearFirst = [];
   if (predAware) {
@@ -121,18 +109,25 @@ export function morningData(St, due, updates) {
     live.forEach((r) => {
       const bl = openPredecessors(r.a, acts351).map((p) => {
         const pr = rows.find((x) => x.a.id === p.id) || null;
-        return { id: p.id, desc: p.desc || "Untitled", co: pr ? pr.co : "Unassigned", e: pr ? pr.e : null, late: (pr && pr.e < today) ? daysLate(pr.e) : 0 };
+        const pi = DI.get(p) || null;
+        return { id: p.id, desc: p.desc || "Untitled", co: pr ? pr.co : "Unassigned", e: pr ? pr.e : null,
+          late: (pi && pi.state === "late") ? pi.days : 0,
+          held: !!(pi && pi.state === "held"), canStart: pi ? pi.forecastStart : null,
+          root: (pi && pi.rootDriver) ? pi.rootDriver.desc : null };
       });
       if (!bl.length) return;
       blockedMap[r.a.id] = bl;
       bl.forEach((b) => {
         const k = String(b.id);
-        if (!byBlocker[k]) byBlocker[k] = { desc: b.desc, co: b.co, e: b.e, late: b.late, holding: [] };
-        byBlocker[k].holding.push({ desc: r.a.desc || "Untitled", co: r.co, s: r.s, e: r.e, overdue: r.e < today });
+        if (!byBlocker[k]) byBlocker[k] = { desc: b.desc, co: b.co, e: b.e, late: b.late, held: b.held, canStart: b.canStart, root: b.root, holding: [] };
+        const hi = DI.get(r.a) || null;
+        byBlocker[k].holding.push({ desc: r.a.desc || "Untitled", co: r.co, s: r.s, e: r.e, overdue: r.e < today,
+          held: !!(hi && hi.state === "held"), canStart: hi ? hi.forecastStart : null });
       });
     });
     Object.keys(byBlocker).forEach((k) => clearFirst.push(byBlocker[k]));
-    clearFirst.sort((x, y) => (y.holding.length - x.holding.length) || (y.late - x.late));
+    // A blocker that is itself held is a symptom, not a cause, so genuine causes sort above it.
+    clearFirst.sort((x, y) => (Number(!!x.held) - Number(!!y.held)) || (y.holding.length - x.holding.length) || (y.late - x.late));
   }
   const starting = live.filter((r) => r.s === today && r.e !== today);
   const inProgress = live.filter((r) => r.s <= today && r.e >= today);
@@ -204,7 +199,9 @@ export function buildMorningAiFacts(d) {
   if (odBlk.length) L.push("Overdue BUT BLOCKED. These holders cannot proceed. Do not tell them to clear, progress, expedite or make visible progress on these; the action belongs to the blocking activity and its owner: " + odBlk.slice(0, 10).map((r) => act(r) + " was due " + r.e + ", waiting on " + blkTxt(r)).join("; ") + ".");
   // REV351: the model is told what is blocking what, grouped by blocker, so the summary can
   // push the one activity that unlocks several rather than chasing each held item separately.
-  if (d.clearFirst && d.clearFirst.length) L.push("Clear these first, each holding other work: " + d.clearFirst.slice(0, 6).map((b) => b.desc + " (" + b.co + ")" + (b.late ? ", " + b.late + " day" + (b.late === 1 ? "" : "s") + " late" : ", in progress") + ", holding " + b.holding.length + " activit" + (b.holding.length === 1 ? "y" : "ies") + ": " + b.holding.map((h) => h.desc).join(", ")).join("; ") + ".");
+  // REV361: the facts sheet states held blockers as held, with the root driver named, so the
+  // generated prose cannot chase a company for drift that is not theirs to fix.
+  if (d.clearFirst && d.clearFirst.length) L.push("Clear these first, each holding other work: " + d.clearFirst.slice(0, 6).map((b) => b.desc + " (" + b.co + ")" + (b.held ? ", ITSELF HELD" + (b.canStart ? " and cannot start before " + b.canStart : "") + (b.root ? ", driven upstream by " + b.root + ", so do not direct action at " + b.co : "") : (b.late ? ", " + b.late + " day" + (b.late === 1 ? "" : "s") + " late" : ", in progress")) + ", holding " + b.holding.length + " activit" + (b.holding.length === 1 ? "y" : "ies") + ": " + b.holding.map((h) => h.desc).join(", ")).join("; ") + ".");
   if (d.finishing.length) L.push("Due to finish today: " + d.finishing.slice(0, 8).map((r) => actB(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : " clear")).join("; ") + ".");
   if (d.starting.length) L.push("Starting today: " + d.starting.slice(0, 8).map(actB).join("; ") + ".");
   if (d.tStart.length) L.push("Starting tomorrow: " + d.tStart.slice(0, 8).map((r) => actB(r) + (r.open.length ? " with " + r.open.length + " open constraint(s)" : "")).join("; ") + ".");
@@ -248,11 +245,18 @@ function blockedLine(r, bl) {
 // does the actual work: four blocked activities across three sections is four conversations,
 // the same information grouped by blocker is one or two actions.
 function clearFirstLine(b, today, tmrw) {
-  const st = b.late ? (b.late + " day" + (b.late === 1 ? "" : "s") + " late") : (b.e ? "in progress, to " + dd(b.e) : "in progress");
-  const stCol = b.late ? "#C0392B" : "#b07f00";
-  const when = (h) => h.overdue ? "overdue" : (h.s === today ? "starts today" : (h.s === tmrw ? "starts tomorrow" : (h.e === today ? "due today" : (h.e === tmrw ? "due tomorrow" : "starts " + dd(h.s)))));
+  // REV361: red is reserved for a delay the named company can actually act on. A blocker that is
+  // itself held reads amber, names the earliest feasible start and the root driver, so the chip
+  // never attributes upstream drift to the wrong contractor. Genuine slips keep the red chip, so
+  // nothing is softened or hidden; only the attribution is corrected.
+  const st = b.held ? ("held" + (b.canStart ? ", can start " + dd(b.canStart) : ""))
+    : (b.late ? (b.late + " day" + (b.late === 1 ? "" : "s") + " late") : (b.e ? "in progress, to " + dd(b.e) : "in progress"));
+  const stCol = b.held ? "#b07f00" : (b.late ? "#C0392B" : "#b07f00");
+  const why = b.held && b.root ? `<tr><td colspan="2" style="padding:0 0 2px 14px; font-size:10pt; font-family:${MR_FF}; color:#8a6100;">driven upstream by ${esc(b.root)}, not by ${esc(b.co)}</td></tr>` : "";
+  const when = (h) => h.held ? ("held" + (h.canStart ? ", can start " + dd(h.canStart) : "")) : (h.overdue ? "overdue" : (h.s === today ? "starts today" : (h.s === tmrw ? "starts tomorrow" : (h.e === today ? "due today" : (h.e === tmrw ? "due tomorrow" : "starts " + dd(h.s))))));
   return `<tr><td style="padding:8px 0 1px; font-size:12pt; font-family:${MR_FF};"><b>${esc(b.desc)}</b> <span style="color:#68727f;">${MID}${esc(b.co)}</span></td>`
     + `<td align="right" style="font-size:11pt; font-weight:bold; font-family:${MR_FF}; white-space:nowrap; color:${stCol};">${esc(st).replace(/ /g, "&#160;")}</td></tr>`
+    + why
     + b.holding.map((h) => `<tr><td colspan="2" style="padding:0 0 2px 14px; font-size:10.5pt; font-family:${MR_FF}; color:#3d4855;">${MID}${esc(h.desc)} <span style="color:#68727f;">(${esc(h.co)})</span>, ${esc(when(h))}</td></tr>`).join("")
     + `<tr><td colspan="2" style="padding:0 0 4px;"></td></tr>`;
 }
