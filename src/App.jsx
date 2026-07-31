@@ -199,6 +199,7 @@ const css = `
 .lk-chip.commit{background:#1D4ED8;color:#DBE7FB}
 .lk-chip.cstr{background:#FBEFD6;color:#9A6A00;display:inline-flex;align-items:center;gap:3px}
 .lk-chip.late{background:#F6D6D3;color:#9B1C16}
+.lk-chip.heldp{background:#FCE9C9;color:#8A5B00}
 .lk-chip.wit{background:#7C3AED;color:#EDE9FE}
 .lk-chip.knock{background:#FBEFD6;color:#9A6A00;text-transform:none}
 .lk-chip.fail{background:color-mix(in srgb,var(--red) 18%,transparent);color:var(--red);border:1px solid color-mix(in srgb,var(--red) 50%,transparent)}
@@ -3195,6 +3196,8 @@ export default function App({ session }) {
 
   const visible = useMemo(() => {
     if (!S) return [];
+    // REV362: one index for the whole derivation pass rather than one per card.
+    const bdIx = delayIndex(S.activities, fmtISO(new Date(todayMid())));
     const base = S.activities.map((a) => {
       const ps = parseD(a.start);
       const startOff = Math.round((ps - anchor) / DAYMS);
@@ -3210,7 +3213,18 @@ export default function App({ session }) {
         const overdue = todayMid() > pf.getTime() ? Math.round((todayMid() - pf.getTime()) / DAYMS) : 0;
         delayDays = Math.max(0, lateStart, overdue);
       }
-      return { ...a, startOff, endOff, span: a.duration - 1, delayDays, delayed: delayDays > 0, open: openCount(a) };
+      // REV362: the board adopts the REV361 classifier. held means an open predecessor makes the
+      // planned start infeasible, so the day count belongs upstream and the red chip would name
+      // the wrong company. delayed is left exactly as it was so no existing count or filter moves.
+      const di = bdIx.get(a) || {};
+      const dHeld = di.state === "held";
+      const heldNote = dHeld
+        ? ("Held by an open predecessor" + (di.driver ? ": #" + (di.driver.code != null ? di.driver.code : "?") + " " + di.driver.desc : "")
+           + (di.forecastStart ? "; can start " + di.forecastStart : "")
+           + (di.days ? ", " + di.days + " days adrift, driven upstream" : "")
+           + (di.rootDriver && di.driver && di.rootDriver.id !== di.driver.id ? ". Root driver: #" + (di.rootDriver.code != null ? di.rootDriver.code : "?") + " " + di.rootDriver.desc : ""))
+        : "";
+      return { ...a, startOff, endOff, span: a.duration - 1, delayDays, delayed: delayDays > 0, held: dHeld, heldNote, open: openCount(a) };
     });
     // ---- non-destructive forward pass: project dates down the predecessor chain ----
     const byId = Object.fromEntries(base.map((a) => [a.id, a]));
@@ -3804,6 +3818,15 @@ export default function App({ session }) {
   const urgentMR = needMR.filter((a) => a.startOff < mk);
   const committedWk = visible.filter((a) => a.committed && a.startOff >= 0 && a.startOff < 7);
   const delayedList = inWindow.filter((a) => a.delayed);
+  // REV362: the same decomposition as the weekly report. delayedList is untouched so anything
+  // still reading it keeps its meaning; the strip shows the two conversations separately.
+  // Both are scoped to a.delayed so Late plus Held equals the previous Delayed figure exactly,
+  // matching the REV361 weekly split. An activity that is held but not yet past its planned
+  // dates is deliberately excluded here: it is early warning, not a delay, and inflating a KPI
+  // with it would break the reconciliation. The board chip does show those, which is the right
+  // place for a forward-looking flag.
+  const lateOwnList = inWindow.filter((a) => a.delayed && !a.held);
+  const heldList = inWindow.filter((a) => a.delayed && a.held);
   const atRiskList = inWindow.filter((a) => a.knockOn > 0 && a.status !== "complete" && !a.delayed);
   // Sidebar PPC: on-time completions over committed work DUE TO DATE (REV106). Commitments whose
   // promised finish has not arrived get no verdict yet, matching the gauge, Reasons panel and trend.
@@ -4005,7 +4028,7 @@ export default function App({ session }) {
     const editable = canEdit(a);
     const movable = editable && (!a.committed || can("editCommitted") || can("commit"));
     if (a.isMilestone) {
-      const late = a.delayed && !a.excuse;
+      const late = a.delayed && !a.held && !a.excuse;
       const complete = a.status === "complete";
       const hasSlip = !a.excuse && (late || (!complete && a.totalShift > 0));
       let feDay;
@@ -4065,11 +4088,11 @@ export default function App({ session }) {
     // e + 2 goes negative and CSS grid counts the end line from the right edge, painting a phantom
     // bar whose width scales with the visibility window.
     if (!carried && !failCarried && e < s) return null;
-    const carriedHatch = a.delayed
+    const carriedHatch = (a.delayed && !a.held)
       ? "repeating-linear-gradient(135deg,rgba(192,57,58,.30) 0 6px,rgba(192,57,58,.07) 6px 12px)"
       : "repeating-linear-gradient(135deg,color-mix(in srgb, var(--st-warn) 28%, transparent) 0 6px,color-mix(in srgb, var(--st-warn) 6%, transparent) 6px 12px)";
     const hasTail = !carried && !failedInv && !a.excuse && a.status !== "complete" && a.totalShift > 0 && (grain === "day" ? a.projEndOff : Math.floor(a.projEndOff / 7)) > eU(a);
-    const tailLate = a.delayed && !a.excuse;
+    const tailLate = a.delayed && !a.held && !a.excuse;
     return (
       <div className={"lk-ticket" + (constrained ? " constrained" : "") + (a.status === "complete" ? " complete" : "") + (dim ? " dim" : "") + (spot ? " spot" : "") + (!editable ? " ro" : "") + (rz ? " resizing" : "") + (carried ? " carried" : "") + (failedInv ? " ghostfail" : "")}
         style={{ gridColumn: `${s + 1} / ${e + 2}`, gridRow: row + 1, zIndex: rz ? 4 : 1, borderLeftColor: failedInv ? "var(--red, #C0392B)" : (carried ? "var(--red, #C0392B)" : boardEdge(a, lv, constrained)), background: failedInv ? undefined : (carried ? carriedHatch : (a.status === "complete" ? "var(--card)" : (S.theme === "dark" ? "var(--card)" : tintOf(lv.color)))), ...(carried ? { backgroundColor: S.theme === "dark" ? "rgba(192,57,58,.12)" : "rgba(192,57,58,.06)" } : {}), ...(hasTail ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: `1px dashed ${tailLate ? "rgba(192,57,58,.85)" : "color-mix(in srgb, var(--st-warn) 85%, transparent)"}` } : {}) }}
@@ -4081,7 +4104,8 @@ export default function App({ session }) {
           {a.witnessInvite && (failedInv ? <span className="lk-chip fail" title={"Witness outcome: failed" + (a.outcomeReason ? " \u00b7 " + a.outcomeReason : "")}>failed</span> : (!BH.witness && (passedInv ? <span className="lk-chip pass" title="Witness outcome: succeeded">passed</span> : <span className="lk-chip wit" title="Witness invite">WIT</span>)))}
           {!BH.witness && a.retestOf && <span className="lk-chip retest" title={"Attempt #" + attemptNo(a, S.activities) + " of this witness event"}>retest #{attemptNo(a, S.activities) - 1}</span>}
           {!BH.cstr && constrained && <span className="lk-chip cstr"><Icon n="alert" s={9} />{a.open}</span>}
-          {!BH.delay && a.delayed && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
+          {!BH.delay && a.held && !a.excuse && !failedInv && <span className="lk-chip heldp" title={a.heldNote || "Held by an open predecessor"}>held</span>}
+          {!BH.delay && a.delayed && !a.held && !a.excuse && !failedInv && <span className="lk-chip late">+{a.delayDays}d</span>}
           {!BH.delay && a.knockOn > 0 && a.status !== "complete" && !failedInv && <span className="lk-chip knock" title="Projected start pushed later by a predecessor">{"\u25B8+"}{a.knockOn}d</span>}
           {!BH.hrs && !!S.settings.crewsEnabled && a.estHours !== "" && a.estHours != null && +a.estHours > 0 && <span className="lk-chip hrs" title={"Estimated " + a.estHours + "h" + ((a.crew || []).length ? " for " + a.crew.join(" + ") : "") + (a.duration > 1 ? " spread over " + a.duration + " days" : "")}>{+a.estHours}h{(a.crew || []).length ? " \u00b7 " + a.crew.join("+") : ""}</span>}
           {!BH.who && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{S.laneBy === "company" ? locCode(a) : coName(a.companyId)}</span>}
@@ -4394,7 +4418,8 @@ export default function App({ session }) {
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Ready To Run", items: ready })}><span className="v" style={{ color: "var(--st-done)" }}>{ready.length}</span><span className="l">Ready to run</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Need Make-Ready", items: needMR })}><span className="v" style={{ color: "#D97706" }}>{needMR.length}</span><span className="l">Need make-ready</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Committed This Week", items: committedWk })}><span className="v" style={{ color: "var(--accent)" }}>{committedWk.length}</span><span className="l">Committed this week</span></div>
-        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Delayed", items: delayedList })}><span className="v" style={{ color: "var(--red, #C0392B)" }}>{delayedList.length}</span><span className="l">Delayed</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Late", items: lateOwnList })}><span className="v" style={{ color: "var(--red, #C0392B)" }}>{lateOwnList.length}</span><span className="l">Late</span></div>
+        <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "Held By Predecessor", items: heldList })}><span className="v" style={{ color: "#D97706" }}>{heldList.length}</span><span className="l">Held</span></div>
         <div className="lk-metric clickable" onClick={() => setMetricDrill({ title: "At Risk", items: atRiskList })}><span className="v" style={{ color: "var(--st-warn)" }}>{atRiskList.length}</span><span className="l">At risk</span></div>
       </div>
 
