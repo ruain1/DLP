@@ -1,5 +1,16 @@
 [
   {
+    "rev": "REV362",
+    "date": "2026-07-31",
+    "items": [
+      "The Planning Board adopts the REV361 classifier. A card whose start is made impossible by an open predecessor now carries an amber HELD chip instead of a red day count, and its slip tail turns amber, so red on the board means one thing: someone can act on it today.",
+      "Hovering a HELD chip names the binding predecessor, the earliest feasible start, the days adrift, and the root driver where the chain runs deeper than one step.",
+      "The Reports page Delayed metric is split into Late and Held, both clickable into the existing drill. The two sum to the previous Delayed figure exactly.",
+      "An activity that is held but not yet past its planned dates shows the board chip as early warning but is deliberately kept out of the Late and Held counts, so the KPI still reconciles.",
+      "Excused delays, failed-terminal witness records and completed activities are unaffected, as before."
+    ]
+  },
+  {
     "rev": "REV361",
     "date": "2026-07-31",
     "items": [
