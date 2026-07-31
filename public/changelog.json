@@ -1,5 +1,14 @@
 [
   {
+    "rev": "REV363",
+    "date": "2026-07-31",
+    "items": [
+      "The weekly report email now leads with a Tag Attainment strip: one tile per tag level (L1 to L5) from the latest cx_week import, each carrying its week-on-week movement in points against the prior import (green up, grey no change, red down, first import when no prior week exists), with the asset count and comparison week in the caption. The commitment tiles stay, second, under their own Commitments caption. The strip drops cleanly on projects with no Cx imports, so FIN3021 sends are unchanged until its first import",
+      "The report period label now uses the literal middot character instead of the &#183; HTML entity, which was showing literally in both the plain-text subject (entities never decode there) and the email header (the escaper re-escaped the ampersand)",
+      "The executive summary narrative is now paragraphed end to end. The deterministic draft groups its sentences into themed paragraphs (commitments and constraints; witnessing; asset attainment; risks and documentation) separated by blank lines; the AI polish output contract now asks for 2 to 4 short paragraphs and the author steer adopts the REV348 elevated author-instruction pattern, fixing steers being silently ignored; and the attached full report renders blank lines as separate paragraphs instead of collapsing every newline to a single line break"
+    ]
+  },
+  {
     "rev": "REV362",
     "date": "2026-07-31",
     "items": [
@@ -147,7 +156,7 @@
     "date": "2026-07-26",
     "items": [
       "YTT Focus can now be ordered by company. A new Priority / Company switch sits in the panel header. Priority is unchanged and stays the default: open constraints first, then committed, then start date. Company groups the same cards into one band per contractor so the morning meeting can run contractor by contractor.",
-      "Each company band carries that contractor's day at a glance: activity count, overdue, missed and open-constraint pills, and a plain-language shape on the right such as 1 overdue · 2 running · 3 starting. Bands with anything overdue or missed turn red; a contractor with nothing outstanding shows CLEAR. The company logo is used where one is set, otherwise its initials.",
+      "Each company band carries that contractor's day at a glance: activity count, overdue, missed and open-constraint pills, and a plain-language shape on the right such as 1 overdue \u00b7 2 running \u00b7 3 starting. Bands with anything overdue or missed turn red; a contractor with nothing outstanding shows CLEAR. The company logo is used where one is set, otherwise its initials.",
       "Band tallies are derived from the same status resolver the card badges use, so a band can never disagree with the cards beneath it.",
       "Collapse a band once that contractor has spoken, or use Collapse all / Expand all, giving the meeting a visible run order. Company ordering can be switched between A to Z (a predictable running order) and Most attention first (worst news at the top). Activities with no company group into a final Unassigned band.",
       "The Priority / Company choice and the company order are remembered between sessions; collapsed bands are per meeting and reset when YTT Focus closes.",
