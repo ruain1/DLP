@@ -1,5 +1,17 @@
 [
   {
+    "rev": "REV364",
+    "date": "2026-08-21",
+    "items": [
+      "Maintenance mode. A project admin, super or the owner can close a project to members from Admin, Settings (new Maintenance mode card at the top of the tab). Members see a holding page in the app's theme: project brand, a plain-text notice written by the admin, closed-since time, one named contact as a mailto link, My projects (multi-project members only) and Sign out. No reopen date or time is shown anywhere; members read until further notice. The page watches for reopen: the projects realtime event restores the board within a second of an admin ending maintenance, with a 60 second light poll as fallback for a tab that missed the event",
+      "The database enforces it. New trigger maintenance_guard on activities, activity_updates, invite_requests, morning_attendance, asset_override, docs_override, asset_event and settings rejects inserts, updates and deletes from non-admin members while a project is in maintenance (error DLP_MAINTENANCE, mapped to plain language in the error catalogue). Calls without an end-user JWT (edge functions, migrations, tooling) bypass the guard, so the super-action function and the MCP are unaffected. set_activity_percent is covered because it writes to activities",
+      "One write path for the flag: set_project_maintenance(project, on, message, contact name, contact email), SECURITY DEFINER, refuses non-admins, stamps maintenance_since and maintenance_by, and writes Maintenance started and Maintenance ended rows to the audit log (with duration on end). The card shows the last six of those as History. New projects columns: maintenance, maintenance_message, maintenance_since, maintenance_by, maintenance_contact_name, maintenance_contact_email",
+      "Admins keep working under a pinned amber banner on every page (Maintenance on, since time, Edit notice jumps to the Settings card, End maintenance). The Portal card and projects table show a Maintenance pill for members of a closed project. Starting maintenance is behind a confirm that states the live member and admin counts from project_members, that mid-edit members lose unsaved drawer changes, that the notice does not itself cancel calendar invites (use Cancel in the Witness Schedule), that scheduled emails are not paused, and that the action is audited",
+      "When the gate engages for a member, any open Edit Activity drawer, YTT Focus, Witness Schedule, notifications, drill modal, import or capacity popout is closed so a restored board later does not reopen stale state over reloaded data",
+      "Database alignment: is_super() now treats the owner platform role as super, matching the client's isSuper. Previously the owner's database rights on a project depended entirely on holding a project_members admin row"
+    ]
+  },
+  {
     "rev": "REV363",
     "date": "2026-07-31",
     "items": [
