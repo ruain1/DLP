@@ -1,5 +1,13 @@
 [
   {
+    "rev": "REV365",
+    "date": "2026-08-21",
+    "items": [
+      "Hotfix for REV364: the Maintenance mode card's switch reused the class name lk-tog, which Admin, Settings already uses for its full-width row toggles (Crew Capacity and the rest). The new 44px switch rule squeezed those rows into a narrow column and their labels wrapped over the Make-Ready and PPC fields. The switch is now lk-mtog; the original lk-tog rule is untouched and the Settings rows render as before REV364",
+      "Build discipline: a CSS class collision gate now runs before commit, asserting that every selector introduced by a REV is defined nowhere else in the stylesheet (the REV153 lesson, applied as a check rather than a memory)"
+    ]
+  },
+  {
     "rev": "REV364",
     "date": "2026-08-21",
     "items": [
