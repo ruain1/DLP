@@ -172,9 +172,9 @@ const css = `
 .lk-maintcard .hist label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
 .lk-maintcard .hist .r{display:flex;gap:10px;font-size:12.5px;padding:5px 0;color:var(--muted)}
 .lk-maintcard .hist .r b{color:var(--ink);font-weight:600;min-width:52px}
-.lk-tog{width:44px;height:24px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .15s}
-.lk-tog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
-.lk-tog.on{background:var(--st-warn)}.lk-tog.on::after{left:23px}
+.lk-mtog{width:44px;height:24px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.lk-mtog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
+.lk-mtog.on{background:var(--st-warn)}.lk-mtog.on::after{left:23px}
 .lk-metrics{display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
 .lk-metric{padding:10px 20px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:118px}
 .lk-metric .v{font-size:21px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
@@ -6348,7 +6348,7 @@ function MaintenanceCard({ S, cu }) {
         <h3>Maintenance mode</h3>
         <div className="hint">Closes the project to members and shows them a holding page with your notice and one contact. Admins, supers and the owner keep full access. Member writes are rejected by the database while this is on.</div>
       </div>
-      <div className={"lk-tog" + (on ? " on" : "")} role="switch" aria-checked={on} title={on ? "End maintenance" : "Start maintenance"} onClick={() => { if (busy) return; if (on) run(false); else setConfirm(true); }} />
+      <div className={"lk-mtog" + (on ? " on" : "")} role="switch" aria-checked={on} title={on ? "End maintenance" : "Start maintenance"} onClick={() => { if (busy) return; if (on) run(false); else setConfirm(true); }} />
     </div>
     <div className="grid2">
       <div className="lk-f"><label>Notice shown to members</label>
