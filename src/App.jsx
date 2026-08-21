@@ -23,6 +23,8 @@ function inviteRecipients(a) {
 }
 import { claimReportRun } from "./digestClaim";
 import SetPassword from "./SetPassword.jsx";
+import MaintenancePage, { isMaintenanceGated, fmtMaintSince } from "./MaintenancePage.jsx";
+import { setProjectMaintenance, fetchMaintenanceFlag } from "./data";
 import CxProgressPage from "./CxProgress.jsx";
 import AssetStatusPage from "./AssetStatus.jsx";
 import BenchmarksPage from "./Benchmarks.jsx";
@@ -145,6 +147,34 @@ const css = `
 .lk-colead{height:22px;max-width:96px;object-fit:contain;display:block;border-radius:3px}
 .lk-pill{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
 .lk-pill.admin{background:#7C3AED;color:#fff}.lk-pill.member{background:var(--chipbg);color:var(--accent)}
+.lk-maintbar{display:flex;align-items:center;gap:12px;padding:9px 16px;background:color-mix(in srgb, var(--st-warn) 14%, var(--paper));border-bottom:1px solid color-mix(in srgb, var(--st-warn) 45%, var(--line));color:var(--ink);font-size:13px;flex-wrap:wrap;flex:none}
+.lk-maintbar b{color:var(--st-warn);font-weight:700}
+.lk-maintbar .txt{color:var(--ink)}
+.lk-maintbar .sub{font-size:11.5px;color:var(--muted)}
+.lk-maintbar .lk-btn{padding:6px 11px;font-size:12px}
+.lk-maintdot{width:8px;height:8px;border-radius:50%;background:var(--st-warn);flex:none;animation:lkmtpulse 2.4s infinite}
+@keyframes lkmtpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--st-warn) 45%, transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.lk-maintdot{animation:none}}
+.lk-maintcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:0 0 18px}
+.lk-maintcard.on{border-color:color-mix(in srgb, var(--st-warn) 55%, var(--line));box-shadow:inset 4px 0 0 var(--st-warn)}
+.lk-maintcard .hd{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:4px}
+.lk-maintcard h3{margin:0 0 4px;font-size:15px}
+.lk-maintcard .hint{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:4px}
+.lk-maintcard .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:700px){.lk-maintcard .grid2{grid-template-columns:1fr}}
+.lk-maintcard .lk-f{margin-top:12px}
+.lk-maintcard .affect{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.lk-maintcard .affect>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--paper)}
+.lk-maintcard .affect b{display:block;font-size:20px;font-weight:700;letter-spacing:-.01em}
+.lk-maintcard .affect span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.lk-maintcard .actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.lk-maintcard .hist{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.lk-maintcard .hist label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+.lk-maintcard .hist .r{display:flex;gap:10px;font-size:12.5px;padding:5px 0;color:var(--muted)}
+.lk-maintcard .hist .r b{color:var(--ink);font-weight:600;min-width:52px}
+.lk-tog{width:44px;height:24px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.lk-tog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
+.lk-tog.on{background:var(--st-warn)}.lk-tog.on::after{left:23px}
 .lk-metrics{display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
 .lk-metric{padding:10px 20px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:118px}
 .lk-metric .v{font-size:21px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
@@ -1721,6 +1751,7 @@ const PORTAL_CSS = `
 .qp .kv .c b.warn{color:var(--red)}
 .qp .rolechip{font-size:10px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:999px;background:var(--chip);border:1px solid var(--line)}
 .qp .rolechip.admin{background:#1E63D618;color:var(--signal);border-color:transparent}
+.qp .rolechip.maint{background:#E0A33A22;color:var(--amber);border-color:#E0A33A55}
 .qp .pcard .foot{display:flex;align-items:center;justify-content:space-between;padding:11px 17px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
 .qp .enter{font-size:12.5px;font-weight:700;color:var(--signal);display:flex;align-items:center;gap:5px}
 .qp .newcard{border:1.5px dashed var(--line);background:transparent;display:flex;align-items:center;justify-content:center;min-height:200px;cursor:pointer;border-radius:16px;color:var(--muted);font-weight:600;font-size:13px;gap:8px}
@@ -2513,7 +2544,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
       <div className="body">
         <div><div className="code">{p.code}</div><div className="nm">{p.name}</div></div>
         {p.location && <div className="loc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>{p.location}</div>}
-        <div className="midrow">{ringEl(pct, p.accent)}<div className="kv"><div className="c">Activities<b>{p.stats.total}</b></div><div className="c">Overdue<b className={p.stats.overdue ? "warn" : ""}>{p.stats.overdue}</b></div></div><span className={"rolechip" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
+        <div className="midrow">{ringEl(pct, p.accent)}<div className="kv"><div className="c">Activities<b>{p.stats.total}</b></div><div className="c">Overdue<b className={p.stats.overdue ? "warn" : ""}>{p.stats.overdue}</b></div></div>{p.maintenance && p.role !== "admin" ? <span className="rolechip maint" title="Closed for maintenance; opens the holding page">Maintenance</span> : <span className={"rolechip" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span>}</div>
       </div>
       <div className="foot"><span>{p.startDate ? fmtDate(p.startDate) + (p.targetDate ? " \u2192 " + fmtDate(p.targetDate) : "") : (p.client || "\u00A0")}</span><span className="enter">Enter<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m9 18 6-6-6-6" /></svg></span></div>
     </div>); };
@@ -2644,7 +2675,7 @@ function Portal({ projects, isSuper, userName, activity, theme: theme0, onEnter,
                 <div><div className="pn">{p.name}</div><div className="pc">{p.code}{p.client ? " \u00B7 " + p.client : ""}</div></div>
                 <div style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{p.location || "\u2014"}</div>
                 <div><span className={"rolechip" + (p.role === "admin" ? " admin" : "")}>{p.role === "admin" ? "Admin" : "Member"}</span></div>
-                <div>{arch ? <span className="archchip">Archived</span> : p.status === "on_hold" ? <span className="archchip">On Hold</span> : <><div className="bar"><i style={{ width: pct + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pct}%</div></>}</div>
+                <div>{arch ? <span className="archchip">Archived</span> : p.status === "on_hold" ? <span className="archchip">On Hold</span> : p.maintenance ? <span className="rolechip maint" title="Closed for maintenance">Maintenance</span> : <><div className="bar"><i style={{ width: pct + "%", background: p.accent }} /></div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{pct}%</div></>}</div>
                 <div className="mono" style={{ color: p.stats.overdue ? "var(--red)" : "var(--muted)", fontWeight: 700 }}>{p.stats.overdue}</div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{fmtDate(p.startDate)}{p.targetDate ? <><br />{fmtDate(p.targetDate)}</> : ""}</div>
                 {isSuper && <div className="editbtn" title="Edit project" onClick={(e) => { e.stopPropagation(); openEdit(p); }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg></div>}
@@ -3102,6 +3133,11 @@ export default function App({ session }) {
   const railAdm = !!S && (isSuper || S.projectRole === "admin");
   useEffect(() => { if (!railAdm) return; let on = true; const go = () => loadPresence().then((pp) => { if (on) setRailPres(pp); }).catch(() => {}); go(); const t = setInterval(go, 30000); return () => { on = false; clearInterval(t); }; }, [railAdm]);
   useEffect(() => { if (!presOpen) return; setPresAudit(null); try { loadLatestAuditByUser(selProj).then(setPresAudit).catch(() => setPresAudit({})); } catch (e) { setPresAudit({}); } }, [presOpen, selProj]);
+  // REV364: maintenance gate, evaluated with the same admin formula as railAdm (cu is not
+  // yet declared here). When it engages for a member, drop any open drawer, popout or modal
+  // so a restored board later does not reopen stale state on top of reloaded data.
+  const maintGate = !!S && isMaintenanceGated(S.projectMeta, railAdm);
+  useEffect(() => { if (!maintGate) return; setEditing(null); setEditTab(null); setYtt(false); setWitSched(false); setNotifOpen(false); setMetricDrill(null); setShowImport(false); setCapOpen(false); }, [maintGate]);
   const prefs = () => { try { return JSON.parse(localStorage.getItem("dlp_prefs") || "{}"); } catch { return {}; } };
 
   const enterProject = async (projectId, projList, focusActId, initialPage) => {
@@ -3313,6 +3349,16 @@ export default function App({ session }) {
   if (!selProj) return <Portal projects={projects} isSuper={isSuper} userName={userName || session.user.email} activity={activity} theme={prefs().theme === "dark" ? "dark" : "light"} onEnter={(id, focus) => enterProject(id, undefined, focus)} onNew={createProjectAndEnter} onSignOut={() => signOut()} onLoadOverview={(pid) => loadProjectOverview(session, pid, (projects.find((p) => p.id === pid) || {}).name)} onUpdateProject={async (id, fields) => { await updateProject(id, fields); if (fields.syncBrand) { try { await updateBranding({ project_name: fields.code.trim() }, id); } catch (e) { console.error("Branding sync failed:", e); } } await boot(); }} onOpenAnalytics={(id) => enterProject(id, undefined, undefined, "reports")} />;
   if (!S) return <div className="lk" style={cssVars("light")}><style>{css}</style><div className="lk-empty">Loading board…</div></div>;
   if (cu.mustReset) return <SetPassword forced onDone={() => setS((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === cu.id ? { ...u, mustReset: false } : u)) }))} />;
+  // REV364: members of a project in maintenance see the holding page. cu.role is "admin" for
+  // project admins, supers and the owner, which is exactly the exempt set. The database guard
+  // (trigger maintenance_guard) rejects member writes regardless of what this client shows.
+  if (isMaintenanceGated(S.projectMeta, cu.role === "admin")) {
+    const pid = selProj;
+    const recheck = async () => { const flag = await fetchMaintenanceFlag(pid); if (flag && !flag.maintenance && selProjRef.current === pid) await enterProject(pid); };
+    return <div className="lk" style={cssVars(S.theme, S.settings)}><style>{css}</style>
+      <MaintenancePage brand={S.brand} meta={S.projectMeta} theme={S.theme} hasPortal={isSuper || projects.length > 1} onPortal={goPortal} onSignOut={() => signOut()} onCheck={recheck} />
+    </div>;
+  }
   const LV = S.levels || DEFAULT_LEVELS;
 
   const isAdmin = cu.role === "admin";
@@ -4373,6 +4419,7 @@ export default function App({ session }) {
           <button className="lk-btn" onClick={() => signOut()}>Sign out</button>
         </div>
       </div>
+      {S.projectMeta && S.projectMeta.maintenance && <MaintenanceBanner meta={S.projectMeta} onManage={() => { try { localStorage.setItem("dlp_admintab", "settings"); } catch (e) {} setPage("admin"); }} onEnd={async () => { try { await setProjectMaintenance(selProj, false); } catch (e) { window.alert("Could not end maintenance: " + catalogErr((e && e.message) || String(e)).plain); } }} />}
       {page === "board" && <PageBoundary resetKey={page}><div className="lk-boardpage" style={{ "--bd-fs": BD.cardText === "s" ? 0.9 : BD.cardText === "l" ? 1.12 : 1 }}>
       <div className="lk-toolbar">
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -6247,6 +6294,118 @@ function SigninLogTab({ S, initialUser }) {
 }
 
 
+// REV364: admin-side maintenance surfaces. The banner is mounted in the main shell for the
+// exempt accounts; the card lives at the top of Admin > Settings. Both read the live flag
+// from S.projectMeta (refreshed by the projects realtime event) and write only through the
+// set_project_maintenance RPC. No reopen date or time exists anywhere in this feature.
+function MaintenanceBanner({ meta, onManage, onEnd }) {
+  const [busy, setBusy] = useState(false);
+  const since = fmtMaintSince(meta && meta.maintenanceSince);
+  return <div className="lk-maintbar" role="status">
+    <span className="lk-maintdot" aria-hidden="true" />
+    <b>Maintenance on</b>
+    <span className="txt">Members see the holding page. Admins keep access; member writes are rejected at the database.</span>
+    <span className="lk-spacer" />
+    <span className="mono sub">{since ? "since " + since + " \u00b7 " : ""}until further notice</span>
+    <button className="lk-btn" onClick={onManage}>Edit notice</button>
+    <button className="lk-btn primary" disabled={busy} onClick={async () => { setBusy(true); try { await onEnd(); } finally { setBusy(false); } }}>{busy ? "Ending\u2026" : "End maintenance"}</button>
+  </div>;
+}
+function MaintenanceCard({ S, cu }) {
+  const meta = S.projectMeta || {};
+  const on = !!meta.maintenance;
+  const ownerName = (((S.users || []).find((u) => u.platformRole === "owner")) || {}).name || "";
+  const [msg, setMsg] = useState(meta.maintenanceMessage || "All scheduled witness invites are cancelled until further notice. Do not attend sessions on the strength of an earlier calendar invite.");
+  const [cName, setCName] = useState(meta.maintenanceContactName || ownerName);
+  const [cEmail, setCEmail] = useState(meta.maintenanceContactEmail || "ruain.b@cs-nordics.com");
+  const [members, setMembers] = useState(null);   // { total, admins } from project_members, or { error }
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  // Resync the form when the live flag changes under us (another admin edited it).
+  useEffect(() => { if (meta.maintenanceMessage) setMsg(meta.maintenanceMessage); if (meta.maintenanceContactName) setCName(meta.maintenanceContactName); if (meta.maintenanceContactEmail) setCEmail(meta.maintenanceContactEmail); }, [meta.maintenanceMessage, meta.maintenanceContactName, meta.maintenanceContactEmail]);
+  useEffect(() => {
+    let live = true;
+    loadProjectMembers(S.projectId).then((rows) => { if (!live) return; const total = rows.length; const admins = rows.filter((r) => r.role === "admin").length; setMembers({ total, admins }); }).catch((e) => { if (live) setMembers({ error: (e && e.message) || String(e) }); });
+    return () => { live = false; };
+  }, [S.projectId]);
+  const emailOk = !cEmail.trim() || /.+@.+\..+/.test(cEmail.trim());
+  const hist = (S.audit || []).filter((e) => e.action === "Maintenance started" || e.action === "Maintenance ended").slice(0, 6);
+  const fmtTs = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso; } };
+  const run = async (next) => {
+    setBusy(true); setNote("");
+    try {
+      await setProjectMaintenance(S.projectId, next, { message: msg, contactName: cName, contactEmail: cEmail });
+      setNote(next ? "Maintenance started. Members are switching to the holding page now." : "Maintenance ended. Members are back on the board.");
+      setConfirm(false);
+    } catch (e) { setNote("Failed: " + catalogErr((e && e.message) || String(e)).plain); }
+    finally { setBusy(false); }
+  };
+  const affected = members && !members.error ? Math.max(0, members.total - members.admins) : null;
+  return <div className={"lk-maintcard" + (on ? " on" : "")}>
+    <div className="hd">
+      <div>
+        <h3>Maintenance mode</h3>
+        <div className="hint">Closes the project to members and shows them a holding page with your notice and one contact. Admins, supers and the owner keep full access. Member writes are rejected by the database while this is on.</div>
+      </div>
+      <div className={"lk-tog" + (on ? " on" : "")} role="switch" aria-checked={on} title={on ? "End maintenance" : "Start maintenance"} onClick={() => { if (busy) return; if (on) run(false); else setConfirm(true); }} />
+    </div>
+    <div className="grid2">
+      <div className="lk-f"><label>Notice shown to members</label>
+        <textarea className="lk-in" rows={4} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="One or two lines. What is happening and whether anything they did is affected." style={{ resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }} />
+        <div className="hint">Plain text, shown verbatim on the holding page. {on ? "Save notice pushes an edit live without ending maintenance." : ""}</div>
+      </div>
+      <div>
+        <div className="lk-f"><label>Contact shown to members</label>
+          <input className="lk-in" value={cName} onChange={(e) => setCName(e.target.value)} placeholder="Name" />
+          <input className="lk-in mono" value={cEmail} onChange={(e) => setCEmail(e.target.value)} placeholder="email@company.com" style={{ marginTop: 8 }} />
+          {!emailOk && <div className="hint" style={{ color: "var(--red, #C0392B)" }}>That email does not look right.</div>}
+          <div className="hint">One named person, rendered as a mailto link. No reopen date or time is shown anywhere; members see until further notice.</div>
+        </div>
+      </div>
+    </div>
+    <div className="affect">
+      <div><b>{members ? (members.error ? "?" : members.total) : "\u2026"}</b><span>members</span></div>
+      <div><b>{affected == null ? "\u2026" : affected}</b><span>will see holding page</span></div>
+      <div><b>{members ? (members.error ? "?" : members.admins) : "\u2026"}</b><span>exempt (admins)</span></div>
+    </div>
+    {members && members.error && <div className="hint" style={{ color: "var(--red, #C0392B)" }}>Could not load the member count: {members.error}</div>}
+    <div className="actions">
+      {on
+        ? <>
+          <button className="lk-btn" disabled={busy || !emailOk} onClick={() => run(true)}>Save notice</button>
+          <button className="lk-btn primary" disabled={busy} onClick={() => run(false)}>{busy ? "Working\u2026" : "End maintenance"}</button>
+        </>
+        : <button className="lk-btn" style={{ background: "var(--st-warn)", borderColor: "var(--st-warn)", color: "#fff" }} disabled={busy || !emailOk} onClick={() => setConfirm(true)}>Start maintenance</button>}
+      {note && <span className="hint" style={{ alignSelf: "center" }}>{note}</span>}
+    </div>
+    {hist.length > 0 && <div className="hist">
+      <label>History</label>
+      {hist.map((e) => <div key={e.id} className="r"><b>{e.action === "Maintenance started" ? "Started" : "Ended"}</b><span>{fmtTs(e.ts)} {"\u00b7"} {e.user || "unknown"}{e.detail ? " \u00b7 " + e.detail : ""}</span></div>)}
+    </div>}
+    {confirm && <div className="lk-modal-bg" onClick={() => { if (!busy) setConfirm(false); }}>
+      <div className="lk-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+        <div className="bd">
+          <h4 style={{ margin: 0, fontSize: 16 }}>Start maintenance on {meta.name || meta.code || "this project"}?</h4>
+          <div style={{ fontSize: 13.5 }}>This takes effect within a few seconds for everyone signed in.</div>
+          <ul>
+            <li><b>{affected == null ? "All" : affected} member{affected === 1 ? "" : "s"}</b> switch to the holding page, including anyone mid-edit. Unsaved drawer changes on their side are lost.</li>
+            <li><b>{members && !members.error ? members.admins : "The"} admin{members && !members.error && members.admins === 1 ? "" : "s"}</b> keep working with a banner.</li>
+            <li>Member saves and percent updates are rejected by the database until you end maintenance.</li>
+            <li>The notice tells members invites are cancelled. It does <b>not</b> cancel calendar invites itself: use Cancel in the Witness Schedule to send cancellations from your mailbox.</li>
+            <li>Scheduled emails (Morning Cx Update, digests) are <b>not</b> paused. End maintenance before the next send, or switch them off under Reports.</li>
+            <li>Recorded in the audit trail under {cu && cu.name ? cu.name : "your name"}.</li>
+          </ul>
+        </div>
+        <div className="rep-foot">
+          <button className="lk-btn" disabled={busy} onClick={() => setConfirm(false)}>Cancel</button>
+          <button className="lk-btn" style={{ background: "var(--st-warn)", borderColor: "var(--st-warn)", color: "#fff" }} disabled={busy} onClick={() => run(true)}>{busy ? "Starting\u2026" : "Start maintenance"}</button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
 function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient, projCode }) {
   const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("dlp_admintab"); return ["branding", "levels", "systems", "areas", "companies", "vendors", "settings", "baseline", "members", "requests", "audit", "data", "privileges", "connections", "design", "signins", "errors"].includes(t) ? t : "companies"; } catch (e) { return "companies"; } });
   useEffect(() => { try { localStorage.setItem("dlp_admintab", tab); } catch (e) {} }, [tab]);
@@ -7509,6 +7668,7 @@ function AdminPanel({ S, cu, update, exportActivities, can, isOwner, projClient,
             {connMsg && <div style={{ fontSize: 11.5, color: connMsg.indexOf("failed") !== -1 ? "var(--red)" : "var(--muted)" }}>{connMsg}</div>}
           </>}
           {tab === "settings" && <>
+            <MaintenanceCard S={S} cu={cu} />
             {/* REV128: Lookahead Length removed from Admin. The board window is now a per-user
                 view preference set from the board toolbar by everyone, seeded from the project
                 default (settings.weeks, still stored and used as the seed). */}

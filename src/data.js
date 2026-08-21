@@ -65,7 +65,7 @@ export async function loadAll(session, projectId, projectName) {
     supabase.from("tier3_areas").select("*").eq("project_id", projectId).order("name"),
     supabase.from("invite_requests").select("*").eq("project_id", projectId),
     supabase.from("user_privileges").select("*").eq("project_id", projectId),
-    supabase.from("projects").select("id, code, name, client, location").eq("id", projectId).maybeSingle(),
+    supabase.from("projects").select("id, code, name, client, location, maintenance, maintenance_message, maintenance_since, maintenance_by, maintenance_contact_name, maintenance_contact_email").eq("id", projectId).maybeSingle(),
     supabase.from("invite_types").select("*").eq("project_id", projectId).order("name"),
   ]);
   // REV216 (3d): the project's associated companies drive pickers; null = association data
@@ -91,7 +91,9 @@ export async function loadAll(session, projectId, projectName) {
     activities: (activities.data || []).map(fromActivity),
     audit: (audit.data || []).map((e) => ({ id: e.id, ts: e.ts, user: e.user_name, action: e.action, detail: e.detail, entity: e.entity, entityId: e.entity_id })),
     brand: brandFrom(branding.data, projectName),
-    projectMeta: (projMeta && projMeta.data) ? { code: projMeta.data.code || "", name: projMeta.data.name || "", client: projMeta.data.client || "", location: projMeta.data.location || "" } : null,
+    // REV364: maintenance fields ride on projectMeta. projects is a global realtime table, so a
+    // flip re-enters the project on every signed-in client and this block refreshes with it.
+    projectMeta: (projMeta && projMeta.data) ? { code: projMeta.data.code || "", name: projMeta.data.name || "", client: projMeta.data.client || "", location: projMeta.data.location || "", ...maintenanceFrom(projMeta.data) } : null,
     subAreas: (subAreas.data || []).map((s) => ({ area: s.area, name: s.name })),
     tier3s: (tier3s.data || []).map((t) => ({ area: t.area, subArea: t.sub_area, name: t.name })),
     inviteRequests: (inviteReqs.data || []).map(fromInviteRequest),
@@ -131,6 +133,7 @@ export async function loadProjects(session) {
     tagline: p.tagline || "", appName: p.app_name || "DLP",
     startDate: p.start_date || null, targetDate: p.target_date || null,
     status: p.status || "active",
+    ...maintenanceFrom(p),
     role: isSuper ? "admin" : (roleByProj[p.id] || "member"),
     stats: stat[p.id] || { total: 0, complete: 0, overdue: 0, inProgress: 0 },
   }));
@@ -208,6 +211,33 @@ export async function createProject(fields, session) {
     await Promise.all(ops);
   }
   return id;
+}
+
+// REV364: maintenance mode. One mapper so the portal list and projectMeta agree on names.
+export const maintenanceFrom = (p) => ({
+  maintenance: !!(p && p.maintenance),
+  maintenanceMessage: (p && p.maintenance_message) || "",
+  maintenanceSince: (p && p.maintenance_since) || null,
+  maintenanceBy: (p && p.maintenance_by) || null,
+  maintenanceContactName: (p && p.maintenance_contact_name) || "",
+  maintenanceContactEmail: (p && p.maintenance_contact_email) || "",
+});
+// The only write path for the flag: the RPC checks is_project_admin, stamps since and by,
+// and writes the audit row (audit_log has no client write policy, so this is the honest route).
+export async function setProjectMaintenance(projectId, on, { message, contactName, contactEmail } = {}) {
+  const { error } = await supabase.rpc("set_project_maintenance", {
+    p_project: projectId, p_on: !!on,
+    p_message: message == null ? null : String(message),
+    p_contact_name: contactName == null ? null : String(contactName),
+    p_contact_email: contactEmail == null ? null : String(contactEmail),
+  });
+  if (error) throw error;
+}
+// Light poll used by the holding page as a fallback to realtime: six columns, one row.
+export async function fetchMaintenanceFlag(projectId) {
+  const { data, error } = await supabase.from("projects").select("maintenance, maintenance_message, maintenance_since, maintenance_by, maintenance_contact_name, maintenance_contact_email").eq("id", projectId).maybeSingle();
+  if (error) throw error;
+  return data ? maintenanceFrom(data) : null;
 }
 
 const brandFrom = (d, projectName) => ({

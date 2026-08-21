@@ -11,6 +11,8 @@ export function catalogErr(raw) {
   if (/duplicate key/i.test(t)) return { kind: "dup", plain: "This record already exists; the duplicate was blocked. Refresh to see the current state." };
   if (/(failed to fetch|networkerror|network request failed|err_network|load failed\.)/i.test(t)) return { kind: "net", plain: "Could not reach the database. Check your connection; the app retries automatically when you save again." };
   if (/(jwt|token|expired|session)/i.test(t)) return { kind: "auth", plain: "Your session needs a refresh. Sign out and back in, then retry." };
+  if (/DLP_MAINTENANCE/.test(t)) return { kind: "maint", plain: "This project is closed for maintenance, so the change was not saved. The board reopens automatically when maintenance ends; nothing you did before it started is lost." };
+  if (/DLP_FORBIDDEN/.test(t)) return { kind: "guard", plain: "Only project admins can change maintenance mode." };
   if (/activities_percent_complete_chk/i.test(t)) return { kind: "guard", plain: "Percent reaches 100 only when the activity is marked Complete. Set the status to Complete, which records the actual finish, or hold the progress at 99." };
   return { kind: "raw", plain: t };
 }
